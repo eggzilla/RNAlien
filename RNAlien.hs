@@ -1,6 +1,6 @@
--- file: RNAlien
--- compile with:
--- ghc --make RNAalien
+-- | Unsupervized construction of RNA family models
+--   Parsing is done with blastxml, RNAzParser
+--   For more information on RNA family models consult <http://meme.nbcr.net/meme/>
 
 import System.Environment (getArgs)
 import System.Process 
@@ -24,11 +24,7 @@ import System.Cmd
 -- blast input sequence and extract initial sequences
     
 main = do
-  --get single input line from terminal
-  --input_filename <- getLine
   args <- getArgs
-  -- first arg is input filename
-  -- second arg is outputfilename
   let input_file = (head args)
   let output_file = (last args)
   input_present <- doesFileExist input_file
