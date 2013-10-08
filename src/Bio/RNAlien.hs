@@ -13,6 +13,8 @@ import Bio.Sequence.Fasta
 --parse blastxml input
 import Bio.BlastData   
 import Bio.BlastXML
+--parse RNAzOutput
+import Bio.RNAzParser
 --check if files exist
 import System.Directory
 --run external programs
@@ -33,12 +35,15 @@ main = do
   --show input_present
   let input_present_string = show input_present
   let output_present_string = show output_present                          
-  contents <- readFile input_file
 
   -- read in input fasta            
   --inputFasta <- readFasta input_file
   --writeFasta output_file inputFasta
 
   -- read in blast xml output
-  inputBlast <- readXML input_file
-  print inputBlast
+  --inputBlast <- readXML input_file
+  --print inputBlast
+
+  -- read RNAz outputfile
+  rnazparsed <- getRNAzOutput input_file
+  print rnazparsed
