@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   width="74.951172"
+   height="20.622925"
+   id="svg2"
+   version="1.1"
+   inkscape:version="0.48.4 r9939"
+   sodipodi:docname="New document 1">
+  <defs
+     id="defs4" />
+  <sodipodi:namedview
+     id="base"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageopacity="0.0"
+     inkscape:pageshadow="2"
+     inkscape:zoom="7.5"
+     inkscape:cx="73.185026"
+     inkscape:cy="-20.621108"
+     inkscape:document-units="px"
+     inkscape:current-layer="layer1"
+     showgrid="false"
+     fit-margin-top="0"
+     fit-margin-left="0"
+     fit-margin-right="0"
+     fit-margin-bottom="0"
+     inkscape:window-width="1920"
+     inkscape:window-height="1168"
+     inkscape:window-x="1920"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1" />
+  <metadata
+     id="metadata7">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title></dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-21.962891,-83.451027)">
+    <text
+       xml:space="preserve"
+       style="font-size:20px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Serif;-inkscape-font-specification:Serif"
+       x="20"
+       y="103.79075"
+       id="text2985"
+       sodipodi:linespacing="125%"><tspan
+         sodipodi:role="line"
+         id="tspan2987"
+         x="20"
+         y="103.79075"
+         style="font-size:20px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:Sans;-inkscape-font-specification:Sans">RNAlien</tspan></text>
+    <rect
+       style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:none"
+       id="rect2989"
+       width="6.5333333"
+       height="1.0666667"
+       x="96.936913"
+       y="26.680538"
+       transform="matrix(0.72336015,0.69047092,-0.69047092,0.72336015,0,0)" />
+    <path
+       sodipodi:type="arc"
+       style="fill:#00ff00;fill-opacity:1;fill-rule:evenodd;stroke:#000000"
+       id="path2991"
+       sodipodi:cx="24.533333"
+       sodipodi:cy="-18.47526"
+       sodipodi:rx="1.3333334"
+       sodipodi:ry="1.3333334"
+       d="m 25.866666,-18.47526 c 0,0.73638 -0.596953,1.333334 -1.333333,1.333334 -0.73638,0 -1.333334,-0.596954 -1.333334,-1.333334 0,-0.736379 0.596954,-1.333333 1.333334,-1.333333 0.73638,0 1.333333,0.596954 1.333333,1.333333 z"
+       transform="matrix(0.72336015,0.69047092,-0.69047092,0.72336015,19.85798,81.933126)" />
+    <rect
+       style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:none"
+       id="rect2989-3"
+       width="6.5333333"
+       height="1.0666667"
+       x="16.066805"
+       y="103.56398"
+       transform="matrix(-0.72336015,0.69047092,0.69047092,0.72336015,0,0)" />
+    <path
+       sodipodi:type="arc"
+       style="fill:#00ff00;fill-opacity:1;fill-rule:evenodd;stroke:#000000"
+       id="path2991-2"
+       sodipodi:cx="24.533333"
+       sodipodi:cy="-18.47526"
+       sodipodi:rx="1.3333334"
+       sodipodi:ry="1.3333334"
+       d="m 25.866666,-18.47526 c 0,0.73638 -0.596953,1.333334 -1.333333,1.333334 -0.73638,0 -1.333334,-0.596954 -1.333334,-1.333334 0,-0.736379 0.596954,-1.333333 1.333334,-1.333333 0.73638,0 1.333333,0.596954 1.333333,1.333333 z"
+       transform="matrix(-0.72336015,0.69047092,0.69047092,0.72336015,91.726013,81.709076)" />
+  </g>
+</svg>
