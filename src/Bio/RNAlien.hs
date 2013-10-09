@@ -1,7 +1,8 @@
 -- | Unsupervized construction of RNA family models
 --   Parsing is done with blastxml, RNAzParser
 --   For more information on RNA family models consult <http://meme.nbcr.net/meme/>
-
+module Main where
+    
 import System.Environment (getArgs)
 import System.Process 
 import Text.ParserCombinators.Parsec

@@ -14,7 +14,7 @@ category:            Bioinformatics
 build-type:          Simple
 cabal-version:       >=1.8
 
-executable cmcv
+executable RNAlien
   Hs-Source-Dirs:      ./src/Bio/
   main-is:	       RNAlien.hs    
   build-depends:       base >=4.5, cmdargs, RNAzParser, process, directory, blastxml, biofasta, parsec
