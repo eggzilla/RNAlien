@@ -20,11 +20,14 @@ import Bio.RNAzParser
 import System.Directory
 --run external programs
 import System.Cmd
-
--- Step 1:
--- verify input fasta file and extract sequence
--- Step 2:
--- blast input sequence and extract initial sequences
+--libaries for random number generation    
+import System.Random
+import Control.Monad
+import Data.Int (Int16)
+    
+-- | Adds cm prefix to pseudo random number
+randomid :: Int16 -> String
+randomid number = "cm" ++ (show number)
     
 main = do
   args <- getArgs
@@ -33,10 +36,18 @@ main = do
   input_present <- doesFileExist input_file
   output_present <- doesFileExist output_file                   
 
-  --show input_present
   let input_present_string = show input_present
   let output_present_string = show output_present                          
 
+-- | Create unique session id
+  randomnumber <- randomIO :: IO Int16
+  let sessionid = randomid randomnumber
+  
+  --let generator = mkStdGen 1
+  --let randomid = next generator
+  
+  --getnumber  a b  = a 
+  --randomnumber = getnumber randomid
   -- read in input fasta            
   --inputFasta <- readFasta input_file
   --writeFasta output_file inputFasta
@@ -46,5 +57,6 @@ main = do
   --print inputBlast
 
   -- read RNAz outputfile
-  rnazparsed <- getRNAzOutput input_file
-  print rnazparsed
+  rnazparsed <- parseRNAz input_file
+  --print rnazparsed
+  print (randomid randomnumber)
