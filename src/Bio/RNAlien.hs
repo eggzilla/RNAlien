@@ -1,9 +1,12 @@
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+
 -- | Unsupervized construction of RNA family models
 --   Parsing is done with blastxml, RNAzParser
 --   For more information on RNA family models consult <http://meme.nbcr.net/meme/>
 module Main where
     
-import System.Environment (getArgs)
+import System.Console.CmdArgs    
 import System.Process 
 import Text.ParserCombinators.Parsec
 import System.IO
@@ -24,17 +27,28 @@ import System.Cmd
 import System.Random
 import Control.Monad
 import Data.Int (Int16)
-    
+
+data Options = Options            
+  { inputFile :: String,
+    outputPath :: String
+  } deriving (Show,Data,Typeable)
+
+options = Options
+  { inputFile = def &= name "i" &= help "Path to input fasta file",
+    outputPath = def &= name "o" &= help "Path to output directory"
+  } &= summary "RNAlien devel version" &= help "Florian Eggenhofer - 2013" &= verbosity             
+
+
+
 -- | Adds cm prefix to pseudo random number
 randomid :: Int16 -> String
 randomid number = "cm" ++ (show number)
     
 main = do
   args <- getArgs
-  let input_file = (head args)
-  let output_file = (last args)
-  input_present <- doesFileExist input_file
-  output_present <- doesFileExist output_file                   
+  Options{..} <- cmdArgs options       
+  input_present <- doesFileExist inputFile
+  output_present <- doesFileExist outputPath                   
 
   let input_present_string = show input_present
   let output_present_string = show output_present                          
@@ -57,6 +71,6 @@ main = do
   --print inputBlast
 
   -- read RNAz outputfile
-  rnazparsed <- parseRNAz input_file
+  rnazparsed <- parseRNAz inputFile
   --print rnazparsed
   print (randomid randomnumber)
