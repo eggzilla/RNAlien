@@ -14,7 +14,7 @@ import System.Environment
 import Data.List
 --parse Fasta
 import Bio.Sequence.Fasta
---parse blastxml input
+--parse Blast xml 
 import Bio.BlastData   
 import Bio.BlastXML
 --parse RNAzOutput
@@ -39,11 +39,29 @@ options = Options
   } &= summary "RNAlien devel version" &= help "Florian Eggenhofer - 2013" &= verbosity             
 
 
-
 -- | Adds cm prefix to pseudo random number
 randomid :: Int16 -> String
 randomid number = "cm" ++ (show number)
-    
+
+
+-- | Run external blast command and read the output into the corresponding datatype
+systemBlast filepath iterationnumber = system ("blastn -outfmt 5 -query " ++ filepath  ++ " -db refseq_genomic -out " ++ iterationnumber ++ ".blastout")
+
+-- | Run external clustalw2 command and read the output into the corresponding datatype
+systemClustalw2 filepath iterationnumber = system ("clustalw2 -INFILE=" ++ filepath  ++ " -OUTFILE" ++ iterationnumber ++ ".aln")
+
+-- | Run external RNAalifold command and read the output into the corresponding datatype
+systemRNAalifold filepath iterationnumber = system ("RNAalifold " ++ filepath  ++ " >" ++ iterationnumber ++ ".alifold")
+
+-- | Run external RNAz command and read the output into the corresponding datatype
+systemRNAz filepath iterationnumber = system ("RNAz " ++ filepath ++ " >" ++ iterationnumber ++ ".aln")
+
+-- | Run external CMbuild command and read the output into the corresponding datatype 
+systemCMbuild filepath iterationnumber = system ("cmbuild " ++ filepath ++ " >" ++ iterationnumber ++ ".cm")                                          
+
+-- | Run CMCompare and read the output into the corresponding datatype
+systemCMcompare filepath iterationnumber = system ("CMcompare " ++ filepath ++ " >" ++ iterationnumber ++ ".cmcoutput")
+
 main = do
   args <- getArgs
   Options{..} <- cmdArgs options       
@@ -69,8 +87,11 @@ main = do
   -- read in blast xml output
   --inputBlast <- readXML input_file
   --print inputBlast
-
+  let filepath = "~egg/test.fa"
   -- read RNAz outputfile
   rnazparsed <- parseRNAz inputFile
+  blastoutput <- systemblast filepath "1"
+  print blastoutput
+                  
   --print rnazparsed
   print (randomid randomnumber)
