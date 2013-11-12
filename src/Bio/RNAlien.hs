@@ -38,11 +38,9 @@ options = Options
     outputPath = def &= name "o" &= help "Path to output directory"
   } &= summary "RNAlien devel version" &= help "Florian Eggenhofer - 2013" &= verbosity             
 
-
 -- | Adds cm prefix to pseudo random number
 randomid :: Int16 -> String
 randomid number = "cm" ++ (show number)
-
 
 -- | Run external blast command and read the output into the corresponding datatype
 systemBlast filepath iterationnumber = do
@@ -79,18 +77,6 @@ main = do
   randomnumber <- randomIO :: IO Int16
   let sessionid = randomid randomnumber
   
-  --let generator = mkStdGen 1
-  --let randomid = next generator
-  
-  --getnumber  a b  = a 
-  --randomnumber = getnumber randomid
-  -- read in input fasta            
-  --inputFasta <- readFasta input_file
-  --writeFasta output_file inputFasta
-
-  -- read in blast xml output
-  --inputBlast <- readXML input_file
-  --print inputBlast
   let filepath = "~egg/test.fa"
   -- read RNAz outputfile
   rnazparsed <- parseRNAz inputFile
