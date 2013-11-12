@@ -45,7 +45,11 @@ randomid number = "cm" ++ (show number)
 
 
 -- | Run external blast command and read the output into the corresponding datatype
-systemBlast filepath iterationnumber = system ("blastn -outfmt 5 -query " ++ filepath  ++ " -db refseq_genomic -out " ++ iterationnumber ++ ".blastout")
+systemBlast filepath iterationnumber = do
+  let outputName = iterationnumber ++ ".blastout"
+  system ("blastn -outfmt 5 -query " ++ filepath  ++ " -db refseq_genomic -out " ++ outputName)
+  inputBlast <- readXML outputName
+  return inputBlast
 
 -- | Run external clustalw2 command and read the output into the corresponding datatype
 systemClustalw2 filepath iterationnumber = system ("clustalw2 -INFILE=" ++ filepath  ++ " -OUTFILE" ++ iterationnumber ++ ".aln")
@@ -90,8 +94,7 @@ main = do
   let filepath = "~egg/test.fa"
   -- read RNAz outputfile
   rnazparsed <- parseRNAz inputFile
-  blastoutput <- systemblast filepath "1"
+  blastoutput <- systemBlast filepath "1"
   print blastoutput
-                  
-  --print rnazparsed
+  print rnazparsed           
   print (randomid randomnumber)
