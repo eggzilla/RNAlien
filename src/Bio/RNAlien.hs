@@ -38,7 +38,7 @@ data ModelConstruction = ModelConstruction
   { alignmentPath :: String,
     modelPath :: String,
     sessionID :: String,
-    iterationnumber :: Int
+    iterationNumber :: Int
   } deriving (Show) 
 
 options = Options
@@ -66,26 +66,26 @@ randomid number = "cm" ++ (show number)
 
 -- | Run external blast command and read the output into the corresponding datatype
 systemBlast :: String -> Int -> IO BlastResult
-systemBlast filepath iterationnumber = do
-  let outputName = (show iterationnumber) ++ ".blastout"
-  system ("blastn -outfmt 5 -query " ++ filepath  ++ " -db refseq_genomic -out " ++ outputName)
+systemBlast filePath iterationNumber = do
+  let outputName = (show iterationNumber) ++ ".blastout"
+  system ("blastn -outfmt 5 -query " ++ filePath  ++ " -db refseq_genomic -out " ++ outputName)
   inputBlast <- readXML outputName
   return inputBlast
 
 -- | Run external clustalw2 command and read the output into the corresponding datatype
-systemClustalw2 filepath iterationnumber = system ("clustalw2 -INFILE=" ++ filepath  ++ " -OUTFILE" ++ iterationnumber ++ ".aln")
+systemClustalw2 filePath iterationNumber = system ("clustalw2 -INFILE=" ++ filePath  ++ " -OUTFILE" ++ iterationNumber ++ ".aln")
 
 -- | Run external RNAalifold command and read the output into the corresponding datatype
-systemRNAalifold filepath iterationnumber = system ("RNAalifold " ++ filepath  ++ " >" ++ iterationnumber ++ ".alifold")
+systemRNAalifold filePath iterationNumber = system ("RNAalifold " ++ filePath  ++ " >" ++ iterationNumber ++ ".alifold")
 
 -- | Run external RNAz command and read the output into the corresponding datatype
-systemRNAz filepath iterationnumber = system ("RNAz " ++ filepath ++ " >" ++ iterationnumber ++ ".aln")
+systemRNAz filePath iterationNumber = system ("RNAz " ++ filePath ++ " >" ++ iterationNumber ++ ".aln")
 
 -- | Run external CMbuild command and read the output into the corresponding datatype 
-systemCMbuild filepath iterationnumber = system ("cmbuild " ++ filepath ++ " >" ++ iterationnumber ++ ".cm")                                          
+systemCMbuild filePath iterationNumber = system ("cmbuild " ++ filePath ++ " >" ++ iterationNumber ++ ".cm")                                          
 
 -- | Run CMCompare and read the output into the corresponding datatype
-systemCMcompare filepath iterationnumber = system ("CMcompare " ++ filepath ++ " >" ++ iterationnumber ++ ".cmcoutput")
+systemCMcompare filePath iterationNumber = system ("CMcompare " ++ filePath ++ " >" ++ iterationNumber ++ ".cmcoutput")
 
 main = do
   args <- getArgs
@@ -102,8 +102,8 @@ main = do
   --blastoutput <- systemBlast filepath "1"
   
    -- SessionID, iterationNumber
-  randomnumber <- randomIO :: IO Int16
-  let sessionId = randomid randomnumber
+  randomNumber <- randomIO :: IO Int16
+  let sessionId = randomid randomNumber
   --create seed model
   seedModel <- modelConstruction sessionId inputFile
   print seedModel
