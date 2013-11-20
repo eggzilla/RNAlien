@@ -13,7 +13,7 @@ import System.IO
 import System.Environment
 import Data.List
 --parse Fasta
-import Bio.Sequence.Fasta
+import Bio.Sequence.Fasta    
 --parse Blast xml 
 import Bio.BlastData   
 import Bio.BlastXML
@@ -27,7 +27,8 @@ import System.Cmd
 import System.Random
 import Control.Monad
 import Data.Int (Int16)
-
+import Bio.BlastHTTP
+    
 data Options = Options            
   { inputFile :: String,
     outputPath :: String
@@ -72,6 +73,7 @@ systemBlast filePath iterationNumber = do
   inputBlast <- readXML outputName
   return inputBlast
 
+        
 -- | Run external clustalw2 command and read the output into the corresponding datatype
 systemClustalw2 filePath iterationNumber = system ("clustalw2 -INFILE=" ++ filePath  ++ " -OUTFILE" ++ iterationNumber ++ ".aln")
 
@@ -87,6 +89,8 @@ systemCMbuild filePath iterationNumber = system ("cmbuild " ++ filePath ++ " >" 
 -- | Run CMCompare and read the output into the corresponding datatype
 systemCMcompare filePath iterationNumber = system ("CMcompare " ++ filePath ++ " >" ++ iterationNumber ++ ".cmcoutput")
 
+
+                                           
 main = do
   args <- getArgs
   Options{..} <- cmdArgs options       
@@ -105,7 +109,9 @@ main = do
   randomNumber <- randomIO :: IO Int16
   let sessionId = randomid randomNumber
   --create seed model
-  seedModel <- modelConstruction sessionId inputFile
-  print seedModel
-           
+  -- seedModel <- modelConstruction sessionId inputFile
+  -- print seedModel
+  print "Begin blasttest:"                
+  httpBlastResult <- blastHTTP "blastn" "refseq_genomic" "GCCGCCGUAGCUCAGCCCGGGAGAGCGCCCGGCUGAAGACC"
+  print httpBlastResult
 
