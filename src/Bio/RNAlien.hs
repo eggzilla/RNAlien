@@ -58,6 +58,9 @@ modelConstruction sessionID inputFasta = do
   let alignmentPath = "alignmentPath"
   return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
 
+encodedTaxIDQuery :: String -> String
+encodedTaxIDQuery taxID = "txid" ++ taxID ++ "+%5BORGN%5D&EQ_OP"
+         
 -- | RNA family model expansion 
 --modelExpansion iterationnumber alignmentPath modelPath = do
 
@@ -111,7 +114,8 @@ main = do
   --create seed model
   -- seedModel <- modelConstruction sessionId inputFile
   -- print seedModel
+  let taxID = encodedTaxIDQuery "10066"
   print "Begin blasttest:"                
-  httpBlastResult <- blastHTTP "blastn" "refseq_genomic" "GCCGCCGUAGCUCAGCCCGGGAGAGCGCCCGGCUGAAGACC"
+  httpBlastResult <- blastHTTP "blastn" "refseq_genomic" "agaccggagctcaaccacagatgtccagccacaattctcggttggccgcagactcgtaca" taxID 
   print httpBlastResult
 
