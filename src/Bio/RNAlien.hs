@@ -116,6 +116,6 @@ main = do
   -- print seedModel
   let taxID = encodedTaxIDQuery "10066"
   print "Begin blasttest:"                
-  httpBlastResult <- blastHTTP "blastn" "refseq_genomic" "agaccggagctcaaccacagatgtccagccacaattctcggttggccgcagactcgtaca" taxID 
+  httpBlastResult <- blastHTTP ( Just "blastn") (Just "refseq_genomic") (Just "agaccggagctcaaccacagatgtccagccacaattctcggttggccgcagactcgtaca") (Just taxID )
   print httpBlastResult
 
