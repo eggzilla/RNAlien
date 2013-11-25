@@ -12,10 +12,10 @@ import Text.ParserCombinators.Parsec
 import System.IO
 import System.Environment
 import Data.List
+import Bio.Core.Sequence 
 --parse Fasta
-import Bio.Sequence.Fasta    
---parse Blast xml 
-import Bio.BlastData   
+import Bio.Sequence.Fasta 
+--parse Blast xml   
 import Bio.BlastXML
 --parse RNAzOutput
 import Bio.RNAzParser
@@ -27,8 +27,10 @@ import System.Cmd
 import System.Random
 import Control.Monad
 import Data.Int (Int16)
-import Bio.BlastHTTP
-    
+import Bio.BlastHTTP 
+import  Data.ByteString.Lazy.Char8
+
+
 data Options = Options            
   { inputFile :: String,
     outputPath :: String
@@ -75,7 +77,6 @@ systemBlast filePath iterationNumber = do
   system ("blastn -outfmt 5 -query " ++ filePath  ++ " -db refseq_genomic -out " ++ outputName)
   inputBlast <- readXML outputName
   return inputBlast
-
         
 -- | Run external clustalw2 command and read the output into the corresponding datatype
 systemClustalw2 filePath iterationNumber = system ("clustalw2 -INFILE=" ++ filePath  ++ " -OUTFILE" ++ iterationNumber ++ ".aln")
@@ -91,8 +92,6 @@ systemCMbuild filePath iterationNumber = system ("cmbuild " ++ filePath ++ " >" 
 
 -- | Run CMCompare and read the output into the corresponding datatype
 systemCMcompare filePath iterationNumber = system ("CMcompare " ++ filePath ++ " >" ++ iterationNumber ++ ".cmcoutput")
-
-
                                            
 main = do
   args <- getArgs
@@ -115,7 +114,10 @@ main = do
   -- seedModel <- modelConstruction sessionId inputFile
   -- print seedModel
   let taxID = encodedTaxIDQuery "10066"
-  print "Begin blasttest:"                
-  httpBlastResult <- blastHTTP ( Just "blastn") (Just "refseq_genomic") (Just "agaccggagctcaaccacagatgtccagccacaattctcggttggccgcagactcgtaca") (Just taxID )
+  print "Begin blasttest:" 
+  let querySeq = SeqData (Data.ByteString.Lazy.Char8.pack "agaccggagctcaaccacagatgtccagccacaattctcggttggccgcagactcgtaca")
+  let blastHTTPQuery = BlastHTTPQuery (Just "blastn") (Just "refseq_genomic") (Just querySeq) (Just taxID )               
+  --httpBlastResult <- blastHTTP ( Just "blastn") (Just "refseq_genomic") (Just "agaccggagctcaaccacagatgtccagccacaattctcggttggccgcagactcgtaca") (Just taxID )
+  httpBlastResult <- blastHTTP blastHTTPQuery
   print httpBlastResult
 
