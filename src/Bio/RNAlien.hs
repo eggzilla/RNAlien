@@ -13,23 +13,21 @@ import System.IO
 import System.Environment
 import Data.List
 import Bio.Core.Sequence 
---parse Fasta
 import Bio.Sequence.Fasta 
---parse Blast xml   
 import Bio.BlastXML
---parse RNAzOutput
-import Bio.RNAzParser
---check if files exist
+import Bio.ViennaRNAParser
 import System.Directory
---run external programs
-import System.Cmd
---libaries for random number generation    
+import System.Cmd   
 import System.Random
 import Control.Monad
 import Data.Int (Int16)
 import Bio.BlastHTTP 
-import  Data.ByteString.Lazy.Char8
 
+import qualified Data.ByteString.Lazy.Char8 as L
+import Bio.Taxonomy 
+import Data.Either
+import Data.Either.Unwrap
+import Data.Tree
 
 data Options = Options            
   { inputFile :: String,
@@ -44,22 +42,133 @@ data ModelConstruction = ModelConstruction
     iterationNumber :: Int
   } deriving (Show) 
 
+-- | Datastructure for Gene2Accession table
+data Gene2Accession = Gene2Accession
+  { taxIdEntry :: Int,
+    geneID :: Int,
+    status :: String,
+    rnaNucleotideAccessionVersion :: String,
+    rnaNucleotideGi :: String,
+    proteinAccessionVersion :: String,
+    proteinGi :: String,
+    genomicNucleotideAccessionVersion :: String,
+    genomicNucleotideGi :: String,
+    startPositionOnTheGenomicAccession :: String,
+    endPositionOnTheGenomicAccession ::  String,
+    orientation :: String,
+    assembly :: String,
+    maturePeptideAccessionVersion :: String,
+    maturePeptideGi :: String
+  } deriving (Show, Eq, Read) 
+
+parseNCBIGene2Accession input = parse genParserNCBIGene2Accession "parseGene2Accession" input
+
+genParserNCBIGene2Accession :: GenParser Char st Gene2Accession
+genParserNCBIGene2Accession = do
+  taxIdEntry <- many1 digit
+  many1 tab
+  geneID <- many1 digit
+  many1 tab 
+  status <- many1 (noneOf "\t")
+  many1 tab  
+  rnaNucleotideAccessionVersion <- many1 (noneOf "\t")
+  many1 tab
+  rnaNucleotideGi <- many1 (noneOf "\t")
+  many1 tab
+  proteinAccessionVersion <- many1 (noneOf "\t")
+  many1 tab
+  proteinGi <- many1 (noneOf "\t")
+  many1 tab
+  genomicNucleotideAccessionVersion <- many1 (noneOf "\t")
+  many1 tab
+  genomicNucleotideGi <- many1 (noneOf "\t")
+  many1 tab
+  startPositionOnTheGenomicAccession <- many1 (noneOf "\t")
+  many1 tab
+  endPositionOnTheGenomicAccession <- many1 (noneOf "\t")
+  many1 tab
+  orientation <- many1 (noneOf "\t")
+  many1 tab
+  assembly <- many1 (noneOf "\t")
+  many1 tab 
+  maturePeptideAccessionVersion  <- many1 (noneOf "\t")
+  many1 tab
+  maturePeptideGi <- many1 (noneOf "\t")
+  return $ Gene2Accession (readInt taxIdEntry) (readInt geneID) status rnaNucleotideAccessionVersion rnaNucleotideGi proteinAccessionVersion proteinGi genomicNucleotideAccessionVersion genomicNucleotideGi startPositionOnTheGenomicAccession endPositionOnTheGenomicAccession orientation assembly maturePeptideAccessionVersion maturePeptideGi
+
 options = Options
   { inputFile = def &= name "i" &= help "Path to input fasta file",
     outputPath = def &= name "o" &= help "Path to output directory"
   } &= summary "RNAlien devel version" &= help "Florian Eggenhofer - 2013" &= verbosity             
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
-modelConstruction :: String -> String -> IO ModelConstruction
-modelConstruction sessionID inputFasta = do
+--seedModelConstruction :: String -> String -> String -> String -> IO Int --IO (Tree TaxDumpNode)  --IO [TaxDumpNode] --IO ModelConstruction
+seedModelConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2AccessionFile = do
   -- Iterationnumber 
   let iterationNumber = 0
   -- Blast for initial sequence set
-  blastoutput <- systemBlast inputFasta iterationNumber
+  inputFasta <- readFasta inputFastaFile
+  let fastaSeqData = seqdata (head inputFasta)
+  let blastQuery = BlastHTTPQuery (Just "blastn") (Just "nr") (Just fastaSeqData) Nothing
+  nodes <- readNCBITaxDumpNodes inputTaxNodesFile
+  let rightNodes  = fromRight nodes
+  --let taxTree = constructTaxTree rightNodes
+    --blastOutput <- blastHTTP blastQuery 
+    --let rightBlast = fromRight blastOutput
+  -- extract TaxId of best blast result
+    --let bestHitAccession = getBestHitAccession rightBlast
+  let bestHitAccession = "NR_046431"
+  bestResultTaxId <- taxIDfromGene2Accession bestHitAccession inputGene2AccessionFile
+  -- retrieve TaxIds of taxonomic neighborhood 
+  --let neighborhoodTaxIds = retrieveNeighborhoodTaxId taxTree
+  -- filter initial blast list for entries with neighborhood Ids
+  --let filteredBlastResults = filterByNeighborhood neighborhoodTaxIds blastOutput
   let modelPath = "modelPath"
   let alignmentPath = "alignmentPath"
-  return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
+  return $ bestResultTaxId
+  --return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
 
+--taxIDfromGene2Accession :: String -> FilePath -> IO Int
+taxIDfromGene2Accession accession filename = do
+  file <- (openFile filename ReadMode)
+  contents <- liftM lines $ hGetContents file
+  let entry = filter (isInfixOf accession) contents
+  let parsedEntry = parseNCBIGene2Accession (head entry)
+  let taxId = taxIdEntry (fromRight parsedEntry)
+  return taxId
+
+getBestHitAccession :: BlastResult -> String
+getBestHitAccession blastResult = L.unpack (accession (head (hits (head (results blastResult)))))
+
+
+
+    
+--retrieveNeighborhoodTaxIds [Int] -> [BlastHit]
+--retrieveNeighborhoodTaxIds taxIds
+
+main = do
+  args <- getArgs
+  Options{..} <- cmdArgs options       
+
+   -- Generate SessionID
+  randomNumber <- randomIO :: IO Int16
+  let sessionId = randomid randomNumber
+
+  --create seed model
+  let taxNodesFile = "/home/egg/current/Haskell/Taxonomy/taxdump/nodes.dmp"
+  let gene2AccessionFile = "/home/egg/current/gene2accession"
+  seedModel <- seedModelConstruction sessionId inputFile taxNodesFile gene2AccessionFile  
+  print seedModel
+
+  --let taxID = encodedTaxIDQuery "10066"
+  --print "Begin blasttest:" 
+  --let querySeq = SeqData (Data.ByteString.Lazy.Char8.pack "ccccatccccacccccaagcgagcacctgcccctcccgggggcggagctccggcgcatcatggcggctggccgggcccaggtcccttcctccgaacaagcctggcttgaggatgctcaggtcttcatccaaaagaccctgtgtccagctgtcaaggagcctaatgtccagttgactccattggtaattgattgtgtgaagactgtctggttgtcccagggaaggaaccaaggttctacac")
+  --let blastHTTPQuery = BlastHTTPQuery (Just "blastn") (Just "nr") (Just querySeq) (Just taxID )               
+  
+  --httpBlastResult <- blastHTTP blastHTTPQuery
+  --print httpBlastResult
+
+-- auxiliary functions:
 encodedTaxIDQuery :: String -> String
 encodedTaxIDQuery taxID = "txid" ++ taxID ++ "+%5BORGN%5D&EQ_OP"
          
@@ -70,6 +179,7 @@ encodedTaxIDQuery taxID = "txid" ++ taxID ++ "+%5BORGN%5D&EQ_OP"
 randomid :: Int16 -> String
 randomid number = "cm" ++ (show number)
 
+--blastoutput <- systemBlast inputFasta iterationNumber
 -- | Run external blast command and read the output into the corresponding datatype
 systemBlast :: String -> Int -> IO BlastResult
 systemBlast filePath iterationNumber = do
@@ -89,35 +199,22 @@ systemRNAz filePath iterationNumber = system ("RNAz " ++ filePath ++ " >" ++ ite
 
 -- | Run external CMbuild command and read the output into the corresponding datatype 
 systemCMbuild filePath iterationNumber = system ("cmbuild " ++ filePath ++ " >" ++ iterationNumber ++ ".cm")                                          
-
 -- | Run CMCompare and read the output into the corresponding datatype
 systemCMcompare filePath iterationNumber = system ("CMcompare " ++ filePath ++ " >" ++ iterationNumber ++ ".cmcoutput")
-                                           
-main = do
-  args <- getArgs
-  Options{..} <- cmdArgs options       
-  --input_present <- doesFileExist inputFile
-  --output_present <- doesFileExist outputPath                   
 
-  --let input_present_string = show input_present
-  --let output_present_string = show output_present                          
+readInt :: String -> Int
+readInt = read
 
-  -- read RNAz outputfile
+  --let taxID = encodedTaxIDQuery "10066"
+  --print "Begin blasttest:" 
+  --let querySeq = SeqData (Data.ByteString.Lazy.Char8.pack "agaccggagctcaaccacagatgtccagccacaattctcggttggccgcagactcgtaca")
+  --let blastHTTPQuery = BlastHTTPQuery (Just "blastn") (Just "refseq_genomic") (Just querySeq) (Just taxID )               
+  
+  --httpBlastResult <- blastHTTP blastHTTPQuery
+  --print httpBlastResult
+
+  --read RNAz outputfile
   --rnazparsed <- parseRNAz inputFile
   --print rnazparsed    
   --blastoutput <- systemBlast filepath "1"
-  
-   -- SessionID, iterationNumber
-  randomNumber <- randomIO :: IO Int16
-  let sessionId = randomid randomNumber
-  --create seed model
-  -- seedModel <- modelConstruction sessionId inputFile
-  -- print seedModel
-  let taxID = encodedTaxIDQuery "10066"
-  print "Begin blasttest:" 
-  let querySeq = SeqData (Data.ByteString.Lazy.Char8.pack "agaccggagctcaaccacagatgtccagccacaattctcggttggccgcagactcgtaca")
-  let blastHTTPQuery = BlastHTTPQuery (Just "blastn") (Just "refseq_genomic") (Just querySeq) (Just taxID )               
   --httpBlastResult <- blastHTTP ( Just "blastn") (Just "refseq_genomic") (Just "agaccggagctcaaccacagatgtccagccacaattctcggttggccgcagactcgtaca") (Just taxID )
-  httpBlastResult <- blastHTTP blastHTTPQuery
-  print httpBlastResult
-
