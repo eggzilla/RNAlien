@@ -113,11 +113,11 @@ seedModelConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2Acces
   nodes <- readNCBITaxDumpNodes inputTaxNodesFile
   let rightNodes  = fromRight nodes
   --let taxTree = constructTaxTree rightNodes
-    --blastOutput <- blastHTTP blastQuery 
-    --let rightBlast = fromRight blastOutput
+  blastOutput <- blastHTTP blastQuery 
+  let rightBlast = fromRight blastOutput
   -- extract TaxId of best blast result
-    --let bestHitAccession = getBestHitAccession rightBlast
-  let bestHitAccession = "NR_046431"
+  let bestHitAccession = getBestHitAccession rightBlast
+  --let bestHitAccession = "NR_046431"
   bestResultTaxId <- taxIDfromGene2Accession bestHitAccession inputGene2AccessionFile
   -- retrieve TaxIds of taxonomic neighborhood 
   --let neighborhoodTaxIds = retrieveNeighborhoodTaxId taxTree
