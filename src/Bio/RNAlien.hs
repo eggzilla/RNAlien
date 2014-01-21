@@ -28,6 +28,7 @@ import Bio.Taxonomy
 import Data.Either
 import Data.Either.Unwrap
 import Data.Tree
+import Data.Maybe
 
 data Options = Options            
   { inputFile :: String,
@@ -102,7 +103,7 @@ options = Options
   } &= summary "RNAlien devel version" &= help "Florian Eggenhofer - 2013" &= verbosity             
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
---seedModelConstruction :: String -> String -> String -> String -> IO Int --IO (Tree TaxDumpNode)  --IO [TaxDumpNode] --IO ModelConstruction
+seedModelConstruction :: String -> String -> String -> String -> IO Int -- IO ModelConstruction
 seedModelConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2AccessionFile = do
   -- Iterationnumber 
   let iterationNumber = 0
@@ -118,33 +119,47 @@ seedModelConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2Acces
   -- extract TaxId of best blast result
   let bestHitAccession = getBestHitAccession rightBlast
   --let bestHitAccession = "NR_046431"
-  bestResultTaxId <- taxIDfromGene2Accession bestHitAccession inputGene2AccessionFile
+  bestResultTaxId <- taxIDFromGene2Accession bestHitAccession inputGene2AccessionFile
   -- retrieve TaxIds of taxonomic neighborhood 
-  --let neighborhoodTaxIds = retrieveNeighborhoodTaxId taxTree
+  neighborhoodTaxIds <- retrieveNeighborhoodTaxIds bestResultTaxId rightNodes
   -- filter initial blast list for entries with neighborhood Ids
   --let filteredBlastResults = filterByNeighborhood neighborhoodTaxIds blastOutput
   let modelPath = "modelPath"
   let alignmentPath = "alignmentPath"
-  return $ bestResultTaxId
+  return neighborhoodTaxIds
   --return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
 
---taxIDfromGene2Accession :: String -> FilePath -> IO Int
-taxIDfromGene2Accession accession filename = do
+taxIDFromGene2Accession :: String -> FilePath -> IO Int
+taxIDFromGene2Accession accession filename = do
   file <- (openFile filename ReadMode)
   contents <- liftM lines $ hGetContents file
-  let entry = filter (isInfixOf accession) contents
-  let parsedEntry = parseNCBIGene2Accession (head entry)
+  let entry = find (isInfixOf accession) contents
+  let parsedEntry = parseNCBIGene2Accession (fromJust entry)
   let taxId = taxIdEntry (fromRight parsedEntry)
   return taxId
 
 getBestHitAccession :: BlastResult -> String
 getBestHitAccession blastResult = L.unpack (accession (head (hits (head (results blastResult)))))
 
+retrieveNeighborhoodTaxIds :: Int -> [TaxDumpNode] -> IO Int
+retrieveNeighborhoodTaxIds bestHitTaxId nodes = do
+  let hitNode = fromJust (retrieveNode bestHitTaxId nodes)
+  let parentFamilyNode = parentNodeWithRank hitNode Family nodes
+  return (taxId parentFamilyNode)
 
+-- | retrieves ancestor node with at least the supplied rank
+parentNodeWithRank :: TaxDumpNode -> Rank -> [TaxDumpNode] -> TaxDumpNode
+parentNodeWithRank node requestedRank nodes
+  | (rank node) >= requestedRank = node
+  | otherwise = parentNodeWithRank (fromJust (retrieveNode (parentTaxId node) nodes)) requestedRank nodes
 
-    
---retrieveNeighborhoodTaxIds [Int] -> [BlastHit]
---retrieveNeighborhoodTaxIds taxIds
+retrieveNode :: Int -> [TaxDumpNode] -> Maybe TaxDumpNode 
+retrieveNode nodeTaxId nodes = find (\node -> (taxId node) == nodeTaxId) nodes
+
+retrieveChilden :: Int -> [TaxDumpNode] -> [TaxDumpNode]
+retrieveChilden requestedParentTaxId nodes = filter (\node -> (parentTaxId node) == requestedParentTaxId) nodes
+
+--accessionFromGene2Accession taxID filename
 
 main = do
   args <- getArgs
