@@ -103,7 +103,7 @@ options = Options
   } &= summary "RNAlien devel version" &= help "Florian Eggenhofer - 2013" &= verbosity             
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
-seedModelConstruction :: String -> String -> String -> String -> IO [TaxDumpNode] -- IO ModelConstruction
+seedModelConstruction :: String -> String -> String -> String -> IO [Int] --IO [TaxDumpNode] -- IO ModelConstruction
 seedModelConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2AccessionFile = do
   -- Iterationnumber 
   let iterationNumber = 0
@@ -121,7 +121,7 @@ seedModelConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2Acces
   let bestHitAccession = "NR_046431"
   bestResultTaxId <- taxIDFromGene2Accession bestHitAccession inputGene2AccessionFile
   -- retrieve TaxIds of taxonomic neighborhood 
-  let neighborhoodTaxIds = concat (retrieveNeighborhoodTaxIds bestResultTaxId rightNodes) 
+  let neighborhoodTaxIds = concat (retrieveNeighborhoodTaxIds bestResultTaxId rightNodes)
   -- filter initial blast list for entries with neighborhood Ids
   --let filteredBlastResults = filterByNeighborhood neighborhoodTaxIds blastOutput
   let modelPath = "modelPath"
@@ -145,8 +145,9 @@ getBestHitAccession blastResult = L.unpack (accession (head (hits (head (results
 retrieveNeighborhoodTaxIds bestHitTaxId nodes = do
   let hitNode = fromJust (retrieveNode bestHitTaxId nodes)
   let parentFamilyNode = parentNodeWithRank hitNode Family nodes
-  let neighborhoodNodes = retrieveAllDescendents nodes parentFamilyNode
-  return neighborhoodNodes
+  let neighborhoodNodes = (retrieveAllDescendents nodes parentFamilyNode)
+  let neighborhoodNodesIds = map taxId neighborhoodNodes
+  return neighborhoodNodesIds
 
 -- | retrieves ancestor node with at least the supplied rank
 parentNodeWithRank :: TaxDumpNode -> Rank -> [TaxDumpNode] -> TaxDumpNode
