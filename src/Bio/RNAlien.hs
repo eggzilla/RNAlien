@@ -103,7 +103,7 @@ options = Options
   } &= summary "RNAlien devel version" &= help "Florian Eggenhofer - 2013" &= verbosity             
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
-seedModelConstruction :: String -> String -> String -> String -> IO TaxDumpNode -- IO ModelConstruction
+seedModelConstruction :: String -> String -> String -> String -> IO [TaxDumpNode] -- IO ModelConstruction
 seedModelConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2AccessionFile = do
   -- Iterationnumber 
   let iterationNumber = 0
@@ -121,7 +121,7 @@ seedModelConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2Acces
   let bestHitAccession = "NR_046431"
   bestResultTaxId <- taxIDFromGene2Accession bestHitAccession inputGene2AccessionFile
   -- retrieve TaxIds of taxonomic neighborhood 
-  neighborhoodTaxIds <- retrieveNeighborhoodTaxIds bestResultTaxId rightNodes
+  let neighborhoodTaxIds = concat (retrieveNeighborhoodTaxIds bestResultTaxId rightNodes) 
   -- filter initial blast list for entries with neighborhood Ids
   --let filteredBlastResults = filterByNeighborhood neighborhoodTaxIds blastOutput
   let modelPath = "modelPath"
@@ -141,13 +141,12 @@ taxIDFromGene2Accession accession filename = do
 getBestHitAccession :: BlastResult -> String
 getBestHitAccession blastResult = L.unpack (accession (head (hits (head (results blastResult)))))
 
-retrieveNeighborhoodTaxIds :: Int -> [TaxDumpNode] -> IO TaxDumpNode
+--retrieveNeighborhoodTaxIds :: Int -> [TaxDumpNode] -> [TaxDumpNode]
 retrieveNeighborhoodTaxIds bestHitTaxId nodes = do
   let hitNode = fromJust (retrieveNode bestHitTaxId nodes)
   let parentFamilyNode = parentNodeWithRank hitNode Family nodes
   let neighborhoodNodes = retrieveAllDescendents nodes parentFamilyNode
-  --return neighborhoodNodes
-  return parentFamilyNode  
+  return neighborhoodNodes
 
 -- | retrieves ancestor node with at least the supplied rank
 parentNodeWithRank :: TaxDumpNode -> Rank -> [TaxDumpNode] -> TaxDumpNode
@@ -161,12 +160,12 @@ retrieveNode nodeTaxId nodes = find (\node -> (taxId node) == nodeTaxId) nodes
 retrieveChildren :: [TaxDumpNode] -> TaxDumpNode -> [TaxDumpNode]
 retrieveChildren nodes parentNode = filter (\node -> (parentTaxId node) == (taxId parentNode)) nodes
 
-retrieveAllDescendents :: [TaxDumpNode] -> TaxDumpNode -> [TaxDumpNode]
-retrieveAllDescendents nodes parentNode = do
-  let a = retrieveChildren nodes parentNode 
-  let b = (map (retrieveAllDescendents nodes) a)
-  let c = (concat b) --concat (a ++ concat b)
-  return c
+--retrieveAllDescendents :: [TaxDumpNode] -> TaxDumpNode -> [TaxDumpNode]
+retrieveAllDescendents nodes parentNode 
+  | childNodes /= [] = [parentNode] ++ (concat (map (retrieveAllDescendents nodes) childNodes))
+  | otherwise = [parentNode]
+  where
+  childNodes = retrieveChildren nodes parentNode
 
 --accessionFromGene2Accession taxID filename
 
