@@ -121,7 +121,7 @@ seedModelConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2Acces
   let bestHitAccession = "NR_046431"
   bestResultTaxId <- taxIDFromGene2Accession bestHitAccession inputGene2AccessionFile
   -- retrieve TaxIds of taxonomic neighborhood 
-  let neighborhoodTaxIds = concat (retrieveNeighborhoodTaxIds bestResultTaxId rightNodes)
+  let neighborhoodTaxIds = retrieveNeighborhoodTaxIds bestResultTaxId rightNodes
   -- filter initial blast list for entries with neighborhood Ids
   --let filteredBlastResults = filterByNeighborhood neighborhoodTaxIds blastOutput
   let modelPath = "modelPath"
@@ -141,13 +141,13 @@ taxIDFromGene2Accession accession filename = do
 getBestHitAccession :: BlastResult -> String
 getBestHitAccession blastResult = L.unpack (accession (head (hits (head (results blastResult)))))
 
---retrieveNeighborhoodTaxIds :: Int -> [TaxDumpNode] -> [TaxDumpNode]
-retrieveNeighborhoodTaxIds bestHitTaxId nodes = do
-  let hitNode = fromJust (retrieveNode bestHitTaxId nodes)
-  let parentFamilyNode = parentNodeWithRank hitNode Family nodes
-  let neighborhoodNodes = (retrieveAllDescendents nodes parentFamilyNode)
-  let neighborhoodNodesIds = map taxId neighborhoodNodes
-  return neighborhoodNodesIds
+retrieveNeighborhoodTaxIds :: Int -> [TaxDumpNode] -> [Int]
+retrieveNeighborhoodTaxIds bestHitTaxId nodes = neighborhoodNodesIds
+  where hitNode = fromJust (retrieveNode bestHitTaxId nodes)
+        parentFamilyNode = parentNodeWithRank hitNode Family nodes
+        neighborhoodNodes = (retrieveAllDescendents nodes parentFamilyNode)
+        neighborhoodNodesIds = map taxId neighborhoodNodes
+  --return neighborhoodNodesIds
 
 -- | retrieves ancestor node with at least the supplied rank
 parentNodeWithRank :: TaxDumpNode -> Rank -> [TaxDumpNode] -> TaxDumpNode
@@ -158,17 +158,26 @@ parentNodeWithRank node requestedRank nodes
 retrieveNode :: Int -> [TaxDumpNode] -> Maybe TaxDumpNode 
 retrieveNode nodeTaxId nodes = find (\node -> (taxId node) == nodeTaxId) nodes
 
+-- | Retrieve all taxonomic nodes that are directly
 retrieveChildren :: [TaxDumpNode] -> TaxDumpNode -> [TaxDumpNode]
 retrieveChildren nodes parentNode = filter (\node -> (parentTaxId node) == (taxId parentNode)) nodes
 
---retrieveAllDescendents :: [TaxDumpNode] -> TaxDumpNode -> [TaxDumpNode]
+-- | Retrieve all taxonomic nodes that are descented from this node including itself
+retrieveAllDescendents :: [TaxDumpNode] -> TaxDumpNode -> [TaxDumpNode]
 retrieveAllDescendents nodes parentNode 
   | childNodes /= [] = [parentNode] ++ (concat (map (retrieveAllDescendents nodes) childNodes))
   | otherwise = [parentNode]
   where
   childNodes = retrieveChildren nodes parentNode
 
---accessionFromGene2Accession taxID filename
+-- | Retrieve list of accession numbers matching to a taxid
+--accessionFromGene2Accession :: Int -> FileHandle -> [String]
+--accessionFromGene2Accession taxID file = do
+--  contents <- liftM lines $ hGetContents file
+--  let entry = filter (isPrefixOf taxId) contents
+--  let parsedEntries = parseNCBIGene2Accession (fromJust entry)
+--  let taxId = taxIdEntry (fromRight parsedEntry)
+--  return taxId
 
 main = do
   args <- getArgs
