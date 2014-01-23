@@ -185,8 +185,8 @@ main = do
   let sessionId = randomid randomNumber
 
   --create seed model
-  let taxNodesFile = "/home/egg/current/Haskell/Taxonomy/taxdump/nodes.dmp"
-  let gene2AccessionFile = "/home/egg/current/gene2accession"
+  let taxNodesFile = "/home/egg/current/Data/Taxonomy/taxdump/nodes.dmp"
+  let gene2AccessionFile = "/home/egg/current/Data/gene2accession"
   seedModel <- seedModelConstruction sessionId inputFile taxNodesFile gene2AccessionFile  
   print seedModel
 
