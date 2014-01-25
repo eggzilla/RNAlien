@@ -22,7 +22,7 @@ import System.Random
 import Control.Monad
 import Data.Int (Int16)
 import Bio.BlastHTTP 
-
+import Bio.RNAlienData
 import qualified Data.ByteString.Lazy.Char8 as L
 import Bio.Taxonomy 
 import Data.Either
@@ -35,96 +35,33 @@ data Options = Options
     outputPath :: String
   } deriving (Show,Data,Typeable)
 
--- | Keeps track of model construction 
-data ModelConstruction = ModelConstruction
-  { alignmentPath :: String,
-    modelPath :: String,
-    sessionID :: String,
-    iterationNumber :: Int
-  } deriving (Show) 
-
--- | Datastructure for Gene2Accession table
-data Gene2Accession = Gene2Accession
-  { taxIdEntry :: Int,
-    geneID :: Int,
-    status :: String,
-    rnaNucleotideAccessionVersion :: String,
-    rnaNucleotideGi :: String,
-    proteinAccessionVersion :: String,
-    proteinGi :: String,
-    genomicNucleotideAccessionVersion :: String,
-    genomicNucleotideGi :: String,
-    startPositionOnTheGenomicAccession :: String,
-    endPositionOnTheGenomicAccession ::  String,
-    orientation :: String,
-    assembly :: String,
-    maturePeptideAccessionVersion :: String,
-    maturePeptideGi :: String
-  } deriving (Show, Eq, Read) 
-
-parseNCBIGene2Accession input = parse genParserNCBIGene2Accession "parseGene2Accession" input
-
-genParserNCBIGene2Accession :: GenParser Char st Gene2Accession
-genParserNCBIGene2Accession = do
-  taxIdEntry <- many1 digit
-  many1 tab
-  geneID <- many1 digit
-  many1 tab 
-  status <- many1 (noneOf "\t")
-  many1 tab  
-  rnaNucleotideAccessionVersion <- many1 (noneOf "\t")
-  many1 tab
-  rnaNucleotideGi <- many1 (noneOf "\t")
-  many1 tab
-  proteinAccessionVersion <- many1 (noneOf "\t")
-  many1 tab
-  proteinGi <- many1 (noneOf "\t")
-  many1 tab
-  genomicNucleotideAccessionVersion <- many1 (noneOf "\t")
-  many1 tab
-  genomicNucleotideGi <- many1 (noneOf "\t")
-  many1 tab
-  startPositionOnTheGenomicAccession <- many1 (noneOf "\t")
-  many1 tab
-  endPositionOnTheGenomicAccession <- many1 (noneOf "\t")
-  many1 tab
-  orientation <- many1 (noneOf "\t")
-  many1 tab
-  assembly <- many1 (noneOf "\t")
-  many1 tab 
-  maturePeptideAccessionVersion  <- many1 (noneOf "\t")
-  many1 tab
-  maturePeptideGi <- many1 (noneOf "\t")
-  return $ Gene2Accession (readInt taxIdEntry) (readInt geneID) status rnaNucleotideAccessionVersion rnaNucleotideGi proteinAccessionVersion proteinGi genomicNucleotideAccessionVersion genomicNucleotideGi startPositionOnTheGenomicAccession endPositionOnTheGenomicAccession orientation assembly maturePeptideAccessionVersion maturePeptideGi
-
 options = Options
   { inputFile = def &= name "i" &= help "Path to input fasta file",
     outputPath = def &= name "o" &= help "Path to output directory"
   } &= summary "RNAlien devel version" &= help "Florian Eggenhofer - 2013" &= verbosity             
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
-seedModelConstruction :: String -> String -> String -> String -> IO [String] --IO [TaxDumpNode] -- IO ModelConstruction
+seedModelConstruction :: String -> String -> String -> String -> IO [String]
 seedModelConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2AccessionFile = do
   let iterationNumber = 0
-  -- Blast for initial sequence set
   inputFasta <- readFasta inputFastaFile
+  putStrLn "Read input"
   let fastaSeqData = seqdata (head inputFasta)
   let blastQuery = BlastHTTPQuery (Just "blastn") (Just "nr") (Just fastaSeqData) Nothing
   nodes <- readNCBITaxDumpNodes inputTaxNodesFile
+  putStrLn "Read taxonomy nodes"
   let rightNodes  = fromRight nodes
-  --let taxTree = constructTaxTree rightNodes
+  putStrLn "Sending blast query"
   blastOutput <- blastHTTP blastQuery 
   let rightBlast = fromRight blastOutput
-  -- extract TaxId of best blast result
   let bestHitAccession = getBestHitAccession rightBlast
+  --let taxTree = constructTaxTree rightNodes
   --let bestHitAccession = "NR_046431"
   inputGene2AccessionContent <- liftM lines (readFile inputGene2AccessionFile)
   let bestResultTaxId = taxIDFromGene2Accession inputGene2AccessionContent bestHitAccession
-  -- retrieve TaxIds of taxonomic neighborhood 
+  putStrLn "Extracted best blast hit" -- ++ (show bestResultTaxId)
   let neighborhoodTaxIds = retrieveNeighborhoodTaxIds bestResultTaxId rightNodes
-  -- Filter initial blast list for entries with neighborhood Accession numbers
   let neighborhoodAccessions = concat (map (\neighborhoodTaxId -> (accessionFromGene2Accession inputGene2AccessionContent) neighborhoodTaxId) neighborhoodTaxIds)
-  
   --let filteredBlastResults = filterByNeighborhood neighborhoodTaxIds blastOutput
   let modelPath = "modelPath"
   let alignmentPath = "alignmentPath"
@@ -190,15 +127,8 @@ main = do
   seedModel <- seedModelConstruction sessionId inputFile taxNodesFile gene2AccessionFile  
   print seedModel
 
-  --let taxID = encodedTaxIDQuery "10066"
-  --print "Begin blasttest:" 
-  --let querySeq = SeqData (Data.ByteString.Lazy.Char8.pack "ccccatccccacccccaagcgagcacctgcccctcccgggggcggagctccggcgcatcatggcggctggccgggcccaggtcccttcctccgaacaagcctggcttgaggatgctcaggtcttcatccaaaagaccctgtgtccagctgtcaaggagcctaatgtccagttgactccattggtaattgattgtgtgaagactgtctggttgtcccagggaaggaaccaaggttctacac")
-  --let blastHTTPQuery = BlastHTTPQuery (Just "blastn") (Just "nr") (Just querySeq) (Just taxID )               
-  
-  --httpBlastResult <- blastHTTP blastHTTPQuery
-  --print httpBlastResult
+-------------------------------------- Auxiliary functions:
 
--- auxiliary functions:
 encodedTaxIDQuery :: String -> String
 encodedTaxIDQuery taxID = "txid" ++ taxID ++ "+%5BORGN%5D&EQ_OP"
          
@@ -235,16 +165,37 @@ systemCMcompare filePath iterationNumber = system ("CMcompare " ++ filePath ++ "
 readInt :: String -> Int
 readInt = read
 
-  --let taxID = encodedTaxIDQuery "10066"
-  --print "Begin blasttest:" 
-  --let querySeq = SeqData (Data.ByteString.Lazy.Char8.pack "agaccggagctcaaccacagatgtccagccacaattctcggttggccgcagactcgtaca")
-  --let blastHTTPQuery = BlastHTTPQuery (Just "blastn") (Just "refseq_genomic") (Just querySeq) (Just taxID )               
-  
-  --httpBlastResult <- blastHTTP blastHTTPQuery
-  --print httpBlastResult
+parseNCBIGene2Accession input = parse genParserNCBIGene2Accession "parseGene2Accession" input
 
-  --read RNAz outputfile
-  --rnazparsed <- parseRNAz inputFile
-  --print rnazparsed    
-  --blastoutput <- systemBlast filepath "1"
-  --httpBlastResult <- blastHTTP ( Just "blastn") (Just "refseq_genomic") (Just "agaccggagctcaaccacagatgtccagccacaattctcggttggccgcagactcgtaca") (Just taxID )
+genParserNCBIGene2Accession :: GenParser Char st Gene2Accession
+genParserNCBIGene2Accession = do
+  taxIdEntry <- many1 digit
+  many1 tab
+  geneID <- many1 digit
+  many1 tab 
+  status <- many1 (noneOf "\t")
+  many1 tab  
+  rnaNucleotideAccessionVersion <- many1 (noneOf "\t")
+  many1 tab
+  rnaNucleotideGi <- many1 (noneOf "\t")
+  many1 tab
+  proteinAccessionVersion <- many1 (noneOf "\t")
+  many1 tab
+  proteinGi <- many1 (noneOf "\t")
+  many1 tab
+  genomicNucleotideAccessionVersion <- many1 (noneOf "\t")
+  many1 tab
+  genomicNucleotideGi <- many1 (noneOf "\t")
+  many1 tab
+  startPositionOnTheGenomicAccession <- many1 (noneOf "\t")
+  many1 tab
+  endPositionOnTheGenomicAccession <- many1 (noneOf "\t")
+  many1 tab
+  orientation <- many1 (noneOf "\t")
+  many1 tab
+  assembly <- many1 (noneOf "\t")
+  many1 tab 
+  maturePeptideAccessionVersion  <- many1 (noneOf "\t")
+  many1 tab
+  maturePeptideGi <- many1 (noneOf "\t")
+  return $ Gene2Accession (readInt taxIdEntry) (readInt geneID) status rnaNucleotideAccessionVersion rnaNucleotideGi proteinAccessionVersion proteinGi genomicNucleotideAccessionVersion genomicNucleotideGi startPositionOnTheGenomicAccession endPositionOnTheGenomicAccession orientation assembly maturePeptideAccessionVersion maturePeptideGi

@@ -17,4 +17,9 @@ cabal-version:       >=1.8
 executable RNAlien
   Hs-Source-Dirs:      ./src/Bio/
   main-is:	       RNAlien.hs    
-  build-depends:       base >=4.5, cmdargs, ViennaRNAParser, process, directory, blastxml, biofasta, parsec, random, BlastHTTP, biocore, bytestring, Taxonomy, either-unwrap, containers
+  build-depends:       base >=4.5, cmdargs, ViennaRNAParser, process, directory, blastxml, biofasta, parsec, random, BlastHTTP, biocore, bytestring, Taxonomy, either-unwrap, containers, RNAlien
+
+Library
+  Hs-Source-Dirs:      ./src/
+  build-depends:       base >=4.5
+  Exposed-Modules:     Bio.RNAlienData
