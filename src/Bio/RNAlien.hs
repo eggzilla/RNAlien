@@ -61,6 +61,7 @@ seedModelConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2Acces
   let bestResultTaxId = taxIDFromGene2Accession inputGene2AccessionContent bestHitAccession
   putStrLn "Extracted best blast hit" -- ++ (show bestResultTaxId)
   let neighborhoodTaxIds = retrieveNeighborhoodTaxIds bestResultTaxId rightNodes
+  putStrLn "Retrieved taxonomic neighborhood" -- ++ (show bestResultTaxId)
   let neighborhoodAccessions = concat (map (\neighborhoodTaxId -> (accessionFromGene2Accession inputGene2AccessionContent) neighborhoodTaxId) neighborhoodTaxIds)
   --let filteredBlastResults = filterByNeighborhood neighborhoodTaxIds blastOutput
   let modelPath = "modelPath"
@@ -109,7 +110,7 @@ retrieveAllDescendents nodes parentNode
 accessionFromGene2Accession :: [String] -> Int -> [String]
 accessionFromGene2Accession fileContent queryTaxId = accessions
   where
-  entries = filter (isPrefixOf (show queryTaxId)) fileContent
+  entries = filter (isPrefixOf (show queryTaxId ++ " ")) fileContent
   parsedEntries = map parseNCBIGene2Accession entries
   accessions = map (\x -> genomicNucleotideAccessionVersion (fromRight x)) parsedEntries
 
