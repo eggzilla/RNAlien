@@ -29,6 +29,7 @@ import Data.Either
 import Data.Either.Unwrap
 import Data.Tree
 import Data.Maybe
+import Data.List.Utils
 
 data Options = Options            
   { inputFile :: String,
@@ -112,7 +113,7 @@ accessionFromGene2Accession fileContent queryTaxId = accessions
   where
   entries = filter (isPrefixOf (show queryTaxId ++ " ")) fileContent
   parsedEntries = map parseNCBIGene2Accession entries
-  accessions = map (\x -> genomicNucleotideAccessionVersion (fromRight x)) parsedEntries
+  accessions = (uniq (map (\x -> genomicNucleotideAccessionVersion (fromRight x)) parsedEntries))
 
 main = do
   args <- getArgs
