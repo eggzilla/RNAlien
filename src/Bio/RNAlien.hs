@@ -42,7 +42,7 @@ options = Options
   } &= summary "RNAlien devel version" &= help "Florian Eggenhofer - 2013" &= verbosity             
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
-seedModelConstruction :: String -> String -> String -> String -> IO [String]
+--seedModelConstruction :: String -> String -> String -> String -> IO []
 seedModelConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2AccessionFile = do
   let iterationNumber = 0
   inputFasta <- readFasta inputFastaFile
@@ -62,19 +62,29 @@ seedModelConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2Acces
   let bestResultTaxId = taxIDFromGene2Accession inputGene2AccessionContent bestHitAccession
   putStrLn "Extracted best blast hit" -- ++ (show bestResultTaxId)
   let neighborhoodTaxIds = retrieveNeighborhoodTaxIds bestResultTaxId rightNodes
+  --let neighborhoodTaxIds = [10116]
   putStrLn "Retrieved taxonomic neighborhood" -- ++ (show bestResultTaxId)
-  let neighborhoodAccessions = concat (map (\neighborhoodTaxId -> (accessionFromGene2Accession inputGene2AccessionContent) neighborhoodTaxId) neighborhoodTaxIds)
-  --let filteredBlastResults = filterByNeighborhood neighborhoodTaxIds blastOutput
+  --let neighborhoodAccessions = concat (map (\neighborhoodTaxId -> (accessionFromGene2Accession inputGene2AccessionContent) neighborhoodTaxId) neighborhoodTaxIds)
+  --filter Blast result list by membership to neighorhood
+  let filteredBlastResults = filterByNeighborhood inputGene2AccessionContent neighborhoodTaxIds rightBlast
   let modelPath = "modelPath"
   let alignmentPath = "alignmentPath"
-  return neighborhoodAccessions
+  return filteredBlastResults
   --return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
+
+filterByNeighborhood inputGene2AccessionContent neighborhoodTaxIds blastOutput = filter (\blastHit -> inNeighboorhood neighborhoodTaxIds inputGene2AccessionContent blastHit) (concat (map hits (results blastOutput)))
+  
+inNeighboorhood neighborhoodTaxIds inputGene2AccessionContent blastHit = elem (taxIDFromGene2Accession inputGene2AccessionContent (getHitAccession blastHit)) neighborhoodTaxIds
 
 taxIDFromGene2Accession :: [String] -> String -> Int
 taxIDFromGene2Accession fileContent accession = taxId
   where entry = find (isInfixOf accession) fileContent
         parsedEntry = parseNCBIGene2Accession (fromJust entry)
         taxId = taxIdEntry (fromRight parsedEntry)
+
+
+getHitAccession :: BlastHit -> String
+getHitAccession blastHit = L.unpack (accession (blastHit))
 
 getBestHitAccession :: BlastResult -> String
 getBestHitAccession blastResult = L.unpack (accession (head (hits (head (results blastResult)))))
@@ -111,9 +121,9 @@ retrieveAllDescendents nodes parentNode
 accessionFromGene2Accession :: [String] -> Int -> [String]
 accessionFromGene2Accession fileContent queryTaxId = accessions
   where
-  entries = filter (isPrefixOf (show queryTaxId ++ " ")) fileContent
+  entries = filter (isPrefixOf ((show queryTaxId) ++ "\t")) fileContent
   parsedEntries = map parseNCBIGene2Accession entries
-  accessions = (uniq (map (\x -> genomicNucleotideAccessionVersion (fromRight x)) parsedEntries))
+  accessions = (uniq (map (\x -> rnaNucleotideAccessionVersion (fromRight x)) parsedEntries))
 
 main = do
   args <- getArgs
