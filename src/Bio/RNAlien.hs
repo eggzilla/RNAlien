@@ -24,6 +24,9 @@ import Data.Int (Int16)
 import Bio.BlastHTTP 
 import Bio.RNAlienData
 import qualified Data.ByteString.Lazy.Char8 as L
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Char8 as BC
+import Data.Word
 import Bio.Taxonomy 
 import Data.Either
 import Data.Either.Unwrap
@@ -56,14 +59,14 @@ seedModelConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2Acces
   blastOutput <- blastHTTP blastQuery 
   let rightBlast = fromRight blastOutput
   let bestHitAccession = getBestHitAccession rightBlast
-  --let taxTree = constructTaxTree rightNodes
   --let bestHitAccession = "NR_046431"
+  inputGene2AccessionContentByteString <- liftM (B.split (read "\n":: Word8)) (B.readFile inputGene2AccessionFile)
   inputGene2AccessionContent <- liftM lines (readFile inputGene2AccessionFile)
-  let bestResultTaxId = taxIDFromGene2Accession inputGene2AccessionContent bestHitAccession
-  putStrLn "Extracted best blast hit" -- ++ (show bestResultTaxId)
+  let bestResultTaxId = taxIDFromGene2AccessionBS inputGene2AccessionContentByteString bestHitAccession
+  putStrLn "Extracted best blast hit"
   let neighborhoodTaxIds = retrieveNeighborhoodTaxIds bestResultTaxId rightNodes
   --let neighborhoodTaxIds = [10116]
-  putStrLn "Retrieved taxonomic neighborhood" -- ++ (show bestResultTaxId)
+  putStrLn ("Retrieved taxonomic neighborhood"  ++ (show neighborhoodTaxIds))
   --let neighborhoodAccessions = concat (map (\neighborhoodTaxId -> (accessionFromGene2Accession inputGene2AccessionContent) neighborhoodTaxId) neighborhoodTaxIds)
   --filter Blast result list by membership to neighorhood
   let filteredBlastResults = filterByNeighborhood inputGene2AccessionContent neighborhoodTaxIds rightBlast
@@ -76,18 +79,23 @@ filterByNeighborhood inputGene2AccessionContent neighborhoodTaxIds blastOutput =
   
 inNeighboorhood neighborhoodTaxIds inputGene2AccessionContent blastHit = elem (taxIDFromGene2Accession inputGene2AccessionContent (getHitAccession blastHit)) neighborhoodTaxIds
 
+taxIDFromGene2AccessionBS :: [B.ByteString] -> L.ByteString -> Int
+taxIDFromGene2AccessionBS fileContent accession = taxId
+  where entry = find (B.isInfixOf (L.toStrict accession)) fileContent
+        parsedEntry = parseNCBIGene2Accession (BC.unpack (fromJust entry))
+        taxId = taxIdEntry (fromRight parsedEntry)
+
 taxIDFromGene2Accession :: [String] -> String -> Int
 taxIDFromGene2Accession fileContent accession = taxId
   where entry = find (isInfixOf accession) fileContent
         parsedEntry = parseNCBIGene2Accession (fromJust entry)
         taxId = taxIdEntry (fromRight parsedEntry)
 
-
 getHitAccession :: BlastHit -> String
 getHitAccession blastHit = L.unpack (accession (blastHit))
 
-getBestHitAccession :: BlastResult -> String
-getBestHitAccession blastResult = L.unpack (accession (head (hits (head (results blastResult)))))
+getBestHitAccession :: BlastResult -> L.ByteString
+getBestHitAccession blastResult = (accession (head (hits (head (results blastResult)))))
 
 retrieveNeighborhoodTaxIds :: Int -> [TaxDumpNode] -> [Int]
 retrieveNeighborhoodTaxIds bestHitTaxId nodes = neighborhoodNodesIds
