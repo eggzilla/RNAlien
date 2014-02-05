@@ -61,7 +61,7 @@ seedModelConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2Acces
   let bestHitAccession = getBestHitAccession rightBlast
   --let bestHitAccession = "NR_046431"
   inputGene2AccessionContentByteString <- liftM (BC.split '\n') (B.readFile inputGene2AccessionFile)
-  inputGene2AccessionContent <- liftM lines (readFile inputGene2AccessionFile)
+  --inputGene2AccessionContent <- liftM lines (readFile inputGene2AccessionFile)
   let bestResultTaxId = taxIDFromGene2AccessionBS inputGene2AccessionContentByteString bestHitAccession
   putStrLn ("Extracted best blast hit" ++ (show bestResultTaxId))
   let neighborhoodTaxIds = retrieveNeighborhoodTaxIds bestResultTaxId rightNodes
@@ -69,15 +69,15 @@ seedModelConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2Acces
   putStrLn ("Retrieved taxonomic neighborhood"  ++ (show neighborhoodTaxIds))
   --let neighborhoodAccessions = concat (map (\neighborhoodTaxId -> (accessionFromGene2Accession inputGene2AccessionContent) neighborhoodTaxId) neighborhoodTaxIds)
   --filter Blast result list by membership to neighorhood
-  let filteredBlastResults = filterByNeighborhood inputGene2AccessionContent neighborhoodTaxIds rightBlast
+  let filteredBlastResults = filterByNeighborhood inputGene2AccessionContentByteString neighborhoodTaxIds rightBlast
   let modelPath = "modelPath"
   let alignmentPath = "alignmentPath"
   return filteredBlastResults
   --return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
 
-filterByNeighborhood inputGene2AccessionContent neighborhoodTaxIds blastOutput = filter (\blastHit -> inNeighboorhood neighborhoodTaxIds inputGene2AccessionContent blastHit) (concat (map hits (results blastOutput)))
+filterByNeighborhood inputGene2AccessionContentByteString neighborhoodTaxIds blastOutput = filter (\blastHit -> inNeighboorhood neighborhoodTaxIds inputGene2AccessionContentByteString blastHit) (concat (map hits (results blastOutput)))
   
-inNeighboorhood neighborhoodTaxIds inputGene2AccessionContent blastHit = elem (taxIDFromGene2Accession inputGene2AccessionContent (getHitAccession blastHit)) neighborhoodTaxIds
+inNeighboorhood neighborhoodTaxIds inputGene2AccessionContent blastHit = elem (taxIDFromGene2AccessionBS inputGene2AccessionContent (accession blastHit)) neighborhoodTaxIds
 
 taxIDFromGene2AccessionBS :: [B.ByteString] -> L.ByteString -> Int
 taxIDFromGene2AccessionBS fileContent accession = taxId
