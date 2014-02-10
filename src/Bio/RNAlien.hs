@@ -32,7 +32,6 @@ import Data.Either
 import Data.Either.Unwrap
 import Data.Tree
 import Data.Maybe
-import Data.List.Utils
 import Text.Parsec.Error
 import Text.ParserCombinators.Parsec.Pos
 data Options = Options            
@@ -139,14 +138,6 @@ retrieveAllDescendents nodes parentNode
   | otherwise = [parentNode]
   where
   childNodes = retrieveChildren nodes parentNode
-
--- | Retrieve list of accession numbers matching to a taxid
-accessionFromGene2Accession :: [String] -> Int -> [String]
-accessionFromGene2Accession fileContent queryTaxId = accessions
-  where
-  entries = filter (isPrefixOf ((show queryTaxId) ++ "\t")) fileContent
-  parsedEntries = map parseNCBIGene2Accession entries
-  accessions = (uniq (map (\x -> rnaNucleotideAccessionVersion (fromRight x)) parsedEntries))
 
 main = do
   args <- getArgs
