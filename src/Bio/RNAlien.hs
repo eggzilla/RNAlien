@@ -33,7 +33,8 @@ import Data.Either.Unwrap
 import Data.Tree
 import Data.Maybe
 import Data.List.Utils
-
+import Text.Parsec.Error
+import Text.ParserCombinators.Parsec.Pos
 data Options = Options            
   { inputFile :: String,
     outputPath :: String
@@ -59,37 +60,51 @@ seedModelConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2Acces
   blastOutput <- blastHTTP blastQuery 
   let rightBlast = fromRight blastOutput
   let bestHitAccession = getBestHitAccession rightBlast
-  --let bestHitAccession = "NR_046431"
-  inputGene2AccessionContentByteString <- liftM (BC.split '\n') (B.readFile inputGene2AccessionFile)
-  --inputGene2AccessionContent <- liftM lines (readFile inputGene2AccessionFile)
-  let bestResultTaxId = taxIDFromGene2AccessionBS inputGene2AccessionContentByteString bestHitAccession
-  putStrLn ("Extracted best blast hit" ++ (show bestResultTaxId))
-  let neighborhoodTaxIds = retrieveNeighborhoodTaxIds bestResultTaxId rightNodes
-  --let neighborhoodTaxIds = [10116]
+  inputGene2AccessionContent <- liftM (BC.split '\n') (B.readFile inputGene2AccessionFile)
+  let bestResultTaxId = taxIDFromGene2Accession inputGene2AccessionContent bestHitAccession
+  --putStrLn ("Extracted best blast hit" ++ (show bestResultTaxId))
+  reportBestBlastHit bestResultTaxId
+  let neighborhoodTaxIds = retrieveNeighborhoodTaxIds (fromRight bestResultTaxId) rightNodes
   putStrLn ("Retrieved taxonomic neighborhood"  ++ (show neighborhoodTaxIds))
-  --let neighborhoodAccessions = concat (map (\neighborhoodTaxId -> (accessionFromGene2Accession inputGene2AccessionContent) neighborhoodTaxId) neighborhoodTaxIds)
-  --filter Blast result list by membership to neighorhood
-  let filteredBlastResults = filterByNeighborhood inputGene2AccessionContentByteString neighborhoodTaxIds rightBlast
+  --Filter Blast result list by membership to neighorhood
+  let filteredBlastResults = filterByNeighborhood inputGene2AccessionContent neighborhoodTaxIds rightBlast
   let modelPath = "modelPath"
   let alignmentPath = "alignmentPath"
   return filteredBlastResults
   --return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
 
-filterByNeighborhood inputGene2AccessionContentByteString neighborhoodTaxIds blastOutput = filter (\blastHit -> inNeighboorhood neighborhoodTaxIds inputGene2AccessionContentByteString blastHit) (concat (map hits (results blastOutput)))
-  
-inNeighboorhood neighborhoodTaxIds inputGene2AccessionContent blastHit = elem (taxIDFromGene2AccessionBS inputGene2AccessionContent (accession blastHit)) neighborhoodTaxIds
+filterByNeighborhood :: [B.ByteString] -> [Int] -> BlastResult -> [BlastHit]
+filterByNeighborhood inputGene2AccessionContent neighborhoodTaxIds blastOutput = filter (\blastHit -> isInNeighborhood neighborhoodTaxIds inputGene2AccessionContent blastHit) (concat (map hits (results blastOutput)))
 
-taxIDFromGene2AccessionBS :: [B.ByteString] -> L.ByteString -> Int
-taxIDFromGene2AccessionBS fileContent accession = taxId
-  where entry = find (B.isInfixOf (L.toStrict accession)) fileContent
-        parsedEntry = parseNCBIGene2Accession (BC.unpack (fromJust entry))
-        taxId = taxIdEntry (fromRight parsedEntry)
+isInNeighborhood :: [Int] -> [B.ByteString] -> BlastHit -> Bool
+isInNeighborhood neighborhoodTaxIds inputGene2AccessionContent blastHit = isNeighbor
+  where hitTaxId = taxIDFromGene2Accession inputGene2AccessionContent (accession blastHit)
+        --we have to check if TaxId is Right
+        isNeighbor = checkisNeighbor hitTaxId neighborhoodTaxIds
 
-taxIDFromGene2Accession :: [String] -> String -> Int
+checkisNeighbor :: Either ParseError Int -> [Int] -> Bool
+checkisNeighbor (Right hitTaxId) neighborhoodTaxIds = elem hitTaxId neighborhoodTaxIds
+checkisNeighbor (Left _) _ = False
+
+taxIDFromGene2Accession :: [B.ByteString] -> L.ByteString -> Either ParseError Int
 taxIDFromGene2Accession fileContent accessionNumber = taxId
-  where entry = find (isInfixOf accessionNumber) fileContent
-        parsedEntry = parseNCBIGene2Accession (fromJust entry)
-        taxId = taxIdEntry (fromRight parsedEntry)
+  where entry = find (B.isInfixOf (L.toStrict accessionNumber)) fileContent
+        parsedEntry = tryParseNCBIGene2Accession entry accessionNumber
+        taxId = tryGetTaxId parsedEntry
+
+
+reportBestBlastHit (Right bestTaxId) = putStrLn ("Extracted best blast hit" ++ (show bestTaxId))
+reportBestBlastHit (Left e) = putStrLn ("Best TaxId Lookup failed" ++ (show e))
+
+tryParseNCBIGene2Accession :: Maybe B.ByteString -> L.ByteString -> Either ParseError Gene2Accession
+tryParseNCBIGene2Accession entry accessionNumber
+  | isNothing entry = Left (newErrorMessage (Message ("Cannot find taxId for entry with accession" ++  (L.unpack (accessionNumber)))) (newPos "Gene2Accession" 0 0))
+  | otherwise = parseNCBIGene2Accession (BC.unpack (fromJust entry))
+
+tryGetTaxId :: Either ParseError Gene2Accession ->  Either ParseError Int
+tryGetTaxId (Left error) = (Left error)
+tryGetTaxId parsedEntry = liftM taxIdEntry parsedEntry
+
 
 getHitAccession :: BlastHit -> String
 getHitAccession blastHit = L.unpack (accession (blastHit))
