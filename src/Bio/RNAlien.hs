@@ -92,37 +92,43 @@ seedModelExpansion (ModelConstruction remainingCandidates alignedCandidates temp
   putStrLn "Reached seedModelExpansion"
   --combine with unaligned Blastresults
   let candidateFasta = map (\candidate -> constructCandidateFromBlast seedFasta candidate) remainingCandidates
-  --map (\(a,b) -> putStrLn (a ++ b)) candidateFasta
-  --let remainingCandidateNumber = length remainingCandidates
-  --let alignedCandidatesNumber = length alignedCandidates
   --write candidates
-  writeFastaFiles candidateFasta currentDir iterationNumber 
-   
+  writeFastaFiles currentDir iterationNumber candidateFasta
   --compute alignments
---  let alignmentList = alignmentIdentifierList  
---  map systemClustalw2
+  alignCandidates currentDir iterationNumber candidateFasta
   --compute SCI
---  map systemRNAz
+  --map systemRNAz
   --stop/continue -- proceed with best alignment
   --return initialAlignment
 
+--alignCandidates :: String -> Int -> [BlastHit] -> IO ()
+alignCandidates currentDir iterationNumber blasthits = do
+  let identifiers = map (constructFastaFilePaths currentDir iterationNumber) blasthits
+  mapM_ systemClustalw2 identifiers  
+
+replacePipeChars :: Char -> Char
 replacePipeChars '|' = '-'
 replacePipeChars char = char
 
+constructFastaFilePaths :: String -> Int -> (String, String) -> String
+constructFastaFilePaths currentDir iterationNumber (fastaIdentifier, _) = currentDir ++ (show iterationNumber) ++ fastaIdentifier
+
 constructSeedFromBlast :: BlastHit -> String
 constructSeedFromBlast blasthit = fastaString
-  where header = map replacePipeChars (L.unpack (hitId blasthit))
+  where --header = map replacePipeChars (L.unpack (hitId blasthit))    
+        header = delete '|' (L.unpack (hitId blasthit))    
         sequence = L.unpack (hseq (head (matches blasthit)))
         fastaString = (header ++ "\n" ++ sequence ++ "\n")
 
 constructCandidateFromBlast :: String -> BlastHit -> (String,String)
 constructCandidateFromBlast seed blasthit = fastaString
-  where header = map replacePipeChars (L.unpack (hitId blasthit))
+  where --header = map replacePipeChars (L.unpack (hitId blasthit))
+        header = delete '|' (L.unpack (hitId blasthit))  
         sequence = L.unpack (hseq (head (matches blasthit)))
-        fastaString = (header, header ++ "\n" ++ sequence ++ "\n" ++ seed)
+        fastaString = (header ++ ".fa", header ++ "\n" ++ sequence ++ "\n" ++ seed)
 
 --writeFastaFiles :: [(String,String)] -> String -> Int -> [IO ()]
-writeFastaFiles candidateFastaStrings currentDir iterationNumber = do
+writeFastaFiles currentDir iterationNumber candidateFastaStrings  = do
   mapM_ (writeFastaFile currentDir iterationNumber) candidateFastaStrings
 
 --writeFastaFile :: String -> Int -> (String,String) -> IO ()
@@ -232,7 +238,8 @@ systemBlast filePath iterationNumber = do
   return inputBlast
         
 -- | Run external clustalw2 command and read the output into the corresponding datatype
-systemClustalw2 filePath iterationNumber = system ("clustalw2 -INFILE=" ++ filePath  ++ " -OUTFILE" ++ iterationNumber ++ ".aln")
+systemClustalw2 filePath = system ("clustalw2 -INFILE=" ++ filePath )
+ -- ++ " -OUTFILE" ++ iterationNumber ++ ".aln")
 
 -- | Run external RNAalifold command and read the output into the corresponding datatype
 systemRNAalifold filePath iterationNumber = system ("RNAalifold " ++ filePath  ++ " >" ++ iterationNumber ++ ".alifold")
