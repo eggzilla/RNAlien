@@ -1,11 +1,15 @@
 -- | This module contains a data structures for RNAlien
 
 module Bio.RNAlienData where
+
+import Bio.BlastXML
+import qualified Data.ByteString.Lazy.Char8 as L
     
 -- | Keeps track of model construction 
 data ModelConstruction = ModelConstruction
-  { alignmentPath :: String,
-    modelPath :: String,
+  { filteredBlastResults :: [BlastHit],
+    alignedHits :: [BlastHit],
+    tempDirPath :: String,
     sessionID :: String,
     iterationNumber :: Int
   } deriving (Show) 
