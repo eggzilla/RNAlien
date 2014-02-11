@@ -46,7 +46,7 @@ options = Options
   } &= summary "RNAlien devel version" &= help "Florian Eggenhofer - 2013" &= verbosity             
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
---seedModelConstruction :: String -> String -> String -> String -> IO []
+--seedModelConstruction :: String -> String -> String -> String -> String -> IO String --IO []
 seedModelConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2AccessionFile tempDir = do
   let iterationNumber = 0
   inputFasta <- readFasta inputFastaFile
@@ -63,10 +63,9 @@ seedModelConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2Acces
   let bestHitAccession = accession bestHit
   inputGene2AccessionContent <- liftM (BC.split '\n') (B.readFile inputGene2AccessionFile)
   let bestResultTaxId = taxIDFromGene2Accession inputGene2AccessionContent bestHitAccession
-  --putStrLn ("Extracted best blast hit" ++ (show bestResultTaxId))
   reportBestBlastHit bestResultTaxId
   let neighborhoodTaxIds = retrieveNeighborhoodTaxIds (fromRight bestResultTaxId) rightNodes
-  putStrLn ("Retrieved taxonomic neighborhood"  ++ (show neighborhoodTaxIds))
+  putStrLn ("Retrieved taxonomic neighborhood "  ++ (show neighborhoodTaxIds))
   --Filter Blast result list by membership to neighorhood
   let filteredBlastResults = filterByNeighborhood inputGene2AccessionContent neighborhoodTaxIds rightBlast
   createDirectory (tempDir ++ sessionID)
@@ -74,8 +73,9 @@ seedModelConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2Acces
   --let candidateIdentifierList = candidateIdentifier ([bestHit] ++ filteredBlastResults)
   --writeFile (tempDir ++ sessionID ++ "/candidateIdentifierList") (show candidateIdentifierList)
   let seedModel = ModelConstruction filteredBlastResults [bestHit] tempDir sessionID iterationNumber 
-  --initialAlignment <- seedModelExpansion seedModel 
-  return filteredBlastResults
+  seedModelExpansion seedModel 
+  --seedModelExpansion seedModel
+  return seedModel -- filteredBlastResults
   --return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
 
 --candidateIdentifier :: [BlastHit] -> [(Int, L.String)]
@@ -84,23 +84,27 @@ seedModelConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2Acces
 --        identifiers = map hitId candidateList
 --        identifierList = zip indizes identifiers
 
-seedModelExpansion :: ModelConstruction -> [IO ()]--ModelConstruction
+--seedModelExpansion :: ModelConstruction -> String --[IO ()]--ModelConstruction
 seedModelExpansion (ModelConstruction remainingCandidates alignedCandidates tempDirPath sessionID iterationNumber) = do
   let currentDir = tempDirPath ++ sessionID ++ "/"
   --construct seedFasta
   let seedFasta = concat (map constructSeedFromBlast alignedCandidates)
+  putStrLn "Reached seedModelExpansion"
   --combine with unaligned Blastresults
   let candidateFasta = map (\candidate -> constructCandidateFromBlast seedFasta candidate) remainingCandidates
-  let remainingCandidateNumber = length remainingCandidates
-  let alignedCandidatesNumber = length alignedCandidates
+  --map (\(a,b) -> putStrLn (a ++ b)) candidateFasta
+  --let remainingCandidateNumber = length remainingCandidates
+  --let alignedCandidatesNumber = length alignedCandidates
   --write candidates
   writeFastaFiles candidateFasta currentDir iterationNumber 
+   
   --compute alignments
 --  let alignmentList = alignmentIdentifierList  
 --  map systemClustalw2
   --compute SCI
 --  map systemRNAz
   --stop/continue -- proceed with best alignment
+  --return initialAlignment
 
 replacePipeChars '|' = '-'
 replacePipeChars char = char
@@ -117,11 +121,11 @@ constructCandidateFromBlast seed blasthit = fastaString
         sequence = L.unpack (hseq (head (matches blasthit)))
         fastaString = (header, header ++ "\n" ++ sequence ++ "\n" ++ seed)
 
---writeFastaFiles :: [(String,String)] -> String -> Int -> IO ()
+--writeFastaFiles :: [(String,String)] -> String -> Int -> [IO ()]
 writeFastaFiles candidateFastaStrings currentDir iterationNumber = do
-  map (writeFastaFile currentDir iterationNumber) candidateFastaStrings
-  
+  mapM_ (writeFastaFile currentDir iterationNumber) candidateFastaStrings
 
+--writeFastaFile :: String -> Int -> (String,String) -> IO ()
 writeFastaFile currentPath iterationNumber (fileName,content) = writeFile (currentPath ++ (show iterationNumber) ++ fileName) content
 
 filterByNeighborhood :: [B.ByteString] -> [Int] -> BlastResult -> [BlastHit]
@@ -143,8 +147,8 @@ taxIDFromGene2Accession fileContent accessionNumber = taxId
         parsedEntry = tryParseNCBIGene2Accession entry accessionNumber
         taxId = tryGetTaxId parsedEntry
 
-reportBestBlastHit (Right bestTaxId) = putStrLn ("Extracted best blast hit" ++ (show bestTaxId))
-reportBestBlastHit (Left e) = putStrLn ("Best TaxId Lookup failed" ++ (show e))
+reportBestBlastHit (Right bestTaxId) = putStrLn ("Extracted best blast hit " ++ (show bestTaxId))
+reportBestBlastHit (Left e) = putStrLn ("Best TaxId Lookup failed " ++ (show e))
 
 tryParseNCBIGene2Accession :: Maybe B.ByteString -> L.ByteString -> Either ParseError Gene2Accession
 tryParseNCBIGene2Accession entry accessionNumber

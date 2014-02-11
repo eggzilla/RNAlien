@@ -21,5 +21,5 @@ executable RNAlien
 
 Library
   Hs-Source-Dirs:      ./src/
-  build-depends:       base >=4.5
+  build-depends:       base >=4.5, blastxml>=0.3.2, bytestring
   Exposed-Modules:     Bio.RNAlienData
