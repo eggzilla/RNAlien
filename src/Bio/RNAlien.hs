@@ -95,6 +95,9 @@ seedModelExpansion (ModelConstruction remainingCandidates alignedCandidates temp
   let rnazOutputFilepaths = map (constructRNAzFilePaths currentDir iterationNumber) candidateFasta
   computeAlignmentSCIs alignmentFilepaths rnazOutputFilepaths
   --retrieveAlignmentSCIs
+  alignmentsRNAzOutput <- mapM readRNAz rnazOutputFilepaths
+  let alignmentsSCI = map (\x -> structureConservationIndex (fromRight x)) alignmentsRNAzOutput
+  print alignmentsSCI
   --stop/continue -- proceed with best alignment
   --return initialAlignment
 
