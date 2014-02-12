@@ -78,12 +78,6 @@ seedModelConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2Acces
   return seedModel -- filteredBlastResults
   --return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
 
---candidateIdentifier :: [BlastHit] -> [(Int, L.String)]
---candidateIdentifier candidateList = identifierList
---  where indizes = [0..(length candidateList)]
---        identifiers = map hitId candidateList
---        identifierList = zip indizes identifiers
-
 --seedModelExpansion :: ModelConstruction -> String --[IO ()]--ModelConstruction
 seedModelExpansion (ModelConstruction remainingCandidates alignedCandidates tempDirPath sessionID iterationNumber) = do
   let currentDir = tempDirPath ++ sessionID ++ "/"
@@ -102,8 +96,8 @@ seedModelExpansion (ModelConstruction remainingCandidates alignedCandidates temp
   --return initialAlignment
 
 --alignCandidates :: String -> Int -> [BlastHit] -> IO ()
-alignCandidates currentDir iterationNumber blasthits = do
-  let identifiers = map (constructFastaFilePaths currentDir iterationNumber) blasthits
+alignCandidates currentDir iterationNumber candidateFasta = do
+  let identifiers = map (constructFastaFilePaths currentDir iterationNumber) candidateFasta
   mapM_ systemClustalw2 identifiers  
 
 replacePipeChars :: Char -> Char
@@ -115,17 +109,15 @@ constructFastaFilePaths currentDir iterationNumber (fastaIdentifier, _) = curren
 
 constructSeedFromBlast :: BlastHit -> String
 constructSeedFromBlast blasthit = fastaString
-  where --header = map replacePipeChars (L.unpack (hitId blasthit))    
-        header = delete '|' (L.unpack (hitId blasthit))    
+  where header = (filter (\char -> char /= '|') (L.unpack (hitId blasthit)))
         sequence = L.unpack (hseq (head (matches blasthit)))
-        fastaString = (header ++ "\n" ++ sequence ++ "\n")
+        fastaString = (">" ++ header ++ "\n" ++ sequence ++ "\n")
 
 constructCandidateFromBlast :: String -> BlastHit -> (String,String)
 constructCandidateFromBlast seed blasthit = fastaString
-  where --header = map replacePipeChars (L.unpack (hitId blasthit))
-        header = delete '|' (L.unpack (hitId blasthit))  
+  where header = (filter (\char -> char /= '|') (L.unpack (hitId blasthit)))
         sequence = L.unpack (hseq (head (matches blasthit)))
-        fastaString = (header ++ ".fa", header ++ "\n" ++ sequence ++ "\n" ++ seed)
+        fastaString = (header ++ ".fa", ">" ++ header ++ "\n" ++ sequence ++ "\n" ++ seed)
 
 --writeFastaFiles :: [(String,String)] -> String -> Int -> [IO ()]
 writeFastaFiles currentDir iterationNumber candidateFastaStrings  = do
