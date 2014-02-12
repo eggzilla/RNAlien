@@ -89,23 +89,35 @@ seedModelExpansion (ModelConstruction remainingCandidates alignedCandidates temp
   --write candidates
   writeFastaFiles currentDir iterationNumber candidateFasta
   --compute alignments
-  alignCandidates currentDir iterationNumber candidateFasta
+  let alignmentFilepaths = map (constructFastaFilePaths currentDir iterationNumber) candidateFasta
+  alignCandidates alignmentFilepaths
   --compute SCI
-  --map systemRNAz
+  let rnazOutputFilepaths = map (constructRNAzFilePaths currentDir iterationNumber) candidateFasta
+  computeAlignmentSCIs alignmentFilepaths rnazOutputFilepaths
+  --retrieveAlignmentSCIs
   --stop/continue -- proceed with best alignment
   --return initialAlignment
 
+computeAlignmentSCIs alignmentFilepaths rnazOutputFilepaths = do
+  let zippedFilepaths = zip alignmentFilepaths rnazOutputFilepaths
+  mapM_ systemRNAz zippedFilepaths
+
 --alignCandidates :: String -> Int -> [BlastHit] -> IO ()
-alignCandidates currentDir iterationNumber candidateFasta = do
-  let identifiers = map (constructFastaFilePaths currentDir iterationNumber) candidateFasta
-  mapM_ systemClustalw2 identifiers  
+alignCandidates alignmentFilepaths = do
+  mapM_ systemClustalw2 alignmentFilepaths  
 
 replacePipeChars :: Char -> Char
 replacePipeChars '|' = '-'
 replacePipeChars char = char
 
 constructFastaFilePaths :: String -> Int -> (String, String) -> String
-constructFastaFilePaths currentDir iterationNumber (fastaIdentifier, _) = currentDir ++ (show iterationNumber) ++ fastaIdentifier
+constructFastaFilePaths currentDir iterationNumber (fastaIdentifier, _) = currentDir ++ (show iterationNumber) ++ fastaIdentifier ++".fa"
+
+constructAlignmentFilePaths :: String -> Int -> (String, String) -> String
+constructAlignmentFilePaths currentDir iterationNumber (fastaIdentifier, _) = currentDir ++ (show iterationNumber) ++ fastaIdentifier ++".aln"
+
+constructRNAzFilePaths :: String -> Int -> (String, String) -> String
+constructRNAzFilePaths currentDir iterationNumber (fastaIdentifier, _) = currentDir ++ (show iterationNumber) ++ fastaIdentifier ++".rnaz"
 
 constructSeedFromBlast :: BlastHit -> String
 constructSeedFromBlast blasthit = fastaString
@@ -117,7 +129,7 @@ constructCandidateFromBlast :: String -> BlastHit -> (String,String)
 constructCandidateFromBlast seed blasthit = fastaString
   where header = (filter (\char -> char /= '|') (L.unpack (hitId blasthit)))
         sequence = L.unpack (hseq (head (matches blasthit)))
-        fastaString = (header ++ ".fa", ">" ++ header ++ "\n" ++ sequence ++ "\n" ++ seed)
+        fastaString = (header, ">" ++ header ++ "\n" ++ sequence ++ "\n" ++ seed)
 
 --writeFastaFiles :: [(String,String)] -> String -> Int -> [IO ()]
 writeFastaFiles currentDir iterationNumber candidateFastaStrings  = do
@@ -237,7 +249,7 @@ systemClustalw2 filePath = system ("clustalw2 -INFILE=" ++ filePath )
 systemRNAalifold filePath iterationNumber = system ("RNAalifold " ++ filePath  ++ " >" ++ iterationNumber ++ ".alifold")
 
 -- | Run external RNAz command and read the output into the corresponding datatype
-systemRNAz filePath iterationNumber = system ("RNAz " ++ filePath ++ " >" ++ iterationNumber ++ ".aln")
+systemRNAz (inputFilePath, outputFilePath) = system ("RNAz " ++ inputFilePath ++ " >" ++ outputFilePath)
 
 -- | Run external CMbuild command and read the output into the corresponding datatype 
 systemCMbuild filePath iterationNumber = system ("cmbuild " ++ filePath ++ " >" ++ iterationNumber ++ ".cm")                                          
