@@ -139,7 +139,7 @@ writeFastaFiles currentDir iterationNumber candidateFastaStrings  = do
   mapM_ (writeFastaFile currentDir iterationNumber) candidateFastaStrings
 
 --writeFastaFile :: String -> Int -> (String,String) -> IO ()
-writeFastaFile currentPath iterationNumber (fileName,content) = writeFile (currentPath ++ (show iterationNumber) ++ fileName) content
+writeFastaFile currentPath iterationNumber (fileName,content) = writeFile (currentPath ++ (show iterationNumber) ++ fileName ++ ".fa") content
 
 filterByNeighborhood :: [B.ByteString] -> [Int] -> BlastResult -> [BlastHit]
 filterByNeighborhood inputGene2AccessionContent neighborhoodTaxIds blastOutput = filter (\blastHit -> isInNeighborhood neighborhoodTaxIds inputGene2AccessionContent blastHit) (concat (map hits (results blastOutput)))
