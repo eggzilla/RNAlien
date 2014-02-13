@@ -89,7 +89,7 @@ seedModelExpansion (ModelConstruction remainingCandidates alignedCandidates temp
   --write candidates
   writeFastaFiles currentDir iterationNumber candidateFasta
   --compute alignments
-  let alignmentFilepaths = map (constructFastaFilePaths currentDir iterationNumber) candidateFasta
+  let alignmentFilepaths = map (constructAlignmentFilePaths currentDir iterationNumber) candidateFasta
   alignCandidates alignmentFilepaths
   --compute SCI
   let rnazOutputFilepaths = map (constructRNAzFilePaths currentDir iterationNumber) candidateFasta
@@ -246,7 +246,6 @@ systemBlast filePath iterationNumber = do
         
 -- | Run external clustalw2 command and read the output into the corresponding datatype
 systemClustalw2 filePath = system ("clustalw2 -INFILE=" ++ filePath )
- -- ++ " -OUTFILE" ++ iterationNumber ++ ".aln")
 
 -- | Run external RNAalifold command and read the output into the corresponding datatype
 systemRNAalifold filePath iterationNumber = system ("RNAalifold " ++ filePath  ++ " >" ++ iterationNumber ++ ".alifold")
