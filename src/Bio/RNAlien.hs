@@ -84,9 +84,10 @@ seedModelExpansion (ModelConstruction remainingCandidates alignedCandidates temp
   let candidateFasta = map (\candidate -> constructCandidateFromBlast seedFasta candidate) remainingCandidates
   --write candidates
   writeFastaFiles currentDir iterationNumber candidateFasta
+  let fastaFilepaths = map (constructFastaFilePaths currentDir iterationNumber) candidateFasta
   --compute alignments
   let alignmentFilepaths = map (constructAlignmentFilePaths currentDir iterationNumber) candidateFasta
-  alignCandidates alignmentFilepaths
+  alignCandidates fastaFilepaths alignmentFilepaths
   --compute SCI
   let rnazOutputFilepaths = map (constructRNAzFilePaths currentDir iterationNumber) candidateFasta
   computeAlignmentSCIs alignmentFilepaths rnazOutputFilepaths
@@ -102,9 +103,10 @@ computeAlignmentSCIs alignmentFilepaths rnazOutputFilepaths = do
   let zippedFilepaths = zip alignmentFilepaths rnazOutputFilepaths
   mapM_ systemRNAz zippedFilepaths
 
-alignCandidates :: [String] -> IO ()
-alignCandidates alignmentFilepaths = do
-  mapM_ systemClustalw2 alignmentFilepaths  
+alignCandidates :: [String] -> [String] -> IO ()
+alignCandidates fastaFilepaths alignmentFilepaths = do
+  let zippedFilepaths = zip fastaFilepaths alignmentFilepaths
+  mapM_ systemClustalw2 zippedFilepaths  
 
 replacePipeChars :: Char -> Char
 replacePipeChars '|' = '-'
@@ -242,7 +244,7 @@ systemBlast filePath iterationNumber = do
   return inputBlast
         
 -- | Run external clustalw2 command and read the output into the corresponding datatype
-systemClustalw2 filePath = system ("clustalw2 -INFILE=" ++ filePath )
+systemClustalw2 (inputFilePath, outputFilePath) = system ("clustalw2 -INFILE=" ++ inputFilePath ++ " -OUTFILE=" ++ outputFilePath )
 
 -- | Run external RNAalifold command and read the output into the corresponding datatype
 systemRNAalifold filePath iterationNumber = system ("RNAalifold " ++ filePath  ++ " >" ++ iterationNumber ++ ".alifold")
@@ -251,7 +253,8 @@ systemRNAalifold filePath iterationNumber = system ("RNAalifold " ++ filePath  +
 systemRNAz (inputFilePath, outputFilePath) = system ("RNAz " ++ inputFilePath ++ " >" ++ outputFilePath)
 
 -- | Run external CMbuild command and read the output into the corresponding datatype 
-systemCMbuild filePath iterationNumber = system ("cmbuild " ++ filePath ++ " >" ++ iterationNumber ++ ".cm")                                          
+systemCMbuild filePath iterationNumber = system ("cmbuild " ++ filePath ++ " >" ++ iterationNumber ++ ".cm")         
+                                 
 -- | Run CMCompare and read the output into the corresponding datatype
 systemCMcompare filePath iterationNumber = system ("CMcompare " ++ filePath ++ " >" ++ iterationNumber ++ ".cmcoutput")
 
