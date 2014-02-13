@@ -69,13 +69,9 @@ seedModelConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2Acces
   --Filter Blast result list by membership to neighorhood
   let filteredBlastResults = filterByNeighborhood inputGene2AccessionContent neighborhoodTaxIds rightBlast
   createDirectory (tempDir ++ sessionID)
-  -- each hit for the initial alignment is associated with an index number for use in filenames
-  --let candidateIdentifierList = candidateIdentifier ([bestHit] ++ filteredBlastResults)
-  --writeFile (tempDir ++ sessionID ++ "/candidateIdentifierList") (show candidateIdentifierList)
   let seedModel = ModelConstruction filteredBlastResults [bestHit] tempDir sessionID iterationNumber 
   seedModelExpansion seedModel 
-  --seedModelExpansion seedModel
-  return seedModel -- filteredBlastResults
+  return seedModel 
   --return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
 
 --seedModelExpansion :: ModelConstruction -> String --[IO ()]--ModelConstruction
@@ -101,11 +97,12 @@ seedModelExpansion (ModelConstruction remainingCandidates alignedCandidates temp
   --stop/continue -- proceed with best alignment
   --return initialAlignment
 
+computeAlignmentSCIs :: [String] -> [String] -> IO ()
 computeAlignmentSCIs alignmentFilepaths rnazOutputFilepaths = do
   let zippedFilepaths = zip alignmentFilepaths rnazOutputFilepaths
   mapM_ systemRNAz zippedFilepaths
 
---alignCandidates :: String -> Int -> [BlastHit] -> IO ()
+alignCandidates :: [String] -> IO ()
 alignCandidates alignmentFilepaths = do
   mapM_ systemClustalw2 alignmentFilepaths  
 
@@ -134,11 +131,11 @@ constructCandidateFromBlast seed blasthit = fastaString
         sequence = L.unpack (hseq (head (matches blasthit)))
         fastaString = (header, ">" ++ header ++ "\n" ++ sequence ++ "\n" ++ seed)
 
---writeFastaFiles :: [(String,String)] -> String -> Int -> [IO ()]
+writeFastaFiles :: String -> Int -> [(String,String)] -> IO ()
 writeFastaFiles currentDir iterationNumber candidateFastaStrings  = do
   mapM_ (writeFastaFile currentDir iterationNumber) candidateFastaStrings
 
---writeFastaFile :: String -> Int -> (String,String) -> IO ()
+writeFastaFile :: String -> Int -> (String,String) -> IO ()
 writeFastaFile currentPath iterationNumber (fileName,content) = writeFile (currentPath ++ (show iterationNumber) ++ fileName ++ ".fa") content
 
 filterByNeighborhood :: [B.ByteString] -> [Int] -> BlastResult -> [BlastHit]
