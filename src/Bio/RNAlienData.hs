@@ -4,14 +4,16 @@ module Bio.RNAlienData where
 
 import Bio.BlastXML
 import qualified Data.ByteString.Lazy.Char8 as L
-    
+import Bio.Sequence.Fasta 
+ 
 -- | Keeps track of model construction 
 data ModelConstruction = ModelConstruction
   { filteredBlastResults :: [BlastHit],
     alignedHits :: [BlastHit],
     tempDirPath :: String,
     sessionID :: String,
-    iterationNumber :: Int
+    iterationNumber :: Int,
+    inputFasta :: Sequence
   } deriving (Show) 
 
 -- | Datastructure for Gene2Accession table

@@ -13,6 +13,7 @@ import System.IO
 import System.Environment
 import System.Directory
 import Data.List
+import Data.Char
 import Bio.Core.Sequence 
 import Bio.Sequence.Fasta 
 import Bio.BlastXML
@@ -69,16 +70,16 @@ seedModelConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2Acces
   --Filter Blast result list by membership to neighorhood
   let filteredBlastResults = filterByNeighborhood inputGene2AccessionContent neighborhoodTaxIds rightBlast
   createDirectory (tempDir ++ sessionID)
-  let seedModel = ModelConstruction filteredBlastResults [bestHit] tempDir sessionID iterationNumber 
+  let seedModel = ModelConstruction filteredBlastResults [] tempDir sessionID iterationNumber (head inputFasta)
   seedModelExpansion seedModel 
   return seedModel 
   --return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
 
 --seedModelExpansion :: ModelConstruction -> String --[IO ()]--ModelConstruction
-seedModelExpansion (ModelConstruction remainingCandidates alignedCandidates tempDirPath sessionID iterationNumber) = do
+seedModelExpansion (ModelConstruction remainingCandidates alignedCandidates tempDirPath sessionID iterationNumber inputFasta) = do
   let currentDir = tempDirPath ++ sessionID ++ "/"
   --construct seedFasta
-  let seedFasta = concat (map constructSeedFromBlast alignedCandidates)
+  let seedFasta = concat (map constructSeedFromBlast alignedCandidates) ++ (constructCandidateFromFasta inputFasta)
   putStrLn "Reached seedModelExpansion"
   --combine with unaligned Blastresults
   let candidateFasta = map (\candidate -> constructCandidateFromBlast seedFasta candidate) remainingCandidates
@@ -98,10 +99,14 @@ seedModelExpansion (ModelConstruction remainingCandidates alignedCandidates temp
   --stop/continue -- proceed with best alignment
   --return initialAlignment
 
+constructCandidateFromFasta :: Sequence -> String
+constructCandidateFromFasta inputFasta = ">" ++ (filter (\char -> char /= '|') (L.unpack (unSL (seqheader inputFasta)))) ++ "\n" ++ (map toUpper (L.unpack (unSD (seqdata inputFasta)))) ++ "\n"
+
+
 computeAlignmentSCIs :: [String] -> [String] -> IO ()
 computeAlignmentSCIs alignmentFilepaths rnazOutputFilepaths = do
   let zippedFilepaths = zip alignmentFilepaths rnazOutputFilepaths
-  mapM_ systemRNAz zippedFilepaths
+  mapM_ systemRNAz zippedFilepaths  
 
 alignCandidates :: [String] -> [String] -> IO ()
 alignCandidates fastaFilepaths alignmentFilepaths = do
