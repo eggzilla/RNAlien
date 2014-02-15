@@ -18,6 +18,7 @@ import Bio.Core.Sequence
 import Bio.Sequence.Fasta 
 import Bio.BlastXML
 import Bio.ViennaRNAParser
+import Bio.ClustalParser
 import System.Directory
 import System.Cmd   
 import System.Random
@@ -71,8 +72,8 @@ seedModelConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2Acces
   let filteredBlastResults = filterByNeighborhood inputGene2AccessionContent neighborhoodTaxIds rightBlast
   createDirectory (tempDir ++ sessionID)
   let seedModel = ModelConstruction filteredBlastResults [] tempDir sessionID iterationNumber (head inputFasta)
-  seedModelExpansion seedModel 
-  return seedModel 
+  expansionResult <- seedModelExpansion seedModel 
+  return expansionResult
   --return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
 
 --seedModelExpansion :: ModelConstruction -> String --[IO ()]--ModelConstruction
@@ -88,29 +89,34 @@ seedModelExpansion (ModelConstruction remainingCandidates alignedCandidates temp
   let fastaFilepaths = map (constructFastaFilePaths currentDir iterationNumber) candidateFasta
   --compute alignments
   let alignmentFilepaths = map (constructAlignmentFilePaths currentDir iterationNumber) candidateFasta
-  alignCandidates fastaFilepaths alignmentFilepaths
+  let alignmentSummaryFilepaths = map (constructAlignmentSummaryFilePaths currentDir iterationNumber) candidateFasta
+  alignCandidates fastaFilepaths alignmentFilepaths alignmentSummaryFilepaths
+  clustalw2Summaries <- mapM readClustalw2Summary alignmentSummaryFilepaths
+  let clustalw2Scores = map (\x -> show (alignmentScore (fromRight x))) clustalw2Summaries
+  putStrLn (intercalate "," clustalw2Scores)
   --compute SCI
   let rnazOutputFilepaths = map (constructRNAzFilePaths currentDir iterationNumber) candidateFasta
   computeAlignmentSCIs alignmentFilepaths rnazOutputFilepaths
   --retrieveAlignmentSCIs
   alignmentsRNAzOutput <- mapM readRNAz rnazOutputFilepaths
-  let alignmentsSCI = map (\x -> structureConservationIndex (fromRight x)) alignmentsRNAzOutput
-  print alignmentsSCI
+  let alignmentsSCI = map (\x -> show (structureConservationIndex (fromRight x))) alignmentsRNAzOutput
+  putStrLn (intercalate "," alignmentsSCI)
+  return alignmentsRNAzOutput
   --stop/continue -- proceed with best alignment
-  --return initialAlignment
+  
+  --return a list of ModelConstructions where the last one contains the result
 
 constructCandidateFromFasta :: Sequence -> String
 constructCandidateFromFasta inputFasta = ">" ++ (filter (\char -> char /= '|') (L.unpack (unSL (seqheader inputFasta)))) ++ "\n" ++ (map toUpper (L.unpack (unSD (seqdata inputFasta)))) ++ "\n"
-
 
 computeAlignmentSCIs :: [String] -> [String] -> IO ()
 computeAlignmentSCIs alignmentFilepaths rnazOutputFilepaths = do
   let zippedFilepaths = zip alignmentFilepaths rnazOutputFilepaths
   mapM_ systemRNAz zippedFilepaths  
 
-alignCandidates :: [String] -> [String] -> IO ()
-alignCandidates fastaFilepaths alignmentFilepaths = do
-  let zippedFilepaths = zip fastaFilepaths alignmentFilepaths
+alignCandidates :: [String] -> [String] -> [String] -> IO ()
+alignCandidates fastaFilepaths alignmentFilepaths summaryFilepaths = do
+  let zippedFilepaths = zip3 fastaFilepaths alignmentFilepaths summaryFilepaths
   mapM_ systemClustalw2 zippedFilepaths  
 
 replacePipeChars :: Char -> Char
@@ -122,6 +128,9 @@ constructFastaFilePaths currentDir iterationNumber (fastaIdentifier, _) = curren
 
 constructAlignmentFilePaths :: String -> Int -> (String, String) -> String
 constructAlignmentFilePaths currentDir iterationNumber (fastaIdentifier, _) = currentDir ++ (show iterationNumber) ++ fastaIdentifier ++".aln"
+
+constructAlignmentSummaryFilePaths :: String -> Int -> (String, String) -> String
+constructAlignmentSummaryFilePaths currentDir iterationNumber (fastaIdentifier, _) = currentDir ++ (show iterationNumber) ++ fastaIdentifier ++".alnsum"
 
 constructRNAzFilePaths :: String -> Int -> (String, String) -> String
 constructRNAzFilePaths currentDir iterationNumber (fastaIdentifier, _) = currentDir ++ (show iterationNumber) ++ fastaIdentifier ++".rnaz"
@@ -249,7 +258,7 @@ systemBlast filePath iterationNumber = do
   return inputBlast
         
 -- | Run external clustalw2 command and read the output into the corresponding datatype
-systemClustalw2 (inputFilePath, outputFilePath) = system ("clustalw2 -INFILE=" ++ inputFilePath ++ " -OUTFILE=" ++ outputFilePath )
+systemClustalw2 (inputFilePath, outputFilePath, summaryFilePath) = system ("clustalw2 -INFILE=" ++ inputFilePath ++ " -OUTFILE=" ++ outputFilePath ++ ">" ++ summaryFilePath)
 
 -- | Run external RNAalifold command and read the output into the corresponding datatype
 systemRNAalifold filePath iterationNumber = system ("RNAalifold " ++ filePath  ++ " >" ++ iterationNumber ++ ".alifold")
