@@ -49,7 +49,7 @@ options = Options
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 --seedModelConstruction :: String -> String -> String -> String -> String -> IO String --IO []
-seedModelConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2AccessionFile tempDir = do
+initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2AccessionFile tempDir = do
   let iterationNumber = 0
   inputFasta <- readFasta inputFastaFile
   putStrLn "Read input"
@@ -71,13 +71,13 @@ seedModelConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2Acces
   --Filter Blast result list by membership to neighorhood
   let filteredBlastResults = filterByNeighborhood inputGene2AccessionContent neighborhoodTaxIds rightBlast
   createDirectory (tempDir ++ sessionID)
-  let seedModel = ModelConstruction filteredBlastResults [] tempDir sessionID iterationNumber (head inputFasta)
-  expansionResult <- seedModelExpansion seedModel 
+  let initialAlignment = ModelConstruction filteredBlastResults [] tempDir sessionID iterationNumber (head inputFasta)
+  expansionResult <- initialAlignmentExpansion initialAlignment 
   return expansionResult
   --return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
 
 --seedModelExpansion :: ModelConstruction -> String --[IO ()]--ModelConstruction
-seedModelExpansion (ModelConstruction remainingCandidates alignedCandidates tempDirPath sessionID iterationNumber inputFasta) = do
+initialAlignmentExpansion (ModelConstruction remainingCandidates alignedCandidates tempDirPath sessionID iterationNumber inputFasta) = do
   let currentDir = tempDirPath ++ sessionID ++ "/"
   --construct seedFasta
   let seedFasta = concat (map constructSeedFromBlast alignedCandidates) ++ (constructCandidateFromFasta inputFasta)
@@ -234,8 +234,9 @@ main = do
   let taxNodesFile = "/home/egg/current/Data/Taxonomy/taxdump/nodes.dmp"
   let gene2AccessionFile = "/home/egg/current/Data/gene2accession"
   let tempDirPath = "/scr/klingon/egg/temp/"
-  seedModel <- seedModelConstruction sessionId inputFile taxNodesFile gene2AccessionFile tempDirPath
-  print seedModel
+  initialAlignment <- initialAlignmentConstruction sessionId inputFile taxNodesFile gene2AccessionFile tempDirPath
+  -- seedModel <- seedModelConstruction initialAlignment
+  print initialAlignment
 
 -------------------------------------- Auxiliary functions:
 
