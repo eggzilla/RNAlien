@@ -66,10 +66,11 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   inputGene2AccessionContent <- liftM (BC.split '\n') (B.readFile inputGene2AccessionFile)
   let bestResultTaxId = taxIDFromGene2Accession inputGene2AccessionContent bestHitAccession
   reportBestBlastHit bestResultTaxId
-  let neighborhoodTaxIds = retrieveNeighborhoodTaxIds (fromRight bestResultTaxId) rightNodes
-  putStrLn ("Retrieved taxonomic neighborhood "  ++ (show neighborhoodTaxIds))
+  let rightBestTaxIdResult = fromRight bestResultTaxId
+  --let neighborhoodTaxIds = retrieveNeighborhoodTaxIds (fromRight bestResultTaxId) rightNodes
+  --putStrLn ("Retrieved taxonomic neighborhood "  ++ (show neighborhoodTaxIds))
   --Filter Blast result list by membership to neighorhood
-  let filteredBlastResults = filterByNeighborhood inputGene2AccessionContent neighborhoodTaxIds rightBlast
+  let filteredBlastResults = filterByNeighborhood inputGene2AccessionContent rightNodes Family rightBestTaxIdResult rightBlast bestHit 
   createDirectory (tempDir ++ sessionID)
   let initialAlignment = ModelConstruction filteredBlastResults [] tempDir sessionID iterationNumber (head inputFasta)
   expansionResult <- initialAlignmentExpansion initialAlignment 
@@ -154,8 +155,17 @@ writeFastaFiles currentDir iterationNumber candidateFastaStrings  = do
 writeFastaFile :: String -> Int -> (String,String) -> IO ()
 writeFastaFile currentPath iterationNumber (fileName,content) = writeFile (currentPath ++ (show iterationNumber) ++ fileName ++ ".fa") content
 
-filterByNeighborhood :: [B.ByteString] -> [Int] -> BlastResult -> [BlastHit]
-filterByNeighborhood inputGene2AccessionContent neighborhoodTaxIds blastOutput = filter (\blastHit -> isInNeighborhood neighborhoodTaxIds inputGene2AccessionContent blastHit) (concat (map hits (results blastOutput)))
+filterByNeighborhood :: [B.ByteString] -> [TaxDumpNode] -> Rank -> Int -> BlastResult ->  BlastHit -> [BlastHit]
+filterByNeighborhood inputGene2AccessionContent nodes rank rightBestTaxIdResult blastOutput bestHit = do
+  let neighborhoodTaxIds = retrieveNeighborhoodTaxIds rightBestTaxIdResult nodes rank
+  let currentNeighborhoodEntries = filter (\blastHit -> isInNeighborhood neighborhoodTaxIds inputGene2AccessionContent bestHit) (concat (map hits (results blastOutput)))
+  let neighborNumber = length currentNeighborhoodEntries
+  enoughNeighbors neighborNumber currentNeighborhoodEntries inputGene2AccessionContent nodes rank rightBestTaxIdResult blastOutput bestHit
+
+enoughNeighbors :: Int -> [BlastHit] -> [B.ByteString] -> [TaxDumpNode] -> Rank -> Int -> BlastResult -> BlastHit -> [BlastHit]
+enoughNeighbors neighborNumber currentNeighborhoodEntries inputGene2AccessionContent nodes rank rightBestTaxIdResult blastOutput bestHit 
+  | neighborNumber > 5 = currentNeighborhoodEntries
+  | otherwise = filterByNeighborhood inputGene2AccessionContent nodes (succ rank) rightBestTaxIdResult blastOutput bestHit
 
 isInNeighborhood :: [Int] -> [B.ByteString] -> BlastHit -> Bool
 isInNeighborhood neighborhoodTaxIds inputGene2AccessionContent blastHit = isNeighbor
@@ -194,10 +204,10 @@ getBestHit blastResult = head (hits (head (results blastResult)))
 getBestHitAccession :: BlastResult -> L.ByteString
 getBestHitAccession blastResult = accession (head (hits (head (results blastResult))))
 
-retrieveNeighborhoodTaxIds :: Int -> [TaxDumpNode] -> [Int]
-retrieveNeighborhoodTaxIds bestHitTaxId nodes = neighborhoodNodesIds
+retrieveNeighborhoodTaxIds :: Int -> [TaxDumpNode] -> Rank -> [Int]
+retrieveNeighborhoodTaxIds bestHitTaxId nodes rank = neighborhoodNodesIds
   where hitNode = fromJust (retrieveNode bestHitTaxId nodes)
-        parentFamilyNode = parentNodeWithRank hitNode Family nodes
+        parentFamilyNode = parentNodeWithRank hitNode rank nodes
         neighborhoodNodes = (retrieveAllDescendents nodes parentFamilyNode)
         neighborhoodNodesIds = map taxId neighborhoodNodes
 
