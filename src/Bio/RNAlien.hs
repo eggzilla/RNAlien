@@ -164,8 +164,9 @@ filterByNeighborhood inputGene2AccessionContent nodes rank rightBestTaxIdResult 
 
 enoughNeighbors :: Int -> [BlastHit] -> [B.ByteString] -> [TaxDumpNode] -> Rank -> Int -> BlastResult -> BlastHit -> [BlastHit]
 enoughNeighbors neighborNumber currentNeighborhoodEntries inputGene2AccessionContent nodes rank rightBestTaxIdResult blastOutput bestHit 
-  | neighborNumber > 5 = currentNeighborhoodEntries
-  | otherwise = filterByNeighborhood inputGene2AccessionContent nodes (succ rank) rightBestTaxIdResult blastOutput bestHit
+  | neighborNumber < 5   = filterByNeighborhood inputGene2AccessionContent nodes (succ rank) rightBestTaxIdResult blastOutput bestHit
+  | neighborNumber > 100 = filterByNeighborhood inputGene2AccessionContent nodes (pred rank) rightBestTaxIdResult blastOutput bestHit
+  | otherwise = currentNeighborhoodEntries
 
 isInNeighborhood :: [Int] -> [B.ByteString] -> BlastHit -> Bool
 isInNeighborhood neighborhoodTaxIds inputGene2AccessionContent blastHit = isNeighbor
