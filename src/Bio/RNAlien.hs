@@ -37,6 +37,7 @@ import Data.Tree
 import Data.Maybe
 import Text.Parsec.Error
 import Text.ParserCombinators.Parsec.Pos
+import Debug.Trace
 data Options = Options            
   { inputFile :: String,
     outputPath :: String
@@ -70,7 +71,7 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   --let neighborhoodTaxIds = retrieveNeighborhoodTaxIds (fromRight bestResultTaxId) rightNodes
   --putStrLn ("Retrieved taxonomic neighborhood "  ++ (show neighborhoodTaxIds))
   --Filter Blast result list by membership to neighorhood
-  let filteredBlastResults = filterByNeighborhood inputGene2AccessionContent rightNodes Family rightBestTaxIdResult rightBlast bestHit 
+  let filteredBlastResults = filterByNeighborhood inputGene2AccessionContent rightNodes Species rightBestTaxIdResult rightBlast bestHit 
   createDirectory (tempDir ++ sessionID)
   let initialAlignment = ModelConstruction filteredBlastResults [] tempDir sessionID iterationNumber (head inputFasta)
   expansionResult <- initialAlignmentExpansion initialAlignment 
@@ -94,7 +95,7 @@ initialAlignmentExpansion (ModelConstruction remainingCandidates alignedCandidat
   alignCandidates fastaFilepaths alignmentFilepaths alignmentSummaryFilepaths
   clustalw2Summaries <- mapM readClustalw2Summary alignmentSummaryFilepaths
   let clustalw2Scores = map (\x -> show (alignmentScore (fromRight x))) clustalw2Summaries
-  putStrLn (intercalate "," clustalw2Scores)
+  putStrLn ("clustalw2Scores:" ++ (intercalate "," clustalw2Scores))
   --compute SCI
   let rnazOutputFilepaths = map (constructRNAzFilePaths currentDir iterationNumber) candidateFasta
   computeAlignmentSCIs alignmentFilepaths rnazOutputFilepaths
@@ -103,6 +104,7 @@ initialAlignmentExpansion (ModelConstruction remainingCandidates alignedCandidat
   let alignmentsSCI = map (\x -> show (structureConservationIndex (fromRight x))) alignmentsRNAzOutput
   putStrLn (intercalate "," alignmentsSCI)
   return alignmentsRNAzOutput
+  
   --stop/continue -- proceed with best alignment
   
   --return a list of ModelConstructions where the last one contains the result
@@ -160,12 +162,15 @@ filterByNeighborhood inputGene2AccessionContent nodes rank rightBestTaxIdResult 
   let neighborhoodTaxIds = retrieveNeighborhoodTaxIds rightBestTaxIdResult nodes rank
   let currentNeighborhoodEntries = filter (\blastHit -> isInNeighborhood neighborhoodTaxIds inputGene2AccessionContent bestHit) (concat (map hits (results blastOutput)))
   let neighborNumber = length currentNeighborhoodEntries
-  enoughNeighbors neighborNumber currentNeighborhoodEntries inputGene2AccessionContent nodes rank rightBestTaxIdResult blastOutput bestHit
+  let neighborStatusMessage = ("FilterByNeighborhood " ++ "Hits:" ++ (show neighborNumber) ++ " Rank: " ++ (show rank))
+  trace neighborStatusMessage (enoughNeighbors neighborNumber currentNeighborhoodEntries inputGene2AccessionContent nodes rank rightBestTaxIdResult blastOutput bestHit)
 
 enoughNeighbors :: Int -> [BlastHit] -> [B.ByteString] -> [TaxDumpNode] -> Rank -> Int -> BlastResult -> BlastHit -> [BlastHit]
 enoughNeighbors neighborNumber currentNeighborhoodEntries inputGene2AccessionContent nodes rank rightBestTaxIdResult blastOutput bestHit 
-  | neighborNumber < 5   = filterByNeighborhood inputGene2AccessionContent nodes (succ rank) rightBestTaxIdResult blastOutput bestHit
-  | neighborNumber > 100 = filterByNeighborhood inputGene2AccessionContent nodes (pred rank) rightBestTaxIdResult blastOutput bestHit
+  | rank == Form = currentNeighborhoodEntries
+  | rank == Domain = currentNeighborhoodEntries
+  | neighborNumber < 5  = filterByNeighborhood inputGene2AccessionContent nodes (succ rank) rightBestTaxIdResult blastOutput bestHit
+  | neighborNumber > 150 = filterByNeighborhood inputGene2AccessionContent nodes (pred rank) rightBestTaxIdResult blastOutput bestHit
   | otherwise = currentNeighborhoodEntries
 
 isInNeighborhood :: [Int] -> [B.ByteString] -> BlastHit -> Bool
