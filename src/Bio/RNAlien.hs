@@ -37,7 +37,7 @@ import Data.Tree
 import Data.Maybe
 import Text.Parsec.Error
 import Text.ParserCombinators.Parsec.Pos
-import Debug.Trace
+--import Debug.Trace
 data Options = Options            
   { inputFile :: String,
     outputPath :: String
@@ -55,7 +55,7 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   inputFasta <- readFasta inputFastaFile
   putStrLn "Read input"
   let fastaSeqData = seqdata (head inputFasta)
-  let blastQuery = BlastHTTPQuery (Just "blastn") (Just "nr") (Just fastaSeqData) Nothing
+  let blastQuery = BlastHTTPQuery (Just "blastn") (Just "refseq_genomic") (Just fastaSeqData) Nothing
   nodes <- readNCBITaxDumpNodes inputTaxNodesFile
   putStrLn "Read taxonomy nodes"
   let rightNodes  = fromRight nodes
@@ -71,12 +71,13 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   --let neighborhoodTaxIds = retrieveNeighborhoodTaxIds (fromRight bestResultTaxId) rightNodes
   --putStrLn ("Retrieved taxonomic neighborhood "  ++ (show neighborhoodTaxIds))
   --Filter Blast result list by membership to neighorhood
-  let filteredBlastResults = filterByNeighborhood inputGene2AccessionContent rightNodes Species rightBestTaxIdResult rightBlast bestHit 
+  let filteredBlastResults = filterByNeighborhood inputGene2AccessionContent rightNodes Family rightBestTaxIdResult rightBlast bestHit 
   createDirectory (tempDir ++ sessionID)
   let initialAlignment = ModelConstruction filteredBlastResults [] tempDir sessionID iterationNumber (head inputFasta)
   expansionResult <- initialAlignmentExpansion initialAlignment 
   return expansionResult
   --return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
+
 
 --seedModelExpansion :: ModelConstruction -> String --[IO ()]--ModelConstruction
 initialAlignmentExpansion (ModelConstruction remainingCandidates alignedCandidates tempDirPath sessionID iterationNumber inputFasta) = do
@@ -103,11 +104,12 @@ initialAlignmentExpansion (ModelConstruction remainingCandidates alignedCandidat
   alignmentsRNAzOutput <- mapM readRNAz rnazOutputFilepaths
   let alignmentsSCI = map (\x -> show (structureConservationIndex (fromRight x))) alignmentsRNAzOutput
   putStrLn (intercalate "," alignmentsSCI)
-  return alignmentsRNAzOutput
-  
+  --return alignmentsRNAzOutput
+  return candidateFasta
   --stop/continue -- proceed with best alignment
   
   --return a list of ModelConstructions where the last one contains the result
+
 
 constructCandidateFromFasta :: Sequence -> String
 constructCandidateFromFasta inputFasta = ">" ++ (filter (\char -> char /= '|') (L.unpack (unSL (seqheader inputFasta)))) ++ "\n" ++ (map toUpper (L.unpack (unSD (seqdata inputFasta)))) ++ "\n"
@@ -160,17 +162,19 @@ writeFastaFile currentPath iterationNumber (fileName,content) = writeFile (curre
 filterByNeighborhood :: [B.ByteString] -> [TaxDumpNode] -> Rank -> Int -> BlastResult ->  BlastHit -> [BlastHit]
 filterByNeighborhood inputGene2AccessionContent nodes rank rightBestTaxIdResult blastOutput bestHit = do
   let neighborhoodTaxIds = retrieveNeighborhoodTaxIds rightBestTaxIdResult nodes rank
+  let neighborhoodTaxIdNumber = length neighborhoodTaxIds
   let currentNeighborhoodEntries = filter (\blastHit -> isInNeighborhood neighborhoodTaxIds inputGene2AccessionContent bestHit) (concat (map hits (results blastOutput)))
-  let neighborNumber = length currentNeighborhoodEntries
-  let neighborStatusMessage = ("FilterByNeighborhood " ++ "Hits:" ++ (show neighborNumber) ++ " Rank: " ++ (show rank))
-  trace neighborStatusMessage (enoughNeighbors neighborNumber currentNeighborhoodEntries inputGene2AccessionContent nodes rank rightBestTaxIdResult blastOutput bestHit)
+  let currentNeighborNumber = length currentNeighborhoodEntries
+  let neighborStatusMessage = ("FilterByNeighborhood " ++ "Hits:" ++ (show currentNeighborNumber) ++ " Rank: " ++ (show rank) ++ " Possible neighborhood size: " ++ (show neighborhoodTaxIdNumber)  ++ "\n")
+  --trace neighborStatusMessage (enoughNeighbors currentNeighborNumber currentNeighborhoodEntries inputGene2AccessionContent nodes rank rightBestTaxIdResult blastOutput bestHit)
+  enoughNeighbors currentNeighborNumber currentNeighborhoodEntries inputGene2AccessionContent nodes rank rightBestTaxIdResult blastOutput bestHit
 
 enoughNeighbors :: Int -> [BlastHit] -> [B.ByteString] -> [TaxDumpNode] -> Rank -> Int -> BlastResult -> BlastHit -> [BlastHit]
 enoughNeighbors neighborNumber currentNeighborhoodEntries inputGene2AccessionContent nodes rank rightBestTaxIdResult blastOutput bestHit 
   | rank == Form = currentNeighborhoodEntries
   | rank == Domain = currentNeighborhoodEntries
   | neighborNumber < 5  = filterByNeighborhood inputGene2AccessionContent nodes (succ rank) rightBestTaxIdResult blastOutput bestHit
-  | neighborNumber > 150 = filterByNeighborhood inputGene2AccessionContent nodes (pred rank) rightBestTaxIdResult blastOutput bestHit
+  | neighborNumber > 50 = filterByNeighborhood inputGene2AccessionContent nodes (pred rank) rightBestTaxIdResult blastOutput bestHit
   | otherwise = currentNeighborhoodEntries
 
 isInNeighborhood :: [Int] -> [B.ByteString] -> BlastHit -> Bool
@@ -214,13 +218,14 @@ retrieveNeighborhoodTaxIds :: Int -> [TaxDumpNode] -> Rank -> [Int]
 retrieveNeighborhoodTaxIds bestHitTaxId nodes rank = neighborhoodNodesIds
   where hitNode = fromJust (retrieveNode bestHitTaxId nodes)
         parentFamilyNode = parentNodeWithRank hitNode rank nodes
-        neighborhoodNodes = (retrieveAllDescendents nodes parentFamilyNode)
+        --neighborhoodNodes = (retrieveAllDescendents nodes parentFamilyNode)
+        neighborhoodNodes = trace ("parentFamilyNode " ++ (show (taxId parentFamilyNode))  ++ "\n") (retrieveAllDescendents nodes parentFamilyNode) 
         neighborhoodNodesIds = map taxId neighborhoodNodes
 
 -- | retrieves ancestor node with at least the supplied rank
 parentNodeWithRank :: TaxDumpNode -> Rank -> [TaxDumpNode] -> TaxDumpNode
 parentNodeWithRank node requestedRank nodes
-  | (rank node) <= requestedRank = node
+  | (rank node) >= requestedRank = node
   | otherwise = parentNodeWithRank (fromJust (retrieveNode (parentTaxId node) nodes)) requestedRank nodes
 
 retrieveNode :: Int -> [TaxDumpNode] -> Maybe TaxDumpNode 
@@ -270,7 +275,7 @@ randomid number = "cm" ++ (show number)
 systemBlast :: String -> Int -> IO BlastResult
 systemBlast filePath iterationNumber = do
   let outputName = (show iterationNumber) ++ ".blastout"
-  system ("blastn -outfmt 5 -query " ++ filePath  ++ " -db refseq_genomic -out " ++ outputName)
+  system ("blastn -outfmt 5 -query " ++ filePath  ++ " -db nr -out " ++ outputName)
   inputBlast <- readXML outputName
   return inputBlast
         
