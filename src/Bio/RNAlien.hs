@@ -68,16 +68,21 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   let bestResultTaxId = taxIDFromGene2Accession inputGene2AccessionContent bestHitAccession
   reportBestBlastHit bestResultTaxId
   let rightBestTaxIdResult = fromRight bestResultTaxId
-  --let neighborhoodTaxIds = retrieveNeighborhoodTaxIds (fromRight bestResultTaxId) rightNodes
-  --putStrLn ("Retrieved taxonomic neighborhood "  ++ (show neighborhoodTaxIds))
   --Filter Blast result list by membership to neighorhood
   let filteredBlastResults = filterByNeighborhood inputGene2AccessionContent rightNodes Family rightBestTaxIdResult rightBlast bestHit 
   createDirectory (tempDir ++ sessionID)
-  let initialAlignment = ModelConstruction filteredBlastResults [] tempDir sessionID iterationNumber (head inputFasta)
-  expansionResult <- initialAlignmentExpansion initialAlignment 
-  return expansionResult
+  --initialAlignmentconstruction
+  let initialAlignment = initialalignmentConstruction filteredBlastResults tempDirPath inputFasta
+  --let initialAlignment = ModelConstruction filteredBlastResults [] tempDir sessionID iterationNumber (head inputFasta) 
+  --expansionResult <- initialAlignmentExpansion initialAlignment 
+  return initialAlignment
   --return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
 
+
+initialAlignmentConstruction :: [BlastHit] -> String -> Sequence
+initialAlignmentConstruction filteredBlastHits tempDirPath inputFasta = do
+  let initialFastaFilePath = 
+  
 
 --seedModelExpansion :: ModelConstruction -> String --[IO ()]--ModelConstruction
 initialAlignmentExpansion (ModelConstruction remainingCandidates alignedCandidates tempDirPath sessionID iterationNumber inputFasta) = do
@@ -173,9 +178,12 @@ enoughNeighbors :: Int -> [BlastHit] -> [B.ByteString] -> [TaxDumpNode] -> Rank 
 enoughNeighbors neighborNumber currentNeighborhoodEntries inputGene2AccessionContent nodes rank rightBestTaxIdResult blastOutput bestHit 
   | rank == Form = currentNeighborhoodEntries
   | rank == Domain = currentNeighborhoodEntries
+  -- some ranks are not populated, we want to skip them 
   | neighborNumber < 5  = filterByNeighborhood inputGene2AccessionContent nodes (succ rank) rightBestTaxIdResult blastOutput bestHit
   | neighborNumber > 50 = filterByNeighborhood inputGene2AccessionContent nodes (pred rank) rightBestTaxIdResult blastOutput bestHit
   | otherwise = currentNeighborhoodEntries
+
+neighborhoodParentNode up
 
 isInNeighborhood :: [Int] -> [B.ByteString] -> BlastHit -> Bool
 isInNeighborhood neighborhoodTaxIds inputGene2AccessionContent blastHit = isNeighbor
@@ -215,9 +223,12 @@ getBestHitAccession :: BlastResult -> L.ByteString
 getBestHitAccession blastResult = accession (head (hits (head (results blastResult))))
 
 retrieveNeighborhoodTaxIds :: Int -> [TaxDumpNode] -> Rank -> [Int]
-retrieveNeighborhoodTaxIds bestHitTaxId nodes rank = neighborhoodNodesIds
+retrieveNeighborhoodTaxIds bestHitTaxId nodes rank previousParent = neighborhoodNodesIds
   where hitNode = fromJust (retrieveNode bestHitTaxId nodes)
+        --some Ranks are not populated in the taxonomic tree
+        --ranks for which no node exists are skipped
         parentFamilyNode = parentNodeWithRank hitNode rank nodes
+        
         --neighborhoodNodes = (retrieveAllDescendents nodes parentFamilyNode)
         neighborhoodNodes = trace ("parentFamilyNode " ++ (show (taxId parentFamilyNode))  ++ "\n") (retrieveAllDescendents nodes parentFamilyNode) 
         neighborhoodNodesIds = map taxId neighborhoodNodes
