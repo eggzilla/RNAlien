@@ -179,19 +179,20 @@ enoughNeighbors neighborNumber currentNeighborhoodEntries inputGene2AccessionCon
   | rank == Form = currentNeighborhoodEntries
   | rank == Domain = currentNeighborhoodEntries
   -- some ranks are not populated, we want to skip them 
-  | neighborNumber < 5  = filterByNeighborhood inputGene2AccessionContent nodes (succ rank) rightBestTaxIdResult blastOutput bestHit
-  | neighborNumber > 50 = filterByNeighborhood inputGene2AccessionContent nodes (pred rank) rightBestTaxIdResult blastOutput bestHit
+  | neighborNumber < 5  = filterByNeighborhood inputGene2AccessionContent nodes (nextParentRank rightBestTaxIdResult rank nodes "root") rightBestTaxIdResult blastOutput bestHit
+  | neighborNumber > 50 = filterByNeighborhood inputGene2AccessionContent nodes (nextParentRank rightBestTaxIdResult rank nodes "leave") rightBestTaxIdResult blastOutput bestHit
   | otherwise = currentNeighborhoodEntries
 
-parentFamilyNode :: TaxDumpNode -> Rank -> [TaxDumpNode] -> String -> Rank
-parentFamilyNode hitNode rank nodes direction = nextRank
-  where nextParentRank = nextRankByDirection rank direction
+nextParentRank :: Int -> Rank -> [TaxDumpNode] -> String -> Rank
+nextParentRank bestHitTaxId rank nodes direction = nextRank
+  where hitNode = fromJust (retrieveNode bestHitTaxId nodes)
+        nextParentRank = nextRankByDirection rank direction
         currentParent = parentNodeWithRank hitNode rank nodes
-        nextRank = isPopulated currentParent (parentNodeWithRank hitNode rank nodes) hitNode rank nodes direction
+        nextRank = isPopulated currentParent (parentNodeWithRank hitNode rank nodes) bestHitTaxId rank nodes direction
         
-isPopulated :: TaxDumpNode -> TaxDumpNode -> TaxDumpNode -> Rank -> [TaxDumpNode] -> String -> Rank
-isPopulated currentParent nextParent hitNode rank nodes direction
-  | currentParent == nextParent = (parentFamilyNode hitNode (nextRankByDirection rank direction) nodes direction)
+isPopulated :: TaxDumpNode -> TaxDumpNode -> Int -> Rank -> [TaxDumpNode] -> String -> Rank
+isPopulated currentParent nextParent bestHitTaxId rank nodes direction
+  | currentParent == nextParent = (nextParentRank bestHitTaxId (nextRankByDirection rank direction) nodes direction)
   | otherwise = (nextRankByDirection rank direction)
 
 nextRankByDirection :: Rank -> String -> Rank
