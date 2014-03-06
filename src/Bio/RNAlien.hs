@@ -34,6 +34,7 @@ import Bio.Taxonomy
 import Data.Either
 import Data.Either.Unwrap
 import Data.Tree
+import Data.Tree.Zipper
 import Data.Maybe
 import Text.Parsec.Error
 import Text.ParserCombinators.Parsec.Pos
@@ -55,7 +56,7 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   inputFasta <- readFasta inputFastaFile
   putStrLn "Read input"
   let fastaSeqData = seqdata (head inputFasta)
-  let blastQuery = BlastHTTPQuery (Just "blastn") (Just "refseq_genomic") (Just fastaSeqData) Nothing
+  let blastQuery = BlastHTTPQuery (Just "blastn") (Just "refseq_genomic") (Just fastaSeqData) (Just "&ALIGNMENTS=250")
   nodes <- readNCBITaxDumpNodes inputTaxNodesFile
   putStrLn "Read taxonomy nodes"
   let rightNodes  = fromRight nodes
@@ -69,13 +70,16 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   reportBestBlastHit bestResultTaxId
   let rightBestTaxIdResult = fromRight bestResultTaxId
   --Filter Blast result list by membership to neighorhood
-  let filteredBlastResults = filterByNeighborhood inputGene2AccessionContent rightNodes Family rightBestTaxIdResult rightBlast bestHit
+  --Filtering with TaxNode Lists
+  --let filteredBlastResults = filterByNeighborhood inputGene2AccessionContent rightNodes Family rightBestTaxIdResult rightBlast bestHit
+  -- Filtering with TaxTree
+  let filteredBlastResults = filterByNeighborhoodTree inputGene2AccessionContent rightNodes Genus rightBestTaxIdResult rightBlast bestHit
   createDirectory (tempDir ++ sessionID)
   --initialAlignmentconstruction
   --let initialAlignment = initialalignmentConstruction filteredBlastResults tempDirPath inputFasta
-  let initialAlignment = ModelConstruction filteredBlastResults [] tempDir sessionID iterationNumber (head inputFasta) 
-  expansionResult <- initialAlignmentExpansion initialAlignment 
-  return initialAlignment
+  --let initialAlignment = ModelConstruction filteredBlastResults [] tempDir sessionID iterationNumber (head inputFasta) 
+  --expansionResult <- initialAlignmentExpansion initialAlignment 
+  return filteredBlastResults
   --return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
 
 
@@ -164,6 +168,14 @@ writeFastaFiles currentDir iterationNumber candidateFastaStrings  = do
 writeFastaFile :: String -> Int -> (String,String) -> IO ()
 writeFastaFile currentPath iterationNumber (fileName,content) = writeFile (currentPath ++ (show iterationNumber) ++ fileName ++ ".fa") content
 
+--filterByNeighborhoodTree :: [B.ByteString] -> [TaxDumpNode] -> Rank -> Int -> BlastResult ->  BlastHit -> TreePos Full TaxDumpNode
+filterByNeighborhoodTree inputGene2AccessionContent nodes rank rightBestTaxIdResult blastOutput bestHit = taxTree
+  where  hitNode = fromJust (retrieveNode rightBestTaxIdResult nodes)
+         parentFamilyNode = parentNodeWithRank hitNode rank nodes
+         neighborhoodNodes = (retrieveAllDescendents nodes parentFamilyNode)
+         taxTree = constructTaxTree neighborhoodNodes
+         --rootNode = fromTree taxTree
+        
 filterByNeighborhood :: [B.ByteString] -> [TaxDumpNode] -> Rank -> Int -> BlastResult ->  BlastHit -> [BlastHit]
 filterByNeighborhood inputGene2AccessionContent nodes rank rightBestTaxIdResult blastOutput bestHit = do
   let neighborhoodTaxIds = retrieveNeighborhoodTaxIds rightBestTaxIdResult nodes rank
@@ -178,7 +190,7 @@ enoughNeighbors :: Int -> [BlastHit] -> [B.ByteString] -> [TaxDumpNode] -> Rank 
 enoughNeighbors neighborNumber currentNeighborhoodEntries inputGene2AccessionContent nodes rank rightBestTaxIdResult blastOutput bestHit 
   | rank == Form = currentNeighborhoodEntries
   | rank == Domain = currentNeighborhoodEntries
-  -- some ranks are not populated, we want to skip them 
+  -- some ranks are not populated, we want to skip them, as well as No Rank nodes
   | neighborNumber < 5  = filterByNeighborhood inputGene2AccessionContent nodes (nextParentRank rightBestTaxIdResult rank nodes "root") rightBestTaxIdResult blastOutput bestHit
   | neighborNumber > 50 = filterByNeighborhood inputGene2AccessionContent nodes (nextParentRank rightBestTaxIdResult rank nodes "leave") rightBestTaxIdResult blastOutput bestHit
   | otherwise = currentNeighborhoodEntries
