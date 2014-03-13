@@ -34,7 +34,7 @@ import Bio.Taxonomy
 import Data.Either
 import Data.Either.Unwrap
 import Data.Tree
-import Data.Tree.Zipper
+import qualified Data.Tree.Zipper as TZ
 import Data.Maybe
 import Text.Parsec.Error
 import Text.ParserCombinators.Parsec.Pos
@@ -73,7 +73,7 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   --Filtering with TaxNode Lists
   --let filteredBlastResults = filterByNeighborhood inputGene2AccessionContent rightNodes Family rightBestTaxIdResult rightBlast bestHit
   -- Filtering with TaxTree
-  let filteredBlastResults = filterByNeighborhoodTree inputGene2AccessionContent rightNodes Genus rightBestTaxIdResult rightBlast bestHit
+  let filteredBlastResults = filterByNeighborhoodTree inputGene2AccessionContent rightNodes Family rightBestTaxIdResult rightBlast bestHit
   createDirectory (tempDir ++ sessionID)
   --initialAlignmentconstruction
   --let initialAlignment = initialalignmentConstruction filteredBlastResults tempDirPath inputFasta
@@ -168,13 +168,31 @@ writeFastaFiles currentDir iterationNumber candidateFastaStrings  = do
 writeFastaFile :: String -> Int -> (String,String) -> IO ()
 writeFastaFile currentPath iterationNumber (fileName,content) = writeFile (currentPath ++ (show iterationNumber) ++ fileName ++ ".fa") content
 
---filterByNeighborhoodTree :: [B.ByteString] -> [TaxDumpNode] -> Rank -> Int -> BlastResult ->  BlastHit -> TreePos Full TaxDumpNode
-filterByNeighborhoodTree inputGene2AccessionContent nodes rank rightBestTaxIdResult blastOutput bestHit = taxTree
+filterByNeighborhoodTree :: [B.ByteString] -> [TaxDumpNode] -> Rank -> Int -> BlastResult ->  BlastHit -> TZ.TreePos TZ.Full TaxDumpNode
+filterByNeighborhoodTree inputGene2AccessionContent nodes rank rightBestTaxIdResult blastOutput bestHit = bestHitTreeLocation
   where  hitNode = fromJust (retrieveNode rightBestTaxIdResult nodes)
          parentFamilyNode = parentNodeWithRank hitNode rank nodes
          neighborhoodNodes = (retrieveAllDescendents nodes parentFamilyNode)
          taxTree = constructTaxTree neighborhoodNodes
-         --rootNode = fromTree taxTree
+         rootNode = TZ.fromTree taxTree
+         bestHitTreeLocation = head (findChildTaxTreeNodePosition (taxId hitNode) rootNode)
+         --childrenNodes = children rootNode
+
+-- | Retrieve position of a specific node in the tree
+findChildTaxTreeNodePosition :: Int -> TZ.TreePos TZ.Full TaxDumpNode -> [TZ.TreePos TZ.Full TaxDumpNode]
+findChildTaxTreeNodePosition searchedTaxId currentPosition 
+  | isLabelMatching == True = [currentPosition]
+  | (isLabelMatching == False) && (TZ.hasChildren currentPosition) = [] ++ (checkSiblings searchedTaxId (fromJust (TZ.firstChild currentPosition)))
+  | (isLabelMatching == False) = []
+  where currentTaxId = taxId (TZ.label currentPosition)
+        isLabelMatching = currentTaxId == searchedTaxId
+
+---checkSiblings :: Int -> TZ.TreePos TZ.Full TaxDumpNode -> [TZ.TreePos TZ.Full TaxDumpNode]        
+checkSiblings searchedTaxId currentPosition  
+  -- | (TZ.isLast currentPosition) = [("islast" ++ (show currentTaxId))]
+  | (TZ.isLast currentPosition) = (findChildTaxTreeNodePosition searchedTaxId currentPosition)
+  | otherwise = (findChildTaxTreeNodePosition searchedTaxId currentPosition) ++ (checkSiblings searchedTaxId (fromJust (TZ.next currentPosition)))
+  where currentTaxId = taxId (TZ.label currentPosition)
         
 filterByNeighborhood :: [B.ByteString] -> [TaxDumpNode] -> Rank -> Int -> BlastResult ->  BlastHit -> [BlastHit]
 filterByNeighborhood inputGene2AccessionContent nodes rank rightBestTaxIdResult blastOutput bestHit = do
