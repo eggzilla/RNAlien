@@ -168,14 +168,18 @@ writeFastaFiles currentDir iterationNumber candidateFastaStrings  = do
 writeFastaFile :: String -> Int -> (String,String) -> IO ()
 writeFastaFile currentPath iterationNumber (fileName,content) = writeFile (currentPath ++ (show iterationNumber) ++ fileName ++ ".fa") content
 
-filterByNeighborhoodTree :: [B.ByteString] -> [TaxDumpNode] -> Rank -> Int -> BlastResult ->  BlastHit -> TZ.TreePos TZ.Full TaxDumpNode
-filterByNeighborhoodTree inputGene2AccessionContent nodes rank rightBestTaxIdResult blastOutput bestHit = bestHitTreeLocation
+--filterByNeighborhoodTree :: [B.ByteString] -> [TaxDumpNode] -> Rank -> Int -> BlastResult ->  BlastHit -> TZ.TreePos TZ.Full TaxDumpNode
+filterByNeighborhoodTree inputGene2AccessionContent nodes rank rightBestTaxIdResult blastOutput bestHit = currentNeighborhoodEntries
   where  hitNode = fromJust (retrieveNode rightBestTaxIdResult nodes)
          parentFamilyNode = parentNodeWithRank hitNode rank nodes
          neighborhoodNodes = (retrieveAllDescendents nodes parentFamilyNode)
          taxTree = constructTaxTree neighborhoodNodes
          rootNode = TZ.fromTree taxTree
          bestHitTreeLocation = head (findChildTaxTreeNodePosition (taxId hitNode) rootNode)
+         subtree = TZ.tree bestHitTreeLocation
+         subtreeNodes = flatten subtree
+         neighborhoodTaxIds = map taxId subtreeNodes
+         currentNeighborhoodEntries = filter (\blastHit -> isInNeighborhood neighborhoodTaxIds inputGene2AccessionContent blastHit) (concat (map hits (results blastOutput)))
          --childrenNodes = children rootNode
 
 -- | Retrieve position of a specific node in the tree
@@ -187,7 +191,7 @@ findChildTaxTreeNodePosition searchedTaxId currentPosition
   where currentTaxId = taxId (TZ.label currentPosition)
         isLabelMatching = currentTaxId == searchedTaxId
 
----checkSiblings :: Int -> TZ.TreePos TZ.Full TaxDumpNode -> [TZ.TreePos TZ.Full TaxDumpNode]        
+checkSiblings :: Int -> TZ.TreePos TZ.Full TaxDumpNode -> [TZ.TreePos TZ.Full TaxDumpNode]        
 checkSiblings searchedTaxId currentPosition  
   -- | (TZ.isLast currentPosition) = [("islast" ++ (show currentTaxId))]
   | (TZ.isLast currentPosition) = (findChildTaxTreeNodePosition searchedTaxId currentPosition)
