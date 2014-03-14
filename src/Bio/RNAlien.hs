@@ -179,11 +179,18 @@ getBestHitTreePosition nodes rank rightBestTaxIdResult bestHit = bestHitTreePosi
          bestHitTreePosition = head (findChildTaxTreeNodePosition (taxId hitNode) rootNode)
 
 filterByNeighborhoodTree :: [B.ByteString] -> BlastResult -> TZ.TreePos TZ.Full TaxDumpNode -> [BlastHit]
-filterByNeighborhoodTree inputGene2AccessionContent blastOutput bestHitTreePosition = currentNeighborhoodEntries
+filterByNeighborhoodTree inputGene2AccessionContent blastOutput bestHitTreePosition = neighborhoodEntries
   where  subtree = TZ.tree bestHitTreePosition
          subtreeNodes = flatten subtree
          neighborhoodTaxIds = map taxId subtreeNodes
          currentNeighborhoodEntries = filter (\blastHit -> isInNeighborhood neighborhoodTaxIds inputGene2AccessionContent blastHit) (concat (map hits (results blastOutput)))
+         neighborNumber = length currentNeighborhoodEntries
+         neighborhoodEntries = enoughSubTreeNeighbors neighborNumber currentNeighborhoodEntries inputGene2AccessionContent blastOutput bestHitTreePosition
+
+enoughSubTreeNeighbors :: Int -> [BlastHit] -> [B.ByteString] -> BlastResult -> TZ.TreePos TZ.Full TaxDumpNode -> [BlastHit]
+enoughSubTreeNeighbors neighborNumber currentNeighborhoodEntries inputGene2AccessionContent blastOutput bestHitTreePosition
+  | neighborNumber < 50  = filterByNeighborhoodTree inputGene2AccessionContent blastOutput (fromJust (TZ.parent bestHitTreePosition))
+  | otherwise = currentNeighborhoodEntries
          
 -- | Retrieve position of a specific node in the tree
 findChildTaxTreeNodePosition :: Int -> TZ.TreePos TZ.Full TaxDumpNode -> [TZ.TreePos TZ.Full TaxDumpNode]
