@@ -41,22 +41,34 @@ import Text.ParserCombinators.Parsec.Pos
 --import Debug.Trace
 data Options = Options            
   { inputFile :: String,
+    taxIdFilter :: String,
     outputPath :: String
   } deriving (Show,Data,Typeable)
 
 options = Options
   { inputFile = def &= name "i" &= help "Path to input fasta file",
+    taxIdFilter = def &= name "t" &= help "NCBI taxonomy ID number of input RNA organism",
     outputPath = def &= name "o" &= help "Path to output directory"
   } &= summary "RNAlien devel version" &= help "Florian Eggenhofer - 2013" &= verbosity             
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 --seedModelConstruction :: String -> String -> String -> String -> String -> IO String --IO []
-initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2AccessionFile tempDir = do
+initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2AccessionFile tempDir ncbiProgram ncbiDatabase requestedHitNumber filterTaxId = do
   let iterationNumber = 0
   inputFasta <- readFasta inputFastaFile
   putStrLn "Read input"
   let fastaSeqData = seqdata (head inputFasta)
-  let blastQuery = BlastHTTPQuery (Just "blastn") (Just "refseq_genomic") (Just fastaSeqData) (Just "&ALIGNMENTS=250")
+  let defaultProgram = "blastn"
+  let defaultDatabase = "refseq_genomic" 
+  let defaultHitNumber = "&ALIGNMENTS=250"
+  let defaultTaxFilter = ""    
+  let selectedProgram = fromMaybe defaultProgram ncbiProgram
+  let selectedDatabase = fromMaybe defaultDatabase ncbiDatabase
+  let selectedHitNumber = fromMaybe defaultHitNumber requestedHitNumber
+  let selectedTaxFilter = fromMaybe defaultTaxFilter filterTaxId
+  let entrezTaxFilter = buildTaxFilterQuery selectedTaxFilter
+  let hitNumberQuery = buildHitNumberQuery selectedHitNumber
+  let blastQuery = BlastHTTPQuery (Just "blastn") (Just "refseq_genomic") (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter))
   nodes <- readNCBITaxDumpNodes inputTaxNodesFile
   putStrLn "Read taxonomy nodes"
   let rightNodes  = fromRight nodes
@@ -83,11 +95,15 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   return filteredBlastResults
   --return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
 
+buildTaxFilterQuery :: String -> String
+buildTaxFilterQuery filterTaxId 
+  | filterTaxId == "" = ""
+  | otherwise = "&ENTREZ_QUERY=" ++ (encodedTaxIDQuery filterTaxId)
 
---initialAlignmentConstruction :: [BlastHit] -> String -> Sequence
---initialAlignmentConstruction filteredBlastHits tempDirPath inputFasta = do
---  let initialFastaFilePath = 
-  
+buildHitNumberQuery :: String -> String
+buildHitNumberQuery hitNumber
+  | hitNumber == "" = ""
+  | otherwise = "&ALIGNMENTS=" ++ hitNumber
 
 --seedModelExpansion :: ModelConstruction -> String --[IO ()]--ModelConstruction
 initialAlignmentExpansion (ModelConstruction remainingCandidates alignedCandidates tempDirPath sessionID iterationNumber inputFasta) = do
@@ -189,7 +205,7 @@ filterByNeighborhoodTree inputGene2AccessionContent blastOutput bestHitTreePosit
 
 enoughSubTreeNeighbors :: Int -> [BlastHit] -> [B.ByteString] -> BlastResult -> TZ.TreePos TZ.Full TaxDumpNode -> [BlastHit]
 enoughSubTreeNeighbors neighborNumber currentNeighborhoodEntries inputGene2AccessionContent blastOutput bestHitTreePosition
-  | neighborNumber < 50  = filterByNeighborhoodTree inputGene2AccessionContent blastOutput (fromJust (TZ.parent bestHitTreePosition))
+  | neighborNumber < 20  = filterByNeighborhoodTree inputGene2AccessionContent blastOutput (fromJust (TZ.parent bestHitTreePosition))
   | otherwise = currentNeighborhoodEntries
          
 -- | Retrieve position of a specific node in the tree
@@ -322,7 +338,10 @@ main = do
   let taxNodesFile = "/home/egg/current/Data/Taxonomy/taxdump/nodes.dmp"
   let gene2AccessionFile = "/home/egg/current/Data/gene2accession"
   let tempDirPath = "/scr/klingon/egg/temp/"
-  initialAlignment <- initialAlignmentConstruction sessionId inputFile taxNodesFile gene2AccessionFile tempDirPath
+  let selectedProgram = Just "blastn"
+  let selectedDatabase = Just "refseq_genomic"
+  let selectedHitNumber = Just "250"
+  initialAlignment <- initialAlignmentConstruction sessionId inputFile taxNodesFile gene2AccessionFile tempDirPath selectedProgram selectedDatabase selectedHitNumber (Just taxIdFilter)
   -- seedModel <- seedModelConstruction initialAlignment
   print initialAlignment
 
