@@ -49,7 +49,7 @@ options = Options
   { inputFile = def &= name "i" &= help "Path to input fasta file",
     taxIdFilter = def &= name "t" &= help "NCBI taxonomy ID number of input RNA organism",
     outputPath = def &= name "o" &= help "Path to output directory"
-  } &= summary "RNAlien devel version" &= help "Florian Eggenhofer - 2013" &= verbosity             
+  } &= summary "RNAlien devel version" &= help "Florian Eggenhofer - 2013" &= verbosity       
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 --seedModelConstruction :: String -> String -> String -> String -> String -> IO String --IO []
@@ -69,7 +69,7 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   let entrezTaxFilter = buildTaxFilterQuery selectedTaxFilter
   let hitNumberQuery = buildHitNumberQuery selectedHitNumber
   let blastQuery = BlastHTTPQuery (Just "blastn") (Just "refseq_genomic") (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter))
-  nodes <- readNCBITaxDumpNodes inputTaxNodesFile
+  nodes <- readNCBISimpleTaxDumpNodes inputTaxNodesFile
   putStrLn "Read taxonomy nodes"
   let rightNodes  = fromRight nodes
   putStrLn "Sending blast query"
@@ -185,46 +185,46 @@ writeFastaFiles currentDir iterationNumber candidateFastaStrings  = do
 writeFastaFile :: String -> Int -> (String,String) -> IO ()
 writeFastaFile currentPath iterationNumber (fileName,content) = writeFile (currentPath ++ (show iterationNumber) ++ fileName ++ ".fa") content
 
-getBestHitTreePosition :: [TaxDumpNode] -> Rank -> Int -> BlastHit -> TZ.TreePos TZ.Full TaxDumpNode
+getBestHitTreePosition :: [SimpleTaxDumpNode] -> Rank -> Int -> BlastHit -> TZ.TreePos TZ.Full SimpleTaxDumpNode
 getBestHitTreePosition nodes rank rightBestTaxIdResult bestHit = bestHitTreePosition
   where  hitNode = fromJust (retrieveNode rightBestTaxIdResult nodes)
          parentFamilyNode = parentNodeWithRank hitNode rank nodes
          neighborhoodNodes = (retrieveAllDescendents nodes parentFamilyNode)
-         taxTree = constructTaxTree neighborhoodNodes
-         rootNode = TZ.fromTree taxTree
-         bestHitTreePosition = head (findChildTaxTreeNodePosition (taxId hitNode) rootNode)
+         simpleTaxTree = constructSimpleTaxTree neighborhoodNodes
+         rootNode = TZ.fromTree simpleTaxTree
+         bestHitTreePosition = head (findChildTaxTreeNodePosition (simpleTaxId hitNode) rootNode)
 
-filterByNeighborhoodTree :: [B.ByteString] -> BlastResult -> TZ.TreePos TZ.Full TaxDumpNode -> [BlastHit]
+filterByNeighborhoodTree :: [B.ByteString] -> BlastResult -> TZ.TreePos TZ.Full SimpleTaxDumpNode -> [BlastHit]
 filterByNeighborhoodTree inputGene2AccessionContent blastOutput bestHitTreePosition = neighborhoodEntries
   where  subtree = TZ.tree bestHitTreePosition
          subtreeNodes = flatten subtree
-         neighborhoodTaxIds = map taxId subtreeNodes
+         neighborhoodTaxIds = map simpleTaxId subtreeNodes
          currentNeighborhoodEntries = filter (\blastHit -> isInNeighborhood neighborhoodTaxIds inputGene2AccessionContent blastHit) (concat (map hits (results blastOutput)))
          neighborNumber = length currentNeighborhoodEntries
          neighborhoodEntries = enoughSubTreeNeighbors neighborNumber currentNeighborhoodEntries inputGene2AccessionContent blastOutput bestHitTreePosition
 
-enoughSubTreeNeighbors :: Int -> [BlastHit] -> [B.ByteString] -> BlastResult -> TZ.TreePos TZ.Full TaxDumpNode -> [BlastHit]
+enoughSubTreeNeighbors :: Int -> [BlastHit] -> [B.ByteString] -> BlastResult -> TZ.TreePos TZ.Full SimpleTaxDumpNode -> [BlastHit]
 enoughSubTreeNeighbors neighborNumber currentNeighborhoodEntries inputGene2AccessionContent blastOutput bestHitTreePosition
   | neighborNumber < 20  = filterByNeighborhoodTree inputGene2AccessionContent blastOutput (fromJust (TZ.parent bestHitTreePosition))
   | otherwise = currentNeighborhoodEntries
          
 -- | Retrieve position of a specific node in the tree
-findChildTaxTreeNodePosition :: Int -> TZ.TreePos TZ.Full TaxDumpNode -> [TZ.TreePos TZ.Full TaxDumpNode]
+findChildTaxTreeNodePosition :: Int -> TZ.TreePos TZ.Full SimpleTaxDumpNode -> [TZ.TreePos TZ.Full SimpleTaxDumpNode]
 findChildTaxTreeNodePosition searchedTaxId currentPosition 
   | isLabelMatching == True = [currentPosition]
   | (isLabelMatching == False) && (TZ.hasChildren currentPosition) = [] ++ (checkSiblings searchedTaxId (fromJust (TZ.firstChild currentPosition)))
   | (isLabelMatching == False) = []
-  where currentTaxId = taxId (TZ.label currentPosition)
+  where currentTaxId = simpleTaxId (TZ.label currentPosition)
         isLabelMatching = currentTaxId == searchedTaxId
 
-checkSiblings :: Int -> TZ.TreePos TZ.Full TaxDumpNode -> [TZ.TreePos TZ.Full TaxDumpNode]        
+checkSiblings :: Int -> TZ.TreePos TZ.Full SimpleTaxDumpNode -> [TZ.TreePos TZ.Full SimpleTaxDumpNode]        
 checkSiblings searchedTaxId currentPosition  
   -- | (TZ.isLast currentPosition) = [("islast" ++ (show currentTaxId))]
   | (TZ.isLast currentPosition) = (findChildTaxTreeNodePosition searchedTaxId currentPosition)
   | otherwise = (findChildTaxTreeNodePosition searchedTaxId currentPosition) ++ (checkSiblings searchedTaxId (fromJust (TZ.next currentPosition)))
-  where currentTaxId = taxId (TZ.label currentPosition)
+  where currentTaxId = simpleTaxId (TZ.label currentPosition)
         
-filterByNeighborhood :: [B.ByteString] -> [TaxDumpNode] -> Rank -> Int -> BlastResult ->  BlastHit -> [BlastHit]
+filterByNeighborhood :: [B.ByteString] -> [SimpleTaxDumpNode] -> Rank -> Int -> BlastResult ->  BlastHit -> [BlastHit]
 filterByNeighborhood inputGene2AccessionContent nodes rank rightBestTaxIdResult blastOutput bestHit = do
   let neighborhoodTaxIds = retrieveNeighborhoodTaxIds rightBestTaxIdResult nodes rank
   let neighborhoodTaxIdNumber = length neighborhoodTaxIds
@@ -234,7 +234,7 @@ filterByNeighborhood inputGene2AccessionContent nodes rank rightBestTaxIdResult 
   --trace neighborStatusMessage (enoughNeighbors currentNeighborNumber currentNeighborhoodEntries inputGene2AccessionContent nodes rank rightBestTaxIdResult blastOutput bestHit)
   enoughNeighbors currentNeighborNumber currentNeighborhoodEntries inputGene2AccessionContent nodes rank rightBestTaxIdResult blastOutput bestHit
 
-enoughNeighbors :: Int -> [BlastHit] -> [B.ByteString] -> [TaxDumpNode] -> Rank -> Int -> BlastResult -> BlastHit -> [BlastHit] 
+enoughNeighbors :: Int -> [BlastHit] -> [B.ByteString] -> [SimpleTaxDumpNode] -> Rank -> Int -> BlastResult -> BlastHit -> [BlastHit] 
 enoughNeighbors neighborNumber currentNeighborhoodEntries inputGene2AccessionContent nodes rank rightBestTaxIdResult blastOutput bestHit 
   | rank == Form = currentNeighborhoodEntries
   | rank == Domain = currentNeighborhoodEntries
@@ -243,14 +243,14 @@ enoughNeighbors neighborNumber currentNeighborhoodEntries inputGene2AccessionCon
   | neighborNumber > 50 = filterByNeighborhood inputGene2AccessionContent nodes (nextParentRank rightBestTaxIdResult rank nodes "leave") rightBestTaxIdResult blastOutput bestHit
   | otherwise = currentNeighborhoodEntries
 
-nextParentRank :: Int -> Rank -> [TaxDumpNode] -> String -> Rank
+nextParentRank :: Int -> Rank -> [SimpleTaxDumpNode] -> String -> Rank
 nextParentRank bestHitTaxId rank nodes direction = nextRank
   where hitNode = fromJust (retrieveNode bestHitTaxId nodes)
         nextParentRank = nextRankByDirection rank direction
         currentParent = parentNodeWithRank hitNode rank nodes
         nextRank = isPopulated currentParent (parentNodeWithRank hitNode rank nodes) bestHitTaxId rank nodes direction
         
-isPopulated :: TaxDumpNode -> TaxDumpNode -> Int -> Rank -> [TaxDumpNode] -> String -> Rank
+isPopulated :: SimpleTaxDumpNode -> SimpleTaxDumpNode -> Int -> Rank -> [SimpleTaxDumpNode] -> String -> Rank
 isPopulated currentParent nextParent bestHitTaxId rank nodes direction
   | currentParent == nextParent = (nextParentRank bestHitTaxId (nextRankByDirection rank direction) nodes direction)
   | otherwise = (nextRankByDirection rank direction)
@@ -297,29 +297,29 @@ getBestHit blastResult = head (hits (head (results blastResult)))
 getBestHitAccession :: BlastResult -> L.ByteString
 getBestHitAccession blastResult = accession (head (hits (head (results blastResult))))
 
-retrieveNeighborhoodTaxIds :: Int -> [TaxDumpNode] -> Rank -> [Int]
+retrieveNeighborhoodTaxIds :: Int -> [SimpleTaxDumpNode] -> Rank -> [Int]
 retrieveNeighborhoodTaxIds bestHitTaxId nodes rank = neighborhoodNodesIds
   where hitNode = fromJust (retrieveNode bestHitTaxId nodes)
         parentFamilyNode = parentNodeWithRank hitNode rank nodes
         neighborhoodNodes = (retrieveAllDescendents nodes parentFamilyNode)
         --neighborhoodNodes = trace ("parentFamilyNode " ++ (show (taxId parentFamilyNode))  ++ "\n") (retrieveAllDescendents nodes parentFamilyNode)
-        neighborhoodNodesIds = map taxId neighborhoodNodes
+        neighborhoodNodesIds = map simpleTaxId neighborhoodNodes
 
 -- | retrieves ancestor node with at least the supplied rank
-parentNodeWithRank :: TaxDumpNode -> Rank -> [TaxDumpNode] -> TaxDumpNode
+parentNodeWithRank :: SimpleTaxDumpNode -> Rank -> [SimpleTaxDumpNode] -> SimpleTaxDumpNode
 parentNodeWithRank node requestedRank nodes
-  | (rank node) >= requestedRank = node
-  | otherwise = parentNodeWithRank (fromJust (retrieveNode (parentTaxId node) nodes)) requestedRank nodes
+  | (simpleRank node) >= requestedRank = node
+  | otherwise = parentNodeWithRank (fromJust (retrieveNode (simpleParentTaxId node) nodes)) requestedRank nodes
 
-retrieveNode :: Int -> [TaxDumpNode] -> Maybe TaxDumpNode 
-retrieveNode nodeTaxId nodes = find (\node -> (taxId node) == nodeTaxId) nodes
+retrieveNode :: Int -> [SimpleTaxDumpNode] -> Maybe SimpleTaxDumpNode 
+retrieveNode nodeTaxId nodes = find (\node -> (simpleTaxId node) == nodeTaxId) nodes
 
 -- | Retrieve all taxonomic nodes that are directly
-retrieveChildren :: [TaxDumpNode] -> TaxDumpNode -> [TaxDumpNode]
-retrieveChildren nodes parentNode = filter (\node -> (parentTaxId node) == (taxId parentNode)) nodes
+retrieveChildren :: [SimpleTaxDumpNode] -> SimpleTaxDumpNode -> [SimpleTaxDumpNode]
+retrieveChildren nodes parentNode = filter (\node -> (simpleParentTaxId node) == (simpleTaxId parentNode)) nodes
 
 -- | Retrieve all taxonomic nodes that are descented from this node including itself
-retrieveAllDescendents :: [TaxDumpNode] -> TaxDumpNode -> [TaxDumpNode]
+retrieveAllDescendents :: [SimpleTaxDumpNode] -> SimpleTaxDumpNode -> [SimpleTaxDumpNode]
 retrieveAllDescendents nodes parentNode 
   | childNodes /= [] = [parentNode] ++ (concat (map (retrieveAllDescendents nodes) childNodes))
   | otherwise = [parentNode]
