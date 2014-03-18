@@ -66,12 +66,15 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   let selectedDatabase = fromMaybe defaultDatabase ncbiDatabase
   let selectedHitNumber = fromMaybe defaultHitNumber requestedHitNumber
   let selectedTaxFilter = fromMaybe defaultTaxFilter filterTaxId
-  let entrezTaxFilter = buildTaxFilterQuery selectedTaxFilter
+  
+  nodes <- readNCBISimpleTaxDumpNodes inputTaxNodesFile
+  let rightNodes  = fromRight nodes
+  putStrLn "Read taxonomy nodes"
+  let (maskId, entrezTaxFilter) = buildTaxFilterQuery selectedTaxFilter rightNodes
+  putStrLn ("Blast TaxIdMask: " ++ maskId)
   let hitNumberQuery = buildHitNumberQuery selectedHitNumber
   let blastQuery = BlastHTTPQuery (Just "blastn") (Just "refseq_genomic") (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter))
-  nodes <- readNCBISimpleTaxDumpNodes inputTaxNodesFile
-  putStrLn "Read taxonomy nodes"
-  let rightNodes  = fromRight nodes
+
   putStrLn "Sending blast query"
   blastOutput <- blastHTTP blastQuery 
   let rightBlast = fromRight blastOutput
@@ -95,10 +98,12 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   return filteredBlastResults
   --return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
 
-buildTaxFilterQuery :: String -> String
-buildTaxFilterQuery filterTaxId 
-  | filterTaxId == "" = ""
-  | otherwise = "&ENTREZ_QUERY=" ++ (encodedTaxIDQuery filterTaxId)
+buildTaxFilterQuery :: String -> [SimpleTaxDumpNode] -> (String,String)
+buildTaxFilterQuery filterTaxId nodes
+  | filterTaxId == "" = ("","")
+  | otherwise = (blastMaskTaxId ,"&ENTREZ_QUERY=" ++ (encodedTaxIDQuery blastMaskTaxId))
+  where specifiedNode = fromJust (retrieveNode (readInt filterTaxId) nodes)
+        blastMaskTaxId = show (simpleTaxId (parentNodeWithRank specifiedNode Order nodes))
 
 buildHitNumberQuery :: String -> String
 buildHitNumberQuery hitNumber
@@ -135,7 +140,6 @@ initialAlignmentExpansion (ModelConstruction remainingCandidates alignedCandidat
   --stop/continue -- proceed with best alignment
   
   --return a list of ModelConstructions where the last one contains the result
-
 
 constructCandidateFromFasta :: Sequence -> String
 constructCandidateFromFasta inputFasta = ">" ++ (filter (\char -> char /= '|') (L.unpack (unSL (seqheader inputFasta)))) ++ "\n" ++ (map toUpper (L.unpack (unSD (seqdata inputFasta)))) ++ "\n"
