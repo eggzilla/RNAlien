@@ -279,14 +279,14 @@ taxIDFromGene2Accession fileContent accessionNumber = taxId
 reportBestBlastHit (Right bestTaxId) = putStrLn ("Extracted best blast hit " ++ (show bestTaxId))
 reportBestBlastHit (Left e) = putStrLn ("Best TaxId Lookup failed " ++ (show e))
 
-tryParseNCBIGene2Accession :: Maybe B.ByteString -> L.ByteString -> Either ParseError Gene2Accession
+tryParseNCBIGene2Accession :: Maybe B.ByteString -> L.ByteString -> Either ParseError SimpleGene2Accession
 tryParseNCBIGene2Accession entry accessionNumber
   | isNothing entry = Left (newErrorMessage (Message ("Cannot find taxId for entry with accession" ++  (L.unpack (accessionNumber)))) (newPos "Gene2Accession" 0 0))
-  | otherwise = parseNCBIGene2Accession (BC.unpack (fromJust entry))
+  | otherwise = parseNCBISimpleGene2Accession (BC.unpack (fromJust entry))
 
-tryGetTaxId :: Either ParseError Gene2Accession ->  Either ParseError Int
+tryGetTaxId :: Either ParseError SimpleGene2Accession ->  Either ParseError Int
 tryGetTaxId (Left error) = (Left error)
-tryGetTaxId parsedEntry = liftM taxIdEntry parsedEntry
+tryGetTaxId parsedEntry = liftM simpleTaxIdEntry parsedEntry
 
 getHitAccession :: BlastHit -> String
 getHitAccession blastHit = L.unpack (accession (blastHit))
@@ -382,7 +382,6 @@ systemCMcompare filePath iterationNumber = system ("CMcompare " ++ filePath ++ "
 
 readInt :: String -> Int
 readInt = read
-
 
 parseNCBISimpleGene2Accession input = parse genParserNCBISimpleGene2Accession "parseSimpleGene2Accession" input
 
