@@ -383,6 +383,42 @@ systemCMcompare filePath iterationNumber = system ("CMcompare " ++ filePath ++ "
 readInt :: String -> Int
 readInt = read
 
+
+parseNCBISimpleGene2Accession input = parse genParserNCBISimpleGene2Accession "parseSimpleGene2Accession" input
+
+genParserNCBISimpleGene2Accession :: GenParser Char st SimpleGene2Accession
+genParserNCBISimpleGene2Accession = do
+  taxIdEntry <- many1 digit
+  many1 tab
+  many1 digit
+  many1 tab 
+  many1 (noneOf "\t")
+  many1 tab  
+  many1 (noneOf "\t")
+  many1 tab
+  many1 (noneOf "\t")
+  many1 tab
+  many1 (noneOf "\t")
+  many1 tab
+  many1 (noneOf "\t")
+  many1 tab
+  genomicNucleotideAccessionVersion <- many1 (noneOf "\t")
+  many1 tab
+  many1 (noneOf "\t")
+  many1 tab
+  many1 (noneOf "\t")
+  many1 tab
+  many1 (noneOf "\t")
+  many1 tab
+  many1 (noneOf "\t")
+  many1 tab
+  many1 (noneOf "\t")
+  many1 tab 
+  many1 (noneOf "\t")
+  many1 tab
+  many1 (noneOf "\t")
+  return $ SimpleGene2Accession (readInt taxIdEntry) genomicNucleotideAccessionVersion
+
 parseNCBIGene2Accession input = parse genParserNCBIGene2Accession "parseGene2Accession" input
 
 genParserNCBIGene2Accession :: GenParser Char st Gene2Accession

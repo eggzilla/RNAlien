@@ -16,6 +16,12 @@ data ModelConstruction = ModelConstruction
     inputFasta :: Sequence
   } deriving (Show) 
 
+-- | Simple Gene2Accession table, just containing 
+data SimpleGene2Accession = SimpleGene2Accession
+  { simpleTaxIdEntry :: Int,
+    simpleGenomicNucleotideAccessionVersion :: String
+  } deriving (Show, Eq, Read) 
+
 -- | Datastructure for Gene2Accession table
 data Gene2Accession = Gene2Accession
   { taxIdEntry :: Int,
