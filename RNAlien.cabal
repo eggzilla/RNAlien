@@ -2,7 +2,7 @@
 -- see http://haskell.org/cabal/users-guide/
 
 name:                RNAlien
-version:             0.0.1
+version:             1.0.0
 synopsis:            Unsupervized construction of RNA family models
 -- description:         
 license:             GPL-3
