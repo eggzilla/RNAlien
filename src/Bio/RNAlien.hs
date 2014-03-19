@@ -202,19 +202,44 @@ filterByNeighborhoodTree blastHitsWithTaxId bestHitTreePosition = neighborhoodEn
   where  subtree = TZ.tree bestHitTreePosition
          subtreeNodes = flatten subtree
          neighborhoodTaxIds = map simpleTaxId subtreeNodes
-         currentNeighborhoodEntries = map fst (filter (\blastHit -> isInNeighborhood neighborhoodTaxIds blastHit) blastHitsWithTaxId)
+         --neighborhoodBlastHitsWithTaxId = filter (\blastHit -> isInNeighborhood neighborhoodTaxIds blastHit) blastHitsWithTaxId
+         --currentNeighborhoodEntries = map fst currentNeighborhoodBlastHitsWithTaxId 
+         --currentNeighborhoodEntries = trace ("blastHitsWithTaxId" ++ (show blastHitsWithTaxId) ++ "neighborhoodTaxIds" ++ (show neighborhoodTaxIds)) (filterNeighborhoodEntries blastHitsWithTaxId neighborhoodTaxIds)
+         currentNeighborhoodEntries = filterNeighborhoodEntries blastHitsWithTaxId neighborhoodTaxIds
          --currentNeighborhoodEntries = filter (\blastHit -> isInNeighborhood neighborhoodTaxIds inputGene2AccessionContent blastHit) (concat (map hits (results blastOutput)))
          neighborNumber = length currentNeighborhoodEntries
          neighborhoodEntries = enoughSubTreeNeighbors neighborNumber currentNeighborhoodEntries blastHitsWithTaxId bestHitTreePosition
+
+filterNeighborhoodEntries :: [(BlastHit,Int)] -> [Int] -> [(BlastHit,Int)]
+filterNeighborhoodEntries blastHitsWithTaxId neighborhoodTaxIds = singleBlastHitperTaxId
+  where neighborhoodBlastHitsWithTaxId = filter (\blastHit -> isInNeighborhood neighborhoodTaxIds blastHit) blastHitsWithTaxId
+        neighborhoodBlastHitsWithTaxIdGroupedByTaxId = groupBy sameTaxId neighborhoodBlastHitsWithTaxId
+        --singleBlastHitperTaxId = trace ("singleBlastHitperTaxId:" ++ (show (map (minimumBy compareHitEValue) neighborhoodBlastHitsWithTaxIdGroupedByTaxId))) (map (maximumBy compareHitEValue) neighborhoodBlastHitsWithTaxIdGroupedByTaxId)
+        singleBlastHitperTaxId = (map (maximumBy compareHitEValue) neighborhoodBlastHitsWithTaxIdGroupedByTaxId)
+
+-- Smaller e-Values are greater, the maximum function is applied
+compareHitEValue :: (BlastHit,Int) -> (BlastHit,Int) -> Ordering
+compareHitEValue (hit1,_) (hit2,_)
+  | (hitEValue hit1) > (hitEValue hit2) = LT
+  | (hitEValue hit1) < (hitEValue hit2) = GT
+  -- in case of equal evalues the first hit is selected
+  | (hitEValue hit1) == (hitEValue hit2) = GT
+
+sameTaxId :: (BlastHit,Int) -> (BlastHit,Int) -> Bool
+sameTaxId (_,taxId1) (_,taxId2) = taxId1 == taxId2
+
+-- | NCBI uses the e-Value of the best HSP as the Hits e-Value
+hitEValue :: BlastHit -> Double
+hitEValue hit = minimum (map e_val (matches hit))
 
 annotateBlastHitsWithTaxId :: [B.ByteString] -> BlastHit -> (BlastHit,Int)
 annotateBlastHitsWithTaxId inputGene2AccessionContent blastHit = (blastHit,hitTaxId)
   where hitTaxId = fromRight (taxIDFromGene2Accession inputGene2AccessionContent (accession blastHit))
 
-enoughSubTreeNeighbors :: Int -> [BlastHit] -> [(BlastHit,Int)] -> TZ.TreePos TZ.Full SimpleTaxDumpNode -> [BlastHit]
+enoughSubTreeNeighbors :: Int -> [(BlastHit,Int)] -> [(BlastHit,Int)] -> TZ.TreePos TZ.Full SimpleTaxDumpNode -> [BlastHit]
 enoughSubTreeNeighbors neighborNumber currentNeighborhoodEntries blastHitsWithTaxId bestHitTreePosition
-  | neighborNumber < 20  = filterByNeighborhoodTree blastHitsWithTaxId (fromJust (TZ.parent bestHitTreePosition))
-  | otherwise = currentNeighborhoodEntries
+  | neighborNumber < 10  = filterByNeighborhoodTree blastHitsWithTaxId (fromJust (TZ.parent bestHitTreePosition))
+  | otherwise = map fst currentNeighborhoodEntries
          
 -- | Retrieve position of a specific node in the tree
 findChildTaxTreeNodePosition :: Int -> TZ.TreePos TZ.Full SimpleTaxDumpNode -> [TZ.TreePos TZ.Full SimpleTaxDumpNode]
