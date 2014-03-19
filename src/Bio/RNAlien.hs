@@ -84,12 +84,11 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   let bestResultTaxId = taxIDFromGene2Accession inputGene2AccessionContent bestHitAccession
   reportBestBlastHit bestResultTaxId
   let rightBestTaxIdResult = fromRight bestResultTaxId
-  --Filter Blast result list by membership to neighorhood
-  --Filtering with TaxNode Lists
-  --let filteredBlastResults = filterByNeighborhood inputGene2AccessionContent rightNodes Family rightBestTaxIdResult rightBlast bestHit
+  -- Retrieve taxIds for blastHits
+  let blastHitsWithTaxId = map (annotateBlastHitsWithTaxId inputGene2AccessionContent) (concat (map hits (results rightBlast)))
   -- Filtering with TaxTree
   let bestHitTreePosition = getBestHitTreePosition rightNodes Family rightBestTaxIdResult bestHit
-  let filteredBlastResults = filterByNeighborhoodTree inputGene2AccessionContent rightBlast bestHitTreePosition
+  let filteredBlastResults = filterByNeighborhoodTree blastHitsWithTaxId bestHitTreePosition
   createDirectory (tempDir ++ sessionID)
   --initialAlignmentconstruction
   --let initialAlignment = initialalignmentConstruction filteredBlastResults tempDirPath inputFasta
@@ -198,18 +197,23 @@ getBestHitTreePosition nodes rank rightBestTaxIdResult bestHit = bestHitTreePosi
          rootNode = TZ.fromTree simpleTaxTree
          bestHitTreePosition = head (findChildTaxTreeNodePosition (simpleTaxId hitNode) rootNode)
 
-filterByNeighborhoodTree :: [B.ByteString] -> BlastResult -> TZ.TreePos TZ.Full SimpleTaxDumpNode -> [BlastHit]
-filterByNeighborhoodTree inputGene2AccessionContent blastOutput bestHitTreePosition = neighborhoodEntries
+filterByNeighborhoodTree :: [(BlastHit,Int)] -> TZ.TreePos TZ.Full SimpleTaxDumpNode -> [BlastHit]
+filterByNeighborhoodTree blastHitsWithTaxId bestHitTreePosition = neighborhoodEntries
   where  subtree = TZ.tree bestHitTreePosition
          subtreeNodes = flatten subtree
          neighborhoodTaxIds = map simpleTaxId subtreeNodes
-         currentNeighborhoodEntries = filter (\blastHit -> isInNeighborhood neighborhoodTaxIds inputGene2AccessionContent blastHit) (concat (map hits (results blastOutput)))
+         currentNeighborhoodEntries = map fst (filter (\blastHit -> isInNeighborhood neighborhoodTaxIds blastHit) blastHitsWithTaxId)
+         --currentNeighborhoodEntries = filter (\blastHit -> isInNeighborhood neighborhoodTaxIds inputGene2AccessionContent blastHit) (concat (map hits (results blastOutput)))
          neighborNumber = length currentNeighborhoodEntries
-         neighborhoodEntries = enoughSubTreeNeighbors neighborNumber currentNeighborhoodEntries inputGene2AccessionContent blastOutput bestHitTreePosition
+         neighborhoodEntries = enoughSubTreeNeighbors neighborNumber currentNeighborhoodEntries blastHitsWithTaxId bestHitTreePosition
 
-enoughSubTreeNeighbors :: Int -> [BlastHit] -> [B.ByteString] -> BlastResult -> TZ.TreePos TZ.Full SimpleTaxDumpNode -> [BlastHit]
-enoughSubTreeNeighbors neighborNumber currentNeighborhoodEntries inputGene2AccessionContent blastOutput bestHitTreePosition
-  | neighborNumber < 20  = filterByNeighborhoodTree inputGene2AccessionContent blastOutput (fromJust (TZ.parent bestHitTreePosition))
+annotateBlastHitsWithTaxId :: [B.ByteString] -> BlastHit -> (BlastHit,Int)
+annotateBlastHitsWithTaxId inputGene2AccessionContent blastHit = (blastHit,hitTaxId)
+  where hitTaxId = fromRight (taxIDFromGene2Accession inputGene2AccessionContent (accession blastHit))
+
+enoughSubTreeNeighbors :: Int -> [BlastHit] -> [(BlastHit,Int)] -> TZ.TreePos TZ.Full SimpleTaxDumpNode -> [BlastHit]
+enoughSubTreeNeighbors neighborNumber currentNeighborhoodEntries blastHitsWithTaxId bestHitTreePosition
+  | neighborNumber < 20  = filterByNeighborhoodTree blastHitsWithTaxId (fromJust (TZ.parent bestHitTreePosition))
   | otherwise = currentNeighborhoodEntries
          
 -- | Retrieve position of a specific node in the tree
@@ -228,24 +232,24 @@ checkSiblings searchedTaxId currentPosition
   | otherwise = (findChildTaxTreeNodePosition searchedTaxId currentPosition) ++ (checkSiblings searchedTaxId (fromJust (TZ.next currentPosition)))
   where currentTaxId = simpleTaxId (TZ.label currentPosition)
         
-filterByNeighborhood :: [B.ByteString] -> [SimpleTaxDumpNode] -> Rank -> Int -> BlastResult ->  BlastHit -> [BlastHit]
-filterByNeighborhood inputGene2AccessionContent nodes rank rightBestTaxIdResult blastOutput bestHit = do
-  let neighborhoodTaxIds = retrieveNeighborhoodTaxIds rightBestTaxIdResult nodes rank
-  let neighborhoodTaxIdNumber = length neighborhoodTaxIds
-  let currentNeighborhoodEntries = filter (\blastHit -> isInNeighborhood neighborhoodTaxIds inputGene2AccessionContent bestHit) (concat (map hits (results blastOutput)))
-  let currentNeighborNumber = length currentNeighborhoodEntries
-  let neighborStatusMessage = ("FilterByNeighborhood " ++ "Hits:" ++ (show currentNeighborNumber) ++ " Rank: " ++ (show rank) ++ " Possible neighborhood size: " ++ (show neighborhoodTaxIdNumber)  ++ "\n")
+--filterByNeighborhood :: [B.ByteString] -> [SimpleTaxDumpNode] -> Rank -> Int -> BlastResult ->  BlastHit -> [BlastHit]
+--filterByNeighborhood inputGene2AccessionContent nodes rank rightBestTaxIdResult blastOutput bestHit = do
+--  let neighborhoodTaxIds = retrieveNeighborhoodTaxIds rightBestTaxIdResult nodes rank
+--  let neighborhoodTaxIdNumber = length neighborhoodTaxIds
+--  let currentNeighborhoodEntries = filter (\blastHit -> isInNeighborhood neighborhoodTaxIds inputGene2AccessionContent bestHit) (concat (map hits (results blastOutput)))
+--  let currentNeighborNumber = length currentNeighborhoodEntries
+--  let neighborStatusMessage = ("FilterByNeighborhood " ++ "Hits:" ++ (show currentNeighborNumber) ++ " Rank: " ++ (show rank) ++ " Possible neighborhood size: " ++ (show neighborhoodTaxIdNumber)  ++ "\n")
   --trace neighborStatusMessage (enoughNeighbors currentNeighborNumber currentNeighborhoodEntries inputGene2AccessionContent nodes rank rightBestTaxIdResult blastOutput bestHit)
-  enoughNeighbors currentNeighborNumber currentNeighborhoodEntries inputGene2AccessionContent nodes rank rightBestTaxIdResult blastOutput bestHit
+--  enoughNeighbors currentNeighborNumber currentNeighborhoodEntries inputGene2AccessionContent nodes rank rightBestTaxIdResult blastOutput bestHit
 
-enoughNeighbors :: Int -> [BlastHit] -> [B.ByteString] -> [SimpleTaxDumpNode] -> Rank -> Int -> BlastResult -> BlastHit -> [BlastHit] 
-enoughNeighbors neighborNumber currentNeighborhoodEntries inputGene2AccessionContent nodes rank rightBestTaxIdResult blastOutput bestHit 
-  | rank == Form = currentNeighborhoodEntries
-  | rank == Domain = currentNeighborhoodEntries
+--enoughNeighbors :: Int -> [BlastHit] -> [B.ByteString] -> [SimpleTaxDumpNode] -> Rank -> Int -> BlastResult -> BlastHit -> [BlastHit] 
+--enoughNeighbors neighborNumber currentNeighborhoodEntries inputGene2AccessionContent nodes rank rightBestTaxIdResult blastOutput bestHit 
+--  | rank == Form = currentNeighborhoodEntries
+--  | rank == Domain = currentNeighborhoodEntries
   -- some ranks are not populated, we want to skip them, as well as No Rank nodes
-  | neighborNumber < 5  = filterByNeighborhood inputGene2AccessionContent nodes (nextParentRank rightBestTaxIdResult rank nodes "root") rightBestTaxIdResult blastOutput bestHit
-  | neighborNumber > 50 = filterByNeighborhood inputGene2AccessionContent nodes (nextParentRank rightBestTaxIdResult rank nodes "leave") rightBestTaxIdResult blastOutput bestHit
-  | otherwise = currentNeighborhoodEntries
+--  | neighborNumber < 5  = filterByNeighborhood inputGene2AccessionContent nodes (nextParentRank rightBestTaxIdResult rank nodes "root") rightBestTaxIdResult blastOutput bestHit
+--  | neighborNumber > 50 = filterByNeighborhood inputGene2AccessionContent nodes (nextParentRank rightBestTaxIdResult rank nodes "leave") rightBestTaxIdResult blastOutput bestHit
+ -- | otherwise = currentNeighborhoodEntries
 
 nextParentRank :: Int -> Rank -> [SimpleTaxDumpNode] -> String -> Rank
 nextParentRank bestHitTaxId rank nodes direction = nextRank
@@ -264,11 +268,15 @@ nextRankByDirection rank direction
   | direction == "root"  = (succ rank)
   | direction == "leave" = (pred rank)
 
-isInNeighborhood :: [Int] -> [B.ByteString] -> BlastHit -> Bool
-isInNeighborhood neighborhoodTaxIds inputGene2AccessionContent blastHit = isNeighbor
-  where hitTaxId = taxIDFromGene2Accession inputGene2AccessionContent (accession blastHit)
+isInNeighborhood :: [Int] -> (BlastHit,Int) -> Bool
+isInNeighborhood neighborhoodTaxIds (blastHit,hitTaxId) = elem hitTaxId neighborhoodTaxIds
+
+--isInNeighborhood :: [Int] -> (BlastHit,Int) -> Bool
+--isInNeighborhood neighborhoodTaxIds (blastHit,hitTaxId) = isNeighbor
+--  where hitTaxId = (accession blastHit)
+  --where hitTaxId = (accession blastHit)
         --we have to check if TaxId is Right
-        isNeighbor = checkisNeighbor hitTaxId neighborhoodTaxIds
+        --isNeighbor = checkisNeighbor hitTaxId neighborhoodTaxIds
 
 checkisNeighbor :: Either ParseError Int -> [Int] -> Bool
 checkisNeighbor (Right hitTaxId) neighborhoodTaxIds = elem hitTaxId neighborhoodTaxIds
