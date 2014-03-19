@@ -42,18 +42,20 @@ import Text.ParserCombinators.Parsec.Pos
 data Options = Options            
   { inputFile :: String,
     taxIdFilter :: String,
-    outputPath :: String
+    outputPath :: String,
+    singleHitperTax :: Bool
   } deriving (Show,Data,Typeable)
 
 options = Options
   { inputFile = def &= name "i" &= help "Path to input fasta file",
+    outputPath = def &= name "o" &= help "Path to output directory",
     taxIdFilter = def &= name "t" &= help "NCBI taxonomy ID number of input RNA organism",
-    outputPath = def &= name "o" &= help "Path to output directory"
+    singleHitperTax = False &= name "s" &= help "Only the best blast hit per taxonomic entry is considered"
   } &= summary "RNAlien devel version" &= help "Florian Eggenhofer - 2013" &= verbosity       
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 --seedModelConstruction :: String -> String -> String -> String -> String -> IO String --IO []
-initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2AccessionFile tempDir ncbiProgram ncbiDatabase requestedHitNumber filterTaxId = do
+initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2AccessionFile tempDir ncbiProgram ncbiDatabase requestedHitNumber filterTaxId singleHitperTax = do
   let iterationNumber = 0
   inputFasta <- readFasta inputFastaFile
   putStrLn "Read input"
@@ -66,7 +68,6 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   let selectedDatabase = fromMaybe defaultDatabase ncbiDatabase
   let selectedHitNumber = fromMaybe defaultHitNumber requestedHitNumber
   let selectedTaxFilter = fromMaybe defaultTaxFilter filterTaxId
-  
   nodes <- readNCBISimpleTaxDumpNodes inputTaxNodesFile
   let rightNodes  = fromRight nodes
   putStrLn "Read taxonomy nodes"
@@ -88,7 +89,7 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   let blastHitsWithTaxId = map (annotateBlastHitsWithTaxId inputGene2AccessionContent) (concat (map hits (results rightBlast)))
   -- Filtering with TaxTree
   let bestHitTreePosition = getBestHitTreePosition rightNodes Family rightBestTaxIdResult bestHit
-  let filteredBlastResults = filterByNeighborhoodTree blastHitsWithTaxId bestHitTreePosition
+  let filteredBlastResults = filterByNeighborhoodTree blastHitsWithTaxId bestHitTreePosition singleHitperTax
   createDirectory (tempDir ++ sessionID)
   --initialAlignmentconstruction
   --let initialAlignment = initialalignmentConstruction filteredBlastResults tempDirPath inputFasta
@@ -197,21 +198,23 @@ getBestHitTreePosition nodes rank rightBestTaxIdResult bestHit = bestHitTreePosi
          rootNode = TZ.fromTree simpleTaxTree
          bestHitTreePosition = head (findChildTaxTreeNodePosition (simpleTaxId hitNode) rootNode)
 
-filterByNeighborhoodTree :: [(BlastHit,Int)] -> TZ.TreePos TZ.Full SimpleTaxDumpNode -> [BlastHit]
-filterByNeighborhoodTree blastHitsWithTaxId bestHitTreePosition = neighborhoodEntries
+filterByNeighborhoodTree :: [(BlastHit,Int)] -> TZ.TreePos TZ.Full SimpleTaxDumpNode -> Bool -> [BlastHit]
+filterByNeighborhoodTree blastHitsWithTaxId bestHitTreePosition singleHitperTax = neighborhoodEntries
   where  subtree = TZ.tree bestHitTreePosition
          subtreeNodes = flatten subtree
          neighborhoodTaxIds = map simpleTaxId subtreeNodes
          --neighborhoodBlastHitsWithTaxId = filter (\blastHit -> isInNeighborhood neighborhoodTaxIds blastHit) blastHitsWithTaxId
          --currentNeighborhoodEntries = map fst currentNeighborhoodBlastHitsWithTaxId 
          --currentNeighborhoodEntries = trace ("blastHitsWithTaxId" ++ (show blastHitsWithTaxId) ++ "neighborhoodTaxIds" ++ (show neighborhoodTaxIds)) (filterNeighborhoodEntries blastHitsWithTaxId neighborhoodTaxIds)
-         currentNeighborhoodEntries = filterNeighborhoodEntries blastHitsWithTaxId neighborhoodTaxIds
+         currentNeighborhoodEntries = filterNeighborhoodEntries blastHitsWithTaxId neighborhoodTaxIds singleHitperTax
          --currentNeighborhoodEntries = filter (\blastHit -> isInNeighborhood neighborhoodTaxIds inputGene2AccessionContent blastHit) (concat (map hits (results blastOutput)))
          neighborNumber = length currentNeighborhoodEntries
-         neighborhoodEntries = enoughSubTreeNeighbors neighborNumber currentNeighborhoodEntries blastHitsWithTaxId bestHitTreePosition
+         neighborhoodEntries = enoughSubTreeNeighbors neighborNumber currentNeighborhoodEntries blastHitsWithTaxId bestHitTreePosition singleHitperTax
 
-filterNeighborhoodEntries :: [(BlastHit,Int)] -> [Int] -> [(BlastHit,Int)]
-filterNeighborhoodEntries blastHitsWithTaxId neighborhoodTaxIds = singleBlastHitperTaxId
+filterNeighborhoodEntries :: [(BlastHit,Int)] -> [Int] -> Bool -> [(BlastHit,Int)]
+filterNeighborhoodEntries blastHitsWithTaxId neighborhoodTaxIds singleHitperTax 
+  |  singleHitperTax = singleBlastHitperTaxId
+  |  otherwise = neighborhoodBlastHitsWithTaxId
   where neighborhoodBlastHitsWithTaxId = filter (\blastHit -> isInNeighborhood neighborhoodTaxIds blastHit) blastHitsWithTaxId
         neighborhoodBlastHitsWithTaxIdGroupedByTaxId = groupBy sameTaxId neighborhoodBlastHitsWithTaxId
         --singleBlastHitperTaxId = trace ("singleBlastHitperTaxId:" ++ (show (map (minimumBy compareHitEValue) neighborhoodBlastHitsWithTaxIdGroupedByTaxId))) (map (maximumBy compareHitEValue) neighborhoodBlastHitsWithTaxIdGroupedByTaxId)
@@ -236,9 +239,9 @@ annotateBlastHitsWithTaxId :: [B.ByteString] -> BlastHit -> (BlastHit,Int)
 annotateBlastHitsWithTaxId inputGene2AccessionContent blastHit = (blastHit,hitTaxId)
   where hitTaxId = fromRight (taxIDFromGene2Accession inputGene2AccessionContent (accession blastHit))
 
-enoughSubTreeNeighbors :: Int -> [(BlastHit,Int)] -> [(BlastHit,Int)] -> TZ.TreePos TZ.Full SimpleTaxDumpNode -> [BlastHit]
-enoughSubTreeNeighbors neighborNumber currentNeighborhoodEntries blastHitsWithTaxId bestHitTreePosition
-  | neighborNumber < 10  = filterByNeighborhoodTree blastHitsWithTaxId (fromJust (TZ.parent bestHitTreePosition))
+enoughSubTreeNeighbors :: Int -> [(BlastHit,Int)] -> [(BlastHit,Int)] -> TZ.TreePos TZ.Full SimpleTaxDumpNode -> Bool -> [BlastHit]
+enoughSubTreeNeighbors neighborNumber currentNeighborhoodEntries blastHitsWithTaxId bestHitTreePosition singleHitperTax 
+  | neighborNumber < 10  = filterByNeighborhoodTree blastHitsWithTaxId (fromJust (TZ.parent bestHitTreePosition)) singleHitperTax
   | otherwise = map fst currentNeighborhoodEntries
          
 -- | Retrieve position of a specific node in the tree
@@ -378,7 +381,7 @@ main = do
   let selectedProgram = Just "blastn"
   let selectedDatabase = Just "refseq_genomic"
   let selectedHitNumber = Just "250"
-  initialAlignment <- initialAlignmentConstruction sessionId inputFile taxNodesFile gene2AccessionFile tempDirPath selectedProgram selectedDatabase selectedHitNumber (Just taxIdFilter)
+  initialAlignment <- initialAlignmentConstruction sessionId inputFile taxNodesFile gene2AccessionFile tempDirPath selectedProgram selectedDatabase selectedHitNumber (Just taxIdFilter) singleHitperTax
   -- seedModel <- seedModelConstruction initialAlignment
   print initialAlignment
 
