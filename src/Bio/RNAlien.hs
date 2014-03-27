@@ -82,8 +82,7 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   let bestHit = getBestHit rightBlast
   bestBlastHitTaxIdOutput <- retrieveBlastHitTaxIdEntrez [bestHit]
   let rightBestTaxIdResult = head (extractTaxIdFromEntrySummaries bestBlastHitTaxIdOutput)
---  putStrLn "Best Blast Hit: " ++ (head bestResultTaxId)
-  --let rightBestTaxIdResult = fromRight bestResultTaxId
+  --putStrLn "Best Blast Hit: " ++ (head bestResultTaxId)
   let blastHits = (concat (map hits (results rightBlast)))
   blastHitTaxIdOutput <- retrieveBlastHitTaxIdEntrez blastHits
   let blastHittaxIdList = extractTaxIdFromEntrySummaries  blastHitTaxIdOutput
@@ -130,7 +129,7 @@ initialAlignmentConstructionOffline sessionID inputFastaFile inputTaxNodesFile i
   reportBestBlastHit bestResultTaxId
   let rightBestTaxIdResult = fromRight bestResultTaxId
   -- Retrieve taxIds for blastHits
-  --let blastHitsWithTaxId = map (annotateBlastHitsWithTaxId inputGene2AccessionContent) (concat (map hits (results rightBlast)))
+  let blastHitsWithTaxId = map (annotateBlastHitsWithTaxId inputGene2AccessionContent) (concat (map hits (results rightBlast)))
   let blastHits = (concat (map hits (results rightBlast)))
   blastHitTaxIdOutput <- retrieveBlastHitTaxIdEntrez blastHits
   let blastHittaxIdList = extractTaxIdFromEntrySummaries  blastHitTaxIdOutput
@@ -280,13 +279,9 @@ sameTaxId (_,taxId1) (_,taxId2) = taxId1 == taxId2
 hitEValue :: BlastHit -> Double
 hitEValue hit = minimum (map e_val (matches hit))
 
---annotateBlastHitsWithTaxId :: [B.ByteString] -> BlastHit -> (BlastHit,Int)
---annotateBlastHitsWithTaxId inputGene2AccessionContent blastHit = (blastHit,hitTaxId)
---  where hitTaxId = fromRight (taxIDFromGene2Accession inputGene2AccessionContent (accession blastHit))
-
---annotateBlastHitsWithTaxIdEntrez :: BlastHit -> (BlastHit,Int)
---annotateBlastHitsWithTaxIdEntrez currentBlastHit = (currentBlastHit,hitTaxId)
---  where hitTaxId = taxIDFromEntrezHTTP currentBlastHit
+annotateBlastHitsWithTaxId :: [B.ByteString] -> BlastHit -> (BlastHit,Int)
+annotateBlastHitsWithTaxId inputGene2AccessionContent blastHit = (blastHit,hitTaxId)
+  where hitTaxId = fromRight (taxIDFromGene2Accession inputGene2AccessionContent (accession blastHit))
 
 enoughSubTreeNeighbors :: Int -> [(BlastHit,Int)] -> [(BlastHit,Int)] -> TZ.TreePos TZ.Full SimpleTaxDumpNode -> Bool -> [BlastHit]
 enoughSubTreeNeighbors neighborNumber currentNeighborhoodEntries blastHitsWithTaxId bestHitTreePosition singleHitperTax 
