@@ -164,9 +164,6 @@ retrieveFullSequences missingSequenceElements = do
   return parsedFasta
   --print (take 10 (drop 10 (toStr (seqdata (head (parsedFasta))))))
 
-extractFirst :: (a, b, c) -> a
-extractFirst (a, b, c) = a
-
 getMissingSequenceElement :: Int -> Int -> BlastHit -> (String,Int,Int)
 getMissingSequenceElement retrievalOffset queryLength blastHit = (geneIdentifier,startcoordinate,endcoordinate)
   where  geneIdentifier = extractGeneId blastHit
@@ -371,7 +368,6 @@ retrieveBlastHitTaxIdEntrez blastHits = do
   result <- entrezHTTP entrezQuery
   return result
 
-
 extractTaxIdFromEntrySummaries :: String -> [Int]
 extractTaxIdFromEntrySummaries input = hitTaxIds
   where parsedResult = (head (readEntrezSummaries input))
@@ -382,7 +378,7 @@ extractTaxIdFromEntrySummaries input = hitTaxIds
 extractGeneId :: BlastHit -> String
 extractGeneId currentBlastHit = geneId
   where truncatedId = (drop 3 (L.unpack (hitId currentBlastHit)))
-        pipeSymbolIndex =  (fromJust (elemIndex '|' truncatedId)) -1
+        pipeSymbolIndex =  (fromJust (elemIndex '|' truncatedId)) 
         geneId = take pipeSymbolIndex truncatedId
 
 extractTaxIdfromDocumentSummary :: EntrezDocSum -> String
@@ -569,3 +565,12 @@ genParserNCBIGene2Accession = do
   many1 tab
   maturePeptideGi <- many1 (noneOf "\t")
   return $ Gene2Accession (readInt taxIdEntry) (readInt geneID) status rnaNucleotideAccessionVersion rnaNucleotideGi proteinAccessionVersion proteinGi genomicNucleotideAccessionVersion genomicNucleotideGi startPositionOnTheGenomicAccession endPositionOnTheGenomicAccession orientation assembly maturePeptideAccessionVersion maturePeptideGi
+
+extractFirst :: (a, b, c) -> a
+extractFirst (a, b, c) = a
+
+extractSecond :: (a, b, c) -> b
+extractSecond (a, b, c) = b
+
+extractThird :: (a, b, c) -> c
+extractThird (a, b, c) = c
