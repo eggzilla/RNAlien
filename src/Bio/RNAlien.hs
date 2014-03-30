@@ -94,7 +94,7 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   -- Retrieval of full sequences from entrez
   let retrievalOffset = readInt "20"
   let missingSequenceElements = map (getMissingSequenceElement retrievalOffset queryLength) filteredBlastResults
-  fullSequences <- retrieveFullSequences missingSequenceElements
+  fullSequences <- mapM retrieveFullSequence missingSequenceElements
   createDirectory (tempDir ++ sessionID)
   --initialAlignmentconstruction
   --let initialAlignment = initialalignmentConstruction filteredBlastResults tempDirPath inputFasta
@@ -151,18 +151,27 @@ initialAlignmentConstructionOffline sessionID inputFastaFile inputTaxNodesFile i
   return filteredBlastResults
   --return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
 
-retrieveFullSequences :: [(String, Int, Int)] -> IO [Sequence]
-retrieveFullSequences missingSequenceElements = do
+--retrieveFullSequences :: [(String, Int, Int)] -> IO [Sequence]
+--retrieveFullSequences missingSequenceElements = do
+--  let program = Just "efetch"
+--  let database = Just "nucleotide" 
+--  let queryIds = map extractFirst missingSequenceElements
+--  let queryIdsString = intercalate "," queryIds
+--  let queryString = "id=" ++ queryIdsString ++ "&rettype=fasta"
+--  let entrezQuery = EntrezHTTPQuery program database queryString 
+--  result <- entrezHTTP entrezQuery
+--  let parsedFasta = (mkSeqs . L.lines) (L.pack result)
+--  return parsedFasta
+
+retrieveFullSequence :: (String, Int, Int) -> IO Sequence
+retrieveFullSequence (geneId,seqStart,seqStop) = do
   let program = Just "efetch"
   let database = Just "nucleotide" 
-  let queryIds = map extractFirst missingSequenceElements
-  let queryIdsString = intercalate "," queryIds
-  let queryString = "id=" ++ queryIdsString ++ "&rettype=fasta"
+  let queryString = "id=" ++ geneId ++ "&seq_start=" ++ (show seqStart) ++ "&seq_stop=" ++ (show seqStop) ++ "&rettype=fasta"
   let entrezQuery = EntrezHTTPQuery program database queryString 
   result <- entrezHTTP entrezQuery
-  let parsedFasta = (mkSeqs . L.lines) (L.pack result)
+  let parsedFasta = head ((mkSeqs . L.lines) (L.pack result))
   return parsedFasta
-  --print (take 10 (drop 10 (toStr (seqdata (head (parsedFasta))))))
 
 getMissingSequenceElement :: Int -> Int -> BlastHit -> (String,Int,Int)
 getMissingSequenceElement retrievalOffset queryLength blastHit = (geneIdentifier,startcoordinate,endcoordinate)
