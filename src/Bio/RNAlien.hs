@@ -94,13 +94,13 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   -- Retrieval of full sequences from entrez
   let retrievalOffset = readInt "20"
   let missingSequenceElements = map (getMissingSequenceElement retrievalOffset queryLength) filteredBlastResults
-  --fullSequences <- retrieveFullSequences missingSequenceElements
+  fullSequences <- retrieveFullSequences missingSequenceElements
   createDirectory (tempDir ++ sessionID)
   --initialAlignmentconstruction
   --let initialAlignment = initialalignmentConstruction filteredBlastResults tempDirPath inputFasta
   --let initialAlignment = ModelConstruction filteredBlastResults [] tempDir sessionID iterationNumber (head inputFasta) 
   --expansionResult <- initialAlignmentExpansion initialAlignment 
-  return missingSequenceElements
+  return fullSequences
   --return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
 
 initialAlignmentConstructionOffline sessionID inputFastaFile inputTaxNodesFile inputGene2AccessionFile tempDir ncbiProgram ncbiDatabase requestedHitNumber filterTaxId singleHitperTax = do
@@ -123,7 +123,6 @@ initialAlignmentConstructionOffline sessionID inputFastaFile inputTaxNodesFile i
   putStrLn ("Blast TaxIdMask: " ++ maskId)
   let hitNumberQuery = buildHitNumberQuery selectedHitNumber
   let blastQuery = BlastHTTPQuery (Just "blastn") (Just "refseq_genomic") (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter))
-
   putStrLn "Sending blast query"
   blastOutput <- blastHTTP blastQuery 
   let rightBlast = fromRight blastOutput
@@ -151,6 +150,22 @@ initialAlignmentConstructionOffline sessionID inputFastaFile inputTaxNodesFile i
   --expansionResult <- initialAlignmentExpansion initialAlignment 
   return filteredBlastResults
   --return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
+
+retrieveFullSequences :: [(String, Int, Int)] -> IO [Sequence]
+retrieveFullSequences missingSequenceElements = do
+  let program = Just "efetch"
+  let database = Just "nucleotide" 
+  let queryIds = map extractFirst missingSequenceElements
+  let queryIdsString = intercalate "," queryIds
+  let queryString = "id=" ++ queryIdsString ++ "&rettype=fasta"
+  let entrezQuery = EntrezHTTPQuery program database queryString 
+  result <- entrezHTTP entrezQuery
+  let parsedFasta = (mkSeqs . L.lines) (L.pack result)
+  return parsedFasta
+  --print (take 10 (drop 10 (toStr (seqdata (head (parsedFasta))))))
+
+extractFirst :: (a, b, c) -> a
+extractFirst (a, b, c) = a
 
 getMissingSequenceElement :: Int -> Int -> BlastHit -> (String,Int,Int)
 getMissingSequenceElement retrievalOffset queryLength blastHit = (geneIdentifier,startcoordinate,endcoordinate)
@@ -352,7 +367,7 @@ retrieveBlastHitTaxIdEntrez blastHits = do
   let idList = intercalate "," geneIds
   --let idsString = concat idList
   let query = "id=" ++ idList
-  let  entrezQuery = EntrezHTTPQuery (Just "esummary") (Just "nucleotide") query
+  let entrezQuery = EntrezHTTPQuery (Just "esummary") (Just "nucleotide") query
   result <- entrezHTTP entrezQuery
   return result
 
