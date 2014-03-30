@@ -61,6 +61,7 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   inputFasta <- readFasta inputFastaFile
   putStrLn "Read input"
   let fastaSeqData = seqdata (head inputFasta)
+  let queryLength = fromIntegral (seqlength (head inputFasta))
   let defaultProgram = "blastn"
   let defaultDatabase = "refseq_genomic" 
   let defaultHitNumber = "&ALIGNMENTS=250"
@@ -90,12 +91,16 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   -- Filtering with TaxTree
   let bestHitTreePosition = getBestHitTreePosition rightNodes Family rightBestTaxIdResult bestHit
   let filteredBlastResults = filterByNeighborhoodTree blastHitsWithTaxId bestHitTreePosition singleHitperTax
+  -- Retrieval of full sequences from entrez
+  let retrievalOffset = readInt "20"
+  let missingSequenceElements = map (getMissingSequenceElement retrievalOffset queryLength) filteredBlastResults
+  --fullSequences <- retrieveFullSequences missingSequenceElements
   createDirectory (tempDir ++ sessionID)
   --initialAlignmentconstruction
   --let initialAlignment = initialalignmentConstruction filteredBlastResults tempDirPath inputFasta
   --let initialAlignment = ModelConstruction filteredBlastResults [] tempDir sessionID iterationNumber (head inputFasta) 
   --expansionResult <- initialAlignmentExpansion initialAlignment 
-  return filteredBlastResults
+  return missingSequenceElements
   --return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
 
 initialAlignmentConstructionOffline sessionID inputFastaFile inputTaxNodesFile inputGene2AccessionFile tempDir ncbiProgram ncbiDatabase requestedHitNumber filterTaxId singleHitperTax = do
@@ -137,6 +142,7 @@ initialAlignmentConstructionOffline sessionID inputFastaFile inputTaxNodesFile i
   let blastHitsWithTaxId = zip blastHits blastHittaxIdList
   -- Filtering with TaxTree
   let bestHitTreePosition = getBestHitTreePosition rightNodes Family rightBestTaxIdResult bestHit
+---
   let filteredBlastResults = filterByNeighborhoodTree blastHitsWithTaxId bestHitTreePosition singleHitperTax
   createDirectory (tempDir ++ sessionID)
   --initialAlignmentconstruction
@@ -146,6 +152,18 @@ initialAlignmentConstructionOffline sessionID inputFastaFile inputTaxNodesFile i
   return filteredBlastResults
   --return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
 
+getMissingSequenceElement :: Int -> Int -> BlastHit -> (String,Int,Int)
+getMissingSequenceElement retrievalOffset queryLength blastHit = (geneIdentifier,startcoordinate,endcoordinate)
+  where  geneIdentifier = extractGeneId blastHit
+         blastMatches = matches blastHit
+         minHfrom = minimum (map h_from blastMatches)
+         minHfromHSP = fromJust (find (\hsp -> minHfrom == (h_from hsp)) blastMatches)
+         maxHto = maximum (map h_to blastMatches)
+         maxHtoHSP = fromJust (find (\hsp -> maxHto == (h_to hsp)) blastMatches)
+         minHonQuery = q_from minHfromHSP
+         maxHonQuery = q_to maxHtoHSP
+         startcoordinate = minHfrom - minHonQuery - retrievalOffset
+         endcoordinate = maxHto + (queryLength - maxHonQuery) + retrievalOffset
 
 buildTaxFilterQuery :: String -> [SimpleTaxDumpNode] -> (String,String)
 buildTaxFilterQuery filterTaxId nodes
@@ -352,32 +370,8 @@ extractGeneId currentBlastHit = geneId
         pipeSymbolIndex =  (fromJust (elemIndex '|' truncatedId)) -1
         geneId = take pipeSymbolIndex truncatedId
 
-
+extractTaxIdfromDocumentSummary :: EntrezDocSum -> String
 extractTaxIdfromDocumentSummary documentSummary = itemContent (fromJust (find (\item -> "TaxId" == (itemName item)) (summaryItems (documentSummary))))
-
---taxIDsFromEntrezHTTP :: String -> IO String
---taxIDsFromEntrezHTTP idListString = do
---  let query = "id=" ++ idListString
---  let  entrezQuery = EntrezHTTPQuery (Just "esummary") (Just "nucleotide") query
---  result <- entrezHTTP entrezQuery
---  return result
-
-  --let parsedResult = head (readEntrezSummaries result)
-  --let blastHitSummaries = documentSummaries parsedResult
- -- let hitTaxId = itemContent (fromJust (find (\item -> "TaxId" == (itemName item)) (summaryItems (head (documentSummaries parsedResult)))))
-  --let hitTaxIdStrings = map extractTaxIdfromDocumentSummary documentSummaries
-  --let hitTaxIds = map readInt hitTaxIdStrings
-
-
---taxIDFromEntrezHTTP :: BlastHit -> Int
---taxIDFromEntrezHTTP currentBlastHit = do
---  let hitGeneId = (\idString -> take ((fromJust (elemIndex "|" idString)) -1) x) (drop 3 (L.unpack (hitId currentBlastHit)))
---  let query = "id=" ++ (show hitGeneId)
---  let entrezQuery = EntrezHTTPQuery (Just "esummary") (Just "nucleotide") query
---  result <- entrezHTTP entrezQuery
---  let parsedResult = head (readEntrezSummaries result)
---  let hitTaxId = itemContent (fromJust (find (\item -> "TaxId" == (itemName item)) (summaryItems (head (documentSummaries parsedResult)))))
---  return (readInt hitTaxId)
 
 taxIDFromGene2Accession :: [B.ByteString] -> L.ByteString -> Either ParseError Int
 taxIDFromGene2Accession fileContent accessionNumber = taxId
