@@ -98,9 +98,9 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   createDirectory (tempDir ++ sessionID)
   --initialAlignmentconstruction
   --let initialAlignment = initialalignmentConstruction filteredBlastResults tempDirPath inputFasta
-  --let initialAlignment = ModelConstruction filteredBlastResults [] tempDir sessionID iterationNumber (head inputFasta) 
-  --expansionResult <- initialAlignmentExpansion initialAlignment 
-  return fullSequences
+  let seed = ModelConstruction fullSequences [] tempDir sessionID iterationNumber (head inputFasta) 
+  expansionResult <- initialAlignmentExpansion seed 
+  return expansionResult
   --return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
 
 initialAlignmentConstructionOffline sessionID inputFastaFile inputTaxNodesFile inputGene2AccessionFile tempDir ncbiProgram ncbiDatabase requestedHitNumber filterTaxId singleHitperTax = do
@@ -151,18 +151,6 @@ initialAlignmentConstructionOffline sessionID inputFastaFile inputTaxNodesFile i
   return filteredBlastResults
   --return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
 
---retrieveFullSequences :: [(String, Int, Int)] -> IO [Sequence]
---retrieveFullSequences missingSequenceElements = do
---  let program = Just "efetch"
---  let database = Just "nucleotide" 
---  let queryIds = map extractFirst missingSequenceElements
---  let queryIdsString = intercalate "," queryIds
---  let queryString = "id=" ++ queryIdsString ++ "&rettype=fasta"
---  let entrezQuery = EntrezHTTPQuery program database queryString 
---  result <- entrezHTTP entrezQuery
---  let parsedFasta = (mkSeqs . L.lines) (L.pack result)
---  return parsedFasta
-
 retrieveFullSequence :: (String, Int, Int) -> IO Sequence
 retrieveFullSequence (geneId,seqStart,seqStop) = do
   let program = Just "efetch"
@@ -202,10 +190,12 @@ buildHitNumberQuery hitNumber
 initialAlignmentExpansion (ModelConstruction remainingCandidates alignedCandidates tempDirPath sessionID iterationNumber inputFasta) = do
   let currentDir = tempDirPath ++ sessionID ++ "/"
   --construct seedFasta
-  let seedFasta = concat (map constructSeedFromBlast alignedCandidates) ++ (constructCandidateFromFasta inputFasta)
+  --let seedFasta = concat (map constructSeedFromBlast alignedCandidates) ++ (constructCandidateFromFasta inputFasta)
+  let seedFasta = concat (map constructCandidateFromFasta remainingCandidates) ++ (constructCandidateFromFasta inputFasta)
   putStrLn "Reached seedModelExpansion"
   --combine with unaligned Blastresults
-  let candidateFasta = map (\candidate -> constructCandidateFromBlast seedFasta candidate) remainingCandidates
+  --let candidateFasta = map (\candidate -> constructCandidateFromBlast seedFasta candidate) remainingCandidates
+  let candidateFasta = map (\candidate -> constructCandidateFromBlast seedFasta candidate) []
   --write candidates
   writeFastaFiles currentDir iterationNumber candidateFasta
   let fastaFilepaths = map (constructFastaFilePaths currentDir iterationNumber) candidateFasta
@@ -224,7 +214,39 @@ initialAlignmentExpansion (ModelConstruction remainingCandidates alignedCandidat
   let alignmentsSCI = map (\x -> show (structureConservationIndex (fromRight x))) alignmentsRNAzOutput
   putStrLn (intercalate "," alignmentsSCI)
   --return alignmentsRNAzOutput
-  return candidateFasta
+  return alignmentsRNAzOutput
+  --stop/continue -- proceed with best alignment
+  
+  --return a list of ModelConstructions where the last one contains the result
+
+--seedModelExpansion :: ModelConstruction -> String --[IO ()]--ModelConstruction
+--initialAlignmentExpansionBlastHitBased (ModelConstruction remainingCandidates alignedCandidates tempDirPath sessionID iterationNumber inputFasta) = do
+--  let currentDir = tempDirPath ++ sessionID ++ "/"
+  --construct seedFasta
+--  let seedFasta = concat (map constructSeedFromBlast alignedCandidates) ++ (constructCandidateFromFasta inputFasta)
+--  putStrLn "Reached seedModelExpansion"
+  --combine with unaligned Blastresults
+  --let candidateFasta = map (\candidate -> constructCandidateFromBlast seedFasta candidate) remainingCandidates
+--  let candidateFasta = map (\candidate -> constructCandidateFromBlast seedFasta candidate) remainingCandidates
+  --write candidates
+--  writeFastaFiles currentDir iterationNumber candidateFasta
+--  let fastaFilepaths = map (constructFastaFilePaths currentDir iterationNumber) candidateFasta
+  --compute alignments
+--  let alignmentFilepaths = map (constructAlignmentFilePaths currentDir iterationNumber) candidateFasta
+--  let alignmentSummaryFilepaths = map (constructAlignmentSummaryFilePaths currentDir iterationNumber) candidateFasta
+--  alignCandidates fastaFilepaths alignmentFilepaths alignmentSummaryFilepaths
+--  clustalw2Summaries <- mapM readClustalw2Summary alignmentSummaryFilepaths
+--  let clustalw2Scores = map (\x -> show (alignmentScore (fromRight x))) clustalw2Summaries
+--  putStrLn ("clustalw2Scores:" ++ (intercalate "," clustalw2Scores))
+  --compute SCI
+--  let rnazOutputFilepaths = map (constructRNAzFilePaths currentDir iterationNumber) candidateFasta
+--  computeAlignmentSCIs alignmentFilepaths rnazOutputFilepaths
+  --retrieveAlignmentSCIs
+--  alignmentsRNAzOutput <- mapM readRNAz rnazOutputFilepaths
+--  let alignmentsSCI = map (\x -> show (structureConservationIndex (fromRight x))) alignmentsRNAzOutput
+--  putStrLn (intercalate "," alignmentsSCI)
+  --return alignmentsRNAzOutput
+--  return candidateFasta
   --stop/continue -- proceed with best alignment
   
   --return a list of ModelConstructions where the last one contains the result

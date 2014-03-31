@@ -8,8 +8,10 @@ import Bio.Sequence.Fasta
  
 -- | Keeps track of model construction 
 data ModelConstruction = ModelConstruction
-  { filteredBlastResults :: [BlastHit],
-    alignedHits :: [BlastHit],
+  { --filteredBlastResults :: [BlastHit],
+    --alignedHits :: [BlastHit],
+    filteredBlastResults :: [Sequence],
+    alignedHits :: [Sequence],
     tempDirPath :: String,
     sessionID :: String,
     iterationNumber :: Int,
