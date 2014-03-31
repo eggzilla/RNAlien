@@ -44,6 +44,7 @@ data Options = Options
   { inputFile :: String,
     taxIdFilter :: String,
     outputPath :: String,
+    fullSequenceOffset :: String,
     singleHitperTax :: Bool
   } deriving (Show,Data,Typeable)
 
@@ -51,12 +52,13 @@ options = Options
   { inputFile = def &= name "i" &= help "Path to input fasta file",
     outputPath = def &= name "o" &= help "Path to output directory",
     taxIdFilter = def &= name "t" &= help "NCBI taxonomy ID number of input RNA organism",
+    fullSequenceOffset = "20" &= name "f" &= help "Overhangs of retrieved fasta sequences compared to query sequence",
     singleHitperTax = False &= name "s" &= help "Only the best blast hit per taxonomic entry is considered"
   } &= summary "RNAlien devel version" &= help "Florian Eggenhofer - 2013" &= verbosity       
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 --seedModelConstruction :: String -> String -> String -> String -> String -> IO String --IO []
-initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2AccessionFile tempDir ncbiProgram ncbiDatabase requestedHitNumber filterTaxId singleHitperTax = do
+initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2AccessionFile tempDir ncbiProgram ncbiDatabase requestedHitNumber filterTaxId singleHitperTax fullSequenceOffset = do
   let iterationNumber = 0
   inputFasta <- readFasta inputFastaFile
   putStrLn "Read input"
@@ -92,7 +94,7 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   let bestHitTreePosition = getBestHitTreePosition rightNodes Family rightBestTaxIdResult bestHit
   let filteredBlastResults = filterByNeighborhoodTree blastHitsWithTaxId bestHitTreePosition singleHitperTax
   -- Retrieval of full sequences from entrez
-  let retrievalOffset = readInt "20"
+  let retrievalOffset = readInt fullSequenceOffset
   let missingSequenceElements = map (getMissingSequenceElement retrievalOffset queryLength) filteredBlastResults
   fullSequences <- mapM retrieveFullSequence missingSequenceElements
   createDirectory (tempDir ++ sessionID)
@@ -103,7 +105,7 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   return expansionResult
   --return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
 
-initialAlignmentConstructionOffline sessionID inputFastaFile inputTaxNodesFile inputGene2AccessionFile tempDir ncbiProgram ncbiDatabase requestedHitNumber filterTaxId singleHitperTax = do
+initialAlignmentConstructionOffline sessionID inputFastaFile inputTaxNodesFile inputGene2AccessionFile tempDir ncbiProgram ncbiDatabase requestedHitNumber filterTaxId singleHitperTax fullSequenceOffset = do
   let iterationNumber = 0
   inputFasta <- readFasta inputFastaFile
   putStrLn "Read input"
@@ -485,7 +487,7 @@ main = do
   let selectedProgram = Just "blastn"
   let selectedDatabase = Just "refseq_genomic"
   let selectedHitNumber = Just "250"
-  initialAlignment <- initialAlignmentConstruction sessionId inputFile taxNodesFile gene2AccessionFile tempDirPath selectedProgram selectedDatabase selectedHitNumber (Just taxIdFilter) singleHitperTax
+  initialAlignment <- initialAlignmentConstruction sessionId inputFile taxNodesFile gene2AccessionFile tempDirPath selectedProgram selectedDatabase selectedHitNumber (Just taxIdFilter) singleHitperTax fullSequenceOffset
   -- seedModel <- seedModelConstruction initialAlignment
   print initialAlignment
 
