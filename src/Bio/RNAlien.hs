@@ -96,10 +96,13 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   -- Retrieval of full sequences from entrez
   let retrievalOffset = readInt fullSequenceOffset
   let missingSequenceElements = map (getMissingSequenceElement retrievalOffset queryLength) filteredBlastResults
+  putStrLn "Missing sequence elements:\n"
+  print missingSequenceElements
   fullSequences <- mapM retrieveFullSequence missingSequenceElements
+  putStrLn "Full sequences\n"
+  print fullSequences
   createDirectory (tempDir ++ sessionID)
-  --initialAlignmentconstruction
-  --let initialAlignment = initialalignmentConstruction filteredBlastResults tempDirPath inputFasta
+  -- Initial alignment construction
   let seed = ModelConstruction fullSequences [] tempDir sessionID iterationNumber (head inputFasta) 
   expansionResult <- initialAlignmentExpansion seed 
   return expansionResult
@@ -193,26 +196,25 @@ initialAlignmentExpansion (ModelConstruction remainingCandidates alignedCandidat
   let currentDir = tempDirPath ++ sessionID ++ "/"
   --construct seedFasta
   --let seedFasta = concat (map constructSeedFromBlast alignedCandidates) ++ (constructCandidateFromFasta inputFasta)
-  let seedFasta = concat (map constructCandidateFromFasta remainingCandidates) ++ (constructCandidateFromFasta inputFasta)
-  putStrLn "Reached seedModelExpansion"
-  --combine with unaligned Blastresults
-  --let candidateFasta = map (\candidate -> constructCandidateFromBlast seedFasta candidate) remainingCandidates
-  let candidateFasta = map (\candidate -> constructCandidateFromBlast seedFasta candidate) []
+  let seedFastaContent = concat (map constructCandidateFromFasta remainingCandidates) ++ (constructCandidateFromFasta inputFasta)  
+  let seedFasta = ("1",seedFastaContent)
+  putStrLn "Reached seedModelExpansion - seed fasta:"
+  print seedFasta
   --write candidates
-  writeFastaFiles currentDir iterationNumber candidateFasta
-  let fastaFilepaths = map (constructFastaFilePaths currentDir iterationNumber) candidateFasta
+  writeFastaFile currentDir iterationNumber seedFasta
+  let fastaFilepath = constructFastaFilePaths currentDir iterationNumber seedFasta 
   --compute alignments
-  let alignmentFilepaths = map (constructAlignmentFilePaths currentDir iterationNumber) candidateFasta
-  let alignmentSummaryFilepaths = map (constructAlignmentSummaryFilePaths currentDir iterationNumber) candidateFasta
-  alignCandidates fastaFilepaths alignmentFilepaths alignmentSummaryFilepaths
-  clustalw2Summaries <- mapM readClustalw2Summary alignmentSummaryFilepaths
-  let clustalw2Scores = map (\x -> show (alignmentScore (fromRight x))) clustalw2Summaries
-  putStrLn ("clustalw2Scores:" ++ (intercalate "," clustalw2Scores))
+  let alignmentFilepath = constructAlignmentFilePaths currentDir iterationNumber seedFasta
+  let alignmentSummaryFilepath = constructAlignmentSummaryFilePaths currentDir iterationNumber seedFasta
+  alignCandidates [fastaFilepath] [alignmentFilepath] [alignmentSummaryFilepath]
+  clustalw2Summary <- mapM readClustalw2Summary [alignmentSummaryFilepath]
+  let clustalw2Score = map (\x -> show (alignmentScore (fromRight x))) clustalw2Summary
+  --putStrLn ("clustalw2Scores:" ++ (intercalate "," clustalw2Score))
   --compute SCI
-  let rnazOutputFilepaths = map (constructRNAzFilePaths currentDir iterationNumber) candidateFasta
-  computeAlignmentSCIs alignmentFilepaths rnazOutputFilepaths
+  let rnazOutputFilepath = constructRNAzFilePaths currentDir iterationNumber seedFasta
+  computeAlignmentSCIs [alignmentFilepath] [rnazOutputFilepath]
   --retrieveAlignmentSCIs
-  alignmentsRNAzOutput <- mapM readRNAz rnazOutputFilepaths
+  alignmentsRNAzOutput <- mapM readRNAz [rnazOutputFilepath]
   let alignmentsSCI = map (\x -> show (structureConservationIndex (fromRight x))) alignmentsRNAzOutput
   putStrLn (intercalate "," alignmentsSCI)
   --return alignmentsRNAzOutput
@@ -510,6 +512,9 @@ systemBlast filePath iterationNumber = do
   system ("blastn -outfmt 5 -query " ++ filePath  ++ " -db nr -out " ++ outputName)
   inputBlast <- readXML outputName
   return inputBlast
+
+-- | Run external clustalw2 command and read the output into the corresponding datatype
+systemLocarna (inputFilePath, outputFilePath, summaryFilePath) = system ("mlocarna" ++ inputFilePath ++ " -OUTFILE=" ++ outputFilePath ++ ">" ++ summaryFilePath)
         
 -- | Run external clustalw2 command and read the output into the corresponding datatype
 systemClustalw2 (inputFilePath, outputFilePath, summaryFilePath) = system ("clustalw2 -INFILE=" ++ inputFilePath ++ " -OUTFILE=" ++ outputFilePath ++ ">" ++ summaryFilePath)
