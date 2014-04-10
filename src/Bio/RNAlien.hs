@@ -39,6 +39,7 @@ import Data.Maybe
 import Text.Parsec.Error
 import Text.ParserCombinators.Parsec.Pos
 import Bio.EntrezHTTP
+--import Debug.Trace
 
 data Options = Options            
   { inputFile :: String,
@@ -95,17 +96,18 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   let filteredBlastResults = filterByNeighborhoodTree blastHitsWithTaxId bestHitTreePosition singleHitperTax
   -- Retrieval of full sequences from entrez
   let retrievalOffset = readInt fullSequenceOffset
+  --putStrLn "Filtered Blast results:\n"
+  --print filteredBlastResults
   let missingSequenceElements = map (getMissingSequenceElement retrievalOffset queryLength) filteredBlastResults
   putStrLn "Missing sequence elements:\n"
   print missingSequenceElements
   fullSequences <- mapM retrieveFullSequence missingSequenceElements
-  putStrLn "Full sequences\n"
-  print fullSequences
+  putStrLn "Retrieved full sequences\n"
   createDirectory (tempDir ++ sessionID)
   -- Initial alignment construction
   let seed = ModelConstruction fullSequences [] tempDir sessionID iterationNumber (head inputFasta) 
-  expansionResult <- initialAlignmentExpansion seed 
-  return expansionResult
+  --expansionResult <- initialAlignmentExpansion seed 
+  return fullSequences
   --return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
 
 initialAlignmentConstructionOffline sessionID inputFastaFile inputTaxNodesFile inputGene2AccessionFile tempDir ncbiProgram ncbiDatabase requestedHitNumber filterTaxId singleHitperTax fullSequenceOffset = do
@@ -144,6 +146,8 @@ initialAlignmentConstructionOffline sessionID inputFastaFile inputTaxNodesFile i
   let blastHittaxIdList = extractTaxIdFromEntrySummaries  blastHitTaxIdOutput
   --let blastHitsWithTaxId = map annotateBlastHitsWithTaxIdEntrez (concat (map hits (results rightBlast)))
   let blastHitsWithTaxId = zip blastHits blastHittaxIdList
+  -- Filter by HitLenght
+  
   -- Filtering with TaxTree
   let bestHitTreePosition = getBestHitTreePosition rightNodes Family rightBestTaxIdResult bestHit
 ---
@@ -326,9 +330,10 @@ filterNeighborhoodEntries blastHitsWithTaxId neighborhoodTaxIds singleHitperTax
   |  singleHitperTax = singleBlastHitperTaxId
   |  otherwise = neighborhoodBlastHitsWithTaxId
   where neighborhoodBlastHitsWithTaxId = filter (\blastHit -> isInNeighborhood neighborhoodTaxIds blastHit) blastHitsWithTaxId
-        neighborhoodBlastHitsWithTaxIdGroupedByTaxId = groupBy sameTaxId neighborhoodBlastHitsWithTaxId
-        singleBlastHitperTaxId = (map (maximumBy compareHitEValue) neighborhoodBlastHitsWithTaxIdGroupedByTaxId)
-
+        neighborhoodBlastHitsWithTaxIdSortedByTaxId = sortBy compareTaxId neighborhoodBlastHitsWithTaxId
+        neighborhoodBlastHitsWithTaxIdGroupedByTaxId = groupBy sameTaxId neighborhoodBlastHitsWithTaxIdSortedByTaxId
+        singleBlastHitperTaxId = map (maximumBy compareHitEValue) neighborhoodBlastHitsWithTaxIdGroupedByTaxId
+        
 -- Smaller e-Values are greater, the maximum function is applied
 compareHitEValue :: (BlastHit,Int) -> (BlastHit,Int) -> Ordering
 compareHitEValue (hit1,_) (hit2,_)
@@ -336,6 +341,14 @@ compareHitEValue (hit1,_) (hit2,_)
   | (hitEValue hit1) < (hitEValue hit2) = GT
   -- in case of equal evalues the first hit is selected
   | (hitEValue hit1) == (hitEValue hit2) = GT
+
+
+compareTaxId :: (BlastHit,Int) -> (BlastHit,Int) -> Ordering
+compareTaxId (_,taxId1) (_,taxId2)
+  | taxId1 > taxId2 = LT
+  | taxId1 < taxId2 = GT
+  -- in case of equal evalues the first hit is selected
+  | taxId1 == taxId2 = EQ
 
 sameTaxId :: (BlastHit,Int) -> (BlastHit,Int) -> Bool
 sameTaxId (_,taxId1) (_,taxId2) = taxId1 == taxId2
@@ -492,6 +505,7 @@ main = do
   initialAlignment <- initialAlignmentConstruction sessionId inputFile taxNodesFile gene2AccessionFile tempDirPath selectedProgram selectedDatabase selectedHitNumber (Just taxIdFilter) singleHitperTax fullSequenceOffset
   -- seedModel <- seedModelConstruction initialAlignment
   print initialAlignment
+  
 
 -------------------------------------- Auxiliary functions:
 
