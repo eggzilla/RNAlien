@@ -68,7 +68,8 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   let defaultProgram = "blastn"
   let defaultDatabase = "refseq_genomic" 
   let defaultHitNumber = "&ALIGNMENTS=250"
-  let defaultTaxFilter = ""    
+  let defaultTaxFilter = ""
+  let lengthFilter = True
   let selectedProgram = fromMaybe defaultProgram ncbiProgram
   let selectedDatabase = fromMaybe defaultDatabase ncbiDatabase
   let selectedHitNumber = fromMaybe defaultHitNumber requestedHitNumber
@@ -88,7 +89,10 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   let rightBestTaxIdResult = head (extractTaxIdFromEntrySummaries bestBlastHitTaxIdOutput)
   --putStrLn "Best Blast Hit: " ++ (head bestResultTaxId)
   let blastHits = (concat (map hits (results rightBlast)))
-  blastHitTaxIdOutput <- retrieveBlastHitTaxIdEntrez blastHits
+  --filter by HitLenght
+  let blastHitsFilteredbyLength = filterByHitLength blastHits queryLength lengthFilter 
+  --tag BlastHits with TaxId
+  blastHitTaxIdOutput <- retrieveBlastHitTaxIdEntrez blastHitsFilteredbyLength
   let blastHittaxIdList = extractTaxIdFromEntrySummaries  blastHitTaxIdOutput
   let blastHitsWithTaxId = zip blastHits blastHittaxIdList
   -- Filtering with TaxTree
@@ -146,8 +150,6 @@ initialAlignmentConstructionOffline sessionID inputFastaFile inputTaxNodesFile i
   let blastHittaxIdList = extractTaxIdFromEntrySummaries  blastHitTaxIdOutput
   --let blastHitsWithTaxId = map annotateBlastHitsWithTaxIdEntrez (concat (map hits (results rightBlast)))
   let blastHitsWithTaxId = zip blastHits blastHittaxIdList
-  -- Filter by HitLenght
-  
   -- Filtering with TaxTree
   let bestHitTreePosition = getBestHitTreePosition rightNodes Family rightBestTaxIdResult bestHit
 ---
@@ -160,6 +162,26 @@ initialAlignmentConstructionOffline sessionID inputFastaFile inputTaxNodesFile i
   return filteredBlastResults
   --return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
 
+filterByHitLength :: [BlastHit] -> Int -> Bool -> [BlastHit]
+filterByHitLength blastHits queryLength filterOn 
+  | filterOn == True = filter (\hit -> hitLongerThanQuery queryLength hit) blastHits 
+  | otherwise = blastHits
+
+
+hitLongerThanQuery :: Int -> BlastHit -> Bool
+hitLongerThanQuery queryLength blastHit = tooLong
+  where  blastMatches = matches blastHit
+         minHfrom = minimum (map h_from blastMatches)
+         minHfromHSP = fromJust (find (\hsp -> minHfrom == (h_from hsp)) blastMatches)
+         maxHto = maximum (map h_to blastMatches)
+         maxHtoHSP = fromJust (find (\hsp -> maxHto == (h_to hsp)) blastMatches)
+         minHonQuery = q_from minHfromHSP
+         maxHonQuery = q_to maxHtoHSP
+         startCoordinate = minHfrom - minHonQuery 
+         endCoordinate = maxHto + (queryLength - maxHonQuery) 
+         fullSeqLength = endCoordinate - startCoordinate
+         tooLong = (fullSeqLength * 2) > queryLength
+  
 retrieveFullSequence :: (String, Int, Int) -> IO Sequence
 retrieveFullSequence (geneId,seqStart,seqStop) = do
   let program = Just "efetch"
