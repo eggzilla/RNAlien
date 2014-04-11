@@ -166,9 +166,9 @@ filterByHitLength blastHits queryLength filterOn
   | filterOn == True = filter (\hit -> hitLongerThanQuery queryLength hit) blastHits 
   | otherwise = blastHits
 
-
+-- | Hits should have a compareable length to query
 hitLongerThanQuery :: Int -> BlastHit -> Bool
-hitLongerThanQuery queryLength blastHit = tooLong
+hitLongerThanQuery queryLength blastHit = lengthOk
   where  blastMatches = matches blastHit
          minHfrom = minimum (map h_from blastMatches)
          minHfromHSP = fromJust (find (\hsp -> minHfrom == (h_from hsp)) blastMatches)
@@ -179,7 +179,7 @@ hitLongerThanQuery queryLength blastHit = tooLong
          startCoordinate = minHfrom - minHonQuery 
          endCoordinate = maxHto + (queryLength - maxHonQuery) 
          fullSeqLength = endCoordinate - startCoordinate
-         tooLong = fullSeqLength > (queryLength * 2)
+         lengthOk = fullSeqLength < (queryLength * 2)
   
 retrieveFullSequence :: (String, Int, Int) -> IO Sequence
 retrieveFullSequence (geneId,seqStart,seqStop) = do
