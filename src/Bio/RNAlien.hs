@@ -156,7 +156,6 @@ initialAlignmentConstructionOffline sessionID inputFastaFile inputTaxNodesFile i
   let filteredBlastResults = filterByNeighborhoodTree blastHitsWithTaxId bestHitTreePosition singleHitperTax
   createDirectory (tempDir ++ sessionID)
   --initialAlignmentconstruction
-  --let initialAlignment = initialalignmentConstruction filteredBlastResults tempDirPath inputFasta
   --let initialAlignment = ModelConstruction filteredBlastResults [] tempDir sessionID iterationNumber (head inputFasta) 
   --expansionResult <- initialAlignmentExpansion initialAlignment 
   return filteredBlastResults
@@ -180,7 +179,7 @@ hitLongerThanQuery queryLength blastHit = tooLong
          startCoordinate = minHfrom - minHonQuery 
          endCoordinate = maxHto + (queryLength - maxHonQuery) 
          fullSeqLength = endCoordinate - startCoordinate
-         tooLong = (fullSeqLength * 2) > queryLength
+         tooLong = fullSeqLength > (queryLength * 2)
   
 retrieveFullSequence :: (String, Int, Int) -> IO Sequence
 retrieveFullSequence (geneId,seqStart,seqStop) = do
@@ -549,8 +548,8 @@ systemBlast filePath iterationNumber = do
   inputBlast <- readXML outputName
   return inputBlast
 
--- | Run external clustalw2 command and read the output into the corresponding datatype
-systemLocarna (inputFilePath, outputFilePath, summaryFilePath) = system ("mlocarna" ++ inputFilePath ++ " -OUTFILE=" ++ outputFilePath ++ ">" ++ summaryFilePath)
+-- | Run external mlocarna command and read the output into the corresponding datatype, there is also a folder created at the location of the input fasta file
+systemLocarna (inputFilePath, outputFilePath, summaryFilePath) = system ("mlocarna " ++ inputFilePath ++ " > " ++ outputFilePath)
         
 -- | Run external clustalw2 command and read the output into the corresponding datatype
 systemClustalw2 (inputFilePath, outputFilePath, summaryFilePath) = system ("clustalw2 -INFILE=" ++ inputFilePath ++ " -OUTFILE=" ++ outputFilePath ++ ">" ++ summaryFilePath)
