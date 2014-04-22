@@ -39,13 +39,14 @@ import Data.Maybe
 import Text.Parsec.Error
 import Text.ParserCombinators.Parsec.Pos
 import Bio.EntrezHTTP
---import Debug.Trace
+
 
 data Options = Options            
   { inputFile :: String,
     taxIdFilter :: String,
     outputPath :: String,
     fullSequenceOffset :: String,
+    lengthFilter :: Bool,
     singleHitperTax :: Bool
   } deriving (Show,Data,Typeable)
 
@@ -54,12 +55,13 @@ options = Options
     outputPath = def &= name "o" &= help "Path to output directory",
     taxIdFilter = def &= name "t" &= help "NCBI taxonomy ID number of input RNA organism",
     fullSequenceOffset = "20" &= name "f" &= help "Overhangs of retrieved fasta sequences compared to query sequence",
+    lengthFilter = False &= name "l" &= help "Filter blast hits per genomic length",
     singleHitperTax = False &= name "s" &= help "Only the best blast hit per taxonomic entry is considered"
   } &= summary "RNAlien devel version" &= help "Florian Eggenhofer - 2013" &= verbosity       
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 --seedModelConstruction :: String -> String -> String -> String -> String -> IO String --IO []
-initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2AccessionFile tempDir ncbiProgram ncbiDatabase requestedHitNumber filterTaxId singleHitperTax fullSequenceOffset = do
+initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2AccessionFile tempDir ncbiProgram ncbiDatabase requestedHitNumber filterTaxId singleHitperTax lengthFilter fullSequenceOffset = do
   let iterationNumber = 0
   inputFasta <- readFasta inputFastaFile
   putStrLn "Read input"
@@ -69,13 +71,12 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   let defaultDatabase = "refseq_genomic" 
   let defaultHitNumber = "&ALIGNMENTS=250"
   let defaultTaxFilter = ""
-  let lengthFilter = True
   let selectedProgram = fromMaybe defaultProgram ncbiProgram
   let selectedDatabase = fromMaybe defaultDatabase ncbiDatabase
   let selectedHitNumber = fromMaybe defaultHitNumber requestedHitNumber
   let selectedTaxFilter = fromMaybe defaultTaxFilter filterTaxId
   nodes <- readNCBISimpleTaxDumpNodes inputTaxNodesFile 
-  let rightNodes  = fromRight nodes
+  let rightNodes = fromRight nodes
   putStrLn "Read taxonomy nodes"
   let (maskId, entrezTaxFilter) = buildTaxFilterQuery selectedTaxFilter rightNodes
   putStrLn ("Blast TaxIdMask: " ++ maskId)
@@ -89,12 +90,13 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   let rightBestTaxIdResult = head (extractTaxIdFromEntrySummaries bestBlastHitTaxIdOutput)
   --putStrLn "Best Blast Hit: " ++ (head bestResultTaxId)
   let blastHits = (concat (map hits (results rightBlast)))
+  putStrLn "FilteredByLength"
   --filter by HitLenght
-  let blastHitsFilteredbyLength = filterByHitLength blastHits queryLength lengthFilter 
+  let blastHitsFilteredByLength = filterByHitLength blastHits queryLength lengthFilter 
   --tag BlastHits with TaxId
-  blastHitTaxIdOutput <- retrieveBlastHitTaxIdEntrez blastHitsFilteredbyLength
+  blastHitTaxIdOutput <- retrieveBlastHitTaxIdEntrez blastHitsFilteredByLength
   let blastHittaxIdList = extractTaxIdFromEntrySummaries  blastHitTaxIdOutput
-  let blastHitsWithTaxId = zip blastHits blastHittaxIdList
+  let blastHitsWithTaxId = zip blastHitsFilteredByLength blastHittaxIdList
   -- Filtering with TaxTree
   let bestHitTreePosition = getBestHitTreePosition rightNodes Family rightBestTaxIdResult bestHit
   let filteredBlastResults = filterByNeighborhoodTree blastHitsWithTaxId bestHitTreePosition singleHitperTax
@@ -109,7 +111,7 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   putStrLn "Retrieved full sequences\n"
   createDirectory (tempDir ++ sessionID)
   -- Initial alignment construction
-  let seed = ModelConstruction fullSequences [] tempDir sessionID iterationNumber (head inputFasta) 
+  ---let seed = ModelConstruction fullSequences [] tempDir sessionID iterationNumber (head inputFasta) 
   --expansionResult <- initialAlignmentExpansion seed 
   return fullSequences
   --return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
@@ -163,12 +165,13 @@ initialAlignmentConstructionOffline sessionID inputFastaFile inputTaxNodesFile i
 
 filterByHitLength :: [BlastHit] -> Int -> Bool -> [BlastHit]
 filterByHitLength blastHits queryLength filterOn 
-  | filterOn == True = filter (\hit -> hitLongerThanQuery queryLength hit) blastHits 
+  | filterOn = filteredBlastHits
   | otherwise = blastHits
+  where filteredBlastHits = filter (\hit -> hitLengthCheck queryLength hit) blastHits
 
 -- | Hits should have a compareable length to query
-hitLongerThanQuery :: Int -> BlastHit -> Bool
-hitLongerThanQuery queryLength blastHit = lengthOk
+hitLengthCheck :: Int -> BlastHit -> Bool
+hitLengthCheck queryLength blastHit = lengthStatus
   where  blastMatches = matches blastHit
          minHfrom = minimum (map h_from blastMatches)
          minHfromHSP = fromJust (find (\hsp -> minHfrom == (h_from hsp)) blastMatches)
@@ -179,7 +182,7 @@ hitLongerThanQuery queryLength blastHit = lengthOk
          startCoordinate = minHfrom - minHonQuery 
          endCoordinate = maxHto + (queryLength - maxHonQuery) 
          fullSeqLength = endCoordinate - startCoordinate
-         lengthOk = fullSeqLength < (queryLength * 2)
+         lengthStatus = fullSeqLength < (queryLength * 3)
   
 retrieveFullSequence :: (String, Int, Int) -> IO Sequence
 retrieveFullSequence (geneId,seqStart,seqStop) = do
@@ -523,7 +526,7 @@ main = do
   let selectedProgram = Just "blastn"
   let selectedDatabase = Just "refseq_genomic"
   let selectedHitNumber = Just "250"
-  initialAlignment <- initialAlignmentConstruction sessionId inputFile taxNodesFile gene2AccessionFile tempDirPath selectedProgram selectedDatabase selectedHitNumber (Just taxIdFilter) singleHitperTax fullSequenceOffset
+  initialAlignment <- initialAlignmentConstruction sessionId inputFile taxNodesFile gene2AccessionFile tempDirPath selectedProgram selectedDatabase selectedHitNumber (Just taxIdFilter) singleHitperTax lengthFilter fullSequenceOffset
   -- seedModel <- seedModelConstruction initialAlignment
   print initialAlignment
   
