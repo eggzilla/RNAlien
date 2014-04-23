@@ -88,7 +88,6 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   let bestHit = getBestHit rightBlast
   bestBlastHitTaxIdOutput <- retrieveBlastHitTaxIdEntrez [bestHit]
   let rightBestTaxIdResult = head (extractTaxIdFromEntrySummaries bestBlastHitTaxIdOutput)
-  --putStrLn "Best Blast Hit: " ++ (head bestResultTaxId)
   let blastHits = (concat (map hits (results rightBlast)))
   putStrLn "FilteredByLength"
   --filter by HitLenght
@@ -102,8 +101,6 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   let filteredBlastResults = filterByNeighborhoodTree blastHitsWithTaxId bestHitTreePosition singleHitperTax
   -- Retrieval of full sequences from entrez
   let retrievalOffset = readInt fullSequenceOffset
-  --putStrLn "Filtered Blast results:\n"
-  --print filteredBlastResults
   let missingSequenceElements = map (getMissingSequenceElement retrievalOffset queryLength) filteredBlastResults
   putStrLn "Missing sequence elements:\n"
   print missingSequenceElements
@@ -111,56 +108,9 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   putStrLn "Retrieved full sequences\n"
   createDirectory (tempDir ++ sessionID)
   -- Initial alignment construction
-  ---let seed = ModelConstruction fullSequences [] tempDir sessionID iterationNumber (head inputFasta) 
-  --expansionResult <- initialAlignmentExpansion seed 
-  return fullSequences
-  --return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
-
-initialAlignmentConstructionOffline sessionID inputFastaFile inputTaxNodesFile inputGene2AccessionFile tempDir ncbiProgram ncbiDatabase requestedHitNumber filterTaxId singleHitperTax fullSequenceOffset = do
-  let iterationNumber = 0
-  inputFasta <- readFasta inputFastaFile
-  putStrLn "Read input"
-  let fastaSeqData = seqdata (head inputFasta)
-  let defaultProgram = "blastn"
-  let defaultDatabase = "refseq_genomic" 
-  let defaultHitNumber = "&ALIGNMENTS=250"
-  let defaultTaxFilter = ""    
-  let selectedProgram = fromMaybe defaultProgram ncbiProgram
-  let selectedDatabase = fromMaybe defaultDatabase ncbiDatabase
-  let selectedHitNumber = fromMaybe defaultHitNumber requestedHitNumber
-  let selectedTaxFilter = fromMaybe defaultTaxFilter filterTaxId
-  nodes <- readNCBISimpleTaxDumpNodes inputTaxNodesFile
-  let rightNodes  = fromRight nodes
-  putStrLn "Read taxonomy nodes"
-  let (maskId, entrezTaxFilter) = buildTaxFilterQuery selectedTaxFilter rightNodes
-  putStrLn ("Blast TaxIdMask: " ++ maskId)
-  let hitNumberQuery = buildHitNumberQuery selectedHitNumber
-  let blastQuery = BlastHTTPQuery (Just "blastn") (Just "refseq_genomic") (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter))
-  putStrLn "Sending blast query"
-  blastOutput <- blastHTTP blastQuery 
-  let rightBlast = fromRight blastOutput
-  let bestHit = getBestHit rightBlast
-  let bestHitAccession = accession bestHit
-  inputGene2AccessionContent <- liftM (BC.split '\n') (B.readFile inputGene2AccessionFile)
-  let bestResultTaxId = taxIDFromGene2Accession inputGene2AccessionContent bestHitAccession
-  reportBestBlastHit bestResultTaxId
-  let rightBestTaxIdResult = fromRight bestResultTaxId
-  -- Retrieve taxIds for blastHits
-  let blastHitsWithTaxId = map (annotateBlastHitsWithTaxId inputGene2AccessionContent) (concat (map hits (results rightBlast)))
-  let blastHits = (concat (map hits (results rightBlast)))
-  blastHitTaxIdOutput <- retrieveBlastHitTaxIdEntrez blastHits
-  let blastHittaxIdList = extractTaxIdFromEntrySummaries  blastHitTaxIdOutput
-  --let blastHitsWithTaxId = map annotateBlastHitsWithTaxIdEntrez (concat (map hits (results rightBlast)))
-  let blastHitsWithTaxId = zip blastHits blastHittaxIdList
-  -- Filtering with TaxTree
-  let bestHitTreePosition = getBestHitTreePosition rightNodes Family rightBestTaxIdResult bestHit
----
-  let filteredBlastResults = filterByNeighborhoodTree blastHitsWithTaxId bestHitTreePosition singleHitperTax
-  createDirectory (tempDir ++ sessionID)
-  --initialAlignmentconstruction
-  --let initialAlignment = ModelConstruction filteredBlastResults [] tempDir sessionID iterationNumber (head inputFasta) 
-  --expansionResult <- initialAlignmentExpansion initialAlignment 
-  return filteredBlastResults
+  let seed = ModelConstruction fullSequences [] tempDir sessionID iterationNumber (head inputFasta) 
+  expansionResult <- initialAlignmentExpansion seed 
+  return  expansionResult
   --return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
 
 filterByHitLength :: [BlastHit] -> Int -> Bool -> [BlastHit]
@@ -650,3 +600,51 @@ extractSecond (a, b, c) = b
 
 extractThird :: (a, b, c) -> c
 extractThird (a, b, c) = c
+
+-- deprecated
+initialAlignmentConstructionOffline sessionID inputFastaFile inputTaxNodesFile inputGene2AccessionFile tempDir ncbiProgram ncbiDatabase requestedHitNumber filterTaxId singleHitperTax fullSequenceOffset = do
+  let iterationNumber = 0
+  inputFasta <- readFasta inputFastaFile
+  putStrLn "Read input"
+  let fastaSeqData = seqdata (head inputFasta)
+  let defaultProgram = "blastn"
+  let defaultDatabase = "refseq_genomic" 
+  let defaultHitNumber = "&ALIGNMENTS=250"
+  let defaultTaxFilter = ""    
+  let selectedProgram = fromMaybe defaultProgram ncbiProgram
+  let selectedDatabase = fromMaybe defaultDatabase ncbiDatabase
+  let selectedHitNumber = fromMaybe defaultHitNumber requestedHitNumber
+  let selectedTaxFilter = fromMaybe defaultTaxFilter filterTaxId
+  nodes <- readNCBISimpleTaxDumpNodes inputTaxNodesFile
+  let rightNodes  = fromRight nodes
+  putStrLn "Read taxonomy nodes"
+  let (maskId, entrezTaxFilter) = buildTaxFilterQuery selectedTaxFilter rightNodes
+  putStrLn ("Blast TaxIdMask: " ++ maskId)
+  let hitNumberQuery = buildHitNumberQuery selectedHitNumber
+  let blastQuery = BlastHTTPQuery (Just "blastn") (Just "refseq_genomic") (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter))
+  putStrLn "Sending blast query"
+  blastOutput <- blastHTTP blastQuery 
+  let rightBlast = fromRight blastOutput
+  let bestHit = getBestHit rightBlast
+  let bestHitAccession = accession bestHit
+  inputGene2AccessionContent <- liftM (BC.split '\n') (B.readFile inputGene2AccessionFile)
+  let bestResultTaxId = taxIDFromGene2Accession inputGene2AccessionContent bestHitAccession
+  reportBestBlastHit bestResultTaxId
+  let rightBestTaxIdResult = fromRight bestResultTaxId
+  -- Retrieve taxIds for blastHits
+  let blastHitsWithTaxId = map (annotateBlastHitsWithTaxId inputGene2AccessionContent) (concat (map hits (results rightBlast)))
+  let blastHits = (concat (map hits (results rightBlast)))
+  blastHitTaxIdOutput <- retrieveBlastHitTaxIdEntrez blastHits
+  let blastHittaxIdList = extractTaxIdFromEntrySummaries  blastHitTaxIdOutput
+  --let blastHitsWithTaxId = map annotateBlastHitsWithTaxIdEntrez (concat (map hits (results rightBlast)))
+  let blastHitsWithTaxId = zip blastHits blastHittaxIdList
+  -- Filtering with TaxTree
+  let bestHitTreePosition = getBestHitTreePosition rightNodes Family rightBestTaxIdResult bestHit
+---
+  let filteredBlastResults = filterByNeighborhoodTree blastHitsWithTaxId bestHitTreePosition singleHitperTax
+  createDirectory (tempDir ++ sessionID)
+  --initialAlignmentconstruction
+  --let initialAlignment = ModelConstruction filteredBlastResults [] tempDir sessionID iterationNumber (head inputFasta) 
+  --expansionResult <- initialAlignmentExpansion initialAlignment 
+  return filteredBlastResults
+  --return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
