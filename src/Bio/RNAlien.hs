@@ -95,11 +95,15 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   --tag BlastHits with TaxId
   blastHitTaxIdOutput <- retrieveBlastHitTaxIdEntrez blastHitsFilteredByLength
   let blastHittaxIdList = extractTaxIdFromEntrySummaries  blastHitTaxIdOutput
-  blastHitParentTaxIdOutput <- retrieveParentTaxIdEntrez blastHittaxIdList
+  --filter by ParentTaxId
+  blastHitsParentTaxIdOutput <- retrieveParentTaxIdEntrez blastHittaxIdList 
   putStrLn "ParentTaxIds:"
-  print blastHitParentTaxIdOutput
-  let blastHitsWithTaxId = zip blastHitsFilteredByLength blastHittaxIdList
+  print blastHitsParentTaxIdOutput
+  let blastHitsWithParentTaxId = zip blastHitsFilteredByLength blastHitsParentTaxIdOutput
+  let blastHitsFilteredByParentTaxId = filterByParentTaxId blastHitsWithParentTaxId True
+  print (map snd blastHitsFilteredByParentTaxId)
   -- Filtering with TaxTree
+  let blastHitsWithTaxId = zip blastHitsFilteredByLength blastHittaxIdList
   let bestHitTreePosition = getBestHitTreePosition rightNodes Family rightBestTaxIdResult bestHit
   let filteredBlastResults = filterByNeighborhoodTree blastHitsWithTaxId bestHitTreePosition singleHitperTax
   -- Retrieval of full sequences from entrez
@@ -115,6 +119,15 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   expansionResult <- initialAlignmentExpansion seed 
   return  expansionResult
   --return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
+
+filterByParentTaxId :: [(BlastHit,Int)] -> Bool -> [(BlastHit,Int)]
+filterByParentTaxId blastHitsWithParentTaxId singleHitPerParentTaxId   
+  |  singleHitPerParentTaxId = singleBlastHitperParentTaxId
+  |  otherwise = blastHitsWithParentTaxId
+  where blastHitsWithParentTaxIdSortedByParentTaxId = sortBy compareTaxId blastHitsWithParentTaxId
+        blastHitsWithParentTaxIdGroupedByParentTaxId = groupBy sameTaxId blastHitsWithParentTaxIdSortedByParentTaxId
+        singleBlastHitperParentTaxId = map (maximumBy compareHitEValue) blastHitsWithParentTaxIdGroupedByParentTaxId
+
 
 filterByHitLength :: [BlastHit] -> Int -> Bool -> [BlastHit]
 filterByHitLength blastHits queryLength filterOn 
