@@ -95,6 +95,9 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   --tag BlastHits with TaxId
   blastHitTaxIdOutput <- retrieveBlastHitTaxIdEntrez blastHitsFilteredByLength
   let blastHittaxIdList = extractTaxIdFromEntrySummaries  blastHitTaxIdOutput
+  blastHitParentTaxIdOutput <- retrieveParentTaxIdEntrez blastHittaxIdList
+  putStrLn "ParentTaxIds:"
+  print blastHitParentTaxIdOutput
   let blastHitsWithTaxId = zip blastHitsFilteredByLength blastHittaxIdList
   -- Filtering with TaxTree
   let bestHitTreePosition = getBestHitTreePosition rightNodes Family rightBestTaxIdResult bestHit
@@ -379,6 +382,20 @@ isInNeighborhood neighborhoodTaxIds (blastHit,hitTaxId) = elem hitTaxId neighbor
 checkisNeighbor :: Either ParseError Int -> [Int] -> Bool
 checkisNeighbor (Right hitTaxId) neighborhoodTaxIds = elem hitTaxId neighborhoodTaxIds
 checkisNeighbor (Left _) _ = False
+
+retrieveParentTaxIdEntrez :: [Int] -> IO [Int]
+retrieveParentTaxIdEntrez taxIds = do
+  let program = Just "efetch"
+  let database = Just "taxonomy"
+  let taxIdStrings = map show taxIds
+  let taxIdQuery = intercalate "," taxIdStrings
+  let queryString = "id=" ++ taxIdQuery
+  let entrezQuery = EntrezHTTPQuery program database queryString 
+  result <- entrezHTTP entrezQuery
+  let parentTaxIds = readEntrezParentIds result
+  --let parentTaxIds = map getEntrezParentTaxIds resulttaxons
+  --print result
+  return parentTaxIds
 
 retrieveBlastHitTaxIdEntrez :: [BlastHit] -> IO String
 retrieveBlastHitTaxIdEntrez blastHits = do
