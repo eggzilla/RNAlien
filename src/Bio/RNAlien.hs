@@ -100,10 +100,12 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   putStrLn "ParentTaxIds:"
   print blastHitsParentTaxIdOutput
   let blastHitsWithParentTaxId = zip blastHitsFilteredByLength blastHitsParentTaxIdOutput
-  let blastHitsFilteredByParentTaxId = filterByParentTaxId blastHitsWithParentTaxId True
-  print (map snd blastHitsFilteredByParentTaxId)
+  let blastHitsFilteredByParentTaxIdWithParentTaxId = filterByParentTaxId blastHitsWithParentTaxId True
+  let blastHitsFilteredByParentTaxId = map fst blastHitsFilteredByParentTaxIdWithParentTaxId
+  print (map snd blastHitsFilteredByParentTaxIdWithParentTaxId)
+  print blastHitsFilteredByParentTaxId
   -- Filtering with TaxTree
-  let blastHitsWithTaxId = zip blastHitsFilteredByLength blastHittaxIdList
+  let blastHitsWithTaxId = zip blastHitsFilteredByParentTaxId blastHittaxIdList
   let bestHitTreePosition = getBestHitTreePosition rightNodes Family rightBestTaxIdResult bestHit
   let filteredBlastResults = filterByNeighborhoodTree blastHitsWithTaxId bestHitTreePosition singleHitperTax
   -- Retrieval of full sequences from entrez
