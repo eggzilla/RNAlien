@@ -162,18 +162,56 @@ retrieveFullSequence (geneId,seqStart,seqStop) = do
   let parsedFasta = head ((mkSeqs . L.lines) (L.pack result))
   return parsedFasta
 
+--getMissingSequenceElement :: Int -> Int -> BlastHit -> (String,Int,Int)
+--getMissingSequenceElement retrievalOffset queryLength blastHit = (geneIdentifier,startcoordinate,endcoordinate)
+--  where  geneIdentifier = extractGeneId blastHit
+--         blastMatches = matches blastHit
+--         minHfrom = minimum (map h_from blastMatches)
+--         minHfromHSP = fromJust (find (\hsp -> minHfrom == (h_from hsp)) blastMatches)
+--         maxHto = maximum (map h_to blastMatches)
+--         maxHtoHSP = fromJust (find (\hsp -> maxHto == (h_to hsp)) blastMatches)
+--         minHonQuery = q_from minHfromHSP
+--         maxHonQuery = q_to maxHtoHSP
+--         startcoordinate = minHfrom - minHonQuery - retrievalOffset
+--         endcoordinate = maxHto + (queryLength - maxHonQuery) + retrievalOffset
+
 getMissingSequenceElement :: Int -> Int -> BlastHit -> (String,Int,Int)
-getMissingSequenceElement retrievalOffset queryLength blastHit = (geneIdentifier,startcoordinate,endcoordinate)
-  where  geneIdentifier = extractGeneId blastHit
-         blastMatches = matches blastHit
-         minHfrom = minimum (map h_from blastMatches)
-         minHfromHSP = fromJust (find (\hsp -> minHfrom == (h_from hsp)) blastMatches)
-         maxHto = maximum (map h_to blastMatches)
-         maxHtoHSP = fromJust (find (\hsp -> maxHto == (h_to hsp)) blastMatches)
-         minHonQuery = q_from minHfromHSP
-         maxHonQuery = q_to maxHtoHSP
-         startcoordinate = minHfrom - minHonQuery - retrievalOffset
-         endcoordinate = maxHto + (queryLength - maxHonQuery) + retrievalOffset
+getMissingSequenceElement retrievalOffset queryLength blastHit 
+  | blastHitIsReverseComplement blastHit = getReverseMissingSequenceElement retrievalOffset queryLength blastHit
+  | otherwise = getForwardMissingSequenceElement retrievalOffset queryLength blastHit
+
+blastHitIsReverseComplement :: BlastHit -> Bool
+blastHitIsReverseComplement blastHit = isReverse
+  where blastMatches = matches blastHit
+        firstHSPfrom = h_from (head blastMatches)
+        firstHSPto = h_to (head blastMatches)
+        isReverse = firstHSPfrom > firstHSPto
+
+getForwardMissingSequenceElement :: Int -> Int -> BlastHit -> (String,Int,Int)
+getForwardMissingSequenceElement retrievalOffset queryLength blastHit = (geneIdentifier,startcoordinate,endcoordinate)
+  where    geneIdentifier = extractGeneId blastHit
+           blastMatches = matches blastHit
+           minHfrom = minimum (map h_from blastMatches)
+           minHfromHSP = fromJust (find (\hsp -> minHfrom == (h_from hsp)) blastMatches)
+           maxHto = maximum (map h_to blastMatches)
+           maxHtoHSP = fromJust (find (\hsp -> maxHto == (h_to hsp)) blastMatches)
+           minHonQuery = q_from minHfromHSP
+           maxHonQuery = q_to maxHtoHSP
+           startcoordinate = minHfrom - minHonQuery - retrievalOffset
+           endcoordinate = maxHto + (queryLength - maxHonQuery) + retrievalOffset
+
+getReverseMissingSequenceElement :: Int -> Int -> BlastHit -> (String,Int,Int)
+getReverseMissingSequenceElement retrievalOffset queryLength blastHit = (geneIdentifier,startcoordinate,endcoordinate)
+  where   geneIdentifier = extractGeneId blastHit
+          blastMatches = matches blastHit
+          maxHfrom = maximum (map h_from blastMatches)
+          maxHfromHSP = fromJust (find (\hsp -> maxHfrom == (h_from hsp)) blastMatches)
+          minHto = minimum (map h_to blastMatches)
+          minHtoHSP = fromJust (find (\hsp -> minHto == (h_to hsp)) blastMatches)
+          minHonQuery = q_from maxHfromHSP
+          maxHonQuery = q_to minHtoHSP
+          startcoordinate = maxHfrom + minHonQuery + retrievalOffset
+          endcoordinate = minHto - (queryLength - maxHonQuery) - retrievalOffset
 
 buildTaxFilterQuery :: String -> [SimpleTaxDumpNode] -> (String,String)
 buildTaxFilterQuery filterTaxId nodes
