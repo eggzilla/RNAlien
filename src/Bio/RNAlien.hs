@@ -152,30 +152,17 @@ hitLengthCheck queryLength blastHit = lengthStatus
          fullSeqLength = endCoordinate - startCoordinate
          lengthStatus = fullSeqLength < (queryLength * 3)
   
-retrieveFullSequence :: (String, Int, Int) -> IO Sequence
-retrieveFullSequence (geneId,seqStart,seqStop) = do
+retrieveFullSequence :: (String, Int, Int, String) -> IO Sequence
+retrieveFullSequence (geneId,seqStart,seqStop,strand) = do
   let program = Just "efetch"
   let database = Just "nucleotide" 
-  let queryString = "id=" ++ geneId ++ "&seq_start=" ++ (show seqStart) ++ "&seq_stop=" ++ (show seqStop) ++ "&rettype=fasta"
+  let queryString = "id=" ++ geneId ++ "&seq_start=" ++ (show seqStart) ++ "&seq_stop=" ++ (show seqStop) ++ "&rettype=fasta" ++ "&strand=" ++ strand
   let entrezQuery = EntrezHTTPQuery program database queryString 
   result <- entrezHTTP entrezQuery
   let parsedFasta = head ((mkSeqs . L.lines) (L.pack result))
   return parsedFasta
 
---getMissingSequenceElement :: Int -> Int -> BlastHit -> (String,Int,Int)
---getMissingSequenceElement retrievalOffset queryLength blastHit = (geneIdentifier,startcoordinate,endcoordinate)
---  where  geneIdentifier = extractGeneId blastHit
---         blastMatches = matches blastHit
---         minHfrom = minimum (map h_from blastMatches)
---         minHfromHSP = fromJust (find (\hsp -> minHfrom == (h_from hsp)) blastMatches)
---         maxHto = maximum (map h_to blastMatches)
---         maxHtoHSP = fromJust (find (\hsp -> maxHto == (h_to hsp)) blastMatches)
---         minHonQuery = q_from minHfromHSP
---         maxHonQuery = q_to maxHtoHSP
---         startcoordinate = minHfrom - minHonQuery - retrievalOffset
---         endcoordinate = maxHto + (queryLength - maxHonQuery) + retrievalOffset
-
-getMissingSequenceElement :: Int -> Int -> BlastHit -> (String,Int,Int)
+getMissingSequenceElement :: Int -> Int -> BlastHit -> (String,Int,Int,String)
 getMissingSequenceElement retrievalOffset queryLength blastHit 
   | blastHitIsReverseComplement blastHit = getReverseMissingSequenceElement retrievalOffset queryLength blastHit
   | otherwise = getForwardMissingSequenceElement retrievalOffset queryLength blastHit
@@ -187,8 +174,8 @@ blastHitIsReverseComplement blastHit = isReverse
         firstHSPto = h_to (head blastMatches)
         isReverse = firstHSPfrom > firstHSPto
 
-getForwardMissingSequenceElement :: Int -> Int -> BlastHit -> (String,Int,Int)
-getForwardMissingSequenceElement retrievalOffset queryLength blastHit = (geneIdentifier,startcoordinate,endcoordinate)
+getForwardMissingSequenceElement :: Int -> Int -> BlastHit -> (String,Int,Int,String)
+getForwardMissingSequenceElement retrievalOffset queryLength blastHit = (geneIdentifier,startcoordinate,endcoordinate,strand)
   where    geneIdentifier = extractGeneId blastHit
            blastMatches = matches blastHit
            minHfrom = minimum (map h_from blastMatches)
@@ -199,9 +186,10 @@ getForwardMissingSequenceElement retrievalOffset queryLength blastHit = (geneIde
            maxHonQuery = q_to maxHtoHSP
            startcoordinate = minHfrom - minHonQuery - retrievalOffset
            endcoordinate = maxHto + (queryLength - maxHonQuery) + retrievalOffset
+           strand = "1"
 
-getReverseMissingSequenceElement :: Int -> Int -> BlastHit -> (String,Int,Int)
-getReverseMissingSequenceElement retrievalOffset queryLength blastHit = (geneIdentifier,startcoordinate,endcoordinate)
+getReverseMissingSequenceElement :: Int -> Int -> BlastHit -> (String,Int,Int,String)
+getReverseMissingSequenceElement retrievalOffset queryLength blastHit = (geneIdentifier,startcoordinate,endcoordinate,strand)
   where   geneIdentifier = extractGeneId blastHit
           blastMatches = matches blastHit
           maxHfrom = maximum (map h_from blastMatches)
@@ -212,6 +200,7 @@ getReverseMissingSequenceElement retrievalOffset queryLength blastHit = (geneIde
           maxHonQuery = q_to minHtoHSP
           startcoordinate = maxHfrom + minHonQuery + retrievalOffset
           endcoordinate = minHto - (queryLength - maxHonQuery) - retrievalOffset
+          strand = "2"
 
 buildTaxFilterQuery :: String -> [SimpleTaxDumpNode] -> (String,String)
 buildTaxFilterQuery filterTaxId nodes
