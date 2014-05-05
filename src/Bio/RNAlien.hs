@@ -39,7 +39,7 @@ import Data.Maybe
 import Text.Parsec.Error
 import Text.ParserCombinators.Parsec.Pos
 import Bio.EntrezHTTP
-
+import Data.List.Split
 
 data Options = Options            
   { inputFile :: String,
@@ -378,7 +378,7 @@ hitEValue hit = minimum (map e_val (matches hit))
 
 annotateBlastHitsWithTaxId :: [B.ByteString] -> BlastHit -> (BlastHit,Int)
 annotateBlastHitsWithTaxId inputGene2AccessionContent blastHit = (blastHit,hitTaxId)
-  where hitTaxId = fromRight (taxIDFromGene2Accession inputGene2AccessionContent (accession blastHit))
+  where hitTaxId = fromRight (taxIDFromGene2Accession inputGene2AccessionContent (extractAccession  blastHit))
 
 enoughSubTreeNeighbors :: Int -> [(BlastHit,Int)] -> [(BlastHit,Int)] -> TZ.TreePos TZ.Full SimpleTaxDumpNode -> Bool -> [BlastHit]
 enoughSubTreeNeighbors neighborNumber currentNeighborhoodEntries blastHitsWithTaxId bestHitTreePosition singleHitperTax 
@@ -456,6 +456,11 @@ extractTaxIdFromEntrySummaries input = hitTaxIds
         hitTaxIdStrings = map extractTaxIdfromDocumentSummary blastHitSummaries
         hitTaxIds = map readInt hitTaxIdStrings
 
+extractAccession :: BlastHit -> L.ByteString
+extractAccession currentBlastHit = accession
+  where splitedFields = splitOn "|" (L.unpack (hitId currentBlastHit))
+        accession =  L.pack (splitedFields !! 3) 
+        
 extractGeneId :: BlastHit -> String
 extractGeneId currentBlastHit = geneId
   where truncatedId = (drop 3 (L.unpack (hitId currentBlastHit)))
@@ -484,13 +489,13 @@ tryGetTaxId (Left error) = (Left error)
 tryGetTaxId parsedEntry = liftM simpleTaxIdEntry parsedEntry
 
 getHitAccession :: BlastHit -> String
-getHitAccession blastHit = L.unpack (accession (blastHit))
+getHitAccession blastHit = L.unpack (extractAccession (blastHit))
 
 getBestHit :: BlastResult -> BlastHit
 getBestHit blastResult = head (hits (head (results blastResult)))
 
 getBestHitAccession :: BlastResult -> L.ByteString
-getBestHitAccession blastResult = accession (head (hits (head (results blastResult))))
+getBestHitAccession blastResult = extractAccession (head (hits (head (results blastResult))))
 
 retrieveNeighborhoodTaxIds :: Int -> [SimpleTaxDumpNode] -> Rank -> [Int]
 retrieveNeighborhoodTaxIds bestHitTaxId nodes rank = neighborhoodNodesIds
@@ -685,7 +690,7 @@ initialAlignmentConstructionOffline sessionID inputFastaFile inputTaxNodesFile i
   blastOutput <- blastHTTP blastQuery 
   let rightBlast = fromRight blastOutput
   let bestHit = getBestHit rightBlast
-  let bestHitAccession = accession bestHit
+  let bestHitAccession = extractAccession bestHit
   inputGene2AccessionContent <- liftM (BC.split '\n') (B.readFile inputGene2AccessionFile)
   let bestResultTaxId = taxIDFromGene2Accession inputGene2AccessionContent bestHitAccession
   reportBestBlastHit bestResultTaxId
