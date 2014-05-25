@@ -40,6 +40,7 @@ import Text.Parsec.Error
 import Text.ParserCombinators.Parsec.Pos
 import Bio.EntrezHTTP
 import Data.List.Split
+import Bio.GenbankParser 
 
 data Options = Options            
   { inputFile :: String,
@@ -130,7 +131,6 @@ filterByParentTaxId blastHitsWithParentTaxId singleHitPerParentTaxId
         blastHitsWithParentTaxIdGroupedByParentTaxId = groupBy sameTaxId blastHitsWithParentTaxIdSortedByParentTaxId
         singleBlastHitperParentTaxId = map (maximumBy compareHitEValue) blastHitsWithParentTaxIdGroupedByParentTaxId
 
-
 filterByHitLength :: [BlastHit] -> Int -> Bool -> [BlastHit]
 filterByHitLength blastHits queryLength filterOn 
   | filterOn = filteredBlastHits
@@ -152,6 +152,15 @@ hitLengthCheck queryLength blastHit = lengthStatus
          fullSeqLength = endCoordinate - startCoordinate
          lengthStatus = fullSeqLength < (queryLength * 3)
   
+retrieveGenbankFeatures :: (String, Int, Int) -> IO String
+retrieveGenbankFeatures (accession, seqStart, seqStop) = do
+  let program = Just "efetch"
+  let database = Just "nucleotide"
+  let queryString = "id=" ++ accession ++ "&seq_start=" ++ (show seqStart) ++ "&seq_stop=" ++ (show seqStop) ++ "&rettype=gb" 
+  let entrezQuery = EntrezHTTPQuery program database queryString 
+  queryResult <- entrezHTTP entrezQuery
+  return queryResult
+
 retrieveFullSequence :: (String, Int, Int, String) -> IO Sequence
 retrieveFullSequence (geneId,seqStart,seqStop,strand) = do
   let program = Just "efetch"
@@ -667,7 +676,7 @@ extractThird (a, b, c) = c
 
 -- deprecated
 initialAlignmentConstructionOffline sessionID inputFastaFile inputTaxNodesFile inputGene2AccessionFile tempDir ncbiProgram ncbiDatabase requestedHitNumber filterTaxId singleHitperTax fullSequenceOffset = do
-  let iterationNumber = 0
+  let iterationNumber = read "0" :: Int 
   inputFasta <- readFasta inputFastaFile
   putStrLn "Read input"
   let fastaSeqData = seqdata (head inputFasta)
