@@ -61,7 +61,7 @@ options = Options
   } &= summary "RNAlien devel version" &= help "Florian Eggenhofer - 2013" &= verbosity       
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
---seedModelConstruction :: String -> String -> String -> String -> String -> IO String --IO []
+--initialAlignmentConstruction :: String -> String -> String -> String -> String -> IO String --IO []
 initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2AccessionFile tempDir ncbiProgram ncbiDatabase requestedHitNumber filterTaxId singleHitperTax lengthFilter fullSequenceOffset = do
   let iterationNumber = 0
   inputFasta <- readFasta inputFastaFile
@@ -109,11 +109,16 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   let blastHitsWithTaxId = zip blastHitsFilteredByParentTaxId blastHittaxIdList
   let bestHitTreePosition = getBestHitTreePosition rightNodes Family rightBestTaxIdResult bestHit
   let filteredBlastResults = filterByNeighborhoodTree blastHitsWithTaxId bestHitTreePosition singleHitperTax
-  -- Retrieval of full sequences from entrez
+  -- Coordinate generation
   let retrievalOffset = readInt fullSequenceOffset
   let missingSequenceElements = map (getMissingSequenceElement retrievalOffset queryLength) filteredBlastResults
-  putStrLn "Missing sequence elements:\n"
-  print missingSequenceElements
+  let missingGenbankFeatures = map (getMissingGenbankFeature retrievalOffset queryLength) filteredBlastResults  
+  putStrLn "Generated coordinates"
+  -- Retrieval of genbank features in the hit region
+  genbankFeaturesOutput <- mapM retrieveGenbankFeatures missingGenbankFeatures
+  let genbankFeatures = map parseGenbank genbankFeaturesOutput
+  print genbankFeatures
+  -- Retrieval of full sequences from entrez
   fullSequences <- mapM retrieveFullSequence missingSequenceElements
   putStrLn "Retrieved full sequences\n"
   createDirectory (tempDir ++ sessionID)
@@ -171,6 +176,19 @@ retrieveFullSequence (geneId,seqStart,seqStop,strand) = do
   let parsedFasta = head ((mkSeqs . L.lines) (L.pack result))
   return parsedFasta
 
+getMissingGenbankFeature :: Int -> Int -> BlastHit -> (String,Int,Int)
+getMissingGenbankFeature retrievalOffset queryLength blastHit = (accession, startcoordinate, endcoordinate) 
+  where    accession = L.unpack (extractAccession blastHit)
+           blastMatches = matches blastHit
+           minHfrom = minimum (map h_from blastMatches)
+           minHfromHSP = fromJust (find (\hsp -> minHfrom == (h_from hsp)) blastMatches)
+           maxHto = maximum (map h_to blastMatches)
+           maxHtoHSP = fromJust (find (\hsp -> maxHto == (h_to hsp)) blastMatches)
+           minHonQuery = q_from minHfromHSP
+           maxHonQuery = q_to maxHtoHSP
+           startcoordinate = minHfrom - minHonQuery - retrievalOffset
+           endcoordinate = maxHto + (queryLength - maxHonQuery) + retrievalOffset
+ 
 getMissingSequenceElement :: Int -> Int -> BlastHit -> (String,Int,Int,String)
 getMissingSequenceElement retrievalOffset queryLength blastHit 
   | blastHitIsReverseComplement blastHit = getReverseMissingSequenceElement retrievalOffset queryLength blastHit
