@@ -41,6 +41,7 @@ import Text.ParserCombinators.Parsec.Pos
 import Bio.EntrezHTTP
 import Data.List.Split
 import Bio.GenbankParser 
+import Bio.GenbankTools
 
 data Options = Options            
   { inputFile :: String,
@@ -114,18 +115,30 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   let missingSequenceElements = map (getMissingSequenceElement retrievalOffset queryLength) filteredBlastResults
   let missingGenbankFeatures = map (getMissingGenbankFeature retrievalOffset queryLength) filteredBlastResults  
   putStrLn "Generated coordinates"
+  print missingGenbankFeatures
+  putStrLn "-------------------------------------------------------------------"
   -- Retrieval of genbank features in the hit region
   genbankFeaturesOutput <- mapM retrieveGenbankFeatures missingGenbankFeatures
+  putStrLn "FeaturesOutput"
+  mapM_ putStrLn genbankFeaturesOutput
+  putStrLn "-------------------------------------------------------------------"
+  putStrLn "ParsedFeatures"
   let genbankFeatures = map parseGenbank genbankFeaturesOutput
   print genbankFeatures
+  putStrLn "-------------------------------------------------------------------"
+  putStrLn "AnnotatedSequences"
+  let annotatedSequences = map (extractSpecificFeatureSequences "gene")(map fromRight genbankFeatures)
+  print annotatedSequences
+  putStrLn "-------------------------------------------------------------------"
+  putStrLn ("Number of retrieved genbank sequences:" ++ (show (length annotatedSequences)))
   -- Retrieval of full sequences from entrez
-  fullSequences <- mapM retrieveFullSequence missingSequenceElements
-  putStrLn "Retrieved full sequences\n"
-  createDirectory (tempDir ++ sessionID)
+  ---fullSequences <- mapM retrieveFullSequence missingSequenceElements
+  ---putStrLn "Retrieved full sequences\n"
+  ---createDirectory (tempDir ++ sessionID)
   -- Initial alignment construction
-  let seed = ModelConstruction fullSequences [] tempDir sessionID iterationNumber (head inputFasta) 
-  expansionResult <- initialAlignmentExpansion seed 
-  return  expansionResult
+  ---let seed = ModelConstruction fullSequences [] tempDir sessionID iterationNumber (head inputFasta) 
+  ---expansionResult <- initialAlignmentExpansion seed 
+  return ("\n" ++ show (length annotatedSequences))
   --return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
 
 filterByParentTaxId :: [(BlastHit,Int)] -> Bool -> [(BlastHit,Int)]
