@@ -113,7 +113,7 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   -- Coordinate generation
   let retrievalOffset = readInt fullSequenceOffset
   let missingSequenceElements = map (getMissingSequenceElement retrievalOffset queryLength) filteredBlastResults
-  let missingGenbankFeatures = map (getMissingGenbankFeature retrievalOffset queryLength) filteredBlastResults  
+  let missingGenbankFeatures = map (getMissingSequenceElement retrievalOffset queryLength) filteredBlastResults  
   putStrLn "Generated coordinates"
   print missingGenbankFeatures
   putStrLn "-------------------------------------------------------------------"
@@ -170,8 +170,8 @@ hitLengthCheck queryLength blastHit = lengthStatus
          fullSeqLength = endCoordinate - startCoordinate
          lengthStatus = fullSeqLength < (queryLength * 3)
   
-retrieveGenbankFeatures :: (String, Int, Int) -> IO String
-retrieveGenbankFeatures (accession, seqStart, seqStop) = do
+retrieveGenbankFeatures :: (String, Int, Int, String, String) -> IO String
+retrieveGenbankFeatures (geneId, seqStart, seqStop, strand, accession) = do
   let program = Just "efetch"
   let database = Just "nucleotide"
   let queryString = "id=" ++ accession ++ "&seq_start=" ++ (show seqStart) ++ "&seq_stop=" ++ (show seqStop) ++ "&rettype=gb" 
@@ -179,8 +179,8 @@ retrieveGenbankFeatures (accession, seqStart, seqStop) = do
   queryResult <- entrezHTTP entrezQuery
   return queryResult
 
-retrieveFullSequence :: (String, Int, Int, String) -> IO Sequence
-retrieveFullSequence (geneId,seqStart,seqStop,strand) = do
+retrieveFullSequence :: (String, Int, Int, String, String) -> IO Sequence
+retrieveFullSequence (geneId,seqStart,seqStop,strand,accession) = do
   let program = Just "efetch"
   let database = Just "nucleotide" 
   let queryString = "id=" ++ geneId ++ "&seq_start=" ++ (show seqStart) ++ "&seq_stop=" ++ (show seqStop) ++ "&rettype=fasta" ++ "&strand=" ++ strand
@@ -188,21 +188,8 @@ retrieveFullSequence (geneId,seqStart,seqStop,strand) = do
   result <- entrezHTTP entrezQuery
   let parsedFasta = head ((mkSeqs . L.lines) (L.pack result))
   return parsedFasta
-
-getMissingGenbankFeature :: Int -> Int -> BlastHit -> (String,Int,Int)
-getMissingGenbankFeature retrievalOffset queryLength blastHit = (accession, startcoordinate, endcoordinate) 
-  where    accession = L.unpack (extractAccession blastHit)
-           blastMatches = matches blastHit
-           minHfrom = minimum (map h_from blastMatches)
-           minHfromHSP = fromJust (find (\hsp -> minHfrom == (h_from hsp)) blastMatches)
-           maxHto = maximum (map h_to blastMatches)
-           maxHtoHSP = fromJust (find (\hsp -> maxHto == (h_to hsp)) blastMatches)
-           minHonQuery = q_from minHfromHSP
-           maxHonQuery = q_to maxHtoHSP
-           startcoordinate = minHfrom - minHonQuery - retrievalOffset
-           endcoordinate = maxHto + (queryLength - maxHonQuery) + retrievalOffset
  
-getMissingSequenceElement :: Int -> Int -> BlastHit -> (String,Int,Int,String)
+getMissingSequenceElement :: Int -> Int -> BlastHit -> (String,Int,Int,String,String)
 getMissingSequenceElement retrievalOffset queryLength blastHit 
   | blastHitIsReverseComplement blastHit = getReverseMissingSequenceElement retrievalOffset queryLength blastHit
   | otherwise = getForwardMissingSequenceElement retrievalOffset queryLength blastHit
@@ -214,9 +201,10 @@ blastHitIsReverseComplement blastHit = isReverse
         firstHSPto = h_to (head blastMatches)
         isReverse = firstHSPfrom > firstHSPto
 
-getForwardMissingSequenceElement :: Int -> Int -> BlastHit -> (String,Int,Int,String)
-getForwardMissingSequenceElement retrievalOffset queryLength blastHit = (geneIdentifier,startcoordinate,endcoordinate,strand)
-  where    geneIdentifier = extractGeneId blastHit
+getForwardMissingSequenceElement :: Int -> Int -> BlastHit -> (String,Int,Int,String,String)
+getForwardMissingSequenceElement retrievalOffset queryLength blastHit = (geneIdentifier,startcoordinate,endcoordinate,strand,accession)
+  where    accession = L.unpack (extractAccession blastHit)
+           geneIdentifier = extractGeneId blastHit
            blastMatches = matches blastHit
            minHfrom = minimum (map h_from blastMatches)
            minHfromHSP = fromJust (find (\hsp -> minHfrom == (h_from hsp)) blastMatches)
@@ -228,9 +216,10 @@ getForwardMissingSequenceElement retrievalOffset queryLength blastHit = (geneIde
            endcoordinate = maxHto + (queryLength - maxHonQuery) + retrievalOffset
            strand = "1"
 
-getReverseMissingSequenceElement :: Int -> Int -> BlastHit -> (String,Int,Int,String)
-getReverseMissingSequenceElement retrievalOffset queryLength blastHit = (geneIdentifier,startcoordinate,endcoordinate,strand)
-  where   geneIdentifier = extractGeneId blastHit
+getReverseMissingSequenceElement :: Int -> Int -> BlastHit -> (String,Int,Int,String,String)
+getReverseMissingSequenceElement retrievalOffset queryLength blastHit = (geneIdentifier,startcoordinate,endcoordinate,strand,accession)
+  where   accession = L.unpack (extractAccession blastHit)
+          geneIdentifier = extractGeneId blastHit
           blastMatches = matches blastHit
           maxHfrom = maximum (map h_from blastMatches)
           maxHfromHSP = fromJust (find (\hsp -> maxHfrom == (h_from hsp)) blastMatches)
