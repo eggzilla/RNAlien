@@ -113,7 +113,7 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   -- Coordinate generation
   let retrievalOffset = readInt fullSequenceOffset
   let missingSequenceElements = map (getMissingSequenceElement retrievalOffset queryLength) filteredBlastResults
-  let missingGenbankFeatures = map (getMissingSequenceElement retrievalOffset queryLength) filteredBlastResults  
+  let missingGenbankFeatures = map (getMissingSequenceElement queryLength queryLength) filteredBlastResults  
   putStrLn "Generated coordinates"
   print missingGenbankFeatures
   putStrLn "-------------------------------------------------------------------"
