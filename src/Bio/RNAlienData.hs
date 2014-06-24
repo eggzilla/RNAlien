@@ -8,15 +8,28 @@ import Bio.Sequence.Fasta
  
 -- | Keeps track of model construction 
 data ModelConstruction = ModelConstruction
-  { --filteredBlastResults :: [BlastHit],
-    --alignedHits :: [BlastHit],
-    filteredBlastResults :: [Sequence],
-    alignedHits :: [Sequence],
+  { iterationNumber :: Int,    
     tempDirPath :: String,
     sessionID :: String,
-    iterationNumber :: Int,
-    inputFasta :: Sequence
+    inputFasta :: Sequence,
+    taxRecords :: [TaxRecord]
   } deriving (Show) 
+
+data TaxRecord = TaxRecord
+  { recordTaxonomyId :: Int,
+    sequenceRecords : [SequenceRecord]
+  } deriving (Show) 
+
+data SequenceRecord = SequenceRecord
+  { --Sequence consisting of SeqLabel, and SeqData
+    nucleotideSequence :: Sequence,
+    -- 0 is unaligned, number is the iteration the sequence has been included into the alignment
+    aligned  :: Int,
+    -- 0 means the sequences as not been used for searching, number is the iteration the sequence has been used fort searching
+    searched :: Int,
+    -- Is the sequence derived from the blast hit coordinates (B) or from a corresponding genbank feature (G)
+    sequenceOrigin :: Char    
+  } deriving (Show)  
 
 -- | Simple Gene2Accession table, just containing 
 data SimpleGene2Accession = SimpleGene2Accession
