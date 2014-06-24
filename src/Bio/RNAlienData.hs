@@ -5,13 +5,23 @@ module Bio.RNAlienData where
 import Bio.BlastXML
 import qualified Data.ByteString.Lazy.Char8 as L
 import Bio.Sequence.Fasta 
- 
+import Bio.Taxonomy
+
+-- | Static construction options
+data StaticOptions = StaticOptions
+  { tempDirPath :: String,
+    sessionID :: String,
+    inputFasta :: Sequence,
+    inputTaxNodes :: [SimpleTaxDumpNode],
+    filterTaxId :: Maybe String,
+    singleHitperTaxToggle :: Bool,
+    lengthFilterToggle :: Bool,
+    fullSequenceOffsetLength :: Int
+  } deriving (Show)  
+
 -- | Keeps track of model construction 
 data ModelConstruction = ModelConstruction
   { iterationNumber :: Int,    
-    tempDirPath :: String,
-    sessionID :: String,
-    inputFasta :: Sequence,
     taxRecords :: [TaxRecord]
   } deriving (Show) 
 

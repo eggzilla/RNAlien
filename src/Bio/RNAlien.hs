@@ -44,7 +44,7 @@ import Bio.GenbankParser
 import Bio.GenbankTools
 
 data Options = Options            
-  { inputFile :: String,
+  { inputFastaFilePath :: String,
     taxIdFilter :: String,
     outputPath :: String,
     fullSequenceOffset :: String,
@@ -53,7 +53,7 @@ data Options = Options
   } deriving (Show,Data,Typeable)
 
 options = Options
-  { inputFile = def &= name "i" &= help "Path to input fasta file",
+  { inputFastaFilePath = def &= name "i" &= help "Path to input fasta file",
     outputPath = def &= name "o" &= help "Path to output directory",
     taxIdFilter = def &= name "t" &= help "NCBI taxonomy ID number of input RNA organism",
     fullSequenceOffset = "20" &= name "f" &= help "Overhangs of retrieved fasta sequences compared to query sequence",
@@ -62,19 +62,20 @@ options = Options
   } &= summary "RNAlien devel version" &= help "Florian Eggenhofer - 2013" &= verbosity       
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
---initialAlignmentConstruction :: String -> String -> String -> String -> String -> IO String --IO []
-initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2AccessionFile tempDir filterTaxId singleHitperTax lengthFilter fullSequenceOffset = do
-  let iterationNumber = 0
-  inputFasta <- readFasta inputFastaFile
+--initialAlignmentConstruction sessionID inputFastaFilePath inputTaxNodesFile inputGene2AccessionFile tempDir filterTaxId singleHitperTax lengthFilter fullSequenceOffset = do
+--initialAlignmentConstruction :: StaticOptions -> Modelconstruction -> Modelconstruction
+initialAlignmentConstruction staticOptions modelconstruction = do
+  --let iterationNumber = 0
+  --inputFasta <- readFasta inputFastaFilePath
   putStrLn "Read input"
-  let fastaSeqData = seqdata (head inputFasta)
-  let queryLength = fromIntegral (seqlength (head inputFasta))
+  let fastaSeqData = seqdata (inputFasta staticOptions)
+  let queryLength = fromIntegral (seqlength (inputFasta staticOptions))
   let defaultTaxFilter = ""
-  let selectedTaxFilter = fromMaybe defaultTaxFilter filterTaxId
-  nodes <- readNCBISimpleTaxDumpNodes inputTaxNodesFile 
-  let rightNodes = fromRight nodes
+  let selectedTaxFilter = fromMaybe defaultTaxFilter (filterTaxId staticOptions)
+  --nodes <- readNCBISimpleTaxDumpNodes inputTaxNodesFile 
+  --let rightNodes = fromRight nodes
   putStrLn "Read taxonomy nodes"
-  let (maskId, entrezTaxFilter) = buildTaxFilterQuery selectedTaxFilter rightNodes
+  let (maskId, entrezTaxFilter) = buildTaxFilterQuery selectedTaxFilter (inputTaxNodes staticOptions)
   putStrLn ("Blast TaxIdMask: " ++ maskId)
   let hitNumberQuery = buildHitNumberQuery "&ALIGNMENTS=250"
   let blastQuery = BlastHTTPQuery (Just "blastn") (Just "refseq_genomic") (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter))
@@ -87,7 +88,7 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   let blastHits = (concat (map hits (results rightBlast)))
   putStrLn "FilteredByLength"
   --filter by HitLenght
-  let blastHitsFilteredByLength = filterByHitLength blastHits queryLength lengthFilter 
+  let blastHitsFilteredByLength = filterByHitLength blastHits queryLength (lengthFilterToggle staticOptions)
   --tag BlastHits with TaxId
   blastHitTaxIdOutput <- retrieveBlastHitTaxIdEntrez blastHitsFilteredByLength
   let blastHittaxIdList = extractTaxIdFromEntrySummaries  blastHitTaxIdOutput
@@ -102,11 +103,10 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   print blastHitsFilteredByParentTaxId
   -- Filtering with TaxTree
   let blastHitsWithTaxId = zip blastHitsFilteredByParentTaxId blastHittaxIdList
-  let bestHitTreePosition = getBestHitTreePosition rightNodes Family rightBestTaxIdResult bestHit
-  let filteredBlastResults = filterByNeighborhoodTree blastHitsWithTaxId bestHitTreePosition singleHitperTax
+  let bestHitTreePosition = getBestHitTreePosition (inputTaxNodes staticOptions) Family rightBestTaxIdResult bestHit
+  let filteredBlastResults = filterByNeighborhoodTree blastHitsWithTaxId bestHitTreePosition (singleHitperTaxToggle staticOptions)
   -- Coordinate generation
-  let retrievalOffset = readInt fullSequenceOffset
-  let missingSequenceElements = map (getMissingSequenceElement retrievalOffset queryLength) filteredBlastResults
+  let missingSequenceElements = map (getMissingSequenceElement (fullSequenceOffsetLength staticOptions) queryLength) filteredBlastResults
   let missingGenbankFeatures = map (getMissingSequenceElement queryLength queryLength) filteredBlastResults  
   putStrLn "Generated coordinates"
   print missingGenbankFeatures
@@ -132,6 +132,7 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   -- Initial alignment construction
   ---let seed = ModelConstruction fullSequences [] tempDir sessionID iterationNumber (head inputFasta) 
   ---expansionResult <- initialAlignmentExpansion seed 
+  let newIterationNumber = (iterationNumber modelconstruction) + 1
   return ("\n" ++ show (length annotatedSequences))
   --return $ ModelConstruction modelPath alignmentPath sessionID iterationNumber
 
@@ -491,16 +492,19 @@ main = do
    -- Generate SessionID
   randomNumber <- randomIO :: IO Int16
   let sessionId = randomid randomNumber
-
+  let iterationNumber = 0
   --create seed model
   let taxNodesFile = "/home/egg/current/Data/Taxonomy/taxdump/nodes.dmp"
   let gene2AccessionFile = "/home/egg/current/Data/gene2accession"
   let tempDirPath = "/scr/klingon/egg/temp/"
-  --let selectedProgram = Just "blastn"
-  --let selectedDatabase = Just "refseq_genomic"
-  --let selectedHitNumber = Just "250"
-  initialAlignment <- initialAlignmentConstruction sessionId inputFile taxNodesFile gene2AccessionFile tempDirPath (Just taxIdFilter) singleHitperTax lengthFilter fullSequenceOffset
-  -- seedModel <- seedModelConstruction initialAlignment
+  inputFasta <- readFasta inputFastaFilePath
+  nodes <- readNCBISimpleTaxDumpNodes taxNodesFile 
+  let rightNodes = fromRight nodes
+  let fullSequenceOffsetLength = readInt fullSequenceOffset
+  let staticOptions = StaticOptions tempDirPath sessionId (head inputFasta) rightNodes (Just taxIdFilter) singleHitperTax lengthFilter fullSequenceOffsetLength
+  let initialization = ModelConstruction iterationNumber []
+  initialAlignment <- initialAlignmentConstruction staticOptions initialization
+  --initialAlignment <- initialAlignmentConstruction sessionId inputFile taxNodesFile gene2AccessionFile tempDirPath (Just taxIdFilter) singleHitperTax lengthFilter fullSequenceOffset
   print initialAlignment
   
 
