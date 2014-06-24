@@ -17,7 +17,7 @@ data ModelConstruction = ModelConstruction
 
 data TaxRecord = TaxRecord
   { recordTaxonomyId :: Int,
-    sequenceRecords : [SequenceRecord]
+    sequenceRecords :: [SequenceRecord]
   } deriving (Show) 
 
 data SequenceRecord = SequenceRecord

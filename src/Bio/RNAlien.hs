@@ -63,26 +63,20 @@ options = Options
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 --initialAlignmentConstruction :: String -> String -> String -> String -> String -> IO String --IO []
-initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2AccessionFile tempDir ncbiProgram ncbiDatabase requestedHitNumber filterTaxId singleHitperTax lengthFilter fullSequenceOffset = do
+initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGene2AccessionFile tempDir filterTaxId singleHitperTax lengthFilter fullSequenceOffset = do
   let iterationNumber = 0
   inputFasta <- readFasta inputFastaFile
   putStrLn "Read input"
   let fastaSeqData = seqdata (head inputFasta)
   let queryLength = fromIntegral (seqlength (head inputFasta))
-  let defaultProgram = "blastn"
-  let defaultDatabase = "refseq_genomic" 
-  let defaultHitNumber = "&ALIGNMENTS=250"
   let defaultTaxFilter = ""
-  let selectedProgram = fromMaybe defaultProgram ncbiProgram
-  let selectedDatabase = fromMaybe defaultDatabase ncbiDatabase
-  let selectedHitNumber = fromMaybe defaultHitNumber requestedHitNumber
   let selectedTaxFilter = fromMaybe defaultTaxFilter filterTaxId
   nodes <- readNCBISimpleTaxDumpNodes inputTaxNodesFile 
   let rightNodes = fromRight nodes
   putStrLn "Read taxonomy nodes"
   let (maskId, entrezTaxFilter) = buildTaxFilterQuery selectedTaxFilter rightNodes
   putStrLn ("Blast TaxIdMask: " ++ maskId)
-  let hitNumberQuery = buildHitNumberQuery selectedHitNumber
+  let hitNumberQuery = buildHitNumberQuery "&ALIGNMENTS=250"
   let blastQuery = BlastHTTPQuery (Just "blastn") (Just "refseq_genomic") (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter))
   putStrLn "Sending blast query"
   blastOutput <- blastHTTP blastQuery 
@@ -127,7 +121,7 @@ initialAlignmentConstruction sessionID inputFastaFile inputTaxNodesFile inputGen
   print genbankFeatures
   putStrLn "-------------------------------------------------------------------"
   putStrLn "AnnotatedSequences"
-  let annotatedSequences = map (extractSpecificFeatureSequences "gene")(map fromRight genbankFeatures)
+  let annotatedSequences = map (extractSpecificFeatureSequence "gene")(map fromRight genbankFeatures)
   print annotatedSequences
   putStrLn "-------------------------------------------------------------------"
   putStrLn ("Number of retrieved genbank sequences:" ++ (show (length annotatedSequences)))
@@ -242,70 +236,6 @@ buildHitNumberQuery :: String -> String
 buildHitNumberQuery hitNumber
   | hitNumber == "" = ""
   | otherwise = "&ALIGNMENTS=" ++ hitNumber
-
---seedModelExpansion :: ModelConstruction -> String --[IO ()]--ModelConstruction
-initialAlignmentExpansion (ModelConstruction remainingCandidates alignedCandidates tempDirPath sessionID iterationNumber inputFasta) = do
-  let currentDir = tempDirPath ++ sessionID ++ "/"
-  --construct seedFasta
-  --let seedFasta = concat (map constructSeedFromBlast alignedCandidates) ++ (constructCandidateFromFasta inputFasta)
-  let seedFastaContent = concat (map constructCandidateFromFasta remainingCandidates) ++ (constructCandidateFromFasta inputFasta)  
-  let seedFasta = ("1",seedFastaContent)
-  putStrLn "Reached seedModelExpansion - seed fasta:"
-  print seedFasta
-  --write candidates
-  writeFastaFile currentDir iterationNumber seedFasta
-  let fastaFilepath = constructFastaFilePaths currentDir iterationNumber seedFasta 
-  --compute alignments
-  let alignmentFilepath = constructAlignmentFilePaths currentDir iterationNumber seedFasta
-  let alignmentSummaryFilepath = constructAlignmentSummaryFilePaths currentDir iterationNumber seedFasta
-  alignCandidates [fastaFilepath] [alignmentFilepath] [alignmentSummaryFilepath]
-  clustalw2Summary <- mapM readClustalw2Summary [alignmentSummaryFilepath]
-  let clustalw2Score = map (\x -> show (alignmentScore (fromRight x))) clustalw2Summary
-  --putStrLn ("clustalw2Scores:" ++ (intercalate "," clustalw2Score))
-  --compute SCI
-  let rnazOutputFilepath = constructRNAzFilePaths currentDir iterationNumber seedFasta
-  computeAlignmentSCIs [alignmentFilepath] [rnazOutputFilepath]
-  --retrieveAlignmentSCIs
-  alignmentsRNAzOutput <- mapM readRNAz [rnazOutputFilepath]
-  let alignmentsSCI = map (\x -> show (structureConservationIndex (fromRight x))) alignmentsRNAzOutput
-  putStrLn (intercalate "," alignmentsSCI)
-  --return alignmentsRNAzOutput
-  return alignmentsRNAzOutput
-  --stop/continue -- proceed with best alignment
-  
-  --return a list of ModelConstructions where the last one contains the result
-
---seedModelExpansion :: ModelConstruction -> String --[IO ()]--ModelConstruction
---initialAlignmentExpansionBlastHitBased (ModelConstruction remainingCandidates alignedCandidates tempDirPath sessionID iterationNumber inputFasta) = do
---  let currentDir = tempDirPath ++ sessionID ++ "/"
-  --construct seedFasta
---  let seedFasta = concat (map constructSeedFromBlast alignedCandidates) ++ (constructCandidateFromFasta inputFasta)
---  putStrLn "Reached seedModelExpansion"
-  --combine with unaligned Blastresults
-  --let candidateFasta = map (\candidate -> constructCandidateFromBlast seedFasta candidate) remainingCandidates
---  let candidateFasta = map (\candidate -> constructCandidateFromBlast seedFasta candidate) remainingCandidates
-  --write candidates
---  writeFastaFiles currentDir iterationNumber candidateFasta
---  let fastaFilepaths = map (constructFastaFilePaths currentDir iterationNumber) candidateFasta
-  --compute alignments
---  let alignmentFilepaths = map (constructAlignmentFilePaths currentDir iterationNumber) candidateFasta
---  let alignmentSummaryFilepaths = map (constructAlignmentSummaryFilePaths currentDir iterationNumber) candidateFasta
---  alignCandidates fastaFilepaths alignmentFilepaths alignmentSummaryFilepaths
---  clustalw2Summaries <- mapM readClustalw2Summary alignmentSummaryFilepaths
---  let clustalw2Scores = map (\x -> show (alignmentScore (fromRight x))) clustalw2Summaries
---  putStrLn ("clustalw2Scores:" ++ (intercalate "," clustalw2Scores))
-  --compute SCI
---  let rnazOutputFilepaths = map (constructRNAzFilePaths currentDir iterationNumber) candidateFasta
---  computeAlignmentSCIs alignmentFilepaths rnazOutputFilepaths
-  --retrieveAlignmentSCIs
---  alignmentsRNAzOutput <- mapM readRNAz rnazOutputFilepaths
---  let alignmentsSCI = map (\x -> show (structureConservationIndex (fromRight x))) alignmentsRNAzOutput
---  putStrLn (intercalate "," alignmentsSCI)
-  --return alignmentsRNAzOutput
---  return candidateFasta
-  --stop/continue -- proceed with best alignment
-  
-  --return a list of ModelConstructions where the last one contains the result
 
 constructCandidateFromFasta :: Sequence -> String
 constructCandidateFromFasta inputFasta = ">" ++ (filter (\char -> char /= '|') (L.unpack (unSL (seqheader inputFasta)))) ++ "\n" ++ (map toUpper (L.unpack (unSD (seqdata inputFasta)))) ++ "\n"
@@ -566,10 +496,10 @@ main = do
   let taxNodesFile = "/home/egg/current/Data/Taxonomy/taxdump/nodes.dmp"
   let gene2AccessionFile = "/home/egg/current/Data/gene2accession"
   let tempDirPath = "/scr/klingon/egg/temp/"
-  let selectedProgram = Just "blastn"
-  let selectedDatabase = Just "refseq_genomic"
-  let selectedHitNumber = Just "250"
-  initialAlignment <- initialAlignmentConstruction sessionId inputFile taxNodesFile gene2AccessionFile tempDirPath selectedProgram selectedDatabase selectedHitNumber (Just taxIdFilter) singleHitperTax lengthFilter fullSequenceOffset
+  --let selectedProgram = Just "blastn"
+  --let selectedDatabase = Just "refseq_genomic"
+  --let selectedHitNumber = Just "250"
+  initialAlignment <- initialAlignmentConstruction sessionId inputFile taxNodesFile gene2AccessionFile tempDirPath (Just taxIdFilter) singleHitperTax lengthFilter fullSequenceOffset
   -- seedModel <- seedModelConstruction initialAlignment
   print initialAlignment
   
