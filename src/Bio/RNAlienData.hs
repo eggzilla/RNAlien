@@ -11,7 +11,6 @@ import Bio.Taxonomy
 data StaticOptions = StaticOptions
   { tempDirPath :: String,
     sessionID :: String,
-    inputFasta :: Sequence,
     inputTaxNodes :: [SimpleTaxDumpNode],
     filterTaxId :: Maybe String,
     singleHitperTaxToggle :: Bool,
@@ -21,7 +20,8 @@ data StaticOptions = StaticOptions
 
 -- | Keeps track of model construction 
 data ModelConstruction = ModelConstruction
-  { iterationNumber :: Int,    
+  { iterationNumber :: Int,
+    inputFasta :: Sequence,  
     taxRecords :: [TaxRecord]
   } deriving (Show) 
 
