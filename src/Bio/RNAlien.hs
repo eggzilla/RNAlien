@@ -62,23 +62,36 @@ options = Options
   } &= summary "RNAlien devel version" &= help "Florian Eggenhofer - 2013" &= verbosity       
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
---initialAlignmentConstruction :: StaticOptions -> [Modelconstruction] -> [Modelconstruction]
+--alignmentConstruction :: StaticOptions -> [ModelConstruction] -> [ModelConstruction]
 alignmentConstruction staticOptions modelconstruction = do
+  let currentModelConstruction = head modelconstruction
   --extract queries
-  let queries = extractQueries (iterationNumber modelconstruction) modelconstruction
+  let queries = extractQueries (iterationNumber currentModelConstruction) currentModelConstruction
+  if queries /= []
+     then do
+       --search candidates
+       candidates <- mapM (searchCandidates staticOptions) queries
+
+       --align candidates
+       
+       --select candidates
   
-  --search candidates
-  candidates <- mapM (searchCandidates staticOptions) queries
+       -- prepare next iteration 
+       let newIterationNumber = (iterationNumber currentModelConstruction) + 1
+       let nextModelConstruction = constructNext newIterationNumber currentModelConstruction
+ 
+       putStrLn (show newIterationNumber)
+       nextIteration <- alignmentConstruction staticOptions [nextModelConstruction]
+       return (modelconstruction ++ nextIteration)
+     else return modelconstruction
 
-  --align candidates
+constructNext newIterationNumber modelconstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) []
 
-  let newIterationNumber = (iterationNumber modelconstruction) + 1
-  return candidates
   
 extractQueries :: Int -> ModelConstruction -> [Sequence]
 extractQueries iterationnumber modelconstruction
-  | iterationnumber == 1 = [fastaSeqData]
-  | otherwise = [fastaSeqData]
+  | iterationnumber == 0 = [fastaSeqData]
+  | otherwise = []
   where fastaSeqData = inputFasta modelconstruction
 
 searchCandidates :: StaticOptions -> Sequence -> IO [Sequence]
@@ -510,7 +523,7 @@ main = do
   let fullSequenceOffsetLength = readInt fullSequenceOffset
   let staticOptions = StaticOptions tempDirPath sessionId  rightNodes (Just taxIdFilter) singleHitperTax lengthFilter fullSequenceOffsetLength
   let initialization = ModelConstruction iterationNumber (head inputFasta) []
-  alignment <- alignmentConstruction staticOptions initialization
+  alignment <- alignmentConstruction staticOptions [initialization]
   print alignment
   
 
