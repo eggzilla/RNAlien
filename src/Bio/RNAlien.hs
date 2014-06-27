@@ -65,7 +65,7 @@ options = Options
 --alignmentConstruction :: StaticOptions -> [ModelConstruction] -> [ModelConstruction]
 alignmentConstruction staticOptions modelconstruction = do
   putStrLn (show (iterationNumber modelconstruction))
-  let currentModelConstruction = head modelconstruction
+  let currentModelConstruction = modelconstruction
   --extract queries
   let queries = extractQueries (iterationNumber currentModelConstruction) currentModelConstruction
   if queries /= []
@@ -82,9 +82,9 @@ alignmentConstruction staticOptions modelconstruction = do
        let newIterationNumber = (iterationNumber currentModelConstruction) + 1
        let nextModelConstruction = constructNext newIterationNumber currentModelConstruction
  
-       nextIteration <- alignmentConstruction staticOptions [nextModelConstruction]
-       return (modelconstruction ++ nextIteration)
-     else return modelconstruction
+       nextIteration <- alignmentConstruction staticOptions nextModelConstruction
+       return ([modelconstruction] ++ nextIteration)
+     else return [modelconstruction]
 
 constructNext newIterationNumber modelconstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) []
 
@@ -162,7 +162,7 @@ alignCandidates staticOptions modelConstruction candidates = do
   --let seedFasta = concat (map constructSeedFromBlast alignedCandidates) ++ (constructCandidateFromFasta inputFasta)  
   let alignedSequences =  extractAlignedSequences (iterationNumber modelConstruction) modelConstruction  
   let seedFastaContent = concat (map constructCandidateFromFasta alignedSequences) ++ concat (map constructCandidateFromFasta candidates)  
-  let seedFasta = ("1",seedFastaContent)
+  let seedFasta = ((show (iterationNumber modelConstruction)),seedFastaContent)
   putStrLn "Reached seedModelExpansion - seed fasta:"
   print seedFasta
   --write candidates
@@ -188,7 +188,7 @@ alignCandidates staticOptions modelConstruction candidates = do
  
 extractAlignedSequences :: Int -> ModelConstruction -> [Sequence]
 extractAlignedSequences iterationnumber modelconstruction
-  | iterationnumber == 1 = [(inputFasta modelconstruction)]
+  | iterationnumber == 0 = [(inputFasta modelconstruction)]
   | otherwise = map nucleotideSequence (filter (\seqRec -> (aligned seqRec) > 0) (concatMap sequenceRecords (taxRecords modelconstruction)))
 
 filterByParentTaxId :: [(BlastHit,Int)] -> Bool -> [(BlastHit,Int)]
@@ -551,15 +551,16 @@ main = do
   --create seed model
   let taxNodesFile = "/home/egg/current/Data/Taxonomy/taxdump/nodes.dmp"
   let gene2AccessionFile = "/home/egg/current/Data/gene2accession"
-  let tempDirPath = "/scr/klingon/egg/temp/"
-  createDirectory (tempDirPath ++ sessionId)
+  let tempDirRootFolderPath = "/scr/klingon/egg/temp/"
+  let tempDirPath = tempDirRootFolderPath ++ sessionId
+  createDirectory (tempDirPath)
   inputFasta <- readFasta inputFastaFilePath
   nodes <- readNCBISimpleTaxDumpNodes taxNodesFile 
   let rightNodes = fromRight nodes
   let fullSequenceOffsetLength = readInt fullSequenceOffset
   let staticOptions = StaticOptions tempDirPath sessionId  rightNodes (Just taxIdFilter) singleHitperTax lengthFilter fullSequenceOffsetLength
   let initialization = ModelConstruction iterationNumber (head inputFasta) []
-  alignment <- alignmentConstruction staticOptions [initialization]
+  alignment <- alignmentConstruction staticOptions initialization
   print alignment
   
 
