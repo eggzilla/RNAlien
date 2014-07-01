@@ -6,6 +6,7 @@ import Bio.BlastXML
 import qualified Data.ByteString.Lazy.Char8 as L
 import Bio.Sequence.Fasta 
 import Bio.Taxonomy
+import qualified Data.Vector
 
 -- | Static construction options
 data StaticOptions = StaticOptions
@@ -22,12 +23,13 @@ data StaticOptions = StaticOptions
 data ModelConstruction = ModelConstruction
   { iterationNumber :: Int,
     inputFasta :: Sequence,  
-    taxRecords :: [TaxRecord]
+    taxRecords :: [TaxRecord],
+    sciResults :: [[Double]]
   } deriving (Show) 
 
 data TaxRecord = TaxRecord
   { recordTaxonomyId :: Int,
-    sequenceRecords :: [SequenceRecord]
+    sequenceRecords :: Vector SequenceRecord
   } deriving (Show) 
 
 data SequenceRecord = SequenceRecord
