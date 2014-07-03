@@ -74,7 +74,7 @@ alignmentConstruction staticOptions modelconstruction = do
        candidates <- mapM (searchCandidates staticOptions) queries
        print candidates
        --align candidates
-       alignmentResults <- alignCandidates staticOptions currentModelConstruction (concat candidates)
+       alignmentResults <- alignCandidates staticOptions currentModelConstruction (V.fromList candidates)
        print alignmentResults
        --select candidates
        
@@ -86,7 +86,7 @@ alignmentConstruction staticOptions modelconstruction = do
        return ([modelconstruction] ++ nextIteration)
      else return [modelconstruction]
 
-constructNext newIterationNumber modelconstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) V.empty []
+constructNext newIterationNumber modelconstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) [] []
 
 extractQueries :: Int -> ModelConstruction -> [Sequence]
 extractQueries iterationnumber modelconstruction
@@ -136,11 +136,14 @@ searchCandidates staticOptions query = do
   let annotatedSequences = map (\(rightgenbankfeature,taxid,subject) -> (map (\singleseq -> (singleseq,taxid,subject)) (extractSpecificFeatureSequence "gene" rightgenbankfeature))) rightGenbankFeatures
   -- Retrieval of full sequences from entrez
   fullSequences <- mapM retrieveFullSequence missingSequenceElements
-  return ((concat annotatedSequences) ++ fullSequences)
+  return  ((concat annotatedSequences) ++ fullSequences)
 
 --alignCandidates :: StaticOptions -> ModelConstruction -> [(Sequence,Int,String)] ->
 alignCandidates staticOptions modelConstruction candidates = do
   putStrLn "aligning Candidates"
+  --Extract sequences from modelconstruction
+  --let alignedSequences = extractAlignedSequences (iterationNumber modelConstruction) modelConstruction 
+  
   --let seedFasta = concat (map constructSeedFromBlast alignedCandidates) ++ (constructCandidateFromFasta inputFasta)  
   ---let alignedSequences =  extractAlignedSequences (iterationNumber modelConstruction) modelConstruction  
   ---let seedFastaContent = concat (V.toList (map (\x -> V.map constructCandidateFromFasta x) alignedSequences)) ++ concat (map constructCandidateFromFasta candidates)  
@@ -169,12 +172,16 @@ alignCandidates staticOptions modelConstruction candidates = do
   ---return alignmentsRNAzOutput
   return "Test"
 
- 
----extractAlignedSequences :: Int -> ModelConstruction -> [(String,Sequence)]
----extractAlignedSequences iterationnumber modelconstruction
----  | iterationnumber == 0 = [("0i0s0",(inputFasta modelconstruction))]
-  ---- | otherwise = V.map nucleotideSequence (map (V.filter (\seqRec -> (aligned seqRec) > 0)) (map sequenceRecords (taxRecords modelconstruction)))
----  | otherwise = map () (map (V.filter (\seqRec -> (aligned seqRec) > 0)) (map sequenceRecords (taxRecords modelconstruction)))
+extractAlignedSequences :: Int -> ModelConstruction ->  V.Vector (Int,Sequence)
+extractAlignedSequences iterationnumber modelconstruction
+  | iterationnumber == 0 = V.indexed (V.fromList ([inputSequence]))
+  | otherwise = indexedSeqRecords
+  where inputSequence = (inputFasta modelconstruction)
+        seqRecordsperTaxrecord = map sequenceRecords (taxRecords modelconstruction)
+        seqRecords = (concat seqRecordsperTaxrecord)
+        alignedSeqRecords = filter (\seqRec -> (aligned seqRec) > 0) seqRecords 
+        indexedSeqRecords = V.indexed (V.fromList (inputSequence : (map nucleotideSequence alignedSeqRecords)))
+
 
 filterByParentTaxId :: [(BlastHit,Int)] -> Bool -> [(BlastHit,Int)]
 filterByParentTaxId blastHitsWithParentTaxId singleHitPerParentTaxId   
@@ -546,7 +553,7 @@ main = do
   let rightNodes = fromRight nodes
   let fullSequenceOffsetLength = readInt fullSequenceOffset
   let staticOptions = StaticOptions tempDirPath sessionId  rightNodes (Just taxIdFilter) singleHitperTax lengthFilter fullSequenceOffsetLength
-  let initialization = ModelConstruction iterationNumber (head inputFasta) V.empty []
+  let initialization = ModelConstruction iterationNumber (head inputFasta) [] []
   alignment <- alignmentConstruction staticOptions initialization
   print alignment
   
