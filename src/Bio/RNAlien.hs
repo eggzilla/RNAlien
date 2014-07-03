@@ -42,7 +42,7 @@ import Bio.EntrezHTTP
 import Data.List.Split
 import Bio.GenbankParser 
 import Bio.GenbankTools
-
+import qualified Data.Vector as V
 data Options = Options            
   { inputFastaFilePath :: String,
     taxIdFilter :: String,
@@ -72,7 +72,7 @@ alignmentConstruction staticOptions modelconstruction = do
      then do
        --search candidates
        candidates <- mapM (searchCandidates staticOptions) queries
-
+       print candidates
        --align candidates
        alignmentResults <- alignCandidates staticOptions currentModelConstruction (concat candidates)
        print alignmentResults
@@ -86,7 +86,7 @@ alignmentConstruction staticOptions modelconstruction = do
        return ([modelconstruction] ++ nextIteration)
      else return [modelconstruction]
 
-constructNext newIterationNumber modelconstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) []
+constructNext newIterationNumber modelconstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) V.empty []
 
 extractQueries :: Int -> ModelConstruction -> [Sequence]
 extractQueries iterationnumber modelconstruction
@@ -94,38 +94,33 @@ extractQueries iterationnumber modelconstruction
   | otherwise = []
   where fastaSeqData = inputFasta modelconstruction
 
-searchCandidates :: StaticOptions -> Sequence -> IO [Sequence]
+searchCandidates :: StaticOptions -> Sequence -> IO [(Sequence,Int,String)]
 searchCandidates staticOptions query = do
   let fastaSeqData = seqdata query
   let queryLength = fromIntegral (seqlength (query))
   let defaultTaxFilter = ""
   let selectedTaxFilter = fromMaybe defaultTaxFilter (filterTaxId staticOptions)
   let (maskId, entrezTaxFilter) = buildTaxFilterQuery selectedTaxFilter (inputTaxNodes staticOptions)
-  --putStrLn ("Blast TaxIdMask: " ++ maskId)
   let hitNumberQuery = buildHitNumberQuery "&ALIGNMENTS=250"
   let blastQuery = BlastHTTPQuery (Just "blastn") (Just "refseq_genomic") (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter))
   putStrLn "Sending blast query"
-  blastOutput <- blastHTTP blastQuery 
-  let rightBlast = fromRight blastOutput
+  ---blastOutput <- blastHTTP blastQuery 
+  ---print blastOutput
+  ---let rightBlast = fromRight blastOutput
+  rightBlast <- readXML "/home/mescalin/egg/initialblast/RhyB.blastout"
   let bestHit = getBestHit rightBlast
   bestBlastHitTaxIdOutput <- retrieveBlastHitTaxIdEntrez [bestHit]
   let rightBestTaxIdResult = head (extractTaxIdFromEntrySummaries bestBlastHitTaxIdOutput)
   let blastHits = (concat (map hits (results rightBlast)))
-  --putStrLn "FilteredByLength"
-  --filter by HitLenght
   let blastHitsFilteredByLength = filterByHitLength blastHits queryLength (lengthFilterToggle staticOptions)
   --tag BlastHits with TaxId
   blastHitTaxIdOutput <- retrieveBlastHitTaxIdEntrez blastHitsFilteredByLength
   let blastHittaxIdList = extractTaxIdFromEntrySummaries  blastHitTaxIdOutput
   --filter by ParentTaxId
   blastHitsParentTaxIdOutput <- retrieveParentTaxIdEntrez blastHittaxIdList 
-  --putStrLn "ParentTaxIds:"
-  --print blastHitsParentTaxIdOutput
   let blastHitsWithParentTaxId = zip blastHitsFilteredByLength blastHitsParentTaxIdOutput
   let blastHitsFilteredByParentTaxIdWithParentTaxId = filterByParentTaxId blastHitsWithParentTaxId True
   let blastHitsFilteredByParentTaxId = map fst blastHitsFilteredByParentTaxIdWithParentTaxId
-  --print (map snd blastHitsFilteredByParentTaxIdWithParentTaxId)
-  --print blastHitsFilteredByParentTaxId
   -- Filtering with TaxTree
   let blastHitsWithTaxId = zip blastHitsFilteredByParentTaxId blastHittaxIdList
   let bestHitTreePosition = getBestHitTreePosition (inputTaxNodes staticOptions) Family rightBestTaxIdResult bestHit
@@ -133,63 +128,53 @@ searchCandidates staticOptions query = do
   -- Coordinate generation
   let missingSequenceElements = map (getMissingSequenceElement (fullSequenceOffsetLength staticOptions) queryLength) filteredBlastResults
   let missingGenbankFeatures = map (getMissingSequenceElement queryLength queryLength) filteredBlastResults  
-  --putStrLn "Generated coordinates"
-  --print missingGenbankFeatures
-  --putStrLn "-------------------------------------------------------------------"
   -- Retrieval of genbank features in the hit region
   genbankFeaturesOutput <- mapM retrieveGenbankFeatures missingGenbankFeatures
-  --putStrLn "FeaturesOutput"
-  --mapM_ putStrLn genbankFeaturesOutput
-  --putStrLn "-------------------------------------------------------------------"
-  --putStrLn "ParsedFeatures"
-  let genbankFeatures = map parseGenbank genbankFeaturesOutput
-  --print genbankFeatures
-  --putStrLn "-------------------------------------------------------------------"
-  --putStrLn "AnnotatedSequences"
-  let annotatedSequences = map (extractSpecificFeatureSequence "gene")(map fromRight genbankFeatures)
-  --print annotatedSequences
-  --putStrLn "-------------------------------------------------------------------"
-  --putStrLn ("Number of retrieved genbank sequences:" ++ (show (length annotatedSequences)))
+  let genbankFeatures = map (\(genbankfeatureOutput,taxid,subject) -> (parseGenbank genbankfeatureOutput,taxid,subject)) genbankFeaturesOutput
+  --let annotatedSequences = map (\(rightgenbankfeature,taxid) -> ((extractSpecificFeatureSequence "gene" rightgenbankfeature),taxid)) (map (\(genbankfeature,taxid) -> (fromRight genbankfeature,taxid)) genbankFeatures)
+  let rightGenbankFeatures = map (\(genbankfeature,taxid,subject) -> (fromRight genbankfeature,taxid,subject)) genbankFeatures
+  let annotatedSequences = map (\(rightgenbankfeature,taxid,subject) -> (map (\singleseq -> (singleseq,taxid,subject)) (extractSpecificFeatureSequence "gene" rightgenbankfeature))) rightGenbankFeatures
   -- Retrieval of full sequences from entrez
   fullSequences <- mapM retrieveFullSequence missingSequenceElements
-  --putStrLn "Retrieved full sequences\n"
   return ((concat annotatedSequences) ++ fullSequences)
 
---alignCandidates :: StaticOptions -> ModelConstruction
---alignCandidates staticOptions (ModelConstruction remainingCandidates alignedCandidates tempDirPath sessionID iterationNumber inputFasta) = do
+--alignCandidates :: StaticOptions -> ModelConstruction -> [(Sequence,Int,String)] ->
 alignCandidates staticOptions modelConstruction candidates = do
-  --construct seedFasta
+  putStrLn "aligning Candidates"
   --let seedFasta = concat (map constructSeedFromBlast alignedCandidates) ++ (constructCandidateFromFasta inputFasta)  
-  let alignedSequences =  extractAlignedSequences (iterationNumber modelConstruction) modelConstruction  
-  let seedFastaContent = concat (map constructCandidateFromFasta alignedSequences) ++ concat (map constructCandidateFromFasta candidates)  
-  let seedFasta = ((show (iterationNumber modelConstruction)),seedFastaContent)
-  putStrLn "Reached seedModelExpansion - seed fasta:"
-  print seedFasta
+  ---let alignedSequences =  extractAlignedSequences (iterationNumber modelConstruction) modelConstruction  
+  ---let seedFastaContent = concat (V.toList (map (\x -> V.map constructCandidateFromFasta x) alignedSequences)) ++ concat (map constructCandidateFromFasta candidates)  
+  ---let seedFasta = ((show (iterationNumber modelConstruction)),seedFastaContent)
+  ---print seedFasta
   --write candidates
-  writeFastaFile (tempDirPath staticOptions) (iterationNumber modelConstruction) seedFasta
-  let fastaFilepath = constructFastaFilePaths (tempDirPath staticOptions) (iterationNumber modelConstruction) seedFasta 
+  ---writeFastaFile (tempDirPath staticOptions) (iterationNumber modelConstruction) seedFasta
+  ---let fastaFilepath = constructFastaFilePaths (tempDirPath staticOptions) (iterationNumber modelConstruction) seedFasta 
   --compute alignments
-  let alignmentFilepath = constructAlignmentFilePaths (tempDirPath staticOptions) (iterationNumber modelConstruction) seedFasta
-  let alignmentSummaryFilepath = constructAlignmentSummaryFilePaths (tempDirPath staticOptions) (iterationNumber modelConstruction) seedFasta
-  alignSequences [fastaFilepath] [alignmentFilepath] [alignmentSummaryFilepath]
-  clustalw2Summary <- mapM readClustalw2Summary [alignmentSummaryFilepath]
-  let clustalw2Score = map (\x -> show (alignmentScore (fromRight x))) clustalw2Summary
+  ---let alignmentFilepath = constructAlignmentFilePaths (tempDirPath staticOptions) (iterationNumber modelConstruction) seedFasta
+  ---let alignmentSummaryFilepath = constructAlignmentSummaryFilePaths (tempDirPath staticOptions) (iterationNumber modelConstruction) seedFasta
+  ---alignSequences [fastaFilepath] [alignmentFilepath] [alignmentSummaryFilepath]
+  ---clustalw2Summary <- mapM readClustalw2Summary [alignmentSummaryFilepath]
+  ---let clustalw2Score = map (\x -> show (alignmentScore (fromRight x))) clustalw2Summary
   --putStrLn ("clustalw2Scores:" ++ (intercalate "," clustalw2Score))
   --compute SCI
-  let rnazOutputFilepath = constructRNAzFilePaths (tempDirPath staticOptions) (iterationNumber modelConstruction) seedFasta
-  computeAlignmentSCIs [alignmentFilepath] [rnazOutputFilepath]
+  ---let rnazOutputFilepath = constructRNAzFilePaths (tempDirPath staticOptions) (iterationNumber modelConstruction) seedFasta
+  ---computeAlignmentSCIs [alignmentFilepath] [rnazOutputFilepath]
   --retrieveAlignmentSCIs
-  alignmentsRNAzOutput <- mapM readRNAz [rnazOutputFilepath]
-  let alignmentsSCI = map (\x -> show (structureConservationIndex (fromRight x))) alignmentsRNAzOutput
-  putStrLn (intercalate "," alignmentsSCI)
+  ---alignmentsRNAzOutput <- mapM readRNAz [rnazOutputFilepath]
+  --putStrLn ("RNAz out:")
+  ---print alignmentsRNAzOutput
+  ---let alignmentsSCI = map (\x -> show (structureConservationIndex (fromRight x))) alignmentsRNAzOutput
+  ---putStrLn (intercalate "," alignmentsSCI)
   --return alignmentsRNAzOutput
-  return alignmentsRNAzOutput
-  --stop/continue -- proceed with best alignment
+  ---return alignmentsRNAzOutput
+  return "Test"
+
  
-extractAlignedSequences :: Int -> ModelConstruction -> [Sequence]
-extractAlignedSequences iterationnumber modelconstruction
-  | iterationnumber == 0 = [(inputFasta modelconstruction)]
-  | otherwise = map nucleotideSequence (filter (\seqRec -> (aligned seqRec) > 0) (concatMap sequenceRecords (taxRecords modelconstruction)))
+---extractAlignedSequences :: Int -> ModelConstruction -> [(String,Sequence)]
+---extractAlignedSequences iterationnumber modelconstruction
+---  | iterationnumber == 0 = [("0i0s0",(inputFasta modelconstruction))]
+  ---- | otherwise = V.map nucleotideSequence (map (V.filter (\seqRec -> (aligned seqRec) > 0)) (map sequenceRecords (taxRecords modelconstruction)))
+---  | otherwise = map () (map (V.filter (\seqRec -> (aligned seqRec) > 0)) (map sequenceRecords (taxRecords modelconstruction)))
 
 filterByParentTaxId :: [(BlastHit,Int)] -> Bool -> [(BlastHit,Int)]
 filterByParentTaxId blastHitsWithParentTaxId singleHitPerParentTaxId   
@@ -220,40 +205,41 @@ hitLengthCheck queryLength blastHit = lengthStatus
          fullSeqLength = endCoordinate - startCoordinate
          lengthStatus = fullSeqLength < (queryLength * 3)
   
-retrieveGenbankFeatures :: (String, Int, Int, String, String) -> IO String
-retrieveGenbankFeatures (geneId, seqStart, seqStop, strand, accession) = do
+retrieveGenbankFeatures :: (String,Int,Int,String,String,Int,String) -> IO (String,Int,String)
+retrieveGenbankFeatures (geneId,seqStart,seqStop,strand,accession,taxid,subject) = do
   let program = Just "efetch"
   let database = Just "nucleotide"
   let queryString = "id=" ++ accession ++ "&seq_start=" ++ (show seqStart) ++ "&seq_stop=" ++ (show seqStop) ++ "&rettype=gb" 
   let entrezQuery = EntrezHTTPQuery program database queryString 
   queryResult <- entrezHTTP entrezQuery
-  return queryResult
+  return (queryResult,taxid,subject)
 
-retrieveFullSequence :: (String, Int, Int, String, String) -> IO Sequence
-retrieveFullSequence (geneId,seqStart,seqStop,strand,accession) = do
+retrieveFullSequence :: (String,Int,Int,String,String,Int,String) -> IO (Sequence,Int,String)
+retrieveFullSequence (geneId,seqStart,seqStop,strand,accession,taxid,subject) = do
   let program = Just "efetch"
   let database = Just "nucleotide" 
   let queryString = "id=" ++ geneId ++ "&seq_start=" ++ (show seqStart) ++ "&seq_stop=" ++ (show seqStop) ++ "&rettype=fasta" ++ "&strand=" ++ strand
   let entrezQuery = EntrezHTTPQuery program database queryString 
   result <- entrezHTTP entrezQuery
   let parsedFasta = head ((mkSeqs . L.lines) (L.pack result))
-  return parsedFasta
+  return (parsedFasta,taxid,subject)
  
-getMissingSequenceElement :: Int -> Int -> BlastHit -> (String,Int,Int,String,String)
-getMissingSequenceElement retrievalOffset queryLength blastHit 
-  | blastHitIsReverseComplement blastHit = getReverseMissingSequenceElement retrievalOffset queryLength blastHit
-  | otherwise = getForwardMissingSequenceElement retrievalOffset queryLength blastHit
+getMissingSequenceElement :: Int -> Int -> (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
+getMissingSequenceElement retrievalOffset queryLength (blastHit,taxid) 
+  | blastHitIsReverseComplement (blastHit,taxid) = getReverseMissingSequenceElement retrievalOffset queryLength (blastHit,taxid)
+  | otherwise = getForwardMissingSequenceElement retrievalOffset queryLength (blastHit,taxid)
 
-blastHitIsReverseComplement :: BlastHit -> Bool
-blastHitIsReverseComplement blastHit = isReverse
+blastHitIsReverseComplement :: (BlastHit,Int) -> Bool
+blastHitIsReverseComplement (blastHit,taxid) = isReverse
   where blastMatches = matches blastHit
         firstHSPfrom = h_from (head blastMatches)
         firstHSPto = h_to (head blastMatches)
         isReverse = firstHSPfrom > firstHSPto
 
-getForwardMissingSequenceElement :: Int -> Int -> BlastHit -> (String,Int,Int,String,String)
-getForwardMissingSequenceElement retrievalOffset queryLength blastHit = (geneIdentifier,startcoordinate,endcoordinate,strand,accession)
+getForwardMissingSequenceElement :: Int -> Int -> (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
+getForwardMissingSequenceElement retrievalOffset queryLength (blastHit,taxid) = (geneIdentifier,startcoordinate,endcoordinate,strand,accession,taxid,subjectBlast)
   where    accession = L.unpack (extractAccession blastHit)
+           subjectBlast = L.unpack (unSL (subject blastHit))
            geneIdentifier = extractGeneId blastHit
            blastMatches = matches blastHit
            minHfrom = minimum (map h_from blastMatches)
@@ -266,9 +252,10 @@ getForwardMissingSequenceElement retrievalOffset queryLength blastHit = (geneIde
            endcoordinate = maxHto + (queryLength - maxHonQuery) + retrievalOffset
            strand = "1"
 
-getReverseMissingSequenceElement :: Int -> Int -> BlastHit -> (String,Int,Int,String,String)
-getReverseMissingSequenceElement retrievalOffset queryLength blastHit = (geneIdentifier,startcoordinate,endcoordinate,strand,accession)
+getReverseMissingSequenceElement :: Int -> Int -> (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
+getReverseMissingSequenceElement retrievalOffset queryLength (blastHit,taxid) = (geneIdentifier,startcoordinate,endcoordinate,strand,accession,taxid,subjectBlast)
   where   accession = L.unpack (extractAccession blastHit)
+          subjectBlast = L.unpack (unSL (subject blastHit))
           geneIdentifier = extractGeneId blastHit
           blastMatches = matches blastHit
           maxHfrom = maximum (map h_from blastMatches)
@@ -350,7 +337,7 @@ getBestHitTreePosition nodes rank rightBestTaxIdResult bestHit = bestHitTreePosi
          rootNode = TZ.fromTree simpleTaxTree
          bestHitTreePosition = head (findChildTaxTreeNodePosition (simpleTaxId hitNode) rootNode)
 
-filterByNeighborhoodTree :: [(BlastHit,Int)] -> TZ.TreePos TZ.Full SimpleTaxDumpNode -> Bool -> [BlastHit]
+filterByNeighborhoodTree :: [(BlastHit,Int)] -> TZ.TreePos TZ.Full SimpleTaxDumpNode -> Bool -> [(BlastHit,Int)]
 filterByNeighborhoodTree blastHitsWithTaxId bestHitTreePosition singleHitperTax = neighborhoodEntries
   where  subtree = TZ.tree bestHitTreePosition
          subtreeNodes = flatten subtree
@@ -395,10 +382,10 @@ annotateBlastHitsWithTaxId :: [B.ByteString] -> BlastHit -> (BlastHit,Int)
 annotateBlastHitsWithTaxId inputGene2AccessionContent blastHit = (blastHit,hitTaxId)
   where hitTaxId = fromRight (taxIDFromGene2Accession inputGene2AccessionContent (extractAccession  blastHit))
 
-enoughSubTreeNeighbors :: Int -> [(BlastHit,Int)] -> [(BlastHit,Int)] -> TZ.TreePos TZ.Full SimpleTaxDumpNode -> Bool -> [BlastHit]
+enoughSubTreeNeighbors :: Int -> [(BlastHit,Int)] -> [(BlastHit,Int)] -> TZ.TreePos TZ.Full SimpleTaxDumpNode -> Bool -> [(BlastHit,Int)]
 enoughSubTreeNeighbors neighborNumber currentNeighborhoodEntries blastHitsWithTaxId bestHitTreePosition singleHitperTax 
-  | neighborNumber < 10  = filterByNeighborhoodTree blastHitsWithTaxId (fromJust (TZ.parent bestHitTreePosition)) singleHitperTax
-  | otherwise = map fst currentNeighborhoodEntries
+  | neighborNumber < 10 = filterByNeighborhoodTree blastHitsWithTaxId (fromJust (TZ.parent bestHitTreePosition)) singleHitperTax
+  | otherwise = currentNeighborhoodEntries 
          
 -- | Retrieve position of a specific node in the tree
 findChildTaxTreeNodePosition :: Int -> TZ.TreePos TZ.Full SimpleTaxDumpNode -> [TZ.TreePos TZ.Full SimpleTaxDumpNode]
@@ -559,7 +546,7 @@ main = do
   let rightNodes = fromRight nodes
   let fullSequenceOffsetLength = readInt fullSequenceOffset
   let staticOptions = StaticOptions tempDirPath sessionId  rightNodes (Just taxIdFilter) singleHitperTax lengthFilter fullSequenceOffsetLength
-  let initialization = ModelConstruction iterationNumber (head inputFasta) []
+  let initialization = ModelConstruction iterationNumber (head inputFasta) V.empty []
   alignment <- alignmentConstruction staticOptions initialization
   print alignment
   
