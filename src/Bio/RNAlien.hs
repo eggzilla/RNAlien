@@ -73,8 +73,8 @@ alignmentConstruction staticOptions modelconstruction = do
        --search candidates
        candidates <- mapM (searchCandidates staticOptions) queries
        print candidates
-       --align candidates
-       alignmentResults <- alignCandidates staticOptions currentModelConstruction (V.fromList candidates)
+       --align search results
+       alignmentResults <- alignCandidates staticOptions currentModelConstruction (concat candidates)
        print alignmentResults
        --select candidates
        
@@ -142,8 +142,8 @@ searchCandidates staticOptions query = do
 alignCandidates staticOptions modelConstruction candidates = do
   putStrLn "aligning Candidates"
   --Extract sequences from modelconstruction
-  --let alignedSequences = extractAlignedSequences (iterationNumber modelConstruction) modelConstruction 
-  
+  let alignedSequences = extractAlignedSequences (iterationNumber modelConstruction) modelConstruction 
+  let candidateSequences = extractCandidateSequences candidates
   --let seedFasta = concat (map constructSeedFromBlast alignedCandidates) ++ (constructCandidateFromFasta inputFasta)  
   ---let alignedSequences =  extractAlignedSequences (iterationNumber modelConstruction) modelConstruction  
   ---let seedFastaContent = concat (V.toList (map (\x -> V.map constructCandidateFromFasta x) alignedSequences)) ++ concat (map constructCandidateFromFasta candidates)  
@@ -171,6 +171,11 @@ alignCandidates staticOptions modelConstruction candidates = do
   --return alignmentsRNAzOutput
   ---return alignmentsRNAzOutput
   return "Test"
+
+extractCandidateSequences :: [(Sequence,Int,String)] -> V.Vector (Int,Sequence)
+extractCandidateSequences candidates = indexedSeqences
+  where sequences = map (\(seq,_,_) -> seq) candidates
+        indexedSeqences = V.indexed (V.fromList (sequences))
 
 extractAlignedSequences :: Int -> ModelConstruction ->  V.Vector (Int,Sequence)
 extractAlignedSequences iterationnumber modelconstruction
