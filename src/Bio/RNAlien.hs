@@ -70,10 +70,10 @@ alignmentConstruction staticOptions modelconstruction = do
   let queries = extractQueries (iterationNumber currentModelConstruction) currentModelConstruction
   if queries /= []
      then do
-       --search candidates
+       --search queries
        candidates <- mapM (searchCandidates staticOptions) queries
        print candidates
-       --align search results
+       --align search results - candidates
        alignmentResults <- alignCandidates staticOptions currentModelConstruction (concat candidates)
        print alignmentResults
        --select candidates
@@ -144,6 +144,11 @@ alignCandidates staticOptions modelConstruction candidates = do
   --Extract sequences from modelconstruction
   let alignedSequences = extractAlignedSequences (iterationNumber modelConstruction) modelConstruction 
   let candidateSequences = extractCandidateSequences candidates
+  let alignedSequencesDirectory = tempDirPath staticOptions
+  let iterationDirectory = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/"
+  createDirectory (iterationDirectory)
+  V.mapM_ (\(number,sequence) -> writeFasta (alignedSequencesDirectory ++ (show number) ++ ".fa") [sequence]) alignedSequences
+  V.mapM_ (\(number,sequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") [sequence]) candidateSequences
   --let seedFasta = concat (map constructSeedFromBlast alignedCandidates) ++ (constructCandidateFromFasta inputFasta)  
   ---let alignedSequences =  extractAlignedSequences (iterationNumber modelConstruction) modelConstruction  
   ---let seedFastaContent = concat (V.toList (map (\x -> V.map constructCandidateFromFasta x) alignedSequences)) ++ concat (map constructCandidateFromFasta candidates)  
@@ -551,7 +556,7 @@ main = do
   let taxNodesFile = "/home/egg/current/Data/Taxonomy/taxdump/nodes.dmp"
   let gene2AccessionFile = "/home/egg/current/Data/gene2accession"
   let tempDirRootFolderPath = "/scr/klingon/egg/temp/"
-  let tempDirPath = tempDirRootFolderPath ++ sessionId
+  let tempDirPath = tempDirRootFolderPath ++ sessionId ++ "/"
   createDirectory (tempDirPath)
   inputFasta <- readFasta inputFastaFilePath
   nodes <- readNCBISimpleTaxDumpNodes taxNodesFile 
