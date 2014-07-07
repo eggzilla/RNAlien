@@ -144,53 +144,33 @@ alignCandidates staticOptions modelConstruction candidates = do
   --Extract sequences from modelconstruction
   let alignedSequences = extractAlignedSequences (iterationNumber modelConstruction) modelConstruction 
   let candidateSequences = extractCandidateSequences candidates
-  let alignedSequencesDirectory = tempDirPath staticOptions
   let iterationDirectory = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/"
+  let alignmentSequences = V.concat (map (constructPairwiseAlignmentSequences candidateSequences) (V.toList alignedSequences))
+  --write Fasta sequences
   createDirectory (iterationDirectory)
-  V.mapM_ (\(number,sequence) -> writeFasta (alignedSequencesDirectory ++ (show number) ++ ".fa") [sequence]) alignedSequences
-  V.mapM_ (\(number,sequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") [sequence]) candidateSequences
-  --let seedFasta = concat (map constructSeedFromBlast alignedCandidates) ++ (constructCandidateFromFasta inputFasta)  
-  ---let alignedSequences =  extractAlignedSequences (iterationNumber modelConstruction) modelConstruction  
-  ---let seedFastaContent = concat (V.toList (map (\x -> V.map constructCandidateFromFasta x) alignedSequences)) ++ concat (map constructCandidateFromFasta candidates)  
-  ---let seedFasta = ((show (iterationNumber modelConstruction)),seedFastaContent)
-  ---print seedFasta
-  --write candidates
-  ---writeFastaFile (tempDirPath staticOptions) (iterationNumber modelConstruction) seedFasta
-  ---let fastaFilepath = constructFastaFilePaths (tempDirPath staticOptions) (iterationNumber modelConstruction) seedFasta 
-  --compute alignments
-  ---let alignmentFilepath = constructAlignmentFilePaths (tempDirPath staticOptions) (iterationNumber modelConstruction) seedFasta
-  ---let alignmentSummaryFilepath = constructAlignmentSummaryFilePaths (tempDirPath staticOptions) (iterationNumber modelConstruction) seedFasta
-  ---alignSequences [fastaFilepath] [alignmentFilepath] [alignmentSummaryFilepath]
-  ---clustalw2Summary <- mapM readClustalw2Summary [alignmentSummaryFilepath]
-  ---let clustalw2Score = map (\x -> show (alignmentScore (fromRight x))) clustalw2Summary
-  --putStrLn ("clustalw2Scores:" ++ (intercalate "," clustalw2Score))
-  --compute SCI
-  ---let rnazOutputFilepath = constructRNAzFilePaths (tempDirPath staticOptions) (iterationNumber modelConstruction) seedFasta
-  ---computeAlignmentSCIs [alignmentFilepath] [rnazOutputFilepath]
-  --retrieveAlignmentSCIs
-  ---alignmentsRNAzOutput <- mapM readRNAz [rnazOutputFilepath]
-  --putStrLn ("RNAz out:")
-  ---print alignmentsRNAzOutput
-  ---let alignmentsSCI = map (\x -> show (structureConservationIndex (fromRight x))) alignmentsRNAzOutput
-  ---putStrLn (intercalate "," alignmentsSCI)
-  --return alignmentsRNAzOutput
-  ---return alignmentsRNAzOutput
+  V.mapM_ (\(number,sequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") sequence) alignmentSequences
   return "Test"
+
+constructPairwiseAlignmentSequences :: V.Vector (Int,Sequence) -> (Int,Sequence) ->  V.Vector (Int,[Sequence])
+constructPairwiseAlignmentSequences candidateSequences (number,sequence) = V.map (\(candNumber,candSequence) -> ((number * candNumber),([sequence] ++ [candSequence]))) candidateSequences
+
+  
 
 extractCandidateSequences :: [(Sequence,Int,String)] -> V.Vector (Int,Sequence)
 extractCandidateSequences candidates = indexedSeqences
   where sequences = map (\(seq,_,_) -> seq) candidates
-        indexedSeqences = V.indexed (V.fromList (sequences))
+        indexedSeqences = V.map (\(number,seq) -> (number + 1,seq))(V.indexed (V.fromList (sequences)))
+        
 
 extractAlignedSequences :: Int -> ModelConstruction ->  V.Vector (Int,Sequence)
 extractAlignedSequences iterationnumber modelconstruction
-  | iterationnumber == 0 = V.indexed (V.fromList ([inputSequence]))
+  | iterationnumber == 0 =  V.map (\(number,seq) -> (number + 1,seq)) (V.indexed (V.fromList ([inputSequence])))
   | otherwise = indexedSeqRecords
   where inputSequence = (inputFasta modelconstruction)
         seqRecordsperTaxrecord = map sequenceRecords (taxRecords modelconstruction)
         seqRecords = (concat seqRecordsperTaxrecord)
         alignedSeqRecords = filter (\seqRec -> (aligned seqRec) > 0) seqRecords 
-        indexedSeqRecords = V.indexed (V.fromList (inputSequence : (map nucleotideSequence alignedSeqRecords)))
+        indexedSeqRecords = V.map (\(number,seq) -> (number + 1,seq)) (V.indexed (V.fromList (inputSequence : (map nucleotideSequence alignedSeqRecords))))
 
 
 filterByParentTaxId :: [(BlastHit,Int)] -> Bool -> [(BlastHit,Int)]
