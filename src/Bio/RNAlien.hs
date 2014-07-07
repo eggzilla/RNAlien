@@ -149,12 +149,28 @@ alignCandidates staticOptions modelConstruction candidates = do
   --write Fasta sequences
   createDirectory (iterationDirectory)
   V.mapM_ (\(number,sequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") sequence) alignmentSequences
-  return "Test"
+  let pairwiseFastaFilepath = constructPairwiseFastaFilePaths iterationDirectory alignmentSequences
+  let pairwiseAlignmentFilepath = constructPairwiseAlignmentFilePaths iterationDirectory alignmentSequences
+  let pairwiseAlignmentSummaryFilepath = constructPairwiseAlignmentSummaryFilePaths iterationDirectory alignmentSequences
+  alignSequences pairwiseFastaFilepath pairwiseAlignmentFilepath pairwiseAlignmentSummaryFilepath
+  clustalw2Summary <- mapM readClustalw2Summary pairwiseAlignmentSummaryFilepath
+  let clustalw2Score = map (\x -> show (alignmentScore (fromRight x))) clustalw2Summary
+  return clustalw2Score
 
 constructPairwiseAlignmentSequences :: V.Vector (Int,Sequence) -> (Int,Sequence) ->  V.Vector (Int,[Sequence])
 constructPairwiseAlignmentSequences candidateSequences (number,sequence) = V.map (\(candNumber,candSequence) -> ((number * candNumber),([sequence] ++ [candSequence]))) candidateSequences
 
-  
+constructPairwiseFastaFilePaths :: String -> V.Vector (Int,[Sequence]) -> [String]
+constructPairwiseFastaFilePaths currentDir alignments = V.toList (V.map (\(iterator,_) -> currentDir ++ (show iterator) ++ ".fa") alignments)
+
+constructPairwiseAlignmentFilePaths :: String -> V.Vector (Int,[Sequence]) -> [String]
+constructPairwiseAlignmentFilePaths currentDir alignments = V.toList (V.map (\(iterator,_) -> currentDir ++ (show iterator) ++ ".aln") alignments)
+
+constructPairwiseAlignmentSummaryFilePaths :: String -> V.Vector (Int,[Sequence]) -> [String]
+constructPairwiseAlignmentSummaryFilePaths currentDir alignments = V.toList (V.map (\(iterator,_) -> currentDir ++ (show iterator) ++ ".alnsum") alignments)
+
+constructPairwiseRNAzFilePaths :: String -> V.Vector (Int,[Sequence]) -> [String]
+constructPairwiseRNAzFilePaths currentDir alignments = V.toList (V.map (\(iterator,_) -> currentDir ++ (show iterator) ++ ".rnaz") alignments)
 
 extractCandidateSequences :: [(Sequence,Int,String)] -> V.Vector (Int,Sequence)
 extractCandidateSequences candidates = indexedSeqences
