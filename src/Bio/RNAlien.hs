@@ -155,7 +155,15 @@ alignCandidates staticOptions modelConstruction candidates = do
   alignSequences pairwiseFastaFilepath pairwiseAlignmentFilepath pairwiseAlignmentSummaryFilepath
   clustalw2Summary <- mapM readClustalw2Summary pairwiseAlignmentSummaryFilepath
   let clustalw2Score = map (\x -> show (alignmentScore (fromRight x))) clustalw2Summary
-  return clustalw2Score
+  --compute SCI
+  let pairwiseRNAzFilePaths = constructPairwiseRNAzFilePaths iterationDirectory alignmentSequences
+  computeAlignmentSCIs pairwiseAlignmentFilepath pairwiseRNAzFilePaths
+  --retrieveAlignmentSCIs
+  alignmentsRNAzOutput <- mapM readRNAz pairwiseRNAzFilePaths
+  putStrLn "RNAzout:"
+  print alignmentsRNAzOutput
+  let alignmentsSCI = map (\x -> show (structureConservationIndex (fromRight x))) alignmentsRNAzOutput
+  return (clustalw2Score,alignmentsSCI)
 
 constructPairwiseAlignmentSequences :: V.Vector (Int,Sequence) -> (Int,Sequence) ->  V.Vector (Int,[Sequence])
 constructPairwiseAlignmentSequences candidateSequences (number,sequence) = V.map (\(candNumber,candSequence) -> ((number * candNumber),([sequence] ++ [candSequence]))) candidateSequences
