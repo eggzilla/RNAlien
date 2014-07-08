@@ -150,14 +150,16 @@ alignCandidates staticOptions modelConstruction candidates = do
   createDirectory (iterationDirectory)
   V.mapM_ (\(number,sequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") sequence) alignmentSequences
   let pairwiseFastaFilepath = constructPairwiseFastaFilePaths iterationDirectory alignmentSequences
-  let pairwiseAlignmentFilepath = constructPairwiseAlignmentFilePaths iterationDirectory alignmentSequences
-  let pairwiseAlignmentSummaryFilepath = constructPairwiseAlignmentSummaryFilePaths iterationDirectory alignmentSequences
-  alignSequences pairwiseFastaFilepath pairwiseAlignmentFilepath pairwiseAlignmentSummaryFilepath
-  clustalw2Summary <- mapM readClustalw2Summary pairwiseAlignmentSummaryFilepath
+  let pairwiseClustalw2Filepath = constructPairwiseAlignmentFilePaths "clustalw2" iterationDirectory alignmentSequences
+  let pairwiseLocarnaFilepath = constructPairwiseAlignmentFilePaths "mlocarna" iterationDirectory alignmentSequences
+  let pairwiseClustalw2SummaryFilepath = constructPairwiseAlignmentSummaryFilePaths iterationDirectory alignmentSequences
+  alignSequences "clustalw2" pairwiseFastaFilepath pairwiseClustalw2Filepath pairwiseClustalw2SummaryFilepath
+  alignSequences "mlocarna" pairwiseFastaFilepath pairwiseLocarnaFilepath []
+  clustalw2Summary <- mapM readClustalw2Summary pairwiseClustalw2SummaryFilepath
   let clustalw2Score = map (\x -> show (alignmentScore (fromRight x))) clustalw2Summary
   --compute SCI
   let pairwiseRNAzFilePaths = constructPairwiseRNAzFilePaths iterationDirectory alignmentSequences
-  computeAlignmentSCIs pairwiseAlignmentFilepath pairwiseRNAzFilePaths
+  computeAlignmentSCIs pairwiseClustalw2Filepath pairwiseRNAzFilePaths
   --retrieveAlignmentSCIs
   alignmentsRNAzOutput <- mapM readRNAz pairwiseRNAzFilePaths
   putStrLn "RNAzout:"
@@ -171,8 +173,8 @@ constructPairwiseAlignmentSequences candidateSequences (number,sequence) = V.map
 constructPairwiseFastaFilePaths :: String -> V.Vector (Int,[Sequence]) -> [String]
 constructPairwiseFastaFilePaths currentDir alignments = V.toList (V.map (\(iterator,_) -> currentDir ++ (show iterator) ++ ".fa") alignments)
 
-constructPairwiseAlignmentFilePaths :: String -> V.Vector (Int,[Sequence]) -> [String]
-constructPairwiseAlignmentFilePaths currentDir alignments = V.toList (V.map (\(iterator,_) -> currentDir ++ (show iterator) ++ ".aln") alignments)
+constructPairwiseAlignmentFilePaths :: String -> String -> V.Vector (Int,[Sequence]) -> [String]
+constructPairwiseAlignmentFilePaths program currentDir alignments = V.toList (V.map (\(iterator,_) -> currentDir ++ (show iterator) ++ "." ++ program) alignments)
 
 constructPairwiseAlignmentSummaryFilePaths :: String -> V.Vector (Int,[Sequence]) -> [String]
 constructPairwiseAlignmentSummaryFilePaths currentDir alignments = V.toList (V.map (\(iterator,_) -> currentDir ++ (show iterator) ++ ".alnsum") alignments)
@@ -309,10 +311,14 @@ computeAlignmentSCIs alignmentFilepaths rnazOutputFilepaths = do
   let zippedFilepaths = zip alignmentFilepaths rnazOutputFilepaths
   mapM_ systemRNAz zippedFilepaths  
 
-alignSequences :: [String] -> [String] -> [String] -> IO ()
-alignSequences fastaFilepaths alignmentFilepaths summaryFilepaths = do
-  let zippedFilepaths = zip3 fastaFilepaths alignmentFilepaths summaryFilepaths
-  mapM_ systemClustalw2 zippedFilepaths  
+alignSequences :: String -> [String] -> [String] -> [String] -> IO ()
+alignSequences program fastaFilepaths alignmentFilepaths summaryFilepaths = do
+  let zipped3Filepaths = zip3 fastaFilepaths alignmentFilepaths summaryFilepaths
+  let zippedFilepaths = zip fastaFilepaths alignmentFilepaths
+  if program == "mlocarna"
+    then do 
+    mapM_ systemLocarna zippedFilepaths
+    else mapM_ systemClustalw2 zipped3Filepaths
 
 replacePipeChars :: Char -> Char
 replacePipeChars '|' = '-'
@@ -593,7 +599,7 @@ systemBlast filePath iterationNumber = do
   return inputBlast
 
 -- | Run external mlocarna command and read the output into the corresponding datatype, there is also a folder created at the location of the input fasta file
-systemLocarna (inputFilePath, outputFilePath, summaryFilePath) = system ("mlocarna " ++ inputFilePath ++ " > " ++ outputFilePath)
+systemLocarna (inputFilePath, outputFilePath) = system ("mlocarna " ++ inputFilePath ++ " > " ++ outputFilePath)
         
 -- | Run external clustalw2 command and read the output into the corresponding datatype
 systemClustalw2 (inputFilePath, outputFilePath, summaryFilePath) = system ("clustalw2 -INFILE=" ++ inputFilePath ++ " -OUTFILE=" ++ outputFilePath ++ ">" ++ summaryFilePath)
