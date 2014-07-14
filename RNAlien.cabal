@@ -22,7 +22,7 @@ executable RNAlien
 executable RfamStat
   Hs-Source-Dirs:      ./src/Bio/
   main-is:	       RfamStat.hs    
-  build-depends:       base >=4.5, cmdargs, ViennaRNAParser, process, directory, blastxml>=0.3.2, biofasta, parsec, random, biocore, bytestring, either-unwrap, vector, ClustalParser, split
+  build-depends:       base >=4.5, cmdargs, ViennaRNAParser, process, directory, blastxml>=0.3.2, biofasta, parsec, random, biocore, bytestring, either-unwrap, vector, ClustalParser, split, RNAlien
 
 Library
   Hs-Source-Dirs:      ./src/
