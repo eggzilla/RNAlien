@@ -35,12 +35,15 @@ main = do
   Options{..} <- cmdArgs options       
   --createDirectory (outputPath)
   inputFasta <- readFasta inputFastaFilePath
-  let rfamGroupedByIndex = groupByRfamIndex inputFasta
-  print (head rfamGroupedByIndex)
+  let rfamFamilies = groupByRfamIndex inputFasta
+  let rfamIndexedFamilies = (V.indexed (V.fromList rfamFamilies))
+  V.mapM_ (\(number,sequence) -> writeFasta (outputPath ++ (show number) ++ ".fa") sequence) rfamIndexedFamilies
+  --print (head rfamGroupedByIndex)
   
 groupByRfamIndex :: [Sequence] -> [[Sequence]] 
 groupByRfamIndex inputFasta = groupBy sameRfamIndex inputFasta
 
-sameRfamIndex sequence1 sequence2 =  (extractRfamIndex sequence1) ==  (extractRfamIndex sequence2)
+sameRfamIndex sequence1 sequence2 = (extractRfamIndex sequence1) ==  (extractRfamIndex sequence2)
 
-extractRfamIndex sequence =  head (splitOn ";" (L.unpack (unSL (seqid sequence))))
+extractRfamIndex sequence = head (splitOn ";" (L.unpack (unSL (seqid sequence))))
+
