@@ -62,11 +62,11 @@ main = do
   clustalw2RNAzOutput <- mapM readRNAz pairwiseClustalw2RNAzFilePaths
   mlocarnaRNAzOutput <- mapM readRNAz pairwiseLocarnaRNAzFilePaths 
   let clustalw2SCI = map (\x -> (structureConservationIndex (fromRight x))) clustalw2RNAzOutput
-  let clustalw2SCIaverage = (sum clustalw2SCI) / 5 --(toRational (length clustalw2SCI))
+  let clustalw2SCIaverage = (sum clustalw2SCI) / (fromIntegral (length clustalw2SCI))
   let clustalw2SCImax = maximum clustalw2SCI
   let clustalw2SCImin = minimum clustalw2SCI
   let locarnaSCI = map (\x -> (structureConservationIndex (fromRight x))) mlocarnaRNAzOutput
-  let locarnaSCIaverage = (sum clustalw2SCI) / 5 --(toRational (length clustalw2SCI))
+  let locarnaSCIaverage = (sum clustalw2SCI) / (fromIntegral (length clustalw2SCI))
   let locarnaSCImax = maximum locarnaSCI
   let locarnaSCImin = minimum locarnaSCI
   putStrLn "clustalw2averageSCI:"
