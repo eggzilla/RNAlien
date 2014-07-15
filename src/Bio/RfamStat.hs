@@ -25,20 +25,25 @@ import Data.Either
 import Data.Either.Unwrap
 import Bio.RNAlienLibary
 data Options = Options            
-  { inputFastaFilePath :: String,
+  { inputFilePath :: String,
     outputPath :: String
   } deriving (Show,Data,Typeable)
 
 options = Options
-  { inputFastaFilePath = def &= name "i" &= help "Path to input fasta file",
+  { inputFilePath = def &= name "i" &= help "Path to input fasta file",
     outputPath = def &= name "o" &= help "Path to output directory"
-  } &= summary "RfamStat" &= help "Florian Eggenhofer - 2014" &= verbosity       
+  } &= summary "RfamStat" &= help "Florian Eggenhofer - 2014" &= verbosity   
+    
 main = do
   args <- getArgs
   Options{..} <- cmdArgs options       
   --createDirectory (outputPath)
-  inputFasta <- readFasta inputFastaFilePath
-  let rfamFamilies = groupByRfamIndex inputFasta
+  --inputFasta <- readFasta inputFilePath
+  --let rfamFamilies = groupByRfamIndex inputFasta
+  inputSeedAln <- readFile inputFilePath
+  let seedFamilyAlns = drop 1 (splitOn "# STOCKHOLM 1.0" inputSeedAln)
+  let rfamFamilies = map processFamilyAln seedFamilyAlns
+  --print (head rfamFamilies)
   let rfamIndexedFamilies = (V.indexed (V.fromList rfamFamilies))
   V.mapM_ (\(number,sequence) -> writeFasta (outputPath ++ (show number) ++ ".fa") sequence) rfamIndexedFamilies
   let pairwiseFastaFilepath = constructPairwiseFastaFilePaths outputPath rfamIndexedFamilies
@@ -80,6 +85,32 @@ main = do
   print clustalw2SCI
   putStrLn "mlocarnaminSCIs:"
   print locarnaSCI
+
+processFamilyAln :: String -> [Sequence]
+processFamilyAln seedFamilyAln = seedFamilySequences
+  where seedFamilyAlnLines = lines seedFamilyAln
+        -- remove empty lines from splitting
+        seedFamilyNonEmpty =  filter (\alnline -> not (null alnline)) seedFamilyAlnLines
+        -- remove annotation and spacer lines
+        seedFamilyIdSeqLines =  filter (\alnline -> ((not ((head alnline) == '#'))) && (not ((head alnline) == ' ')) && (not ((head alnline) == '/'))) seedFamilyNonEmpty 
+        -- put id and corresponding seq of each line into a list and remove whitspaces        
+        seedFamilyIdandSeqLines = map words seedFamilyIdSeqLines
+        -- linewise tuples with id and seq without alinment characters - .
+        seedFamilyIdandSeqLineTuples = map (\alnline -> ((head alnline),(filterAlnChars (last alnline)))) seedFamilyIdandSeqLines
+        -- line tuples sorted by id
+        seedFamilyIdandSeqTupleSorted = sortBy (\tuple1 tuple2 -> compare (fst tuple1) (fst tuple2)) seedFamilyIdandSeqLineTuples
+        -- line tuples grouped by id
+        seedFamilyIdandSeqTupleGroups = groupBy (\tuple1 tuple2 -> (fst tuple1) == (fst tuple2)) seedFamilyIdandSeqTupleSorted
+        seedFamilySequences = map mergeIdSeqTuplestoSequence seedFamilyIdandSeqTupleGroups
+
+mergeIdSeqTuplestoSequence :: [(String,String)] -> Sequence
+mergeIdSeqTuplestoSequence tuplelist = sequence
+  where seqid = fst (head tuplelist)
+        seqdata = concat (map snd tuplelist)
+        sequence = Seq (SeqLabel (L.pack seqid)) (SeqData (L.pack seqdata)) Nothing
+
+filterAlnChars :: String -> String
+filterAlnChars chars = filter (\char -> (not (char == '-')) && (not (char == '.'))) chars
 
 groupByRfamIndex :: [Sequence] -> [[Sequence]] 
 groupByRfamIndex inputFasta = groupBy sameRfamIndex inputFasta
