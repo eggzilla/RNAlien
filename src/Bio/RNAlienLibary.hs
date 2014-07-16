@@ -59,7 +59,7 @@ systemBlast filePath iterationNumber = do
   return inputBlast
 
 -- | Run external mlocarna command and read the output into the corresponding datatype, there is also a folder created at the location of the input fasta file
-systemLocarna options (inputFilePath, outputFilePath) = system ("mlocarna " ++ options ++ " > " ++ outputFilePath)
+systemLocarna options (inputFilePath, outputFilePath) = system ("mlocarna " ++ options ++ " " ++ inputFilePath ++ " > " ++ outputFilePath)
         
 -- | Run external clustalw2 command and read the output into the corresponding datatype
 systemClustalw2 options (inputFilePath, outputFilePath, summaryFilePath) = system ("clustalw2 " ++ options ++ "-INFILE=" ++ inputFilePath ++ " -OUTFILE=" ++ outputFilePath ++ ">" ++ summaryFilePath)
