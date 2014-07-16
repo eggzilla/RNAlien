@@ -59,10 +59,10 @@ systemBlast filePath iterationNumber = do
   return inputBlast
 
 -- | Run external mlocarna command and read the output into the corresponding datatype, there is also a folder created at the location of the input fasta file
-systemLocarna (inputFilePath, outputFilePath) = system ("mlocarna -iterate --free-endgaps " ++ inputFilePath ++ " > " ++ outputFilePath)
+systemLocarna options (inputFilePath, outputFilePath) = system ("mlocarna " ++ options ++ " > " ++ outputFilePath)
         
 -- | Run external clustalw2 command and read the output into the corresponding datatype
-systemClustalw2 (inputFilePath, outputFilePath, summaryFilePath) = system ("clustalw2 -INFILE=" ++ inputFilePath ++ " -OUTFILE=" ++ outputFilePath ++ ">" ++ summaryFilePath)
+systemClustalw2 options (inputFilePath, outputFilePath, summaryFilePath) = system ("clustalw2 " ++ options ++ "-INFILE=" ++ inputFilePath ++ " -OUTFILE=" ++ outputFilePath ++ ">" ++ summaryFilePath)
 
 -- | Run external RNAalifold command and read the output into the corresponding datatype
 systemRNAalifold filePath iterationNumber = system ("RNAalifold " ++ filePath  ++ " >" ++ iterationNumber ++ ".alifold")
@@ -71,8 +71,7 @@ systemRNAalifold filePath iterationNumber = system ("RNAalifold " ++ filePath  +
 systemRNAz (inputFilePath, outputFilePath) = system ("RNAz " ++ inputFilePath ++ " >" ++ outputFilePath)
 
 -- | Run external CMbuild command and read the output into the corresponding datatype 
-systemCMbuild filePath iterationNumber = system ("cmbuild " ++ filePath ++ " >" ++ iterationNumber ++ ".cm")         
-                                 
+systemCMbuild filePath iterationNumber = system ("cmbuild " ++ filePath ++ " >" ++ iterationNumber ++ ".cm")                                         
 -- | Run CMCompare and read the output into the corresponding datatype
 systemCMcompare filePath iterationNumber = system ("CMcompare " ++ filePath ++ " >" ++ iterationNumber ++ ".cmcoutput")
 
@@ -173,7 +172,6 @@ extractCandidateSequences candidates = indexedSeqences
   where sequences = map (\(seq,_,_) -> seq) candidates
         indexedSeqences = V.map (\(number,seq) -> (number + 1,seq))(V.indexed (V.fromList (sequences)))
         
-
 extractAlignedSequences :: Int -> ModelConstruction ->  V.Vector (Int,Sequence)
 extractAlignedSequences iterationnumber modelconstruction
   | iterationnumber == 0 =  V.map (\(number,seq) -> (number + 1,seq)) (V.indexed (V.fromList ([inputSequence])))
@@ -183,7 +181,6 @@ extractAlignedSequences iterationnumber modelconstruction
         seqRecords = (concat seqRecordsperTaxrecord)
         alignedSeqRecords = filter (\seqRec -> (aligned seqRec) > 0) seqRecords 
         indexedSeqRecords = V.map (\(number,seq) -> (number + 1,seq)) (V.indexed (V.fromList (inputSequence : (map nucleotideSequence alignedSeqRecords))))
-
 
 filterByParentTaxId :: [(BlastHit,Int)] -> Bool -> [(BlastHit,Int)]
 filterByParentTaxId blastHitsWithParentTaxId singleHitPerParentTaxId   
@@ -297,14 +294,14 @@ computeAlignmentSCIs alignmentFilepaths rnazOutputFilepaths = do
   let zippedFilepaths = zip alignmentFilepaths rnazOutputFilepaths
   mapM_ systemRNAz zippedFilepaths  
 
-alignSequences :: String -> [String] -> [String] -> [String] -> IO ()
-alignSequences program fastaFilepaths alignmentFilepaths summaryFilepaths = do
-  let zipped3Filepaths = zip3 fastaFilepaths alignmentFilepaths summaryFilepaths
-  let zippedFilepaths = zip fastaFilepaths alignmentFilepaths
+alignSequences :: String -> String -> [String] -> [String] -> [String] -> IO ()
+alignSequences program options fastaFilepaths alignmentFilepaths summaryFilepaths = do
+  let zipped3Filepaths = zip3 fastaFilepaths alignmentFilepaths summaryFilepaths 
+  let zippedFilepaths = zip fastaFilepaths alignmentFilepaths 
   if program == "mlocarna"
     then do 
-    mapM_ systemLocarna zippedFilepaths
-    else mapM_ systemClustalw2 zipped3Filepaths
+    mapM_ (systemLocarna options) zippedFilepaths
+    else mapM_ (systemClustalw2 options) zipped3Filepaths
 
 replacePipeChars :: Char -> Char
 replacePipeChars '|' = '-'

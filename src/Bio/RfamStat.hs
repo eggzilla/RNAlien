@@ -51,8 +51,8 @@ main = do
   let pairwiseClustalw2SummaryFilepath = constructPairwiseAlignmentSummaryFilePaths outputPath rfamIndexedFamilies
   let pairwiseLocarnaFilepath = constructPairwiseAlignmentFilePaths "mlocarna" outputPath rfamIndexedFamilies
   let pairwiseLocarnainClustalw2FormatFilepath = constructPairwiseAlignmentFilePaths "mlocarnainclustalw2format" outputPath rfamIndexedFamilies
-  alignSequences "clustalw2" pairwiseFastaFilepath pairwiseClustalw2Filepath pairwiseClustalw2SummaryFilepath
-  alignSequences "mlocarna" pairwiseFastaFilepath pairwiseLocarnaFilepath []
+  alignSequences "clustalw2" "" pairwiseFastaFilepath pairwiseClustalw2Filepath pairwiseClustalw2SummaryFilepath 
+  alignSequences "mlocarna" "--threads=3 --free-endgaps" pairwiseFastaFilepath pairwiseLocarnaFilepath [] 
   --compute SCI
   let pairwiseClustalw2RNAzFilePaths = constructPairwiseRNAzFilePaths "clustalw2" outputPath rfamIndexedFamilies
   let pairwiseLocarnaRNAzFilePaths = constructPairwiseRNAzFilePaths "mlocarana" outputPath rfamIndexedFamilies

@@ -155,8 +155,8 @@ alignCandidates staticOptions modelConstruction candidates = do
   let pairwiseClustalw2SummaryFilepath = constructPairwiseAlignmentSummaryFilePaths iterationDirectory alignmentSequences
   let pairwiseLocarnaFilepath = constructPairwiseAlignmentFilePaths "mlocarna" iterationDirectory alignmentSequences
   let pairwiseLocarnainClustalw2FormatFilepath = constructPairwiseAlignmentFilePaths "mlocarnainclustalw2format" iterationDirectory alignmentSequences
-  alignSequences "clustalw2" pairwiseFastaFilepath pairwiseClustalw2Filepath pairwiseClustalw2SummaryFilepath
-  alignSequences "mlocarna" pairwiseFastaFilepath pairwiseLocarnaFilepath []
+  alignSequences "clustalw2" "" pairwiseFastaFilepath pairwiseClustalw2Filepath pairwiseClustalw2SummaryFilepath
+  alignSequences "mlocarna" "--iterate --free-endgaps" pairwiseFastaFilepath pairwiseLocarnaFilepath []
   clustalw2Summary <- mapM readClustalw2Summary pairwiseClustalw2SummaryFilepath
   let clustalw2Score = map (\x -> show (alignmentScore (fromRight x))) clustalw2Summary
   --compute SCI
@@ -174,9 +174,6 @@ alignCandidates staticOptions modelConstruction candidates = do
   putStrLn "mlocarnaRNAz:"
   let locarnaSCI = map (\x -> show (structureConservationIndex (fromRight x))) mlocarnaRNAzOutput
   return (clustalw2Score,clustalw2SCI)
-
-
-
 
 main = do
   args <- getArgs
