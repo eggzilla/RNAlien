@@ -24,13 +24,17 @@ import qualified Data.ByteString.Lazy.Char8 as L
 import Data.Either
 import Data.Either.Unwrap
 import Bio.RNAlienLibary
+import Data.Csv
+
 data Options = Options            
   { inputFilePath :: String,
+    inputRfamAnnotationFilePath :: String,
     outputPath :: String
   } deriving (Show,Data,Typeable)
 
 options = Options
   { inputFilePath = def &= name "i" &= help "Path to input fasta file",
+    inputRfamAnnotationFilePath = def &= name "r" &= help "Path to input Rfam Annotation file",
     outputPath = def &= name "o" &= help "Path to output directory"
   } &= summary "RfamStat" &= help "Florian Eggenhofer - 2014" &= verbosity   
     
@@ -41,6 +45,12 @@ main = do
   --inputFasta <- readFasta inputFilePath
   --let rfamFamilies = groupByRfamIndex inputFasta
   inputSeedAln <- readFile inputFilePath
+  --Rfam Annotation file needs to be converted to UTF8 and quote character to be removed, umlaut u charcter replaced with ue
+  inputRfamAnnotation <- readFile inputRfamAnnotationFilePath
+  let myDecodeOptions = defaultDecodeOptions {
+       decDelimiter = fromIntegral (ord '\t')
+     }
+  let decodedRfamAnnotation = decodeWith myDecodeOptions NoHeader (L.pack inputRfamAnnotation) :: Either String (V.Vector [String])
   let seedFamilyAlns = drop 1 (splitOn "# STOCKHOLM 1.0" inputSeedAln)
   let rfamFamilies = map processFamilyAln seedFamilyAlns
   --print (head rfamFamilies)
@@ -51,40 +61,41 @@ main = do
   let pairwiseClustalw2SummaryFilepath = constructPairwiseAlignmentSummaryFilePaths outputPath rfamIndexedFamilies
   let pairwiseLocarnaFilepath = constructPairwiseAlignmentFilePaths "mlocarna" outputPath rfamIndexedFamilies
   let pairwiseLocarnainClustalw2FormatFilepath = constructPairwiseAlignmentFilePaths "mlocarnainclustalw2format" outputPath rfamIndexedFamilies
+  print decodedRfamAnnotation
   alignSequences "clustalw2" "" pairwiseFastaFilepath pairwiseClustalw2Filepath pairwiseClustalw2SummaryFilepath 
-  alignSequences "mlocarna" "--threads=3 --free-endgaps" pairwiseFastaFilepath pairwiseLocarnaFilepath [] 
+  ---alignSequences "mlocarna" "--threads=7 --local-progressive --pf-scale=0.6" pairwiseFastaFilepath pairwiseLocarnaFilepath [] 
   --compute SCI
   let pairwiseClustalw2RNAzFilePaths = constructPairwiseRNAzFilePaths "clustalw2" outputPath rfamIndexedFamilies
   let pairwiseLocarnaRNAzFilePaths = constructPairwiseRNAzFilePaths "mlocarana" outputPath rfamIndexedFamilies
   computeAlignmentSCIs pairwiseClustalw2Filepath pairwiseClustalw2RNAzFilePaths
-  computeAlignmentSCIs pairwiseLocarnainClustalw2FormatFilepath pairwiseLocarnaRNAzFilePaths
+  ---computeAlignmentSCIs pairwiseLocarnainClustalw2FormatFilepath pairwiseLocarnaRNAzFilePaths
   --retrieveAlignmentSCIs
   clustalw2RNAzOutput <- mapM readRNAz pairwiseClustalw2RNAzFilePaths
-  mlocarnaRNAzOutput <- mapM readRNAz pairwiseLocarnaRNAzFilePaths 
+  ---mlocarnaRNAzOutput <- mapM readRNAz pairwiseLocarnaRNAzFilePaths 
   let clustalw2SCI = map (\x -> (structureConservationIndex (fromRight x))) clustalw2RNAzOutput
   let clustalw2SCIaverage = (sum clustalw2SCI) / (fromIntegral (length clustalw2SCI))
   let clustalw2SCImax = maximum clustalw2SCI
   let clustalw2SCImin = minimum clustalw2SCI
-  let locarnaSCI = map (\x -> (structureConservationIndex (fromRight x))) mlocarnaRNAzOutput
-  let locarnaSCIaverage = (sum clustalw2SCI) / (fromIntegral (length clustalw2SCI))
-  let locarnaSCImax = maximum locarnaSCI
-  let locarnaSCImin = minimum locarnaSCI
+  ---let locarnaSCI = map (\x -> (structureConservationIndex (fromRight x))) mlocarnaRNAzOutput
+  ---let locarnaSCIaverage = (sum clustalw2SCI) / (fromIntegral (length clustalw2SCI))
+  ---let locarnaSCImax = maximum locarnaSCI
+  ---let locarnaSCImin = minimum locarnaSCI
   putStrLn "clustalw2averageSCI:"
   putStrLn (show clustalw2SCIaverage)
   putStrLn "clustalw2maxSCI:"
   putStrLn (show clustalw2SCImax)
   putStrLn "clustalw2minSCI:"
   putStrLn (show clustalw2SCImin)
-  putStrLn "mlocarnaaverageSCI:"
-  putStrLn (show locarnaSCIaverage)
-  putStrLn "mlocarnamaxSCI:"
-  putStrLn (show locarnaSCImax)
-  putStrLn "mlocarnaminSCI:"
-  putStrLn (show locarnaSCImin)
+  ---putStrLn "mlocarnaaverageSCI:"
+  ---putStrLn (show locarnaSCIaverage)
+  ---putStrLn "mlocarnamaxSCI:"
+  ---putStrLn (show locarnaSCImax)
+  ---putStrLn "mlocarnaminSCI:"
+  ---putStrLn (show locarnaSCImin)
   putStrLn "clustalw2SCIs:"
   print clustalw2SCI
-  putStrLn "mlocarnaminSCIs:"
-  print locarnaSCI
+  ---putStrLn "mlocarnaminSCIs:"
+  ---print locarnaSCI
 
 processFamilyAln :: String -> [Sequence]
 processFamilyAln seedFamilyAln = seedFamilySequences
