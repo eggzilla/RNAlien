@@ -61,11 +61,16 @@ main = do
   let pairwiseClustalw2SummaryFilepath = constructPairwiseAlignmentSummaryFilePaths outputPath rfamIndexedFamilies
   let pairwiseLocarnaFilepath = constructPairwiseAlignmentFilePaths "mlocarna" outputPath rfamIndexedFamilies
   let pairwiseLocarnainClustalw2FormatFilepath = constructPairwiseAlignmentFilePaths "mlocarnainclustalw2format" outputPath rfamIndexedFamilies
-  print decodedRfamAnnotation
+  --print decodedRfamAnnotation
   alignSequences "clustalw2" "" pairwiseFastaFilepath pairwiseClustalw2Filepath pairwiseClustalw2SummaryFilepath 
-  ---alignSequences "mlocarna" "--threads=7 --local-progressive --pf-scale=0.6" pairwiseFastaFilepath pairwiseLocarnaFilepath [] 
+  alignSequences "mlocarnatimeout" "--threads=7 --local-progressive" pairwiseFastaFilepath pairwiseLocarnaFilepath [] 
   --compute SCI
   let pairwiseClustalw2RNAzFilePaths = constructPairwiseRNAzFilePaths "clustalw2" outputPath rfamIndexedFamilies
+  -- filter failed mlocarna jobs by checking for mlocarna result folders without index.aln
+  locarnaSuccess <- mapM doesFileExist pairwiseLocarnaFilepath
+  putStrLn "FailedLocarnaJobs:"
+  let failedLocarnaJobs = V.filter (\(index,success)-> success == False) (V.indexed (V.fromList locarnaSuccess))
+  print failedLocarnaJobs
   let pairwiseLocarnaRNAzFilePaths = constructPairwiseRNAzFilePaths "mlocarana" outputPath rfamIndexedFamilies
   computeAlignmentSCIs pairwiseClustalw2Filepath pairwiseClustalw2RNAzFilePaths
   ---computeAlignmentSCIs pairwiseLocarnainClustalw2FormatFilepath pairwiseLocarnaRNAzFilePaths

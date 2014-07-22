@@ -43,9 +43,6 @@ import qualified Data.Vector as V
 
 encodedTaxIDQuery :: String -> String
 encodedTaxIDQuery taxID = "txid" ++ taxID ++ "+%5BORGN%5D&EQ_OP"
-         
--- | RNA family model expansion 
---modelExpansion iterationnumber alignmentPath modelPath = do
 
 -- | Adds cm prefix to pseudo random number
 randomid :: Int16 -> String
@@ -65,7 +62,7 @@ systemLocarna options (inputFilePath, outputFilePath) = system ("mlocarna " ++ o
  
 -- | Run external mlocarna command and read the output into the corresponding datatype, there is also a folder created at the location of the input fasta file, the job is terminated after the timeout provided in seconds
 systemLocarnaWithTimeout :: String -> String -> (String,String) -> IO ExitCode
-systemLocarnaWithTimeout timeout options (inputFilePath, outputFilePath) = system ("timeout " ++ timeout ++"s"++ "mlocarna " ++ options ++ " " ++ inputFilePath ++ " > " ++ outputFilePath)
+systemLocarnaWithTimeout timeout options (inputFilePath, outputFilePath) = system ("timeout " ++ timeout ++"s "++ "mlocarna " ++ options ++ " " ++ inputFilePath ++ " > " ++ outputFilePath)
        
 -- | Run external clustalw2 command and read the output into the corresponding datatype
 systemClustalw2 :: String -> (String,String,String) -> IO ExitCode
@@ -309,11 +306,12 @@ computeAlignmentSCIs alignmentFilepaths rnazOutputFilepaths = do
 alignSequences :: String -> String -> [String] -> [String] -> [String] -> IO ()
 alignSequences program options fastaFilepaths alignmentFilepaths summaryFilepaths = do
   let zipped3Filepaths = zip3 fastaFilepaths alignmentFilepaths summaryFilepaths 
-  let zippedFilepaths = zip fastaFilepaths alignmentFilepaths 
-  if program == "mlocarna"
-    then do 
-    mapM_ (systemLocarna options) zippedFilepaths
-    else mapM_ (systemClustalw2 options) zipped3Filepaths
+  let zippedFilepaths = zip fastaFilepaths alignmentFilepaths
+  let timeout = "3600"
+  case program of
+    "mlocarna" -> mapM_ (systemLocarna options) zippedFilepaths
+    "mlocarnatimeout" -> mapM_ (systemLocarnaWithTimeout timeout options) zippedFilepaths
+    _ -> mapM_ (systemClustalw2 options) zipped3Filepaths
 
 replacePipeChars :: Char -> Char
 replacePipeChars '|' = '-'
