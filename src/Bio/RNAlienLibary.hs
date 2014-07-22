@@ -38,6 +38,7 @@ import Bio.EntrezHTTP
 import Data.List.Split
 import Bio.GenbankParser 
 import Bio.GenbankTools
+import System.Exit
 import qualified Data.Vector as V
 
 encodedTaxIDQuery :: String -> String
@@ -59,20 +60,31 @@ systemBlast filePath iterationNumber = do
   return inputBlast
 
 -- | Run external mlocarna command and read the output into the corresponding datatype, there is also a folder created at the location of the input fasta file
+systemLocarna :: String -> (String,String) -> IO ExitCode
 systemLocarna options (inputFilePath, outputFilePath) = system ("mlocarna " ++ options ++ " " ++ inputFilePath ++ " > " ++ outputFilePath)
-        
+ 
+-- | Run external mlocarna command and read the output into the corresponding datatype, there is also a folder created at the location of the input fasta file, the job is terminated after the timeout provided in seconds
+systemLocarnaWithTimeout :: String -> String -> (String,String) -> IO ExitCode
+systemLocarnaWithTimeout timeout options (inputFilePath, outputFilePath) = system ("timeout " ++ timeout ++"s"++ "mlocarna " ++ options ++ " " ++ inputFilePath ++ " > " ++ outputFilePath)
+       
 -- | Run external clustalw2 command and read the output into the corresponding datatype
+systemClustalw2 :: String -> (String,String,String) -> IO ExitCode
 systemClustalw2 options (inputFilePath, outputFilePath, summaryFilePath) = system ("clustalw2 " ++ options ++ "-INFILE=" ++ inputFilePath ++ " -OUTFILE=" ++ outputFilePath ++ ">" ++ summaryFilePath)
 
 -- | Run external RNAalifold command and read the output into the corresponding datatype
+systemRNAalifold :: String -> String -> IO ExitCode
 systemRNAalifold filePath iterationNumber = system ("RNAalifold " ++ filePath  ++ " >" ++ iterationNumber ++ ".alifold")
 
 -- | Run external RNAz command and read the output into the corresponding datatype
+systemRNAz :: (String,String) -> IO ExitCode
 systemRNAz (inputFilePath, outputFilePath) = system ("RNAz " ++ inputFilePath ++ " >" ++ outputFilePath)
 
 -- | Run external CMbuild command and read the output into the corresponding datatype 
-systemCMbuild filePath iterationNumber = system ("cmbuild " ++ filePath ++ " >" ++ iterationNumber ++ ".cm")                                         
+systemCMbuild ::  String -> String -> IO ExitCode
+systemCMbuild filePath iterationNumber = system ("cmbuild " ++ filePath ++ " >" ++ iterationNumber ++ ".cm")  
+                                       
 -- | Run CMCompare and read the output into the corresponding datatype
+systemCMcompare ::  String -> String -> IO ExitCode
 systemCMcompare filePath iterationNumber = system ("CMcompare " ++ filePath ++ " >" ++ iterationNumber ++ ".cmcoutput")
 
 readInt :: String -> Int
