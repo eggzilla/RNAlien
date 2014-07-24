@@ -13,6 +13,7 @@ import System.Directory
 import Data.List.Split
 import Data.List
 import Data.Char
+import Data.Maybe
 import Bio.Core.Sequence 
 import Bio.Sequence.Fasta 
 import Bio.ViennaRNAParser
@@ -52,9 +53,10 @@ main = do
      }
   let decodedRfamAnnotation = decodeWith myDecodeOptions NoHeader (L.pack inputRfamAnnotation) :: Either String (V.Vector [String])
   let seedFamilyAlns = drop 1 (splitOn "# STOCKHOLM 1.0" inputSeedAln)
+  -- rfamID and list of family Fasta sequences
   let rfamFamilies = map processFamilyAln seedFamilyAlns
-  --print (head rfamFamilies)
-  let rfamIndexedFamilies = (V.indexed (V.fromList rfamFamilies))
+  let rfamIndexedIDFamilies = V.map (\(iterator,(id,sequences)) -> (iterator,id,sequences)) (V.indexed (V.fromList rfamFamilies))
+  let rfamIndexedFamilies = V.map (\(iterator,id,sequences) -> (iterator,sequences)) rfamIndexedIDFamilies
   V.mapM_ (\(number,sequence) -> writeFasta (outputPath ++ (show number) ++ ".fa") sequence) rfamIndexedFamilies
   let pairwiseFastaFilepath = constructPairwiseFastaFilePaths outputPath rfamIndexedFamilies
   let pairwiseClustalw2Filepath = constructPairwiseAlignmentFilePaths "clustalw2" outputPath rfamIndexedFamilies
@@ -62,8 +64,8 @@ main = do
   let pairwiseLocarnaFilepath = constructPairwiseAlignmentFilePaths "mlocarna" outputPath rfamIndexedFamilies
   let pairwiseLocarnainClustalw2FormatFilepath = constructPairwiseAlignmentFilePaths "mlocarnainclustalw2format" outputPath rfamIndexedFamilies
   --print decodedRfamAnnotation
-  alignSequences "clustalw2" "" pairwiseFastaFilepath pairwiseClustalw2Filepath pairwiseClustalw2SummaryFilepath 
-  alignSequences "mlocarnatimeout" "--threads=7 --local-progressive" pairwiseFastaFilepath pairwiseLocarnaFilepath [] 
+  --alignSequences "clustalw2" "" pairwiseFastaFilepath pairwiseClustalw2Filepath pairwiseClustalw2SummaryFilepath 
+  --alignSequences "mlocarnatimeout" "--threads=7 --local-progressive" pairwiseFastaFilepath pairwiseLocarnaFilepath [] 
   --compute SCI
   let pairwiseClustalw2RNAzFilePaths = constructPairwiseRNAzFilePaths "clustalw2" outputPath rfamIndexedFamilies
   -- filter failed mlocarna jobs by checking for mlocarna result folders without index.aln
@@ -76,15 +78,15 @@ main = do
   ---computeAlignmentSCIs pairwiseLocarnainClustalw2FormatFilepath pairwiseLocarnaRNAzFilePaths
   --retrieveAlignmentSCIs
   clustalw2RNAzOutput <- mapM readRNAz pairwiseClustalw2RNAzFilePaths
-  ---mlocarnaRNAzOutput <- mapM readRNAz pairwiseLocarnaRNAzFilePaths 
+  mlocarnaRNAzOutput <- mapM readRNAz pairwiseLocarnaRNAzFilePaths 
   let clustalw2SCI = map (\x -> (structureConservationIndex (fromRight x))) clustalw2RNAzOutput
   let clustalw2SCIaverage = (sum clustalw2SCI) / (fromIntegral (length clustalw2SCI))
   let clustalw2SCImax = maximum clustalw2SCI
   let clustalw2SCImin = minimum clustalw2SCI
-  ---let locarnaSCI = map (\x -> (structureConservationIndex (fromRight x))) mlocarnaRNAzOutput
-  ---let locarnaSCIaverage = (sum clustalw2SCI) / (fromIntegral (length clustalw2SCI))
-  ---let locarnaSCImax = maximum locarnaSCI
-  ---let locarnaSCImin = minimum locarnaSCI
+  let locarnaSCI = map (\x -> (structureConservationIndex (fromRight x))) mlocarnaRNAzOutput
+  let locarnaSCIaverage = (sum clustalw2SCI) / (fromIntegral (length clustalw2SCI))
+  let locarnaSCImax = maximum locarnaSCI
+  let locarnaSCImin = minimum locarnaSCI
   putStrLn "clustalw2averageSCI:"
   putStrLn (show clustalw2SCIaverage)
   putStrLn "clustalw2maxSCI:"
@@ -102,11 +104,13 @@ main = do
   ---putStrLn "mlocarnaminSCIs:"
   ---print locarnaSCI
 
-processFamilyAln :: String -> [Sequence]
-processFamilyAln seedFamilyAln = seedFamilySequences
+processFamilyAln :: String -> (String,[Sequence])
+processFamilyAln seedFamilyAln = rfamIDAndseedFamilySequences
   where seedFamilyAlnLines = lines seedFamilyAln
         -- remove empty lines from splitting
         seedFamilyNonEmpty =  filter (\alnline -> not (null alnline)) seedFamilyAlnLines
+        --extract RNA familyRfam ID
+        rnaFamilyID = drop 10 (fromJust (find (\line -> isPrefixOf "#=GF AC" line) seedFamilyNonEmpty))
         -- remove annotation and spacer lines
         seedFamilyIdSeqLines =  filter (\alnline -> ((not ((head alnline) == '#'))) && (not ((head alnline) == ' ')) && (not ((head alnline) == '/'))) seedFamilyNonEmpty 
         -- put id and corresponding seq of each line into a list and remove whitspaces        
@@ -118,6 +122,7 @@ processFamilyAln seedFamilyAln = seedFamilySequences
         -- line tuples grouped by id
         seedFamilyIdandSeqTupleGroups = groupBy (\tuple1 tuple2 -> (fst tuple1) == (fst tuple2)) seedFamilyIdandSeqTupleSorted
         seedFamilySequences = map mergeIdSeqTuplestoSequence seedFamilyIdandSeqTupleGroups
+        rfamIDAndseedFamilySequences = (rnaFamilyID,seedFamilySequences)
 
 mergeIdSeqTuplestoSequence :: [(String,String)] -> Sequence
 mergeIdSeqTuplestoSequence tuplelist = sequence
