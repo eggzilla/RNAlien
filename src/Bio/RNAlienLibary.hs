@@ -173,7 +173,7 @@ constructPairwiseAlignmentSummaryFilePaths currentDir alignments = V.toList (V.m
 
 constructPairwiseRNAzFilePaths :: String -> String -> V.Vector (Int,[Sequence]) -> [String]
 constructPairwiseRNAzFilePaths program currentDir alignments 
-  | program == "mlocarnate" = V.toList (V.map (\(iterator,_) -> currentDir ++ (show iterator) ++ ".rnazmlocarnate") alignments)
+  | program == "mlocarna" = V.toList (V.map (\(iterator,_) -> currentDir ++ (show iterator) ++ ".rnazmlocarna") alignments)
   | otherwise = V.toList (V.map (\(iterator,_) -> currentDir ++ (show iterator) ++ ".rnaz") alignments)
 
 extractCandidateSequences :: [(Sequence,Int,String)] -> V.Vector (Int,Sequence)
