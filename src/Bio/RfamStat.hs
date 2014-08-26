@@ -1,7 +1,10 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 
--- | Compute statistics from Rfam seed fasta
+-- | Compute statistics from Rfam seed 
+-- 1. Create .fasta files from Rfam seed
+-- 2. Submit stage1.sh (mlocarna alignment with 6 threads) and consecutively stage2.sh (clustalw2 alginment and RNAz for both aln types)
+-- 3. Run statistics
 module Main where
     
 import System.Console.CmdArgs    
@@ -26,6 +29,8 @@ import Data.Either
 import Data.Either.Unwrap
 import Bio.RNAlienLibary
 import Data.Csv
+import Control.Exception
+import Control.Monad
 
 data Options = Options            
   { inputFilePath :: String,
@@ -42,9 +47,7 @@ options = Options
 main = do
   args <- getArgs
   Options{..} <- cmdArgs options       
-  --createDirectory (outputPath)
-  --inputFasta <- readFasta inputFilePath
-  --let rfamFamilies = groupByRfamIndex inputFasta
+  putStrLn "Reading Rfam Annotation"
   inputSeedAln <- readFile inputFilePath
   --Rfam Annotation file needs to be converted to UTF8 and quote character to be removed, umlaut u charcter replaced with ue
   inputRfamAnnotation <- readFile inputRfamAnnotationFilePath
@@ -54,55 +57,80 @@ main = do
   let decodedRfamAnnotation = decodeWith myDecodeOptions NoHeader (L.pack inputRfamAnnotation) :: Either String (V.Vector [String])
   let seedFamilyAlns = drop 1 (splitOn "# STOCKHOLM 1.0" inputSeedAln)
   -- rfamID and list of family Fasta sequences
+  putStrLn "Extracting families from Seed Alignment"
   let rfamFamilies = map processFamilyAln seedFamilyAlns
   let rfamIndexedIDFamilies = V.map (\(iterator,(id,sequences)) -> (iterator,id,sequences)) (V.indexed (V.fromList rfamFamilies))
   let rfamIndexedFamilies = V.map (\(iterator,id,sequences) -> (iterator,sequences)) rfamIndexedIDFamilies
+  putStrLn "Writing familiy fasta files"
   V.mapM_ (\(number,sequence) -> writeFasta (outputPath ++ (show number) ++ ".fa") sequence) rfamIndexedFamilies
   let pairwiseFastaFilepath = constructPairwiseFastaFilePaths outputPath rfamIndexedFamilies
   let pairwiseClustalw2Filepath = constructPairwiseAlignmentFilePaths "clustalw2" outputPath rfamIndexedFamilies
   let pairwiseClustalw2SummaryFilepath = constructPairwiseAlignmentSummaryFilePaths outputPath rfamIndexedFamilies
   let pairwiseLocarnaFilepath = constructPairwiseAlignmentFilePaths "mlocarna" outputPath rfamIndexedFamilies
   let pairwiseLocarnainClustalw2FormatFilepath = constructPairwiseAlignmentFilePaths "mlocarnainclustalw2format" outputPath rfamIndexedFamilies
-  --print decodedRfamAnnotation
+  let pairwiseClustalw2RNAzFilePaths = constructPairwiseRNAzFilePaths "clustalw2" outputPath rfamIndexedFamilies
+
+  --Alignment and SCI computation is done by submitting stage1.sh and stage2.sh to sun gridengine
   --alignSequences "clustalw2" "" pairwiseFastaFilepath pairwiseClustalw2Filepath pairwiseClustalw2SummaryFilepath 
   --alignSequences "mlocarnatimeout" "--threads=7 --local-progressive" pairwiseFastaFilepath pairwiseLocarnaFilepath [] 
-  --compute SCI
-  let pairwiseClustalw2RNAzFilePaths = constructPairwiseRNAzFilePaths "clustalw2" outputPath rfamIndexedFamilies
+  --computeAlignmentSCIs pairwiseClustalw2Filepath pairwiseClustalw2RNAzFilePaths
+  --computeAlignmentSCIs pairwiseLocarnainClustalw2FormatFilepath pairwiseLocarnaRNAzFilePaths
+  
   -- filter failed mlocarna jobs by checking for mlocarna result folders without index.aln
-  locarnaSuccess <- mapM doesFileExist pairwiseLocarnaFilepath
-  putStrLn "FailedLocarnaJobs:"
+  let pairwiseLocarnaRNAzFilePaths = constructPairwiseRNAzFilePaths "mlocarna" outputPath rfamIndexedFamilies
+  locarnaSuccess <- mapM doesFileExist pairwiseLocarnaRNAzFilePaths
+  putStrLn "FailedLocarnaRNAzJobs:"
   let failedLocarnaJobs = V.filter (\(index,success)-> success == False) (V.indexed (V.fromList locarnaSuccess))
-  print failedLocarnaJobs
-  let pairwiseLocarnaRNAzFilePaths = constructPairwiseRNAzFilePaths "mlocarana" outputPath rfamIndexedFamilies
-  computeAlignmentSCIs pairwiseClustalw2Filepath pairwiseClustalw2RNAzFilePaths
-  ---computeAlignmentSCIs pairwiseLocarnainClustalw2FormatFilepath pairwiseLocarnaRNAzFilePaths
+  print failedLocarnaJobs 
+  
   --retrieveAlignmentSCIs
-  clustalw2RNAzOutput <- mapM readRNAz pairwiseClustalw2RNAzFilePaths
-  mlocarnaRNAzOutput <- mapM readRNAz pairwiseLocarnaRNAzFilePaths 
-  let clustalw2SCI = map (\x -> (structureConservationIndex (fromRight x))) clustalw2RNAzOutput
-  let clustalw2SCIaverage = (sum clustalw2SCI) / (fromIntegral (length clustalw2SCI))
-  let clustalw2SCImax = maximum clustalw2SCI
-  let clustalw2SCImin = minimum clustalw2SCI
-  let locarnaSCI = map (\x -> (structureConservationIndex (fromRight x))) mlocarnaRNAzOutput
-  let locarnaSCIaverage = (sum clustalw2SCI) / (fromIntegral (length clustalw2SCI))
-  let locarnaSCImax = maximum locarnaSCI
-  let locarnaSCImin = minimum locarnaSCI
+  maybeClustalw2SCIs <- mapM maybeExtractSCIfromFile (drop 1 pairwiseClustalw2RNAzFilePaths)
+  let clustalw2SCIs = map fromJust (filter isJust maybeClustalw2SCIs)
+  let failedclustalscinumber = length (filter isNothing maybeClustalw2SCIs)
+  maybeLocarnaSCIs <- mapM maybeExtractSCIfromFile (drop 1 pairwiseLocarnaRNAzFilePaths) 
+  let locarnaSCIs = map fromJust (filter isJust maybeLocarnaSCIs)
+  let failedlocarnascinumber = length (filter isNothing maybeLocarnaSCIs)
+ 
+  --compute statistics
+  let clustalw2SCIaverage = (sum clustalw2SCIs) / (fromIntegral (length clustalw2SCIs))
+  let clustalw2SCImax = maximum clustalw2SCIs
+  let clustalw2SCImin = minimum clustalw2SCIs
+ 
+  let locarnaSCIaverage = (sum locarnaSCIs) / (fromIntegral (length locarnaSCIs))
+  let locarnaSCImax = maximum locarnaSCIs
+  let locarnaSCImin = minimum locarnaSCIs
+ 
+  --print statistics
   putStrLn "clustalw2averageSCI:"
   putStrLn (show clustalw2SCIaverage)
   putStrLn "clustalw2maxSCI:"
   putStrLn (show clustalw2SCImax)
   putStrLn "clustalw2minSCI:"
   putStrLn (show clustalw2SCImin)
-  ---putStrLn "mlocarnaaverageSCI:"
-  ---putStrLn (show locarnaSCIaverage)
-  ---putStrLn "mlocarnamaxSCI:"
-  ---putStrLn (show locarnaSCImax)
-  ---putStrLn "mlocarnaminSCI:"
-  ---putStrLn (show locarnaSCImin)
-  putStrLn "clustalw2SCIs:"
-  print clustalw2SCI
-  ---putStrLn "mlocarnaminSCIs:"
-  ---print locarnaSCI
+  putStrLn "failed clustalw2 RNAz number:"
+  putStrLn (show failedclustalscinumber)
+
+  putStrLn "mlocarnaaverageSCI:"
+  putStrLn (show locarnaSCIaverage)
+  putStrLn "mlocarnamaxSCI:"
+  putStrLn (show locarnaSCImax)
+  putStrLn "mlocarnaminSCI:"
+  putStrLn (show locarnaSCImin)
+  putStrLn "failed locarna RNAz number:"
+  putStrLn (show failedlocarnascinumber)
+
+-- | Extract structure conservation index from RNAz output file
+-- Note: Due to the number of Rfam families reading of files in lazy fashion can open too many connections (evaluate)
+maybeExtractSCIfromFile :: String -> IO (Maybe Double)
+maybeExtractSCIfromFile rnazresultfilepath = do
+  rnazOutput <- readFile rnazresultfilepath >>= evaluate . parseRNAz
+  let sci = maybeExtractSCIfromEither rnazOutput
+  return sci
+
+maybeExtractSCIfromEither :: Either ParseError RNAzOutput -> Maybe Double
+maybeExtractSCIfromEither rnazOutput  
+  | isRight rnazOutput = Just (structureConservationIndex (fromRight rnazOutput))
+  | isLeft rnazOutput = Nothing
 
 processFamilyAln :: String -> (String,[Sequence])
 processFamilyAln seedFamilyAln = rfamIDAndseedFamilySequences
