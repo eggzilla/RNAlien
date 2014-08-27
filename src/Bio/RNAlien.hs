@@ -60,7 +60,7 @@ options = Options
     fullSequenceOffset = "20" &= name "f" &= help "Overhangs of retrieved fasta sequences compared to query sequence",
     lengthFilter = False &= name "l" &= help "Filter blast hits per genomic length",
     singleHitperTax = False &= name "s" &= help "Only the best blast hit per taxonomic entry is considered"
-  } &= summary "RNAlien devel version" &= help "Florian Eggenhofer - 2013" &= verbosity       
+  } &= summary "RNAlien devel version" &= help "Florian Eggenhofer - >2013" &= verbosity       
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 --alignmentConstruction :: StaticOptions -> [ModelConstruction] -> [ModelConstruction]
@@ -69,6 +69,8 @@ alignmentConstruction staticOptions modelconstruction = do
   let currentModelConstruction = modelconstruction
   --extract queries
   let queries = extractQueries (iterationNumber currentModelConstruction) currentModelConstruction
+  putStrLn "Queries"
+  print queries
   if queries /= []
      then do
        --search queries
@@ -78,13 +80,14 @@ alignmentConstruction staticOptions modelconstruction = do
        alignmentResults <- alignCandidates staticOptions currentModelConstruction (concat candidates)
        print alignmentResults
        --select candidates
-       
-       -- prepare next iteration 
+     
+        -- prepare next iteration 
        let newIterationNumber = (iterationNumber currentModelConstruction) + 1
        let nextModelConstruction = constructNext newIterationNumber currentModelConstruction
  
-       nextIteration <- alignmentConstruction staticOptions nextModelConstruction
-       return ([modelconstruction] ++ nextIteration)
+       --nextIteration <- alignmentConstruction staticOptions nextModelConstruction
+       --return ([modelconstruction] ++ nextIteration)
+       return [modelconstruction]
      else return [modelconstruction]
 
 constructNext newIterationNumber modelconstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) [] []
@@ -107,6 +110,7 @@ searchCandidates staticOptions query = do
   putStrLn "Sending blast query"
   ---blastOutput <- blastHTTP blastQuery 
   ---print blastOutput
+  --print (lefts blastOutput)
   ---let rightBlast = fromRight blastOutput
   rightBlast <- readXML "/home/mescalin/egg/initialblast/RhyB.blastout"
   let bestHit = getBestHit rightBlast
@@ -132,16 +136,17 @@ searchCandidates staticOptions query = do
   -- Retrieval of genbank features in the hit region
   genbankFeaturesOutput <- mapM retrieveGenbankFeatures missingGenbankFeatures
   let genbankFeatures = map (\(genbankfeatureOutput,taxid,subject) -> (parseGenbank genbankfeatureOutput,taxid,subject)) genbankFeaturesOutput
+  appendFile ((tempDirPath staticOptions) ++ "error") (show (lefts (map (\(a,b,c) -> a) genbankFeatures)))
   --let annotatedSequences = map (\(rightgenbankfeature,taxid) -> ((extractSpecificFeatureSequence "gene" rightgenbankfeature),taxid)) (map (\(genbankfeature,taxid) -> (fromRight genbankfeature,taxid)) genbankFeatures)
   let rightGenbankFeatures = map (\(genbankfeature,taxid,subject) -> (fromRight genbankfeature,taxid,subject)) genbankFeatures
   let annotatedSequences = map (\(rightgenbankfeature,taxid,subject) -> (map (\singleseq -> (singleseq,taxid,subject)) (extractSpecificFeatureSequence "gene" rightgenbankfeature))) rightGenbankFeatures
   -- Retrieval of full sequences from entrez
   fullSequences <- mapM retrieveFullSequence missingSequenceElements
-  return  ((concat annotatedSequences) ++ fullSequences)
+  return ((concat annotatedSequences) ++ fullSequences)
 
 --alignCandidates :: StaticOptions -> ModelConstruction -> [(Sequence,Int,String)] ->
 alignCandidates staticOptions modelConstruction candidates = do
-  putStrLn "aligning Candidates"
+  putStrLn "Aligning Candidates"
   --Extract sequences from modelconstruction
   let alignedSequences = extractAlignedSequences (iterationNumber modelConstruction) modelConstruction 
   let candidateSequences = extractCandidateSequences candidates
@@ -156,7 +161,7 @@ alignCandidates staticOptions modelConstruction candidates = do
   let pairwiseLocarnaFilepath = constructPairwiseAlignmentFilePaths "mlocarna" iterationDirectory alignmentSequences
   let pairwiseLocarnainClustalw2FormatFilepath = constructPairwiseAlignmentFilePaths "mlocarnainclustalw2format" iterationDirectory alignmentSequences
   alignSequences "clustalw2" "" pairwiseFastaFilepath pairwiseClustalw2Filepath pairwiseClustalw2SummaryFilepath
-  alignSequences "mlocarna" "--iterate --free-endgaps" pairwiseFastaFilepath pairwiseLocarnaFilepath []
+  alignSequences "mlocarna" "--iterate --local-progressive" pairwiseFastaFilepath pairwiseLocarnaFilepath []
   clustalw2Summary <- mapM readClustalw2Summary pairwiseClustalw2SummaryFilepath
   let clustalw2Score = map (\x -> show (alignmentScore (fromRight x))) clustalw2Summary
   --compute SCI
@@ -189,6 +194,8 @@ main = do
   let tempDirRootFolderPath = "/scr/klingon/egg/temp/"
   let tempDirPath = tempDirRootFolderPath ++ sessionId ++ "/"
   createDirectory (tempDirPath)
+  putStrLn "Created Temp-Dir:"
+  putStrLn tempDirPath
   inputFasta <- readFasta inputFastaFilePath
   nodes <- readNCBISimpleTaxDumpNodes taxNodesFile 
   let rightNodes = fromRight nodes
@@ -197,4 +204,5 @@ main = do
   let initialization = ModelConstruction iterationNumber (head inputFasta) [] []
   alignment <- alignmentConstruction staticOptions initialization
   print alignment
+  putStrLn "Done"
   
