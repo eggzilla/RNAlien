@@ -59,6 +59,10 @@ main = do
        decDelimiter = fromIntegral (ord '\t')
      }
   let decodedRfamAnnotation = decodeWith myDecodeOptions NoHeader (L.pack inputRfamAnnotation) :: Either String (V.Vector [String])
+  if (isLeft decodedRfamAnnotation)
+    then do
+      print decodedRfamAnnotation
+    else print "RfamAnnotation ok"
   let seedFamilyAlns = drop 1 (splitOn "# STOCKHOLM 1.0" inputSeedAln)
   -- rfamID and list of family Fasta sequences
   putStrLn "Extracting families from Seed Alignment"
@@ -96,11 +100,11 @@ main = do
   let failedlocarnascinumber = length (filter isNothing maybeLocarnaSCIs)
  
   --compute statistics
-  let clustalw2SCIaverage = (sum clustalw2SCIs) / (fromIntegral (length clustalw2SCIs))
+  let clustalw2SCIaverage = (sum clustalw2SCIs) / (genericLength clustalw2SCIs)
   let clustalw2SCImax = maximum clustalw2SCIs
   let clustalw2SCImin = minimum clustalw2SCIs
  
-  let locarnaSCIaverage = (sum locarnaSCIs) / (fromIntegral (length locarnaSCIs))
+  let locarnaSCIaverage = (sum locarnaSCIs) / (genericLength locarnaSCIs)
   let locarnaSCImax = maximum locarnaSCIs
   let locarnaSCImin = minimum locarnaSCIs
    
@@ -108,8 +112,11 @@ main = do
   let rfamtypes = map (\line -> line !! 18) (V.toList (fromRight decodedRfamAnnotation))
   --putStrLn "Number of families:"
   --print (length rfamtypes)
-  let familyids = map (\(a,b,c) -> b)  (V.toList rfamIndexedIDFamilies)
-  let familytable =  zip4 familyids rfamtypes maybeClustalw2SCIs maybeLocarnaSCIs
+  let familytypes = map (\(a,b,c) -> b)  (V.toList rfamIndexedIDFamilies)
+  let familytable = zip4 familytypes rfamtypes maybeClustalw2SCIs maybeLocarnaSCIs
+  let sortedFamilyTable = sortBy compareFamilyTableType familytable
+  let groupedFamilyTable = groupBy sameFamilyTableType sortedFamilyTable
+  let familySCI = map computeFamilyTypeSCI groupedFamilyTable
  
   --print statistics
   putStrLn "clustalw2averageSCI:"
@@ -132,8 +139,21 @@ main = do
   --print ((head (V.toList (fromRight decodedRfamAnnotation))) !! 18)
   --print (fromLeft decodedRfamAnnotation)
   
+
+  --print family specific stats
   putStrLn "Rfam family SCI table:" 
-  mapM_ (\line -> putStrLn (show line)) familytable
+  --mapM_ (\line -> putStrLn (show line)) groupedFamilyTable
+  mapM_ (\line -> putStrLn (show line))familySCI
+
+computeFamilyTypeSCI :: [String,String,Maybe Double,Maybe Double] -> [(String,Double)]
+computeFamilyTypeSCI families = (familytype,averagefamilySCI)
+  where rigthSCIs =  (mapMaybe (\(a,b,c,sci) -> sci) families)
+        familytype = (\(a,famtype,c,d) -> famtype) $ head families
+        averagefamilySCI = (sum rigthSCIs) / (genericLength rigthSCIs)
+
+ 
+sameFamilyTableType (_,familytypeA,_,_)  (_,familytypeB,_,_) = familytypeA == familytypeB
+compareFamilyTableType (_,familytypeA,_,_)  (_,familytypeB,_,_) = familytypeA `compare` familytypeB  
 
 -- | Extract structure conservation index from RNAz output file
 -- Note: Due to the number of Rfam families reading of files in lazy fashion can open too many connections (evaluate)
