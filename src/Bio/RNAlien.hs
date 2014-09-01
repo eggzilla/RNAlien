@@ -83,8 +83,9 @@ alignmentConstruction staticOptions modelconstruction = do
        --select candidates SCI > 0.59
        let selectedCandidates = filter (\(sci,b) -> (read sci ::Double) > 0.59 ) alignmentResults    
        print selectedCandidates
-       
-        
+       --select queries
+       selectedQueries <- selectQueries staticOptions currentModelConstruction selectedCandidates
+       print selectedQueries
        -- prepare next iteration 
        let newIterationNumber = (iterationNumber currentModelConstruction) + 1
        let nextModelConstruction = constructNext newIterationNumber currentModelConstruction
@@ -101,6 +102,11 @@ extractQueries iterationnumber modelconstruction
   | iterationnumber == 0 = [fastaSeqData]
   | otherwise = []
   where fastaSeqData = inputFasta modelconstruction
+
+extractQueryCandidates :: [(String,(Sequence,Int,String))] -> V.Vector (Int,Sequence)
+extractQueryCandidates candidates = indexedSeqences
+  where sequences = map (\(_,(seq,_,_)) -> seq) candidates
+        indexedSeqences = V.map (\(number,seq) -> (number + 1,seq))(V.indexed (V.fromList (sequences)))
 
 searchCandidates :: StaticOptions -> Sequence -> IO [(Sequence,Int,String)]
 searchCandidates staticOptions query = do
@@ -170,7 +176,7 @@ alignCandidates staticOptions modelConstruction candidates = do
   --clustalw2Summary <- mapM readClustalw2Summary pairwiseClustalw2SummaryFilepath
   --let clustalw2Score = map (\x -> show (alignmentScore (fromRight x))) clustalw2Summary
   --compute SCI
-  let pairwiseClustalw2RNAzFilePaths = constructPairwiseRNAzFilePaths "clustalw2" iterationDirectory alignmentSequences
+  --let pairwiseClustalw2RNAzFilePaths = constructPairwiseRNAzFilePaths "clustalw2" iterationDirectory alignmentSequences
   let pairwiseLocarnaRNAzFilePaths = constructPairwiseRNAzFilePaths "mlocarna" iterationDirectory alignmentSequences
   --computeAlignmentSCIs pairwiseClustalw2Filepath pairwiseClustalw2RNAzFilePaths
   computeAlignmentSCIs pairwiseLocarnainClustalw2FormatFilepath pairwiseLocarnaRNAzFilePaths
@@ -187,6 +193,29 @@ alignCandidates staticOptions modelConstruction candidates = do
   --mapM_ (\x -> putStrLn (show x))scoreoverview
   let alignedCandidates = zip locarnaSCI candidates
   return alignedCandidates
+
+--selectQueries :: StaticOptions -> ModelConstruction -> [String,(Sequence,Int,String)] ->
+selectQueries staticOptions modelConstruction selectedCandidates = do
+  putStrLn "SelectQueries"
+  --Extract sequences from modelconstruction
+  let alignedSequences = extractAlignedSequences (iterationNumber modelConstruction) modelConstruction 
+  let candidateSequences = extractQueryCandidates selectedCandidates
+  let iterationDirectory = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/"
+  let alignmentSequences = map snd (V.toList (V.concat [candidateSequences,alignedSequences]))
+  --write Fasta sequences
+  writeFasta (iterationDirectory ++ "query" ++ ".fa") alignmentSequences
+  let fastaFilepath = iterationDirectory ++ "query" ++ ".fa"
+  let locarnaFilepath = iterationDirectory ++ "query" ++ ".mlocarna"
+  let locarnainClustalw2FormatFilepath = iterationDirectory ++ "query" ++ "." ++ "out" ++ "/results/result.aln"
+  alignSequences "mlocarna" "--iterate --local-progressive" [fastaFilepath] [locarnaFilepath] []
+  --compute SCI
+  let locarnaRNAzFilePath = iterationDirectory ++ "query" ++ ".rnazmlocarna"
+  computeAlignmentSCIs [locarnainClustalw2FormatFilepath] [locarnaRNAzFilePath]
+  --retrieveAlignmentSCIs
+  mlocarnaRNAzOutput <- readRNAz locarnaRNAzFilePath  
+  let locarnaSCI = structureConservationIndex (fromRight mlocarnaRNAzOutput)
+  return (mlocarnaRNAzOutput)
+
 
 main = do
   args <- getArgs
