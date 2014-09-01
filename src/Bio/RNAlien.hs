@@ -4,6 +4,7 @@
 -- | Unsupervized construction of RNA family models
 --   Parsing is done with blastxml, RNAzParser
 --   For more information on RNA family models consult <http://meme.nbcr.net/meme/>
+--   Testcommand: dist/build/RNAlien/RNAlien -i ~egg/initialfasta/RybB.fa -o /scr/kronos/egg/temp/ > ~egg/Desktop/alieninitialtest
 module Main where
     
 import System.Console.CmdArgs    
@@ -75,13 +76,16 @@ alignmentConstruction staticOptions modelconstruction = do
      then do
        --search queries
        candidates <- mapM (searchCandidates staticOptions) queries
-       print candidates
+       --print candidates
        --align search results - candidates
        alignmentResults <- alignCandidates staticOptions currentModelConstruction (concat candidates)
-       print alignmentResults
-       --select candidates
-     
-        -- prepare next iteration 
+       --print alignmentResults
+       --select candidates SCI > 0.59
+       let selectedCandidates = filter (\(sci,b) -> (read sci ::Double) > 0.59 ) alignmentResults    
+       print selectedCandidates
+       
+        
+       -- prepare next iteration 
        let newIterationNumber = (iterationNumber currentModelConstruction) + 1
        let nextModelConstruction = constructNext newIterationNumber currentModelConstruction
  
@@ -135,8 +139,9 @@ searchCandidates staticOptions query = do
   let missingGenbankFeatures = map (getMissingSequenceElement queryLength queryLength) filteredBlastResults  
   -- Retrieval of genbank features in the hit region
   genbankFeaturesOutput <- mapM retrieveGenbankFeatures missingGenbankFeatures
+  --appendFile ((tempDirPath staticOptions) ++ "error") (show genbankFeaturesOutput)
   let genbankFeatures = map (\(genbankfeatureOutput,taxid,subject) -> (parseGenbank genbankfeatureOutput,taxid,subject)) genbankFeaturesOutput
-  appendFile ((tempDirPath staticOptions) ++ "error") (show (lefts (map (\(a,b,c) -> a) genbankFeatures)))
+  --appendFile ((tempDirPath staticOptions) ++ "error") (show (filter (\(a,b,c) -> isLeft a) genbankFeatures))
   --let annotatedSequences = map (\(rightgenbankfeature,taxid) -> ((extractSpecificFeatureSequence "gene" rightgenbankfeature),taxid)) (map (\(genbankfeature,taxid) -> (fromRight genbankfeature,taxid)) genbankFeatures)
   let rightGenbankFeatures = map (\(genbankfeature,taxid,subject) -> (fromRight genbankfeature,taxid,subject)) genbankFeatures
   let annotatedSequences = map (\(rightgenbankfeature,taxid,subject) -> (map (\singleseq -> (singleseq,taxid,subject)) (extractSpecificFeatureSequence "gene" rightgenbankfeature))) rightGenbankFeatures
@@ -156,29 +161,32 @@ alignCandidates staticOptions modelConstruction candidates = do
   createDirectory (iterationDirectory)
   V.mapM_ (\(number,sequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") sequence) alignmentSequences
   let pairwiseFastaFilepath = constructPairwiseFastaFilePaths iterationDirectory alignmentSequences
-  let pairwiseClustalw2Filepath = constructPairwiseAlignmentFilePaths "clustalw2" iterationDirectory alignmentSequences
-  let pairwiseClustalw2SummaryFilepath = constructPairwiseAlignmentSummaryFilePaths iterationDirectory alignmentSequences
+  --let pairwiseClustalw2Filepath = constructPairwiseAlignmentFilePaths "clustalw2" iterationDirectory alignmentSequences
+  --let pairwiseClustalw2SummaryFilepath = constructPairwiseAlignmentSummaryFilePaths iterationDirectory alignmentSequences
   let pairwiseLocarnaFilepath = constructPairwiseAlignmentFilePaths "mlocarna" iterationDirectory alignmentSequences
   let pairwiseLocarnainClustalw2FormatFilepath = constructPairwiseAlignmentFilePaths "mlocarnainclustalw2format" iterationDirectory alignmentSequences
-  alignSequences "clustalw2" "" pairwiseFastaFilepath pairwiseClustalw2Filepath pairwiseClustalw2SummaryFilepath
+  --alignSequences "clustalw2" "" pairwiseFastaFilepath pairwiseClustalw2Filepath pairwiseClustalw2SummaryFilepath
   alignSequences "mlocarna" "--iterate --local-progressive" pairwiseFastaFilepath pairwiseLocarnaFilepath []
-  clustalw2Summary <- mapM readClustalw2Summary pairwiseClustalw2SummaryFilepath
-  let clustalw2Score = map (\x -> show (alignmentScore (fromRight x))) clustalw2Summary
+  --clustalw2Summary <- mapM readClustalw2Summary pairwiseClustalw2SummaryFilepath
+  --let clustalw2Score = map (\x -> show (alignmentScore (fromRight x))) clustalw2Summary
   --compute SCI
   let pairwiseClustalw2RNAzFilePaths = constructPairwiseRNAzFilePaths "clustalw2" iterationDirectory alignmentSequences
-  let pairwiseLocarnaRNAzFilePaths = constructPairwiseRNAzFilePaths "mlocarana" iterationDirectory alignmentSequences
-  computeAlignmentSCIs pairwiseClustalw2Filepath pairwiseClustalw2RNAzFilePaths
+  let pairwiseLocarnaRNAzFilePaths = constructPairwiseRNAzFilePaths "mlocarna" iterationDirectory alignmentSequences
+  --computeAlignmentSCIs pairwiseClustalw2Filepath pairwiseClustalw2RNAzFilePaths
   computeAlignmentSCIs pairwiseLocarnainClustalw2FormatFilepath pairwiseLocarnaRNAzFilePaths
   --retrieveAlignmentSCIs
-  clustalw2RNAzOutput <- mapM readRNAz pairwiseClustalw2RNAzFilePaths
+  --clustalw2RNAzOutput <- mapM readRNAz pairwiseClustalw2RNAzFilePaths
   mlocarnaRNAzOutput <- mapM readRNAz pairwiseLocarnaRNAzFilePaths
-  putStrLn "RNAzout:"
-  print mlocarnaRNAzOutput  
-  putStrLn "clustalw2SCI:"
-  let clustalw2SCI = map (\x -> show (structureConservationIndex (fromRight x))) clustalw2RNAzOutput
+  --putStrLn "RNAzout:"
+  --print mlocarnaRNAzOutput  
+  --putStrLn "clustalw2SCI:"
+  --let clustalw2SCI = map (\x -> show (structureConservationIndex (fromRight x))) clustalw2RNAzOutput
   putStrLn "mlocarnaRNAz:"
   let locarnaSCI = map (\x -> show (structureConservationIndex (fromRight x))) mlocarnaRNAzOutput
-  return (clustalw2Score,clustalw2SCI)
+  --let scoreoverview = zip3 clustalw2Score clustalw2SCI locarnaSCI
+  --mapM_ (\x -> putStrLn (show x))scoreoverview
+  let alignedCandidates = zip locarnaSCI candidates
+  return alignedCandidates
 
 main = do
   args <- getArgs
