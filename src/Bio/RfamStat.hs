@@ -145,7 +145,7 @@ main = do
   --mapM_ (\line -> putStrLn (show line)) groupedFamilyTable
   mapM_ (\line -> putStrLn (show line))familySCI
 
-computeFamilyTypeSCI :: [String,String,Maybe Double,Maybe Double] -> [(String,Double)]
+computeFamilyTypeSCI :: [(String,String,Maybe Double,Maybe Double)] -> (String,Double)
 computeFamilyTypeSCI families = (familytype,averagefamilySCI)
   where rigthSCIs =  (mapMaybe (\(a,b,c,sci) -> sci) families)
         familytype = (\(a,famtype,c,d) -> famtype) $ head families

@@ -1,4 +1,4 @@
--- | This module contains a data structures for RNAlien
+-- | This module contains a functions for RNAlien
 
 module Bio.RNAlienLibary where
 
