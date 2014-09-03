@@ -150,7 +150,7 @@ searchCandidates staticOptions query = do
   --appendFile ((tempDirPath staticOptions) ++ "error") (show (filter (\(a,b,c) -> isLeft a) genbankFeatures))
   --let annotatedSequences = map (\(rightgenbankfeature,taxid) -> ((extractSpecificFeatureSequence "gene" rightgenbankfeature),taxid)) (map (\(genbankfeature,taxid) -> (fromRight genbankfeature,taxid)) genbankFeatures)
   let rightGenbankFeatures = map (\(genbankfeature,taxid,subject) -> (fromRight genbankfeature,taxid,subject)) genbankFeatures
-  let annotatedSequences = map (\(rightgenbankfeature,taxid,subject) -> (map (\singleseq -> (singleseq,taxid,subject)) (extractSpecificFeatureSequence "gene" rightgenbankfeature))) rightGenbankFeatures
+  let annotatedSequences = map (\(rightgenbankfeature,taxid,subject) -> (map (\singleseq -> (singleseq,taxid,subject)) (extractSpecificFeatureSequence (Just "gene") rightgenbankfeature))) rightGenbankFeatures
   -- Retrieval of full sequences from entrez
   fullSequences <- mapM retrieveFullSequence missingSequenceElements
   return ((concat annotatedSequences) ++ fullSequences)
