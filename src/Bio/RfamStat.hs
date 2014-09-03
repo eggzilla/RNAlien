@@ -112,11 +112,13 @@ main = do
   let rfamtypes = map (\line -> line !! 18) (V.toList (fromRight decodedRfamAnnotation))
   --putStrLn "Number of families:"
   --print (length rfamtypes)
-  let familytypes = map (\(a,b,c) -> b)  (V.toList rfamIndexedIDFamilies)
-  let familytable = zip4 familytypes rfamtypes maybeClustalw2SCIs maybeLocarnaSCIs
+  let familyiterator = map (\(a,b,c) -> a)  (V.toList rfamIndexedIDFamilies)
+  let familyid = map (\(a,b,c) -> b)  (V.toList rfamIndexedIDFamilies)
+  let familytable = zip4 familyid rfamtypes maybeClustalw2SCIs maybeLocarnaSCIs
   let sortedFamilyTable = sortBy compareFamilyTableType familytable
   let groupedFamilyTable = groupBy sameFamilyTableType sortedFamilyTable
-  let familySCI = map computeFamilyTypeSCI groupedFamilyTable
+  let familyTypeSCI = map computeFamilyTypeSCI groupedFamilyTable
+  
  
   --print statistics
   putStrLn "clustalw2averageSCI:"
@@ -136,22 +138,49 @@ main = do
   putStrLn (show locarnaSCImin)
   putStrLn "failed locarna RNAz number:"
   putStrLn (show failedlocarnascinumber)
-  --print ((head (V.toList (fromRight decodedRfamAnnotation))) !! 18)
-  --print (fromLeft decodedRfamAnnotation)
   
-
   --print family specific stats
   putStrLn "Rfam family SCI table:" 
-  --mapM_ (\line -> putStrLn (show line)) groupedFamilyTable
-  mapM_ (\line -> putStrLn (show line))familySCI
-
+  mapM_ (\line -> putStrLn (show line)) familyTypeSCI
+  
+  --Plot SCI
+  --output data file 
+  let gnuplotLocarnaData = concatMap (\sci -> show sci ++ "\n") (sort locarnaSCIs)
+  writeFile (outputPath ++ "familylocarnasci.dat") gnuplotLocarnaData
+  let gnuplotclustalw2Data = concatMap (\sci -> show sci ++ "\n") (sort clustalw2SCIs)
+  writeFile (outputPath ++ "familyclustalw2sci.dat") gnuplotclustalw2Data
+  -- output gnuplot script
+  let gnuplotLocarnascript = "#! /usr/bin/gnuplot\n" ++ 
+                      "set title 'RNAz SCI distribution for all mlocarna aligned Rfam family seeds'\n" ++
+                      "set xrange [0:1900]\n" ++
+                      "set yrange [0:1.2]\n" ++
+                      "set grid\n" ++
+                      "set xlabel 'Rfam Families'\n" ++
+                      "set ylabel 'SCI'\n" ++
+                      "plot 'familylocarnasci.dat' using 1 with points\n" ++
+                      "set output \"locarnasci.eps\"\n" ++
+                      "set terminal postscript eps\n" ++
+                      "replot\n" 
+  writeFile (outputPath ++ "gnuplotLocarna.sh") gnuplotLocarnascript
+  let gnuplotClustalw2script = "#! /usr/bin/gnuplot\n" ++ 
+                      "set title 'RNAz SCI distribution for all clustalw2 aligned Rfam family seeds'\n" ++
+                      "set xrange [0:2000]\n" ++
+                      "set yrange [0:1.2]\n" ++
+                      "set grid\n" ++
+                      "set xlabel 'Rfam Families'\n" ++
+                      "set ylabel 'SCI'\n" ++
+                      "plot 'familyclustalw2sci.dat' using 1 with points\n" ++
+                      "set output \"clustalw2.eps\"\n" ++
+                      "set terminal postscript eps\n" ++
+                      "replot\n" 
+  writeFile (outputPath ++ "gnuplotClustalw2.sh") gnuplotClustalw2script
+  
 computeFamilyTypeSCI :: [(String,String,Maybe Double,Maybe Double)] -> (String,Double)
 computeFamilyTypeSCI families = (familytype,averagefamilySCI)
-  where rigthSCIs =  (mapMaybe (\(a,b,c,sci) -> sci) families)
+  where rightSCIs =  (mapMaybe (\(a,b,c,sci) -> sci) families)
         familytype = (\(a,famtype,c,d) -> famtype) $ head families
-        averagefamilySCI = (sum rigthSCIs) / (genericLength rigthSCIs)
+        averagefamilySCI = (sum rightSCIs) / (genericLength rightSCIs)
 
- 
 sameFamilyTableType (_,familytypeA,_,_)  (_,familytypeB,_,_) = familytypeA == familytypeB
 compareFamilyTableType (_,familytypeA,_,_)  (_,familytypeB,_,_) = familytypeA `compare` familytypeB  
 
@@ -165,8 +194,8 @@ maybeExtractSCIfromFile rnazresultfilepath = do
 
 maybeExtractSCIfromEither :: Either ParseError RNAzOutput -> Maybe Double
 maybeExtractSCIfromEither rnazOutput  
-  | isRight rnazOutput = Just (structureConservationIndex (fromRight rnazOutput))
   | isLeft rnazOutput = Nothing
+  | isRight rnazOutput = Just (structureConservationIndex (fromRight rnazOutput))
 
 processFamilyAln :: String -> (String,[Sequence])
 processFamilyAln seedFamilyAln = rfamIDAndseedFamilySequences
