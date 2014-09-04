@@ -58,7 +58,7 @@ options = Options
   { inputFastaFilePath = def &= name "i" &= help "Path to input fasta file",
     outputPath = def &= name "o" &= help "Path to output directory",
     taxIdFilter = def &= name "t" &= help "NCBI taxonomy ID number of input RNA organism",
-    fullSequenceOffset = "20" &= name "f" &= help "Overhangs of retrieved fasta sequences compared to query sequence",
+    fullSequenceOffset = "0" &= name "f" &= help "Overhangs of retrieved fasta sequences compared to query sequence",
     lengthFilter = False &= name "l" &= help "Filter blast hits per genomic length",
     singleHitperTax = False &= name "s" &= help "Only the best blast hit per taxonomic entry is considered"
   } &= summary "RNAlien devel version" &= help "Florian Eggenhofer - >2013" &= verbosity       
@@ -172,7 +172,7 @@ alignCandidates staticOptions modelConstruction candidates = do
   let pairwiseLocarnaFilepath = constructPairwiseAlignmentFilePaths "mlocarna" iterationDirectory alignmentSequences
   let pairwiseLocarnainClustalw2FormatFilepath = constructPairwiseAlignmentFilePaths "mlocarnainclustalw2format" iterationDirectory alignmentSequences
   --alignSequences "clustalw2" "" pairwiseFastaFilepath pairwiseClustalw2Filepath pairwiseClustalw2SummaryFilepath
-  alignSequences "mlocarna" "--iterate --local-progressive" pairwiseFastaFilepath pairwiseLocarnaFilepath []
+  alignSequences "mlocarna" "--iterate --local-progressive --free-endgaps" pairwiseFastaFilepath pairwiseLocarnaFilepath []
   --clustalw2Summary <- mapM readClustalw2Summary pairwiseClustalw2SummaryFilepath
   --let clustalw2Score = map (\x -> show (alignmentScore (fromRight x))) clustalw2Summary
   --compute SCI
@@ -207,7 +207,7 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
   let fastaFilepath = iterationDirectory ++ "query" ++ ".fa"
   let locarnaFilepath = iterationDirectory ++ "query" ++ ".mlocarna"
   let locarnainClustalw2FormatFilepath = iterationDirectory ++ "query" ++ "." ++ "out" ++ "/results/result.aln"
-  alignSequences "mlocarna" "--iterate --local-progressive" [fastaFilepath] [locarnaFilepath] []
+  alignSequences "mlocarna" "--iterate --local-progressive --free-endgaps" [fastaFilepath] [locarnaFilepath] []
   --compute SCI
   let locarnaRNAzFilePath = iterationDirectory ++ "query" ++ ".rnazmlocarna"
   computeAlignmentSCIs [locarnainClustalw2FormatFilepath] [locarnaRNAzFilePath]
