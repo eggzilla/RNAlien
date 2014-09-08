@@ -51,7 +51,8 @@ data Options = Options
     outputPath :: String,
     fullSequenceOffset :: String,
     lengthFilter :: Bool,
-    singleHitperTax :: Bool
+    singleHitperTax :: Bool,
+    threads :: Int
   } deriving (Show,Data,Typeable)
 
 options = Options
@@ -60,7 +61,8 @@ options = Options
     taxIdFilter = def &= name "t" &= help "NCBI taxonomy ID number of input RNA organism",
     fullSequenceOffset = "0" &= name "f" &= help "Overhangs of retrieved fasta sequences compared to query sequence",
     lengthFilter = False &= name "l" &= help "Filter blast hits per genomic length",
-    singleHitperTax = False &= name "s" &= help "Only the best blast hit per taxonomic entry is considered"
+    singleHitperTax = False &= name "s" &= help "Only the best blast hit per taxonomic entry is considered",
+    threads = 1 &= name "c" &= help "Number of available cpu slots/cores, default 1"
   } &= summary "RNAlien devel version" &= help "Florian Eggenhofer - >2013" &= verbosity       
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
@@ -172,7 +174,7 @@ alignCandidates staticOptions modelConstruction candidates = do
   let pairwiseLocarnaFilepath = constructPairwiseAlignmentFilePaths "mlocarna" iterationDirectory alignmentSequences
   let pairwiseLocarnainClustalw2FormatFilepath = constructPairwiseAlignmentFilePaths "mlocarnainclustalw2format" iterationDirectory alignmentSequences
   --alignSequences "clustalw2" "" pairwiseFastaFilepath pairwiseClustalw2Filepath pairwiseClustalw2SummaryFilepath
-  alignSequences "mlocarna" "--iterate --local-progressive --free-endgaps" pairwiseFastaFilepath pairwiseLocarnaFilepath []
+  alignSequences "mlocarna" ("--iterate --local-progressive --free-endgaps --threads=" ++ (show (cpuThreads staticOptions)) ++ " ")  pairwiseFastaFilepath pairwiseLocarnaFilepath []
   --clustalw2Summary <- mapM readClustalw2Summary pairwiseClustalw2SummaryFilepath
   --let clustalw2Score = map (\x -> show (alignmentScore (fromRight x))) clustalw2Summary
   --compute SCI
@@ -207,7 +209,7 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
   let fastaFilepath = iterationDirectory ++ "query" ++ ".fa"
   let locarnaFilepath = iterationDirectory ++ "query" ++ ".mlocarna"
   let locarnainClustalw2FormatFilepath = iterationDirectory ++ "query" ++ "." ++ "out" ++ "/results/result.aln"
-  alignSequences "mlocarna" "--iterate --local-progressive --free-endgaps" [fastaFilepath] [locarnaFilepath] []
+  alignSequences "mlocarna" ("--iterate --local-progressive --free-endgaps --threads=" ++ (show (cpuThreads staticOptions)) ++ " ") [fastaFilepath] [locarnaFilepath] []
   --compute SCI
   let locarnaRNAzFilePath = iterationDirectory ++ "query" ++ ".rnazmlocarna"
   computeAlignmentSCIs [locarnainClustalw2FormatFilepath] [locarnaRNAzFilePath]
@@ -220,7 +222,6 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
 main = do
   args <- getArgs
   Options{..} <- cmdArgs options       
-
    -- Generate SessionID
   randomNumber <- randomIO :: IO Int16
   let sessionId = randomid randomNumber
@@ -237,7 +238,7 @@ main = do
   nodes <- readNCBISimpleTaxDumpNodes taxNodesFile 
   let rightNodes = fromRight nodes
   let fullSequenceOffsetLength = readInt fullSequenceOffset
-  let staticOptions = StaticOptions tempDirPath sessionId  rightNodes (Just taxIdFilter) singleHitperTax lengthFilter fullSequenceOffsetLength
+  let staticOptions = StaticOptions tempDirPath sessionId  rightNodes (Just taxIdFilter) singleHitperTax lengthFilter fullSequenceOffsetLength threads
   let initialization = ModelConstruction iterationNumber (head inputFasta) [] []
   alignment <- alignmentConstruction staticOptions initialization
   print alignment

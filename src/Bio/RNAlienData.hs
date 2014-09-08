@@ -16,7 +16,8 @@ data StaticOptions = StaticOptions
     filterTaxId :: Maybe String,
     singleHitperTaxToggle :: Bool,
     lengthFilterToggle :: Bool,
-    fullSequenceOffsetLength :: Int
+    fullSequenceOffsetLength :: Int,
+    cpuThreads :: Int
   } deriving (Show)  
 
 -- | Keeps track of model construction 
