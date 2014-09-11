@@ -1,5 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 -- | Compute statistics from Rfam seed 
 -- 1. Create .fasta files from Rfam seed
@@ -31,7 +32,7 @@ import qualified Data.ByteString.Lazy.Char8 as L
 import Data.Either
 import Data.Either.Unwrap
 import Bio.RNAlienLibary
-import Data.Csv
+import Data.CSV.Conduit
 import Control.Exception
 import Control.Monad
 
@@ -54,15 +55,23 @@ main = do
   inputSeedAln <- readFile inputFilePath
   --Rfam Annotation file needs to be converted to UTF8 and quote character to be removed, umlaut u charcter replaced with ue
   --iconv -f ascii -t utf-8 /scr/kronos/egg/projects/AlienRfam/db_files/rfamutf8header.txt > /scr/kronos/egg/projects/AlienRfam/db_files/rfamutf8header2.txt
-  inputRfamAnnotation <- readFile inputRfamAnnotationFilePath
-  let myDecodeOptions = defaultDecodeOptions {
-       decDelimiter = fromIntegral (ord '\t')
+  --inputRfamAnnotation <- readFile inputRfamAnnotationFilePath
+  --let myDecodeOptions = defaultDecodeOptions {
+  --     decDelimiter = fromIntegral (ord '\t')
+  --   }
+  let myDecodeOptions = CSVSettings  {
+        csvSep = '\t',
+        csvQuoteChar = Just '"'
      }
-  let decodedRfamAnnotation = decodeWith myDecodeOptions NoHeader (L.pack inputRfamAnnotation) :: Either String (V.Vector [String])
-  if (isLeft decodedRfamAnnotation)
-    then do
-      print decodedRfamAnnotation
-    else print "RfamAnnotation ok"
+  --let decodedRfamAnnotation = decodeWith myDecodeOptions NoHeader (L.pack inputRfamAnnotation) :: Either String (V.Vector [String])
+  
+  --let decodedRfamAnnotation = readCSVFile myDecodeOptions inputRfamAnnotationFilePath -- :: Either SomeException (V.Vector [String])
+  let decodedRfamAnnotation = Right (V.fromList [])
+  --if (isLeft decodedRfamAnnotation)
+  --  then do
+  --    print decodedRfamAnnotation
+  --  else print "RfamAnnotation ok"
+  
   let seedFamilyAlns = drop 1 (splitOn "# STOCKHOLM 1.0" inputSeedAln)
   -- rfamID and list of family Fasta sequences
   putStrLn "Extracting families from Seed Alignment"
