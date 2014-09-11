@@ -4,7 +4,7 @@
 -- | Unsupervized construction of RNA family models
 --   Parsing is done with blastxml, RNAzParser
 --   For more information on RNA family models consult <http://meme.nbcr.net/meme/>
---   Testcommand: dist/build/RNAlien/RNAlien -i ~egg/initialfasta/RybB.fa -o /scr/kronos/egg/temp/ > ~egg/Desktop/alieninitialtest
+--   Testcommand: dist/build/RNAlien/RNAlien -i ~egg/initialfasta/RybB.fa -c 3 -o /scr/kronos/egg/temp/ > ~egg/Desktop/alieninitialtest
 module Main where
     
 import System.Console.CmdArgs    
@@ -76,17 +76,14 @@ alignmentConstruction staticOptions modelconstruction = do
   print queries
   if queries /= []
      then do
+       let iterationDirectory = (tempDirPath staticOptions) ++ (show (iterationNumber currentModelConstruction)) ++ "/"
+       createDirectory (iterationDirectory)
        --search queries
-       candidates <- mapM (searchCandidates staticOptions) queries
-       --print candidates
-       --align search results - candidates
-       alignmentResults <- alignCandidates staticOptions currentModelConstruction (concat candidates)
-       --print alignmentResults
-       --select candidates SCI > 0.59
-       let selectedCandidates = filter (\(sci,b) -> (read sci ::Double) > 0.59 ) alignmentResults    
-       print selectedCandidates
+       candidates <- mapM (searchCandidates staticOptions (iterationNumber currentModelConstruction)) queries
+       --align search results - candidates > SCI 0.59 
+       alignmentResults <- alignCandidates staticOptions currentModelConstruction (concat candidates)   
        --select queries
-       selectedQueries <- selectQueries staticOptions currentModelConstruction selectedCandidates
+       selectedQueries <- selectQueries staticOptions currentModelConstruction alignmentResults
        print selectedQueries
        -- prepare next iteration 
        let newIterationNumber = (iterationNumber currentModelConstruction) + 1
@@ -110,51 +107,57 @@ extractQueryCandidates candidates = indexedSeqences
   where sequences = map (\(_,(seq,_,_)) -> seq) candidates
         indexedSeqences = V.map (\(number,seq) -> (number + 1,seq))(V.indexed (V.fromList (sequences)))
 
-searchCandidates :: StaticOptions -> Sequence -> IO [(Sequence,Int,String)]
-searchCandidates staticOptions query = do
+searchCandidates :: StaticOptions -> Int -> Sequence -> IO [(Sequence,Int,String)]
+searchCandidates staticOptions iterationnumber query = do
   let fastaSeqData = seqdata query
   let queryLength = fromIntegral (seqlength (query))
   let defaultTaxFilter = ""
   let selectedTaxFilter = fromMaybe defaultTaxFilter (filterTaxId staticOptions)
-  let (maskId, entrezTaxFilter) = buildTaxFilterQuery selectedTaxFilter (inputTaxNodes staticOptions)
-  let hitNumberQuery = buildHitNumberQuery "&ALIGNMENTS=250"
+  let (maskId, entrezTaxFilter) = buildTaxFilterQuery selectedTaxFilter (inputTaxNodes staticOptions)  
+  let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=250" 
   let blastQuery = BlastHTTPQuery (Just "blastn") (Just "refseq_genomic") (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter))
-  putStrLn "Sending blast query"
-  ---blastOutput <- blastHTTP blastQuery 
-  ---print blastOutput
-  --print (lefts blastOutput)
-  ---let rightBlast = fromRight blastOutput
-  rightBlast <- readXML "/home/mescalin/egg/initialblast/RhyB.blastout"
+  putStrLn ("Sending blast query " ++ (show iterationnumber))
+  blastOutput <- blastHTTP blastQuery 
+  createDirectory ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log")
+  writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/1blastOutput") (show blastOutput)
+  let rightBlast = fromRight blastOutput
   let bestHit = getBestHit rightBlast
   bestBlastHitTaxIdOutput <- retrieveBlastHitTaxIdEntrez [bestHit]
   let rightBestTaxIdResult = head (extractTaxIdFromEntrySummaries bestBlastHitTaxIdOutput)
   let blastHits = (concat (map hits (results rightBlast)))
+  writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/2blastHits") (showlines blastHits)
+  --filter by length
   let blastHitsFilteredByLength = filterByHitLength blastHits queryLength (lengthFilterToggle staticOptions)
+  writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/3blastHitsFilteredByLength") (showlines blastHitsFilteredByLength)
   --tag BlastHits with TaxId
   blastHitTaxIdOutput <- retrieveBlastHitTaxIdEntrez blastHitsFilteredByLength
   let blastHittaxIdList = extractTaxIdFromEntrySummaries  blastHitTaxIdOutput
-  --filter by ParentTaxId
+  --filter by ParentTaxId (only one hit per TaxId)
   blastHitsParentTaxIdOutput <- retrieveParentTaxIdEntrez blastHittaxIdList 
   let blastHitsWithParentTaxId = zip blastHitsFilteredByLength blastHitsParentTaxIdOutput
   let blastHitsFilteredByParentTaxIdWithParentTaxId = filterByParentTaxId blastHitsWithParentTaxId True
   let blastHitsFilteredByParentTaxId = map fst blastHitsFilteredByParentTaxIdWithParentTaxId
-  -- Filtering with TaxTree
+  writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/4blastHitsFilteredByParentTaxId") (showlines blastHitsFilteredByParentTaxId)
+  -- Filtering with TaxTree (only hits from the same subtree as besthit)
   let blastHitsWithTaxId = zip blastHitsFilteredByParentTaxId blastHittaxIdList
   let bestHitTreePosition = getBestHitTreePosition (inputTaxNodes staticOptions) Family rightBestTaxIdResult bestHit
   let filteredBlastResults = filterByNeighborhoodTree blastHitsWithTaxId bestHitTreePosition (singleHitperTaxToggle staticOptions)
+  writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/5filteredBlastResults") (showlines filteredBlastResults)
   -- Coordinate generation
-  let missingSequenceElements = map (getMissingSequenceElement (fullSequenceOffsetLength staticOptions) queryLength) filteredBlastResults
-  let missingGenbankFeatures = map (getMissingSequenceElement queryLength queryLength) filteredBlastResults  
+  let requestedSequenceElements = map (getRequestedSequenceElement (fullSequenceOffsetLength staticOptions) queryLength) filteredBlastResults
+  writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/6requestedSequenceElements") (showlines requestedSequenceElements)
+  let requestedGenbankFeatures = map (getRequestedSequenceElement queryLength queryLength) filteredBlastResults  
+  writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/7requestedGenbankFeatures") (showlines requestedGenbankFeatures)
   -- Retrieval of genbank features in the hit region
-  genbankFeaturesOutput <- mapM retrieveGenbankFeatures missingGenbankFeatures
-  --appendFile ((tempDirPath staticOptions) ++ "error") (show genbankFeaturesOutput)
+  genbankFeaturesOutput <- mapM retrieveGenbankFeatures requestedGenbankFeatures
+  writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/8genbankFeaturesOutput") (showlines genbankFeaturesOutput)
   let genbankFeatures = map (\(genbankfeatureOutput,taxid,subject) -> (parseGenbank genbankfeatureOutput,taxid,subject)) genbankFeaturesOutput
-  --appendFile ((tempDirPath staticOptions) ++ "error") (show (filter (\(a,b,c) -> isLeft a) genbankFeatures))
-  --let annotatedSequences = map (\(rightgenbankfeature,taxid) -> ((extractSpecificFeatureSequence "gene" rightgenbankfeature),taxid)) (map (\(genbankfeature,taxid) -> (fromRight genbankfeature,taxid)) genbankFeatures)
   let rightGenbankFeatures = map (\(genbankfeature,taxid,subject) -> (fromRight genbankfeature,taxid,subject)) genbankFeatures
   let annotatedSequences = map (\(rightgenbankfeature,taxid,subject) -> (map (\singleseq -> (singleseq,taxid,subject)) (extractSpecificFeatureSequence (Just "gene") rightgenbankfeature))) rightGenbankFeatures
+  writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/9annotatedSequences") (showlines annotatedSequences)
   -- Retrieval of full sequences from entrez
-  fullSequences <- mapM retrieveFullSequence missingSequenceElements
+  fullSequences <- mapM retrieveFullSequence requestedSequenceElements
+  writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/10fullSequences") (showlines fullSequences)
   return ((concat annotatedSequences) ++ fullSequences)
 
 --alignCandidates :: StaticOptions -> ModelConstruction -> [(Sequence,Int,String)] ->
@@ -166,7 +169,6 @@ alignCandidates staticOptions modelConstruction candidates = do
   let iterationDirectory = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/"
   let alignmentSequences = V.concat (map (constructPairwiseAlignmentSequences candidateSequences) (V.toList alignedSequences))
   --write Fasta sequences
-  createDirectory (iterationDirectory)
   V.mapM_ (\(number,sequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") sequence) alignmentSequences
   let pairwiseFastaFilepath = constructPairwiseFastaFilePaths iterationDirectory alignmentSequences
   --let pairwiseClustalw2Filepath = constructPairwiseAlignmentFilePaths "clustalw2" iterationDirectory alignmentSequences
@@ -174,7 +176,7 @@ alignCandidates staticOptions modelConstruction candidates = do
   let pairwiseLocarnaFilepath = constructPairwiseAlignmentFilePaths "mlocarna" iterationDirectory alignmentSequences
   let pairwiseLocarnainClustalw2FormatFilepath = constructPairwiseAlignmentFilePaths "mlocarnainclustalw2format" iterationDirectory alignmentSequences
   --alignSequences "clustalw2" "" pairwiseFastaFilepath pairwiseClustalw2Filepath pairwiseClustalw2SummaryFilepath
-  alignSequences "mlocarna" ("--iterate --local-progressive --free-endgaps --threads=" ++ (show (cpuThreads staticOptions)) ++ " ")  pairwiseFastaFilepath pairwiseLocarnaFilepath []
+  alignSequences "mlocarna" ("--iterate --local-progressive --threads=" ++ (show (cpuThreads staticOptions)) ++ " ")  pairwiseFastaFilepath pairwiseLocarnaFilepath []
   --clustalw2Summary <- mapM readClustalw2Summary pairwiseClustalw2SummaryFilepath
   --let clustalw2Score = map (\x -> show (alignmentScore (fromRight x))) clustalw2Summary
   --compute SCI
@@ -194,6 +196,9 @@ alignCandidates staticOptions modelConstruction candidates = do
   --let scoreoverview = zip3 clustalw2Score clustalw2SCI locarnaSCI
   --mapM_ (\x -> putStrLn (show x))scoreoverview
   let alignedCandidates = zip locarnaSCI candidates
+  let (selectedCandidates,rejectedCandidates)= partition (\(sci,b) -> (read sci ::Double) > 0.59 ) alignedCandidates
+  writeFile ((tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/log" ++ "/11selectedCandidates") (showlines selectedCandidates)
+  writeFile ((tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/log" ++ "/12rejectedCandidates") (showlines rejectedCandidates)
   return alignedCandidates
 
 --selectQueries :: StaticOptions -> ModelConstruction -> [String,(Sequence,Int,String)] ->
@@ -209,7 +214,7 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
   let fastaFilepath = iterationDirectory ++ "query" ++ ".fa"
   let locarnaFilepath = iterationDirectory ++ "query" ++ ".mlocarna"
   let locarnainClustalw2FormatFilepath = iterationDirectory ++ "query" ++ "." ++ "out" ++ "/results/result.aln"
-  alignSequences "mlocarna" ("--iterate --local-progressive --free-endgaps --threads=" ++ (show (cpuThreads staticOptions)) ++ " ") [fastaFilepath] [locarnaFilepath] []
+  alignSequences "mlocarna" ("--iterate --local-progressive --threads=" ++ (show (cpuThreads staticOptions)) ++ " ") [fastaFilepath] [locarnaFilepath] []
   --compute SCI
   let locarnaRNAzFilePath = iterationDirectory ++ "query" ++ ".rnazmlocarna"
   computeAlignmentSCIs [locarnainClustalw2FormatFilepath] [locarnaRNAzFilePath]
@@ -217,7 +222,6 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
   mlocarnaRNAzOutput <- readRNAz locarnaRNAzFilePath  
   let locarnaSCI = structureConservationIndex (fromRight mlocarnaRNAzOutput)
   return (mlocarnaRNAzOutput)
-
 
 main = do
   args <- getArgs

@@ -1,4 +1,4 @@
--- | This module contains a functions for RNAlien
+-- | This module contains functions for RNAlien
 
 module Bio.RNAlienLibary where
 
@@ -239,10 +239,10 @@ retrieveFullSequence (geneId,seqStart,seqStop,strand,accession,taxid,subject) = 
   let parsedFasta = head ((mkSeqs . L.lines) (L.pack result))
   return (parsedFasta,taxid,subject)
  
-getMissingSequenceElement :: Int -> Int -> (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
-getMissingSequenceElement retrievalOffset queryLength (blastHit,taxid) 
-  | blastHitIsReverseComplement (blastHit,taxid) = getReverseMissingSequenceElement retrievalOffset queryLength (blastHit,taxid)
-  | otherwise = getForwardMissingSequenceElement retrievalOffset queryLength (blastHit,taxid)
+getRequestedSequenceElement :: Int -> Int -> (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
+getRequestedSequenceElement retrievalOffset queryLength (blastHit,taxid) 
+  | blastHitIsReverseComplement (blastHit,taxid) = getReverseRequestedSequenceElement retrievalOffset queryLength (blastHit,taxid)
+  | otherwise = getForwardRequestedSequenceElement retrievalOffset queryLength (blastHit,taxid)
 
 blastHitIsReverseComplement :: (BlastHit,Int) -> Bool
 blastHitIsReverseComplement (blastHit,taxid) = isReverse
@@ -251,8 +251,8 @@ blastHitIsReverseComplement (blastHit,taxid) = isReverse
         firstHSPto = h_to (head blastMatches)
         isReverse = firstHSPfrom > firstHSPto
 
-getForwardMissingSequenceElement :: Int -> Int -> (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
-getForwardMissingSequenceElement retrievalOffset queryLength (blastHit,taxid) = (geneIdentifier,startcoordinate,endcoordinate,strand,accession,taxid,subjectBlast)
+getForwardRequestedSequenceElement :: Int -> Int -> (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
+getForwardRequestedSequenceElement retrievalOffset queryLength (blastHit,taxid) = (geneIdentifier,startcoordinate,endcoordinate,strand,accession,taxid,subjectBlast)
   where    accession = L.unpack (extractAccession blastHit)
            subjectBlast = L.unpack (unSL (subject blastHit))
            geneIdentifier = extractGeneId blastHit
@@ -267,8 +267,8 @@ getForwardMissingSequenceElement retrievalOffset queryLength (blastHit,taxid) = 
            endcoordinate = maxHto + (queryLength - maxHonQuery) + retrievalOffset
            strand = "1"
 
-getReverseMissingSequenceElement :: Int -> Int -> (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
-getReverseMissingSequenceElement retrievalOffset queryLength (blastHit,taxid) = (geneIdentifier,startcoordinate,endcoordinate,strand,accession,taxid,subjectBlast)
+getReverseRequestedSequenceElement :: Int -> Int -> (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
+getReverseRequestedSequenceElement retrievalOffset queryLength (blastHit,taxid) = (geneIdentifier,startcoordinate,endcoordinate,strand,accession,taxid,subjectBlast)
   where   accession = L.unpack (extractAccession blastHit)
           subjectBlast = L.unpack (unSL (subject blastHit))
           geneIdentifier = extractGeneId blastHit
@@ -546,3 +546,6 @@ retrieveAllDescendents nodes parentNode
   | otherwise = [parentNode]
   where
   childNodes = retrieveChildren nodes parentNode
+
+-- typesignature
+showlines input = concatMap (\x -> (show x) ++ "\n") input
