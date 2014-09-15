@@ -26,10 +26,9 @@ import Bio.Sequence.Fasta
 import Bio.ViennaRNAParser
 import Bio.ClustalParser
 import System.Directory
-import System.Cmd   
+import System.Process
 import qualified Data.Vector as V
 import qualified Data.ByteString.Lazy.Char8 as L
-import Data.Either
 import Data.Either.Unwrap
 import Bio.RNAlienLibary
 import Data.CSV.Conduit

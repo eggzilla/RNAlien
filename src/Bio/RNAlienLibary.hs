@@ -16,7 +16,7 @@ import Bio.BlastXML
 import Bio.ViennaRNAParser
 import Bio.ClustalParser
 import System.Directory
-import System.Cmd   
+import System.Process
 import System.Random
 import Control.Monad
 import Data.Int (Int16)
@@ -27,7 +27,6 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
 import Data.Word
 import Bio.Taxonomy 
-import Data.Either
 import Data.Either.Unwrap
 import Data.Tree
 import qualified Data.Tree.Zipper as TZ
