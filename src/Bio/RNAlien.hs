@@ -44,6 +44,9 @@ import Bio.GenbankParser
 import Bio.GenbankTools
 import qualified Data.Vector as V
 import Bio.RNAlienLibary
+import Bio.PhylogenyParser
+import Bio.PhylogenyTools
+
 data Options = Options            
   { inputFastaFilePath :: String,
     taxIdFilter :: String,
@@ -152,7 +155,7 @@ searchCandidates staticOptions iterationnumber query = do
   writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/8genbankFeaturesOutput") (showlines genbankFeaturesOutput)
   let genbankFeatures = map (\(genbankfeatureOutput,taxid,subject) -> (parseGenbank genbankfeatureOutput,taxid,subject)) genbankFeaturesOutput
   let rightGenbankFeatures = map (\(genbankfeature,taxid,subject) -> (fromRight genbankfeature,taxid,subject)) genbankFeatures
-  let annotatedSequences = map (\(rightgenbankfeature,taxid,subject) -> (map (\singleseq -> (singleseq,taxid,subject)) (extractSpecificFeatureSequence (Just "gene") rightgenbankfeature))) rightGenbankFeatures
+  let annotatedSequences = map (\(rightgenbankfeature,taxid,subject) -> (map (\singleseq -> (singleseq,taxid,subject)) (extractSpecificFeatureSequence "gene" rightgenbankfeature))) rightGenbankFeatures
   writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/9annotatedSequences") (showlines annotatedSequences)
   -- Retrieval of full sequences from entrez
   fullSequences <- mapM retrieveFullSequence requestedSequenceElements

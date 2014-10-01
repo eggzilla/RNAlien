@@ -253,7 +253,7 @@ blastHitIsReverseComplement (blastHit,taxid) = isReverse
 getForwardRequestedSequenceElement :: Int -> Int -> (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
 getForwardRequestedSequenceElement retrievalOffset queryLength (blastHit,taxid) = (geneIdentifier,startcoordinate,endcoordinate,strand,accession,taxid,subjectBlast)
   where    accession = L.unpack (extractAccession blastHit)
-           subjectBlast = L.unpack (unSL (subject blastHit))
+           subjectBlast = L.unpack (subject blastHit)
            geneIdentifier = extractGeneId blastHit
            blastMatches = matches blastHit
            minHfrom = minimum (map h_from blastMatches)
@@ -269,7 +269,7 @@ getForwardRequestedSequenceElement retrievalOffset queryLength (blastHit,taxid) 
 getReverseRequestedSequenceElement :: Int -> Int -> (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
 getReverseRequestedSequenceElement retrievalOffset queryLength (blastHit,taxid) = (geneIdentifier,startcoordinate,endcoordinate,strand,accession,taxid,subjectBlast)
   where   accession = L.unpack (extractAccession blastHit)
-          subjectBlast = L.unpack (unSL (subject blastHit))
+          subjectBlast = L.unpack (subject blastHit)
           geneIdentifier = extractGeneId blastHit
           blastMatches = matches blastHit
           maxHfrom = maximum (map h_from blastMatches)
