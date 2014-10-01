@@ -114,7 +114,7 @@ searchCandidates staticOptions iterationnumber query = do
   let selectedTaxFilter = fromMaybe defaultTaxFilter (filterTaxId staticOptions)
   let (maskId, entrezTaxFilter) = buildTaxFilterQuery selectedTaxFilter (inputTaxNodes staticOptions)  
   let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=250" 
-  let blastQuery = BlastHTTPQuery (Just "blastn") (Just "refseq_genomic") (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter))
+  let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (Just "refseq_genomic") (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter))
   putStrLn ("Sending blast query " ++ (show iterationnumber))
   blastOutput <- blastHTTP blastQuery 
   createDirectory ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log")
