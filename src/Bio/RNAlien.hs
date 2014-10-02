@@ -216,14 +216,24 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
   let fastaFilepath = iterationDirectory ++ "query" ++ ".fa"
   let locarnaFilepath = iterationDirectory ++ "query" ++ ".mlocarna"
   let locarnainClustalw2FormatFilepath = iterationDirectory ++ "query" ++ "." ++ "out" ++ "/results/result.aln"
+  let clustalw2Filepath = iterationDirectory ++ "query" ++ ".clustalw2"
+  let clustalw2SummaryFilepath = iterationDirectory ++ "query" ++ ".alnsum" 
+  let clustalw2NewickFilepath = iterationDirectory ++ "query" ++ ".dnd" 
   alignSequences "mlocarna" ("--iterate --local-progressive --threads=" ++ (show (cpuThreads staticOptions)) ++ " ") [fastaFilepath] [locarnaFilepath] []
+  alignSequences "clustalw2" "" [fastaFilepath] [clustalw2Filepath] [clustalw2SummaryFilepath]
   --compute SCI
   let locarnaRNAzFilePath = iterationDirectory ++ "query" ++ ".rnazmlocarna"
   computeAlignmentSCIs [locarnainClustalw2FormatFilepath] [locarnaRNAzFilePath]
   --retrieveAlignmentSCIs
   mlocarnaRNAzOutput <- readRNAz locarnaRNAzFilePath  
   let locarnaSCI = structureConservationIndex (fromRight mlocarnaRNAzOutput)
-  return (mlocarnaRNAzOutput)
+  let parsedNewick = readGraphNewick clustalw2NewickFilePath
+  let indexedPathLengths = pathLengthsIndexed parsedNewick
+  let (pathLengths,nodePairs) = unzip indexedPathLengths
+  let averagePathLengths = averagePathLengthperNode indexedPathLengths
+  let minPathLengthNode = minimumAveragePathLength averagePathLengths
+  let maxPathLengthNode = maximumAveragePathLength averagePathLengths
+  return (indexedPathLengths)
 
 main = do
   args <- getArgs
