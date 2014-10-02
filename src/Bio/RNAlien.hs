@@ -227,10 +227,10 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
   --retrieveAlignmentSCIs
   mlocarnaRNAzOutput <- readRNAz locarnaRNAzFilePath  
   let locarnaSCI = structureConservationIndex (fromRight mlocarnaRNAzOutput)
-  let parsedNewick = readGraphNewick clustalw2NewickFilePath
-  let indexedPathLengths = pathLengthsIndexed parsedNewick
+  parsedNewick <- readGraphNewick clustalw2NewickFilepath
+  let indexedPathLengths = pathLengthsIndexed (fromRight parsedNewick)
   let (pathLengths,nodePairs) = unzip indexedPathLengths
-  let averagePathLengths = averagePathLengthperNode indexedPathLengths
+  let averagePathLengths = averagePathLengthperNodes indexedPathLengths
   let minPathLengthNode = minimumAveragePathLength averagePathLengths
   let maxPathLengthNode = maximumAveragePathLength averagePathLengths
   return (indexedPathLengths)
