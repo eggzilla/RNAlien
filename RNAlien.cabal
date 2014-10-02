@@ -19,11 +19,6 @@ executable RNAlien
   main-is:	       RNAlien.hs    
   build-depends:       base >=4.5, cmdargs, ViennaRNAParser, process, directory, blastxml>=0.3.2, biofasta, parsec, random, BlastHTTP, biocore, bytestring, Taxonomy, either-unwrap, containers, RNAlien, ClustalParser, rosezipper, EntrezHTTP, split, Genbank, vector, Phylogeny
 
-executable RfamStat
-  Hs-Source-Dirs:      ./src/Bio/
-  main-is:	       RfamStat.hs    
-  build-depends:       base >=4.5, cmdargs, ViennaRNAParser, process, directory, blastxml>=0.3.2, biofasta, parsec, random, biocore, bytestring, either-unwrap, vector, ClustalParser, split, RNAlien, csv-conduit
-
 Library
   Hs-Source-Dirs:      ./src/
   build-depends:       base >=4.5, cmdargs, ViennaRNAParser, process, directory, blastxml>=0.3.2, biofasta, parsec, random, BlastHTTP, biocore, bytestring, Taxonomy, either-unwrap, containers, ClustalParser, rosezipper, EntrezHTTP, split, Genbank, vector
