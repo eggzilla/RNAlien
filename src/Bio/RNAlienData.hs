@@ -38,7 +38,7 @@ data SequenceRecord = SequenceRecord
     nucleotideSequence :: Sequence,
     -- 0 is unaligned, number is the iteration the sequence has been included into the alignment
     aligned  :: Int,
-    -- 0 means the sequences as not been used for searching, number is the iteration the sequence has been used fort searching
+    -- 0 means the sequences as not been used for searching, number is the iteration the sequence has been used for searching
     searched :: Int,
     -- Is the sequence derived from the blast hit coordinates (B) or from a corresponding genbank feature (G)
     sequenceOrigin :: Char    

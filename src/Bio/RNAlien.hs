@@ -46,6 +46,7 @@ import qualified Data.Vector as V
 import Bio.RNAlienLibary
 import Bio.PhylogenyParser
 import Bio.PhylogenyTools
+import Data.Graph.Inductive
 
 data Options = Options            
   { inputFastaFilePath :: String,
@@ -90,7 +91,7 @@ alignmentConstruction staticOptions modelconstruction = do
        -- prepare next iteration 
        let newIterationNumber = (iterationNumber currentModelConstruction) + 1
        let nextModelConstruction = constructNext newIterationNumber currentModelConstruction
- 
+       
        --nextIteration <- alignmentConstruction staticOptions nextModelConstruction
        --return ([modelconstruction] ++ nextIteration)
        return [modelconstruction]
@@ -104,12 +105,12 @@ extractQueries iterationnumber modelconstruction
   | otherwise = []
   where fastaSeqData = inputFasta modelconstruction
 
-extractQueryCandidates :: [(String,(Sequence,Int,String))] -> V.Vector (Int,Sequence)
+extractQueryCandidates :: [(Sequence,Int,String,String)] -> V.Vector (Int,Sequence)
 extractQueryCandidates candidates = indexedSeqences
-  where sequences = map (\(_,(seq,_,_)) -> seq) candidates
+  where sequences = map (\(seq,_,_,_) -> seq) candidates
         indexedSeqences = V.map (\(number,seq) -> (number + 1,seq))(V.indexed (V.fromList (sequences)))
 
-searchCandidates :: StaticOptions -> Int -> Sequence -> IO [(Sequence,Int,String)]
+searchCandidates :: StaticOptions -> Int -> Sequence -> IO [(Sequence,Int,String,String)]
 searchCandidates staticOptions iterationnumber query = do
   let fastaSeqData = seqdata query
   let queryLength = fromIntegral (seqlength (query))
@@ -155,14 +156,15 @@ searchCandidates staticOptions iterationnumber query = do
   writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/8genbankFeaturesOutput") (showlines genbankFeaturesOutput)
   let genbankFeatures = map (\(genbankfeatureOutput,taxid,subject) -> (parseGenbank genbankfeatureOutput,taxid,subject)) genbankFeaturesOutput
   let rightGenbankFeatures = map (\(genbankfeature,taxid,subject) -> (fromRight genbankfeature,taxid,subject)) genbankFeatures
-  let annotatedSequences = map (\(rightgenbankfeature,taxid,subject) -> (map (\singleseq -> (singleseq,taxid,subject)) (extractSpecificFeatureSequence "gene" rightgenbankfeature))) rightGenbankFeatures
+  let annotatedSequences = map (\(rightgenbankfeature,taxid,subject) -> (map (\singleseq -> (singleseq,taxid,subject,"G")) (extractSpecificFeatureSequence "gene" rightgenbankfeature))) rightGenbankFeatures
   writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/9annotatedSequences") (showlines annotatedSequences)
   -- Retrieval of full sequences from entrez
   fullSequences <- mapM retrieveFullSequence requestedSequenceElements
+  let fullSequencesWithOrigin = map (\(parsedFasta,taxid,subject) -> (parsedFasta,taxid,subject,"B")) fullSequences
   writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/10fullSequences") (showlines fullSequences)
-  return ((concat annotatedSequences) ++ fullSequences)
+  return ((concat annotatedSequences) ++ fullSequencesWithOrigin)
 
---alignCandidates :: StaticOptions -> ModelConstruction -> [(Sequence,Int,String)] ->
+--alignCandidates :: StaticOptions -> ModelConstruction -> [(Sequence,Int,String,String)] -> [(String,Sequence,Int,String,String)]
 alignCandidates staticOptions modelConstruction candidates = do
   putStrLn "Aligning Candidates"
   --Extract sequences from modelconstruction
@@ -201,9 +203,9 @@ alignCandidates staticOptions modelConstruction candidates = do
   let (selectedCandidates,rejectedCandidates)= partition (\(sci,b) -> (read sci ::Double) > 0.59 ) alignedCandidates
   writeFile ((tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/log" ++ "/11selectedCandidates") (showlines selectedCandidates)
   writeFile ((tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/log" ++ "/12rejectedCandidates") (showlines rejectedCandidates)
-  return alignedCandidates
+  return (map snd selectedCandidates)
 
---selectQueries :: StaticOptions -> ModelConstruction -> [String,(Sequence,Int,String)] ->
+--selectQueries :: StaticOptions -> ModelConstruction -> [(Sequence,Int,String,String)] -> IO [String]
 selectQueries staticOptions modelConstruction selectedCandidates = do
   putStrLn "SelectQueries"
   --Extract sequences from modelconstruction
@@ -228,12 +230,16 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
   mlocarnaRNAzOutput <- readRNAz locarnaRNAzFilePath  
   let locarnaSCI = structureConservationIndex (fromRight mlocarnaRNAzOutput)
   parsedNewick <- readGraphNewick clustalw2NewickFilepath
-  let indexedPathLengths = pathLengthsIndexed (fromRight parsedNewick)
-  let (pathLengths,nodePairs) = unzip indexedPathLengths
+  let rightNewick = fromRight parsedNewick
+  let indexedPathLengths = pathLengthsIndexed rightNewick
   let averagePathLengths = averagePathLengthperNodes indexedPathLengths
   let minPathLengthNode = minimumAveragePathLength averagePathLengths
   let maxPathLengthNode = maximumAveragePathLength averagePathLengths
-  return (indexedPathLengths)
+  let minPathLengthNodeLabel = getLabel rightNewick minPathLengthNode
+  let maxPathLengthNodeLabel = getLabel rightNewick maxPathLengthNode
+  let selectedQueries = [minPathLengthNodeLabel,maxPathLengthNodeLabel]
+  writeFile ((tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/log" ++ "/12selectedQueries") (showlines selectedQueries)
+  return (selectedQueries)
 
 main = do
   args <- getArgs

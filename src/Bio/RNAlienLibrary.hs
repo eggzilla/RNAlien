@@ -175,9 +175,9 @@ constructPairwiseRNAzFilePaths program currentDir alignments
   | program == "mlocarna" = V.toList (V.map (\(iterator,_) -> currentDir ++ (show iterator) ++ ".rnazmlocarna") alignments)
   | otherwise = V.toList (V.map (\(iterator,_) -> currentDir ++ (show iterator) ++ ".rnaz") alignments)
 
-extractCandidateSequences :: [(Sequence,Int,String)] -> V.Vector (Int,Sequence)
+extractCandidateSequences :: [(Sequence,Int,String,String)] -> V.Vector (Int,Sequence)
 extractCandidateSequences candidates = indexedSeqences
-  where sequences = map (\(seq,_,_) -> seq) candidates
+  where sequences = map (\(seq,_,_,_) -> seq) candidates
         indexedSeqences = V.map (\(number,seq) -> (number + 1,seq))(V.indexed (V.fromList (sequences)))
         
 extractAlignedSequences :: Int -> ModelConstruction ->  V.Vector (Int,Sequence)
