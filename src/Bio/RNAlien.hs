@@ -43,7 +43,7 @@ import Data.List.Split
 import Bio.GenbankParser 
 import Bio.GenbankTools
 import qualified Data.Vector as V
-import Bio.RNAlienLibary
+import Bio.RNAlienLibrary
 import Bio.PhylogenyParser
 import Bio.PhylogenyTools
 import Data.Graph.Inductive
@@ -73,31 +73,51 @@ options = Options
 alignmentConstruction staticOptions modelconstruction = do
   putStrLn (show (iterationNumber modelconstruction))
   let currentModelConstruction = modelconstruction
+  let currentIterationNumber = (iterationNumber currentModelConstruction)
   --extract queries
-  let queries = extractQueries (iterationNumber currentModelConstruction) currentModelConstruction
+  let queries = extractQueries currentIterationNumber currentModelConstruction
   putStrLn "Queries"
   print queries
   if queries /= []
      then do
-       let iterationDirectory = (tempDirPath staticOptions) ++ (show (iterationNumber currentModelConstruction)) ++ "/"
+       let iterationDirectory = (tempDirPath staticOptions) ++ (show currentIterationNumber) ++ "/"
        createDirectory (iterationDirectory)
        --search queries
-       candidates <- mapM (searchCandidates staticOptions (iterationNumber currentModelConstruction)) queries
+       candidates <- mapM (searchCandidates staticOptions currentIterationNumber) queries
+       let subTreeTaxId = 0
        --align search results - candidates > SCI 0.59 
        alignmentResults <- alignCandidates staticOptions currentModelConstruction (concat candidates)   
        --select queries
        selectedQueries <- selectQueries staticOptions currentModelConstruction alignmentResults
-       print selectedQueries
        -- prepare next iteration 
-       let newIterationNumber = (iterationNumber currentModelConstruction) + 1
-       let nextModelConstruction = constructNext newIterationNumber currentModelConstruction
-       
+       let nextModelConstruction = constructNext currentIterationNumber currentModelConstruction alignmentResults subTreeTaxId selectedQueries
        --nextIteration <- alignmentConstruction staticOptions nextModelConstruction
        --return ([modelconstruction] ++ nextIteration)
        return [modelconstruction]
      else return [modelconstruction]
 
-constructNext newIterationNumber modelconstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) [] []
+constructNext :: Int -> ModelConstruction -> [(Sequence,Int,String,Char)] -> Int -> [String] -> ModelConstruction
+constructNext currentIterationNumber modelconstruction alignmentResults subTreeTaxId selectedQueries = nextModelConstruction
+  where newIterationNumber = currentIterationNumber + 1
+        taxEntries = (taxRecords modelconstruction) ++ (buildTaxRecords alignmentResults currentIterationNumber) 
+        nextModelConstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) taxEntries subTreeTaxId selectedQueries 
+
+buildTaxRecords :: [(Sequence,Int,String,Char)] -> Int -> [TaxonomyRecord]
+buildTaxRecords alignmentResults currentIterationNumber = taxRecords
+  where taxIdGroups = groupBy sameTaxIdAlignmentResult alignmentResults
+        taxRecords = map (buildTaxRecord currentIterationNumber) taxIdGroups    
+
+sameTaxIdAlignmentResult :: (Sequence,Int,String,Char) -> (Sequence,Int,String,Char) -> Bool
+sameTaxIdAlignmentResult (_,taxId1,_,_) (_,taxId2,_,_) = taxId1 == taxId2
+
+buildTaxRecord :: Int -> [(Sequence,Int,String,Char)] -> TaxonomyRecord
+buildTaxRecord currentIterationNumber entries = taxRecord
+  where recordTaxId = (\(_,taxonomyId,_,_) -> taxonomyId) $ (head entries)
+        seqRecords = map (buildSeqRecord currentIterationNumber)  entries
+        taxRecord = TaxonomyRecord recordTaxId seqRecords
+
+buildSeqRecord :: Int -> (Sequence,Int,String,Char) -> SequenceRecord 
+buildSeqRecord currentIterationNumber (parsedFasta,taxid,subject,origin) = SequenceRecord parsedFasta currentIterationNumber subject origin   
 
 extractQueries :: Int -> ModelConstruction -> [Sequence]
 extractQueries iterationnumber modelconstruction
@@ -105,12 +125,12 @@ extractQueries iterationnumber modelconstruction
   | otherwise = []
   where fastaSeqData = inputFasta modelconstruction
 
-extractQueryCandidates :: [(Sequence,Int,String,String)] -> V.Vector (Int,Sequence)
+extractQueryCandidates :: [(Sequence,Int,String,Char)] -> V.Vector (Int,Sequence)
 extractQueryCandidates candidates = indexedSeqences
   where sequences = map (\(seq,_,_,_) -> seq) candidates
         indexedSeqences = V.map (\(number,seq) -> (number + 1,seq))(V.indexed (V.fromList (sequences)))
 
-searchCandidates :: StaticOptions -> Int -> Sequence -> IO [(Sequence,Int,String,String)]
+searchCandidates :: StaticOptions -> Int -> Sequence -> IO [(Sequence,Int,String,Char)]
 searchCandidates staticOptions iterationnumber query = do
   let fastaSeqData = seqdata query
   let queryLength = fromIntegral (seqlength (query))
@@ -156,15 +176,15 @@ searchCandidates staticOptions iterationnumber query = do
   writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/8genbankFeaturesOutput") (showlines genbankFeaturesOutput)
   let genbankFeatures = map (\(genbankfeatureOutput,taxid,subject) -> (parseGenbank genbankfeatureOutput,taxid,subject)) genbankFeaturesOutput
   let rightGenbankFeatures = map (\(genbankfeature,taxid,subject) -> (fromRight genbankfeature,taxid,subject)) genbankFeatures
-  let annotatedSequences = map (\(rightgenbankfeature,taxid,subject) -> (map (\singleseq -> (singleseq,taxid,subject,"G")) (extractSpecificFeatureSequence "gene" rightgenbankfeature))) rightGenbankFeatures
+  let annotatedSequences = map (\(rightgenbankfeature,taxid,subject) -> (map (\singleseq -> (singleseq,taxid,subject,'G')) (extractSpecificFeatureSequence "gene" rightgenbankfeature))) rightGenbankFeatures
   writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/9annotatedSequences") (showlines annotatedSequences)
   -- Retrieval of full sequences from entrez
   fullSequences <- mapM retrieveFullSequence requestedSequenceElements
-  let fullSequencesWithOrigin = map (\(parsedFasta,taxid,subject) -> (parsedFasta,taxid,subject,"B")) fullSequences
+  let fullSequencesWithOrigin = map (\(parsedFasta,taxid,subject) -> (parsedFasta,taxid,subject,'B')) fullSequences
   writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/10fullSequences") (showlines fullSequences)
   return ((concat annotatedSequences) ++ fullSequencesWithOrigin)
 
---alignCandidates :: StaticOptions -> ModelConstruction -> [(Sequence,Int,String,String)] -> [(String,Sequence,Int,String,String)]
+alignCandidates :: StaticOptions -> ModelConstruction -> [(Sequence,Int,String,Char)] -> IO [(Sequence,Int,String,Char)]
 alignCandidates staticOptions modelConstruction candidates = do
   putStrLn "Aligning Candidates"
   --Extract sequences from modelconstruction
@@ -261,7 +281,7 @@ main = do
   let rightNodes = fromRight nodes
   let fullSequenceOffsetLength = readInt fullSequenceOffset
   let staticOptions = StaticOptions tempDirPath sessionId  rightNodes (Just taxIdFilter) singleHitperTax lengthFilter fullSequenceOffsetLength threads
-  let initialization = ModelConstruction iterationNumber (head inputFasta) [] []
+  let initialization = ModelConstruction iterationNumber (head inputFasta) [] 0 []
   alignment <- alignmentConstruction staticOptions initialization
   print alignment
   putStrLn "Done"

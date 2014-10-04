@@ -6,7 +6,6 @@ import Bio.BlastXML
 import qualified Data.ByteString.Lazy.Char8 as L
 import Bio.Sequence.Fasta 
 import Bio.Taxonomy
---import Data.Vector
 
 -- | Static construction options
 data StaticOptions = StaticOptions
@@ -24,11 +23,13 @@ data StaticOptions = StaticOptions
 data ModelConstruction = ModelConstruction
   { iterationNumber :: Int,
     inputFasta :: Sequence,  
-    taxRecords :: [TaxRecord],
-    sciResults :: [[Double]]
+    taxRecords :: [TaxonomyRecord],
+    --Taxonomy ID of the highest node in taxonomic subtree used in search
+    parentTaxId :: Int,
+    selectedQueries :: [String]
   } deriving (Show) 
 
-data TaxRecord = TaxRecord
+data TaxonomyRecord = TaxonomyRecord
   { recordTaxonomyId :: Int,
     sequenceRecords :: [SequenceRecord]
   } deriving (Show) 
@@ -38,8 +39,7 @@ data SequenceRecord = SequenceRecord
     nucleotideSequence :: Sequence,
     -- 0 is unaligned, number is the iteration the sequence has been included into the alignment
     aligned  :: Int,
-    -- 0 means the sequences as not been used for searching, number is the iteration the sequence has been used for searching
-    searched :: Int,
+    recordDescription :: String,
     -- Is the sequence derived from the blast hit coordinates (B) or from a corresponding genbank feature (G)
     sequenceOrigin :: Char    
   } deriving (Show)  
