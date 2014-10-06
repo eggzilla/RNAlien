@@ -142,8 +142,11 @@ buildSeqRecord currentIterationNumber (parsedFasta,taxid,subject,origin) = Seque
 extractQueries :: Int -> ModelConstruction -> [Sequence]
 extractQueries iterationnumber modelconstruction
   | iterationnumber == 0 = [fastaSeqData]
-  | otherwise = []
+  | otherwise = querySequences
   where fastaSeqData = inputFasta modelconstruction
+        querySeqIds = selectedQueries modelconstruction
+        alignedSeqeunces = nucleotideSequence (sequenceRecords (taxRecords modelconstruction))
+        querySequences = map (\querySeqId -> find (\alignedSeq -> seqid alignedSeq == querySeqId) nucleotideSequence) querySeqIds
 
 extractQueryCandidates :: [(Sequence,Int,String,Char)] -> V.Vector (Int,Sequence)
 extractQueryCandidates candidates = indexedSeqences
