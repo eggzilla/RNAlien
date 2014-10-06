@@ -81,22 +81,42 @@ alignmentConstruction staticOptions modelconstruction = do
   if queries /= []
      then do
        let iterationDirectory = (tempDirPath staticOptions) ++ (show currentIterationNumber) ++ "/"
-       createDirectory (iterationDirectory)
+       createDirectory (iterationDirectory) 
+       --taxonomic context
+       let (upperTaxLimit,lowerTaxLimit) = getTaxonomicContext currentIterationNumber staticOptions  (upperTaxonomyLimit currentModelConstruction)
        --search queries
        candidates <- mapM (searchCandidates staticOptions currentIterationNumber) queries
-       let subTreeTaxId = 0
        --align search results - candidates > SCI 0.59 
        alignmentResults <- alignCandidates staticOptions currentModelConstruction (concat candidates)   
        --select queries
        selectedQueries <- selectQueries staticOptions currentModelConstruction alignmentResults
        -- prepare next iteration 
-       let nextModelConstruction = constructNext currentIterationNumber currentModelConstruction alignmentResults subTreeTaxId selectedQueries
+       let nextModelConstruction = constructNext currentIterationNumber currentModelConstruction alignmentResults upperTaxLimit selectedQueries
        --nextIteration <- alignmentConstruction staticOptions nextModelConstruction
        --return ([modelconstruction] ++ nextIteration)
        return [modelconstruction]
      else return [modelconstruction]
 
-constructNext :: Int -> ModelConstruction -> [(Sequence,Int,String,Char)] -> Int -> [String] -> ModelConstruction
+-- convert subtreeTaxId of last round into upper and lower search space boundry
+getTaxonomicContext :: Int -> StaticOptions -> Maybe Int -> (Maybe Int, Maybe Int)
+getTaxonomicContext currentIterationNumber staticOptions subTreeTaxId 
+  | currentIterationNumber == 0 = (userTaxFilter, Nothing)
+  | otherwise = setTaxonomicContext (fromJust subTreeTaxId) (inputTaxNodes staticOptions)
+  where userTaxFilter = Just (readInt (fromMaybe "0" (filterTaxId staticOptions)))
+
+-- setTaxonomic Context for next candidate search, the upper bound of the last search become the lower bound of the next
+setTaxonomicContext :: Int -> [SimpleTaxDumpNode] -> (Maybe Int, Maybe Int) 
+setTaxonomicContext subTreeTaxId taxDumpNodes = (upperLimit,lowerLimit)
+  where upperLimit = raiseTaxIdLimit subTreeTaxId taxDumpNodes
+        lowerLimit = Just subTreeTaxId
+
+raiseTaxIdLimit :: Int -> [SimpleTaxDumpNode] -> Maybe Int
+raiseTaxIdLimit subTreeTaxId taxDumpNodes = Just (simpleTaxId parentNode)
+  where  currentNode = fromJust (retrieveNode subTreeTaxId taxDumpNodes)
+         parentRank = nextParentRank subTreeTaxId (simpleRank currentNode) taxDumpNodes "root"
+         parentNode = parentNodeWithRank currentNode parentRank taxDumpNodes
+       
+constructNext :: Int -> ModelConstruction -> [(Sequence,Int,String,Char)] -> Maybe Int -> [String] -> ModelConstruction
 constructNext currentIterationNumber modelconstruction alignmentResults subTreeTaxId selectedQueries = nextModelConstruction
   where newIterationNumber = currentIterationNumber + 1
         taxEntries = (taxRecords modelconstruction) ++ (buildTaxRecords alignmentResults currentIterationNumber) 
@@ -281,7 +301,7 @@ main = do
   let rightNodes = fromRight nodes
   let fullSequenceOffsetLength = readInt fullSequenceOffset
   let staticOptions = StaticOptions tempDirPath sessionId  rightNodes (Just taxIdFilter) singleHitperTax lengthFilter fullSequenceOffsetLength threads
-  let initialization = ModelConstruction iterationNumber (head inputFasta) [] 0 []
+  let initialization = ModelConstruction iterationNumber (head inputFasta) [] Nothing []
   alignment <- alignmentConstruction staticOptions initialization
   print alignment
   putStrLn "Done"

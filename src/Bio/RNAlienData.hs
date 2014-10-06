@@ -25,7 +25,7 @@ data ModelConstruction = ModelConstruction
     inputFasta :: Sequence,  
     taxRecords :: [TaxonomyRecord],
     --Taxonomy ID of the highest node in taxonomic subtree used in search
-    parentTaxId :: Int,
+    upperTaxonomyLimit :: Maybe Int,
     selectedQueries :: [String]
   } deriving (Show) 
 
