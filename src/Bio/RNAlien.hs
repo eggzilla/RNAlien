@@ -145,8 +145,9 @@ extractQueries iterationnumber modelconstruction
   | otherwise = querySequences
   where fastaSeqData = inputFasta modelconstruction
         querySeqIds = selectedQueries modelconstruction
-        alignedSeqeunces = nucleotideSequence (sequenceRecords (taxRecords modelconstruction))
-        querySequences = map (\querySeqId -> find (\alignedSeq -> seqid alignedSeq == querySeqId) nucleotideSequence) querySeqIds
+        alignedSequences = map nucleotideSequence (concatMap sequenceRecords (taxRecords modelconstruction))
+        maybeQuerySequences = map (\querySeqId -> find (\alignedSeq -> show (seqid alignedSeq) == querySeqId) alignedSequences) querySeqIds
+        querySequences = map fromJust maybeQuerySequences
 
 extractQueryCandidates :: [(Sequence,Int,String,Char)] -> V.Vector (Int,Sequence)
 extractQueryCandidates candidates = indexedSeqences
