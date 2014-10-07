@@ -85,9 +85,9 @@ alignmentConstruction staticOptions modelconstruction = do
        --taxonomic context
        let (upperTaxLimit,lowerTaxLimit) = getTaxonomicContext currentIterationNumber staticOptions  (upperTaxonomyLimit currentModelConstruction)
        --search queries
-       candidates <- mapM (searchCandidates staticOptions currentIterationNumber) queries
+       candidates <- mapM (searchCandidates staticOptions currentIterationNumber upperTaxLimit lowerTaxLimit) queries        
        --align search results - candidates > SCI 0.59 
-       alignmentResults <- alignCandidates staticOptions currentModelConstruction (concat candidates)   
+       alignmentResults <- alignCandidates staticOptions currentModelConstruction (concat (map fst candidates))   
        --select queries
        selectedQueries <- selectQueries staticOptions currentModelConstruction alignmentResults
        -- prepare next iteration 
@@ -96,6 +96,8 @@ alignmentConstruction staticOptions modelconstruction = do
        --return ([modelconstruction] ++ nextIteration)
        return [modelconstruction]
      else return [modelconstruction]
+
+
 
 -- convert subtreeTaxId of last round into upper and lower search space boundry
 getTaxonomicContext :: Int -> StaticOptions -> Maybe Int -> (Maybe Int, Maybe Int)
@@ -154,13 +156,13 @@ extractQueryCandidates candidates = indexedSeqences
   where sequences = map (\(seq,_,_,_) -> seq) candidates
         indexedSeqences = V.map (\(number,seq) -> (number + 1,seq))(V.indexed (V.fromList (sequences)))
 
-searchCandidates :: StaticOptions -> Int -> Sequence -> IO [(Sequence,Int,String,Char)]
-searchCandidates staticOptions iterationnumber query = do
+searchCandidates :: StaticOptions -> Int -> Maybe Int -> Maybe Int -> Sequence -> IO ([(Sequence,Int,String,Char)], Int)
+searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit query = do
   let fastaSeqData = seqdata query
   let queryLength = fromIntegral (seqlength (query))
-  let defaultTaxFilter = ""
-  let selectedTaxFilter = fromMaybe defaultTaxFilter (filterTaxId staticOptions)
-  let (maskId, entrezTaxFilter) = buildTaxFilterQuery selectedTaxFilter (inputTaxNodes staticOptions)  
+  let defaultTaxFilter = 0
+  let selectedTaxFilter = fromMaybe defaultTaxFilter upperTaxLimit 
+  let (maskId, entrezTaxFilter) = buildTaxFilterQuery (show selectedTaxFilter) (inputTaxNodes staticOptions)  
   let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=250" 
   let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (Just "refseq_genomic") (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter))
   putStrLn ("Sending blast query " ++ (show iterationnumber))
@@ -206,7 +208,7 @@ searchCandidates staticOptions iterationnumber query = do
   fullSequences <- mapM retrieveFullSequence requestedSequenceElements
   let fullSequencesWithOrigin = map (\(parsedFasta,taxid,subject) -> (parsedFasta,taxid,subject,'B')) fullSequences
   writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/10fullSequences") (showlines fullSequences)
-  return ((concat annotatedSequences) ++ fullSequencesWithOrigin)
+  return (((concat annotatedSequences) ++ fullSequencesWithOrigin),selectedTaxFilter)
 
 alignCandidates :: StaticOptions -> ModelConstruction -> [(Sequence,Int,String,Char)] -> IO [(Sequence,Int,String,Char)]
 alignCandidates staticOptions modelConstruction candidates = do
