@@ -202,7 +202,7 @@ searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit query
   writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/8genbankFeaturesOutput") (showlines genbankFeaturesOutput)
   let genbankFeatures = map (\(genbankfeatureOutput,taxid,subject) -> (parseGenbank genbankfeatureOutput,taxid,subject)) genbankFeaturesOutput
   let rightGenbankFeatures = map (\(genbankfeature,taxid,subject) -> (fromRight genbankfeature,taxid,subject)) genbankFeatures
-  let annotatedSequences = map (\(rightgenbankfeature,taxid,subject) -> (map (\singleseq -> (singleseq,taxid,subject,'G')) (extractSpecificFeatureSequence "gene" rightgenbankfeature))) rightGenbankFeatures
+  let annotatedSequences = map (\(rightgenbankfeature,taxid,subject) -> (map (\singleseq -> (singleseq,taxid,subject,'G')) (extractSpecificFeatureSequence (Just "gene") rightgenbankfeature))) rightGenbankFeatures
   writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/9annotatedSequences") (showlines annotatedSequences)
   -- Retrieval of full sequences from entrez
   fullSequences <- mapM retrieveFullSequence requestedSequenceElements
