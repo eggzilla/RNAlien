@@ -83,7 +83,7 @@ alignmentConstruction staticOptions modelconstruction = do
        let iterationDirectory = (tempDirPath staticOptions) ++ (show currentIterationNumber) ++ "/"
        createDirectory (iterationDirectory) 
        --taxonomic context
-       let (upperTaxLimit,lowerTaxLimit) = getTaxonomicContext currentIterationNumber staticOptions  (upperTaxonomyLimit currentModelConstruction)
+       let (upperTaxLimit,lowerTaxLimit) = getTaxonomicContext currentIterationNumber staticOptions (upperTaxonomyLimit currentModelConstruction)
        --search queries
        candidates <- mapM (searchCandidates staticOptions currentIterationNumber upperTaxLimit lowerTaxLimit) queries        
        --align search results - candidates > SCI 0.59 
@@ -97,9 +97,11 @@ alignmentConstruction staticOptions modelconstruction = do
        return [modelconstruction]
      else return [modelconstruction]
 
-
-
--- convert subtreeTaxId of last round into upper and lower search space boundry
+-- | convert subtreeTaxId of last round into upper and lower search space boundry
+-- In the first iteration we either set the taxfilter provided by the user or no filter at all 
+-- If no filter was set, a parent node of the best git will be used instead.
+-- In the nex iterations the upper taxtree limit for search results will become the lower limit and
+-- a populated parent of this node the upper limit.
 getTaxonomicContext :: Int -> StaticOptions -> Maybe Int -> (Maybe Int, Maybe Int)
 getTaxonomicContext currentIterationNumber staticOptions subTreeTaxId 
   | currentIterationNumber == 0 = (userTaxFilter, Nothing)
@@ -190,7 +192,7 @@ searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit query
   -- Filtering with TaxTree (only hits from the same subtree as besthit)
   let blastHitsWithTaxId = zip blastHitsFilteredByParentTaxId blastHittaxIdList
   let bestHitTreePosition = getBestHitTreePosition (inputTaxNodes staticOptions) Family rightBestTaxIdResult bestHit
-  let filteredBlastResults = filterByNeighborhoodTree blastHitsWithTaxId bestHitTreePosition (singleHitperTaxToggle staticOptions)
+  let filteredBlastResults = filterByNeighborhoodTreeConditional iterationnumber selectedTaxFilter blastHitsWithTaxId bestHitTreePosition (singleHitperTaxToggle staticOptions)
   writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/5filteredBlastResults") (showlines filteredBlastResults)
   -- Coordinate generation
   let requestedSequenceElements = map (getRequestedSequenceElement (fullSequenceOffsetLength staticOptions) queryLength) filteredBlastResults
@@ -275,8 +277,8 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
   --retrieveAlignmentSCIs
   mlocarnaRNAzOutput <- readRNAz locarnaRNAzFilePath  
   let locarnaSCI = structureConservationIndex (fromRight mlocarnaRNAzOutput)
-  parsedNewick <- readGraphNewick clustalw2NewickFilepath
-  let rightNewick = fromRight parsedNewick
+  parsedNewickGraph <- readGraphNewick clustalw2NewickFilepath
+  let rightNewick = fromRight parsedNewickGraph 
   let indexedPathLengths = pathLengthsIndexed rightNewick
   let averagePathLengths = averagePathLengthperNodes indexedPathLengths
   let minPathLengthNode = minimumAveragePathLength averagePathLengths
