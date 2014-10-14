@@ -40,8 +40,19 @@ import Bio.GenbankTools
 import System.Exit
 import qualified Data.Vector as V
 
-encodedTaxIDQuery :: String -> String
-encodedTaxIDQuery taxID = "txid" ++ taxID ++ "+%5BORGN%5D&EQ_OP"
+buildTaxFilterQuery :: Maybe Int -> Maybe Int -> [SimpleTaxDumpNode] -> String
+buildTaxFilterQuery upperTaxLimit lowerTaxLimit nodes
+  | (isNothing upperTaxLimit) = ""
+  | (isNothing lowerTaxLimit) =  "&ENTREZ_QUERY=" ++ encodedTaxIDQuery (fromJust upperTaxLimit)
+  | otherwise = "&ENTREZ_QUERY=" ++ "%28tx" ++ (show upperTaxLimit)  ++ "%20%5BORGN%5D&EQ_OP%29" ++ "%20NOT%20" ++ "%28tx" ++ (show lowerTaxLimit) ++ "%20%5BORGN%5D&EQ_OP%29"
+ 
+buildHitNumberQuery :: String -> String
+buildHitNumberQuery hitNumber
+  | hitNumber == "" = ""
+  | otherwise = "&ALIGNMENTS=" ++ hitNumber
+
+encodedTaxIDQuery :: Int -> String
+encodedTaxIDQuery taxID = "txid" ++ (show taxID) ++ "%20%5BORGN%5D&EQ_OP"
 
 -- | Adds cm prefix to pseudo random number
 randomid :: Int16 -> String
@@ -281,18 +292,6 @@ getReverseRequestedSequenceElement retrievalOffset queryLength (blastHit,taxid) 
           startcoordinate = maxHfrom + minHonQuery + retrievalOffset
           endcoordinate = minHto - (queryLength - maxHonQuery) - retrievalOffset
           strand = "2"
-
-buildTaxFilterQuery :: String -> [SimpleTaxDumpNode] -> (String,String)
-buildTaxFilterQuery filterTaxId nodes
-  | filterTaxId == "" = ("","")
-  | otherwise = (blastMaskTaxId ,"&ENTREZ_QUERY=" ++ (encodedTaxIDQuery blastMaskTaxId))
-  where specifiedNode = fromJust (retrieveNode (readInt filterTaxId) nodes)
-        blastMaskTaxId = show (simpleTaxId (parentNodeWithRank specifiedNode Order nodes))
-
-buildHitNumberQuery :: String -> String
-buildHitNumberQuery hitNumber
-  | hitNumber == "" = ""
-  | otherwise = "&ALIGNMENTS=" ++ hitNumber
 
 constructCandidateFromFasta :: Sequence -> String
 constructCandidateFromFasta inputFasta = ">" ++ (filter (\char -> char /= '|') (L.unpack (unSL (seqheader inputFasta)))) ++ "\n" ++ (map toUpper (L.unpack (unSD (seqdata inputFasta)))) ++ "\n"
