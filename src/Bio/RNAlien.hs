@@ -61,7 +61,7 @@ data Options = Options
 options = Options
   { inputFastaFilePath = def &= name "i" &= help "Path to input fasta file",
     outputPath = def &= name "o" &= help "Path to output directory",
-    taxIdFilter = def &= name "t" &= help "NCBI taxonomy ID number of input RNA organism",
+    userTaxId = Nothing &= name "t" &= help "NCBI taxonomy ID number of input RNA organism",
     fullSequenceOffset = "0" &= name "f" &= help "Overhangs of retrieved fasta sequences compared to query sequence",
     lengthFilter = False &= name "l" &= help "Filter blast hits per genomic length",
     singleHitperTax = False &= name "s" &= help "Only the best blast hit per taxonomic entry is considered",
@@ -106,8 +106,14 @@ getTaxonomicContext :: Int -> StaticOptions -> Maybe Int -> (Maybe Int, Maybe In
 getTaxonomicContext currentIterationNumber staticOptions subTreeTaxId 
   | currentIterationNumber == 0 = (userTaxFilter, Nothing)
   | otherwise = setTaxonomicContext (fromJust subTreeTaxId) (inputTaxNodes staticOptions)
-  where userTaxFilter = Just (readInt (fromMaybe "0" (filterTaxId staticOptions)))
+  where userTaxFilter = checkUserTaxId (userTaxId staticOptions)
 
+-- | Check user provided taxId for sanity and raise it to > family rank
+checkUserTaxId :: Maybe Int -> Maybe Int 
+checkUserTaxId taxId
+  | isJust taxId = getBestHitTreePosition (inputTaxNodes staticOptions) Family rightBestTaxIdResult bestHit
+  | otherwise = Nothing
+ 
 -- setTaxonomic Context for next candidate search, the upper bound of the last search become the lower bound of the next
 setTaxonomicContext :: Int -> [SimpleTaxDumpNode] -> (Maybe Int, Maybe Int) 
 setTaxonomicContext subTreeTaxId taxDumpNodes = (upperLimit,lowerLimit)
@@ -191,7 +197,7 @@ searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit query
   writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/4blastHitsFilteredByParentTaxId") (showlines blastHitsFilteredByParentTaxId)
   -- Filtering with TaxTree (only hits from the same subtree as besthit)
   let blastHitsWithTaxId = zip blastHitsFilteredByParentTaxId blastHittaxIdList
-  let bestHitTreePosition = getBestHitTreePosition (inputTaxNodes staticOptions) Family rightBestTaxIdResult bestHit
+  let bestHitTreePosition = getBestHitTreePosition (inputTaxNodes staticOptions) Family rightBestTaxIdResult
   let filteredBlastResults = filterByNeighborhoodTreeConditional iterationnumber selectedTaxFilter blastHitsWithTaxId bestHitTreePosition (singleHitperTaxToggle staticOptions)
   writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/5filteredBlastResults") (showlines filteredBlastResults)
   -- Coordinate generation
@@ -308,7 +314,7 @@ main = do
   nodes <- readNCBISimpleTaxDumpNodes taxNodesFile 
   let rightNodes = fromRight nodes
   let fullSequenceOffsetLength = readInt fullSequenceOffset
-  let staticOptions = StaticOptions tempDirPath sessionId  rightNodes (Just taxIdFilter) singleHitperTax lengthFilter fullSequenceOffsetLength threads
+  let staticOptions = StaticOptions tempDirPath sessionId  rightNodes userTaxId singleHitperTax lengthFilter fullSequenceOffsetLength threads
   let initialization = ModelConstruction iterationNumber (head inputFasta) [] Nothing []
   alignment <- alignmentConstruction staticOptions initialization
   print alignment

@@ -12,7 +12,7 @@ data StaticOptions = StaticOptions
   { tempDirPath :: String,
     sessionID :: String,
     inputTaxNodes :: [SimpleTaxDumpNode],
-    filterTaxId :: Maybe String,
+    userTaxId :: Maybe Int,
     singleHitperTaxToggle :: Bool,
     lengthFilterToggle :: Bool,
     fullSequenceOffsetLength :: Int,

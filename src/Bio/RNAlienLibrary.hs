@@ -347,8 +347,8 @@ writeFastaFiles currentDir iterationNumber candidateFastaStrings  = do
 writeFastaFile :: String -> Int -> (String,String) -> IO ()
 writeFastaFile currentPath iterationNumber (fileName,content) = writeFile (currentPath ++ (show iterationNumber) ++ fileName ++ ".fa") content
 
-getBestHitTreePosition :: [SimpleTaxDumpNode] -> Rank -> Int -> BlastHit -> TZ.TreePos TZ.Full SimpleTaxDumpNode
-getBestHitTreePosition nodes rank rightBestTaxIdResult bestHit = bestHitTreePosition
+getBestHitTreePosition :: [SimpleTaxDumpNode] -> Rank -> Int -> TZ.TreePos TZ.Full SimpleTaxDumpNode
+getBestHitTreePosition nodes rank rightBestTaxIdResult = bestHitTreePosition
   where  hitNode = fromJust (retrieveNode rightBestTaxIdResult nodes)
          parentFamilyNode = parentNodeWithRank hitNode rank nodes
          neighborhoodNodes = (retrieveAllDescendents nodes parentFamilyNode)
