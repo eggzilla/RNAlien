@@ -356,11 +356,13 @@ getBestHitTreePosition nodes rank rightBestTaxIdResult = bestHitTreePosition
          bestHitTreePosition = head (findChildTaxTreeNodePosition (simpleTaxId hitNode) rootNode)
 
 -- | If no species of origin as been set by the user we blast without tax restriction and filter after blasting
-filterByNeighborhoodTreeConditional :: Int -> Int -> [(BlastHit,Int)] -> TZ.TreePos TZ.Full SimpleTaxDumpNode -> Bool -> [(BlastHit,Int)]
-filterByNeighborhoodTreeConditional iterationnumber upperTaxIdLimit blastHitsWithTaxId bestHitTreePosition singleHitperTax 
-  | iterationnumber == 1 && upperTaxIdLimit == 0 = filterByNeighborhoodTree blastHitsWithTaxId bestHitTreePosition singleHitperTax
+filterByNeighborhoodTreeConditional :: Int -> Maybe Int -> [(BlastHit,Int)] -> [SimpleTaxDumpNode] -> Int -> Bool -> (Int, [(BlastHit,Int)])
+filterByNeighborhoodTreeConditional iterationnumber upperTaxIdLimit blastHitsWithTaxId taxNodes rightBestTaxIdResult singleHitperTax 
+  | iterationnumber == 1 && (show upperTaxIdLimit) == "0" = (firstUpperTaxIdLimit,filterByNeighborhoodTree blastHitsWithTaxId bestHitTreePosition singleHitperTax)
   --already resticted search space during blast search
-  | otherwise = blastHitsWithTaxId
+  | otherwise = ((fromJust upperTaxIdLimit), blastHitsWithTaxId)
+  where bestHitTreePosition = getBestHitTreePosition taxNodes Family rightBestTaxIdResult
+        firstUpperTaxIdLimit =  (simpleTaxId (rootLabel (TZ.toTree (bestHitTreePosition))))
 
 -- | Filter blast hits by location in the taxtree. Node has to be in subtree of the besthit provided
 filterByNeighborhoodTree :: [(BlastHit,Int)] -> TZ.TreePos TZ.Full SimpleTaxDumpNode -> Bool -> [(BlastHit,Int)]

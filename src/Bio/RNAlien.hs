@@ -91,7 +91,7 @@ alignmentConstruction staticOptions modelconstruction = do
        --select queries
        selectedQueries <- selectQueries staticOptions currentModelConstruction alignmentResults
        -- prepare next iteration 
-       let nextModelConstruction = constructNext currentIterationNumber currentModelConstruction alignmentResults upperTaxLimit selectedQueries
+       let nextModelConstruction = constructNext currentIterationNumber currentModelConstruction alignmentResults (snd (head candidates)) selectedQueries
        --nextIteration <- alignmentConstruction staticOptions nextModelConstruction
        --return ([modelconstruction] ++ nextIteration)
        return [modelconstruction]
@@ -164,13 +164,12 @@ extractQueryCandidates candidates = indexedSeqences
   where sequences = map (\(seq,_,_,_) -> seq) candidates
         indexedSeqences = V.map (\(number,seq) -> (number + 1,seq))(V.indexed (V.fromList (sequences)))
 
-searchCandidates :: StaticOptions -> Int -> Maybe Int -> Maybe Int -> Sequence -> IO ([(Sequence,Int,String,Char)], Int)
+searchCandidates :: StaticOptions -> Int -> Maybe Int -> Maybe Int -> Sequence -> IO ([(Sequence,Int,String,Char)], Maybe Int)
 searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit query = do
   let fastaSeqData = seqdata query
   let queryLength = fromIntegral (seqlength (query))
   let defaultTaxFilter = 0
-  let selectedTaxFilter = fromMaybe defaultTaxFilter upperTaxLimit 
-  let entrezTaxFilter = buildTaxFilterQuery upperTaxLimit lowerTaxLimit (inputTaxNodes staticOptions)  
+  let entrezTaxFilter = buildTaxFilterQuery upperTaxLimit lowerTaxLimit (inputTaxNodes staticOptions) 
   let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=250" 
   let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (Just "refseq_genomic") (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter))
   putStrLn ("Sending blast query " ++ (show iterationnumber))
@@ -198,7 +197,7 @@ searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit query
   -- Filtering with TaxTree (only hits from the same subtree as besthit)
   let blastHitsWithTaxId = zip blastHitsFilteredByParentTaxId blastHittaxIdList
   let bestHitTreePosition = getBestHitTreePosition (inputTaxNodes staticOptions) Family rightBestTaxIdResult
-  let filteredBlastResults = filterByNeighborhoodTreeConditional iterationnumber selectedTaxFilter blastHitsWithTaxId bestHitTreePosition (singleHitperTaxToggle staticOptions)
+  let (usedUpperTaxLimit, filteredBlastResults) = filterByNeighborhoodTreeConditional iterationnumber upperTaxLimit blastHitsWithTaxId (inputTaxNodes staticOptions) rightBestTaxIdResult (singleHitperTaxToggle staticOptions)
   writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/5filteredBlastResults") (showlines filteredBlastResults)
   -- Coordinate generation
   let requestedSequenceElements = map (getRequestedSequenceElement (fullSequenceOffsetLength staticOptions) queryLength) filteredBlastResults
@@ -216,7 +215,7 @@ searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit query
   fullSequences <- mapM retrieveFullSequence requestedSequenceElements
   let fullSequencesWithOrigin = map (\(parsedFasta,taxid,subject) -> (parsedFasta,taxid,subject,'B')) fullSequences
   writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/10fullSequences") (showlines fullSequences)
-  return (((concat annotatedSequences) ++ fullSequencesWithOrigin),selectedTaxFilter)
+  return (((concat annotatedSequences) ++ fullSequencesWithOrigin),(Just usedUpperTaxLimit))
 
 alignCandidates :: StaticOptions -> ModelConstruction -> [(Sequence,Int,String,Char)] -> IO [(Sequence,Int,String,Char)]
 alignCandidates staticOptions modelConstruction candidates = do
