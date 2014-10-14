@@ -50,7 +50,7 @@ import Data.Graph.Inductive
 
 data Options = Options            
   { inputFastaFilePath :: String,
-    taxIdFilter :: String,
+    inputTaxId :: Maybe Int,
     outputPath :: String,
     fullSequenceOffset :: String,
     lengthFilter :: Bool,
@@ -61,7 +61,7 @@ data Options = Options
 options = Options
   { inputFastaFilePath = def &= name "i" &= help "Path to input fasta file",
     outputPath = def &= name "o" &= help "Path to output directory",
-    userTaxId = Nothing &= name "t" &= help "NCBI taxonomy ID number of input RNA organism",
+    inputTaxId = Nothing &= name "t" &= help "NCBI taxonomy ID number of input RNA organism",
     fullSequenceOffset = "0" &= name "f" &= help "Overhangs of retrieved fasta sequences compared to query sequence",
     lengthFilter = False &= name "l" &= help "Filter blast hits per genomic length",
     singleHitperTax = False &= name "s" &= help "Only the best blast hit per taxonomic entry is considered",
@@ -106,12 +106,12 @@ getTaxonomicContext :: Int -> StaticOptions -> Maybe Int -> (Maybe Int, Maybe In
 getTaxonomicContext currentIterationNumber staticOptions subTreeTaxId 
   | currentIterationNumber == 0 = (userTaxFilter, Nothing)
   | otherwise = setTaxonomicContext (fromJust subTreeTaxId) (inputTaxNodes staticOptions)
-  where userTaxFilter = checkUserTaxId (userTaxId staticOptions)
+  where userTaxFilter = checkUserTaxId staticOptions (userTaxId staticOptions)
 
 -- | Check user provided taxId for sanity and raise it to > family rank
-checkUserTaxId :: Maybe Int -> Maybe Int 
-checkUserTaxId taxId
-  | isJust taxId = getBestHitTreePosition (inputTaxNodes staticOptions) Family rightBestTaxIdResult bestHit
+checkUserTaxId :: StaticOptions -> Maybe Int -> Maybe Int 
+checkUserTaxId staticOptions taxId
+  | isJust taxId = Just (simpleTaxId (rootLabel (TZ.toTree (getBestHitTreePosition (inputTaxNodes staticOptions) Family (fromJust taxId)))))
   | otherwise = Nothing
  
 -- setTaxonomic Context for next candidate search, the upper bound of the last search become the lower bound of the next
@@ -314,7 +314,7 @@ main = do
   nodes <- readNCBISimpleTaxDumpNodes taxNodesFile 
   let rightNodes = fromRight nodes
   let fullSequenceOffsetLength = readInt fullSequenceOffset
-  let staticOptions = StaticOptions tempDirPath sessionId  rightNodes userTaxId singleHitperTax lengthFilter fullSequenceOffsetLength threads
+  let staticOptions = StaticOptions tempDirPath sessionId  rightNodes inputTaxId singleHitperTax lengthFilter fullSequenceOffsetLength threads
   let initialization = ModelConstruction iterationNumber (head inputFasta) [] Nothing []
   alignment <- alignmentConstruction staticOptions initialization
   print alignment
