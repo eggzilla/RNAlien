@@ -69,7 +69,7 @@ options = Options
   } &= summary "RNAlien devel version" &= help "Florian Eggenhofer - >2013" &= verbosity       
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
---alignmentConstruction :: StaticOptions -> [ModelConstruction] -> [ModelConstruction]
+alignmentConstruction :: StaticOptions -> ModelConstruction -> IO ModelConstruction
 alignmentConstruction staticOptions modelconstruction = do
   putStrLn (show (iterationNumber modelconstruction))
   let currentModelConstruction = modelconstruction
@@ -93,9 +93,8 @@ alignmentConstruction staticOptions modelconstruction = do
        -- prepare next iteration 
        let nextModelConstruction = constructNext currentIterationNumber currentModelConstruction alignmentResults (snd (head candidates)) selectedQueries
        --nextIteration <- alignmentConstruction staticOptions nextModelConstruction
-       --return ([modelconstruction] ++ nextIteration)
-       return [modelconstruction]
-     else return [modelconstruction]
+       return nextModelConstruction
+     else return modelconstruction
 
 -- | convert subtreeTaxId of last round into upper and lower search space boundry
 -- In the first iteration we either set the taxfilter provided by the user or no filter at all 
@@ -315,7 +314,9 @@ main = do
   let fullSequenceOffsetLength = readInt fullSequenceOffset
   let staticOptions = StaticOptions tempDirPath sessionId  rightNodes inputTaxId singleHitperTax lengthFilter fullSequenceOffsetLength threads
   let initialization = ModelConstruction iterationNumber (head inputFasta) [] Nothing []
-  alignment <- alignmentConstruction staticOptions initialization
-  print alignment
+  modelconstructionResult <- alignmentConstruction staticOptions initialization
+  --extract final alignment and build cm
+  --systemCMbuild 
+  print modelconstructionResult
   putStrLn "Done"
   
