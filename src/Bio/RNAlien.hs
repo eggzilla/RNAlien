@@ -292,15 +292,15 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
   writeFile ((tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/log" ++ "/12selectedQueries") (showlines selectedQueries)
   return (selectedQueries)
 
-constructModel :: Modelconstruction -> StaticOptions
+constructModel :: ModelConstruction -> StaticOptions -> IO String
 constructModel alignmentConstructionResult staticOptions = do
   putStrLn "ConstructModel"
   --Extract sequences from modelconstruction
-  let alignedSequences = extractAlignedSequences (iterationNumber modelConstruction) modelConstruction 
+  let alignedSequences = extractAlignedSequences (iterationNumber alignmentConstructionResult) alignmentConstructionResult 
   let outputDirectory = (tempDirPath staticOptions) 
   let alignmentSequences = map snd (V.toList (V.concat [alignedSequences]))
   --write Fasta sequences
-  writeFasta (iterationDirectory ++ "result" ++ ".fa") alignmentSequences
+  writeFasta (outputDirectory ++ "result" ++ ".fa") alignmentSequences
   let fastaFilepath = outputDirectory ++ "result" ++ ".fa"
   let locarnaFilepath = outputDirectory ++ "result" ++ ".mlocarna"
   let stockholmFilepath = outputDirectory ++ "result" ++ ".stockholm"
@@ -317,8 +317,7 @@ constructModel alignmentConstructionResult staticOptions = do
   let stockholAlignment = convertClustaltoStockholm (fromRight mlocarnaAlignment)
   writeFile stockholmFilepath stockholAlignment
   systemCMbuild stockholmFilepath cmFilepath
-  writeFile ((tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/log" ++ "/12selectedQueries") (showlines selectedQueries)
-  return (selectedQueries)
+  return (cmFilepath)
 
 
 main = do
@@ -347,6 +346,6 @@ main = do
   pathToModel <- constructModel alignmentConstructionResult staticOptions           
   putStrLn "Path to result model: "
   putStrLn pathToModel
-  print modelConstructionResult
+  print alignmentConstructionResult
   putStrLn "Done"
   
