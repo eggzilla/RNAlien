@@ -92,11 +92,17 @@ systemCMbuild filePath iterationNumber = system ("cmbuild " ++ filePath ++ " >" 
                                        
 -- | Run CMCompare and read the output into the corresponding datatype
 systemCMcompare ::  String -> String -> IO ExitCode
-systemCMcompare filePath iterationNumber = system ("CMcompare " ++ filePath ++ " >" ++ iterationNumber ++ ".cmcoutput")
+systemCMcompare inputFilePath outputFilePath = system ("CMcompare " ++ inputFilePath ++ " >" ++ outputFilePath ++ ".cmcoutput")
+
+--constructCMbuildFilePath :: String -> Int -> (String, String)
+--constructCMbuildFilePath tempDir iterationnumber = (inputFilePath, outputFilepath)
+--  where inputFilePath = tempDir ++ "result.aln"
+--        outputfilepath
 
 readInt :: String -> Int
 readInt = read
 
+parseNCBISimpleGene2Accession :: String -> Either ParseError SimpleGene2Accession
 parseNCBISimpleGene2Accession input = parse genParserNCBISimpleGene2Accession "parseSimpleGene2Accession" input
 
 genParserNCBISimpleGene2Accession :: GenParser Char st SimpleGene2Accession
@@ -437,7 +443,24 @@ nextParentRank bestHitTaxId rank nodes direction = nextRank
         nextParentRank = nextRankByDirection rank direction
         currentParent = parentNodeWithRank hitNode rank nodes
         nextRank = isPopulated currentParent (parentNodeWithRank hitNode rank nodes) bestHitTaxId rank nodes direction
-        
+
+convertClustaltoStockholm parsedMlocarnaAlignment = stockholmOutput
+  where header = "# STOCKHOLM 1.0\n"
+        clustalAlignment = map alignmentEntries parsedMlocarnaAlignment
+        maxIdentifierLenght = maximum (map length (map entrySequenceIdentifier clustalAlignment))
+        spacerLength = maxIdentifierLenght + 2
+        stockholmEntries = map (buildStockholmAlignmentEntries spacerLength) clustalAlignment
+        structureString = "#=GC SS_cons" ++ (replicate (spacerLength - 12) " ") ++ (secondaryStructureTrack parsedMlocarnaAlignment)
+        bottom = "//"
+        stockholmOutput = header ++
+
+buildStockholmAlignmentEntries Int -> ClustalAlignmentEntry -> String
+buildStockholmAlignmentEntries spacerLength entry
+  where idLength = length (entrySequenceIdentifier entry)
+        spacer = replicate (spacerlength - idLength) " "
+        entrystring = (entrySequenceIdentifier entry) ++ spacer ++ (entryAlignedSequence entry) ++ "\n"
+
+      
 isPopulated :: SimpleTaxDumpNode -> SimpleTaxDumpNode -> Int -> Rank -> [SimpleTaxDumpNode] -> String -> Rank
 isPopulated currentParent nextParent bestHitTaxId rank nodes direction
   | currentParent == nextParent = (nextParentRank bestHitTaxId (nextRankByDirection rank direction) nodes direction)
