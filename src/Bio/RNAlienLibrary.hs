@@ -265,7 +265,7 @@ blastHitIsReverseComplement (blastHit,taxid) = isReverse
 getForwardRequestedSequenceElement :: Int -> Int -> (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
 getForwardRequestedSequenceElement retrievalOffset queryLength (blastHit,taxid) = (geneIdentifier,startcoordinate,endcoordinate,strand,accession,taxid,subjectBlast)
   where    accession = L.unpack (extractAccession blastHit)
-           subjectBlast = L.unpack (subject blastHit)
+           subjectBlast = L.unpack (unSL (subject blastHit))
            geneIdentifier = extractGeneId blastHit
            blastMatches = matches blastHit
            minHfrom = minimum (map h_from blastMatches)
@@ -281,7 +281,7 @@ getForwardRequestedSequenceElement retrievalOffset queryLength (blastHit,taxid) 
 getReverseRequestedSequenceElement :: Int -> Int -> (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
 getReverseRequestedSequenceElement retrievalOffset queryLength (blastHit,taxid) = (geneIdentifier,startcoordinate,endcoordinate,strand,accession,taxid,subjectBlast)
   where   accession = L.unpack (extractAccession blastHit)
-          subjectBlast = L.unpack (subject blastHit)           
+          subjectBlast = L.unpack (unSL (subject blastHit))           
           geneIdentifier = extractGeneId blastHit
           blastMatches = matches blastHit
           maxHfrom = maximum (map h_from blastMatches)
@@ -563,15 +563,15 @@ retrieveNode nodeTaxId nodes = find (\node -> (simpleTaxId node) == nodeTaxId) n
 
 -- | Retrieve all taxonomic nodes that are directly
 retrieveChildren :: [SimpleTaxDumpNode] -> SimpleTaxDumpNode -> [SimpleTaxDumpNode]
-retrieveChildren nodes parentNode = filter (\node -> (simpleParentTaxId node) == (simpleTaxId parentNode)) nodes
+retrieveChildren nodes parentNode = filter (\node -> simpleParentTaxId node == simpleTaxId parentNode) nodes
 
 -- | Retrieve all taxonomic nodes that are descented from this node including itself
 retrieveAllDescendents :: [SimpleTaxDumpNode] -> SimpleTaxDumpNode -> [SimpleTaxDumpNode]
 retrieveAllDescendents nodes parentNode 
-  | childNodes /= [] = [parentNode] ++ (concat (map (retrieveAllDescendents nodes) childNodes))
+  | childNodes /= [] = [parentNode] ++ concatMap (retrieveAllDescendents nodes) childNodes
   | otherwise = [parentNode]
   where
   childNodes = retrieveChildren nodes parentNode
 
 -- typesignature
-showlines input = concatMap (\x -> (show x) ++ "\n") input
+showlines input = concatMap (\x -> show x ++ "\n") input

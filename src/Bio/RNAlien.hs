@@ -32,6 +32,7 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
 import Data.Word
 import Bio.Taxonomy 
+import Data.Either (lefts)
 import Data.Either.Unwrap 
 import Data.Tree
 import qualified Data.Tree.Zipper as TZ
@@ -206,6 +207,7 @@ searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit query
   genbankFeaturesOutput <- mapM retrieveGenbankFeatures requestedGenbankFeatures
   writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/8genbankFeaturesOutput") (showlines genbankFeaturesOutput)
   let genbankFeatures = map (\(genbankfeatureOutput,taxid,subject) -> (parseGenbank genbankfeatureOutput,taxid,subject)) genbankFeaturesOutput
+  writeFile ((tempDirPath staticOptions) ++ "error") (concatMap show (lefts (map (\(a,b,c) -> a) genbankFeatures)))
   let rightGenbankFeatures = map (\(genbankfeature,taxid,subject) -> (fromRight genbankfeature,taxid,subject)) genbankFeatures
   let annotatedSequences = map (\(rightgenbankfeature,taxid,subject) -> (map (\singleseq -> (singleseq,taxid,subject,'G')) (extractSpecificFeatureSequence (Just "gene") rightgenbankfeature))) rightGenbankFeatures
   writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/9annotatedSequences") (showlines annotatedSequences)
