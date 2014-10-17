@@ -92,7 +92,6 @@ alignmentConstruction staticOptions modelconstruction = do
        selectedQueries <- selectQueries staticOptions currentModelConstruction alignmentResults
        -- prepare next iteration 
        let nextModelConstruction = constructNext currentIterationNumber currentModelConstruction alignmentResults (snd (head candidates)) selectedQueries
-       --nextIteration <- alignmentConstruction staticOptions nextModelConstruction
        return nextModelConstruction
      else return modelconstruction
 
@@ -293,6 +292,35 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
   writeFile ((tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/log" ++ "/12selectedQueries") (showlines selectedQueries)
   return (selectedQueries)
 
+constructModel :: Modelconstruction -> StaticOptions
+constructModel alignmentConstructionResult staticOptions = do
+  putStrLn "ConstructModel"
+  --Extract sequences from modelconstruction
+  let alignedSequences = extractAlignedSequences (iterationNumber modelConstruction) modelConstruction 
+  let outputDirectory = (tempDirPath staticOptions) 
+  let alignmentSequences = map snd (V.toList (V.concat [alignedSequences]))
+  --write Fasta sequences
+  writeFasta (iterationDirectory ++ "result" ++ ".fa") alignmentSequences
+  let fastaFilepath = outputDirectory ++ "result" ++ ".fa"
+  let locarnaFilepath = outputDirectory ++ "result" ++ ".mlocarna"
+  let stockholmFilepath = outputDirectory ++ "result" ++ ".stockholm"
+  let cmFilepath = outputDirectory ++ "result" ++ ".cm"
+  let locarnainClustalw2FormatFilepath = outputDirectory ++ "result" ++ "." ++ "out" ++ "/results/result.aln" 
+  alignSequences "mlocarna" ("--iterate --local-progressive --threads=" ++ (show (cpuThreads staticOptions)) ++ " ") [fastaFilepath] [locarnaFilepath] []
+  --compute SCI
+  let locarnaRNAzFilePath = outputDirectory ++ "result" ++ ".rnazmlocarna"
+  computeAlignmentSCIs [locarnainClustalw2FormatFilepath] [locarnaRNAzFilePath]
+  --retrieveAlignmentSCIs
+  mlocarnaRNAzOutput <- readRNAz locarnaRNAzFilePath  
+  let locarnaSCI = structureConservationIndex (fromRight mlocarnaRNAzOutput)
+  mlocarnaAlignment <- readStructuralClustalAlignment locarnaFilepath
+  let stockholAlignment = convertClustaltoStockholm (fromRight mlocarnaAlignment)
+  writeFile stockholmFilepath stockholAlignment
+  systemCMbuild stockholmFilepath cmFilepath
+  writeFile ((tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/log" ++ "/12selectedQueries") (showlines selectedQueries)
+  return (selectedQueries)
+
+
 main = do
   args <- getArgs
   Options{..} <- cmdArgs options       
@@ -314,9 +342,11 @@ main = do
   let fullSequenceOffsetLength = readInt fullSequenceOffset
   let staticOptions = StaticOptions tempDirPath sessionId  rightNodes inputTaxId singleHitperTax lengthFilter fullSequenceOffsetLength threads
   let initialization = ModelConstruction iterationNumber (head inputFasta) [] Nothing []
-  modelconstructionResult <- alignmentConstruction staticOptions initialization
+  alignmentConstructionResult <- alignmentConstruction staticOptions initialization
   --extract final alignment and build cm
-  --systemCMbuild 
-  print modelconstructionResult
+  pathToModel <- constructModel alignmentConstructionResult staticOptions           
+  putStrLn "Path to result model: "
+  putStrLn pathToModel
+  print modelConstructionResult
   putStrLn "Done"
   
