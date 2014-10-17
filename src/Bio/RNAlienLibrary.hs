@@ -88,16 +88,11 @@ systemRNAz (inputFilePath, outputFilePath) = system ("RNAz " ++ inputFilePath ++
 
 -- | Run external CMbuild command and read the output into the corresponding datatype 
 systemCMbuild ::  String -> String -> IO ExitCode
-systemCMbuild filePath iterationNumber = system ("cmbuild " ++ filePath ++ " >" ++ iterationNumber ++ ".cm")  
+systemCMbuild inputFilepath outputFilepath = system ("cmbuild " ++ inputFilePath ++ " > " ++ outputFilepath)  
                                        
 -- | Run CMCompare and read the output into the corresponding datatype
 systemCMcompare ::  String -> String -> IO ExitCode
 systemCMcompare inputFilePath outputFilePath = system ("CMcompare " ++ inputFilePath ++ " >" ++ outputFilePath ++ ".cmcoutput")
-
---constructCMbuildFilePath :: String -> Int -> (String, String)
---constructCMbuildFilePath tempDir iterationnumber = (inputFilePath, outputFilepath)
---  where inputFilePath = tempDir ++ "result.aln"
---        outputfilepath
 
 readInt :: String -> Int
 readInt = read
@@ -444,6 +439,7 @@ nextParentRank bestHitTaxId rank nodes direction = nextRank
         currentParent = parentNodeWithRank hitNode rank nodes
         nextRank = isPopulated currentParent (parentNodeWithRank hitNode rank nodes) bestHitTaxId rank nodes direction
 
+convertClustaltoStockholm :: StructuralClustalAlignment -> String
 convertClustaltoStockholm parsedMlocarnaAlignment = stockholmOutput
   where header = "# STOCKHOLM 1.0\n"
         clustalAlignment = map alignmentEntries parsedMlocarnaAlignment
