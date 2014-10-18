@@ -78,7 +78,9 @@ alignmentConstruction staticOptions modelconstruction = do
        --select queries
        selectedQueries <- selectQueries staticOptions currentModelConstruction alignmentResults
        -- prepare next iteration 
-       let nextModelConstruction = constructNext currentIterationNumber currentModelConstruction alignmentResults (snd (head candidates)) selectedQueries
+       let nextModelConstructionInput = constructNext (currentIterationNumber + 1) currentModelConstruction alignmentResults (snd (head candidates)) selectedQueries
+       print nextModelConstructionInput
+       nextModelConstruction <- alignmentConstruction staticOptions nextModelConstructionInput
        return nextModelConstruction
      else return modelconstruction
 
@@ -239,7 +241,7 @@ alignCandidates staticOptions modelConstruction candidates = do
   --print mlocarnaRNAzOutput  
   --putStrLn "clustalw2SCI:"
   --let clustalw2SCI = map (\x -> show (structureConservationIndex (fromRight x))) clustalw2RNAzOutput
-  putStrLn "mlocarnaRNAz:"
+  --putStrLn "mlocarnaRNAz:"
   let locarnaSCI = map (\x -> show (structureConservationIndex (fromRight x))) mlocarnaRNAzOutput
   --let scoreoverview = zip3 clustalw2Score clustalw2SCI locarnaSCI
   --mapM_ (\x -> putStrLn (show x))scoreoverview
@@ -282,7 +284,7 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
   let minPathLengthNodeLabel = getLabel rightNewick minPathLengthNode
   let maxPathLengthNodeLabel = getLabel rightNewick maxPathLengthNode
   let selectedQueries = [minPathLengthNodeLabel,maxPathLengthNodeLabel]
-  writeFile ((tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/log" ++ "/12selectedQueries") (showlines selectedQueries)
+  writeFile ((tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/log" ++ "/13selectedQueries") (showlines selectedQueries)
   return (selectedQueries)
 
 constructModel :: ModelConstruction -> StaticOptions -> IO String
@@ -306,12 +308,12 @@ constructModel alignmentConstructionResult staticOptions = do
   --retrieveAlignmentSCIs
   mlocarnaRNAzOutput <- readRNAz locarnaRNAzFilePath  
   let locarnaSCI = structureConservationIndex (fromRight mlocarnaRNAzOutput)
-  writeFile ((tempDirPath staticOptions) ++ "/log"  ++ "/") (show locarnaSCI)
+  appendFile ((tempDirPath staticOptions) ++ "/log") (show locarnaSCI)
   mlocarnaAlignment <- readStructuralClustalAlignment locarnaFilepath
   let stockholAlignment = convertClustaltoStockholm (fromRight mlocarnaAlignment)
   writeFile stockholmFilepath stockholAlignment
-  buildError <- systemCMbuild stockholmFilepath cmFilepath
-  appendFile ((tempDirPath staticOptions) ++ "/log"  ++ "/") (show buildError)
+  buildLog <- systemCMbuild stockholmFilepath cmFilepath
+  appendFile ((tempDirPath staticOptions) ++ "log") (show buildLog)
   return (cmFilepath)
 
 main :: IO ()

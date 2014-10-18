@@ -14,6 +14,7 @@ data StaticOptions = StaticOptions
     inputTaxNodes :: [SimpleTaxDumpNode],
     userTaxId :: Maybe Int,
     singleHitperTaxToggle :: Bool,
+    useGenbankAnnotationToogle :: Bool,
     lengthFilterToggle :: Bool,
     fullSequenceOffsetLength :: Int,
     cpuThreads :: Int
