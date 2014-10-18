@@ -8,46 +8,29 @@
 module Main where
     
 import System.Console.CmdArgs    
-import System.Process 
-import Text.ParserCombinators.Parsec
-import System.IO
-import System.Environment
 import System.Directory
 import Data.List
-import Data.Char
 import Bio.Core.Sequence 
 import Bio.Sequence.Fasta 
 import Bio.BlastXML
 import Bio.ViennaRNAParser
 import Bio.ClustalParser
-import System.Directory
-import System.Process
 import System.Random
-import Control.Monad
 import Data.Int (Int16)
 import Bio.BlastHTTP 
 import Bio.RNAlienData
-import qualified Data.ByteString.Lazy.Char8 as L
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Char8 as BC
-import Data.Word
 import Bio.Taxonomy 
 import Data.Either (lefts)
 import Data.Either.Unwrap 
 import Data.Tree
 import qualified Data.Tree.Zipper as TZ
 import Data.Maybe
-import Text.Parsec.Error
-import Text.ParserCombinators.Parsec.Pos
-import Bio.EntrezHTTP
-import Data.List.Split
 import Bio.GenbankParser 
 import Bio.GenbankTools
 import qualified Data.Vector as V
 import Bio.RNAlienLibrary
 import Bio.PhylogenyParser
 import Bio.PhylogenyTools
-import Data.Graph.Inductive
 
 data Options = Options            
   { inputFastaFilePath :: String,
@@ -59,6 +42,7 @@ data Options = Options
     threads :: Int
   } deriving (Show,Data,Typeable)
 
+options :: Options
 options = Options
   { inputFastaFilePath = def &= name "i" &= help "Path to input fasta file",
     outputPath = def &= name "o" &= help "Path to output directory",
@@ -146,7 +130,7 @@ buildTaxRecord currentIterationNumber entries = taxRecord
         taxRecord = TaxonomyRecord recordTaxId seqRecords
 
 buildSeqRecord :: Int -> (Sequence,Int,String,Char) -> SequenceRecord 
-buildSeqRecord currentIterationNumber (parsedFasta,taxid,subject,origin) = SequenceRecord parsedFasta currentIterationNumber subject origin   
+buildSeqRecord currentIterationNumber (parsedFasta,_,subject,origin) = SequenceRecord parsedFasta currentIterationNumber subject origin   
 
 extractQueries :: Int -> ModelConstruction -> [Sequence]
 extractQueries iterationnumber modelconstruction
@@ -160,14 +144,13 @@ extractQueries iterationnumber modelconstruction
 
 extractQueryCandidates :: [(Sequence,Int,String,Char)] -> V.Vector (Int,Sequence)
 extractQueryCandidates candidates = indexedSeqences
-  where sequences = map (\(seq,_,_,_) -> seq) candidates
-        indexedSeqences = V.map (\(number,seq) -> (number + 1,seq))(V.indexed (V.fromList (sequences)))
+  where sequences = map (\(nucleotideSequence,_,_,_) -> nucleotideSequence) candidates
+        indexedSeqences = V.map (\(number,nucleotideSequence) -> (number + 1,nucleotideSequence))(V.indexed (V.fromList (sequences)))
 
 searchCandidates :: StaticOptions -> Int -> Maybe Int -> Maybe Int -> Sequence -> IO ([(Sequence,Int,String,Char)], Maybe Int)
 searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit query = do
   let fastaSeqData = seqdata query
   let queryLength = fromIntegral (seqlength (query))
-  let defaultTaxFilter = 0
   let entrezTaxFilter = buildTaxFilterQuery upperTaxLimit lowerTaxLimit (inputTaxNodes staticOptions) 
   let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=250" 
   let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (Just "refseq_genomic") (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter))
@@ -195,7 +178,6 @@ searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit query
   writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/4blastHitsFilteredByParentTaxId") (showlines blastHitsFilteredByParentTaxId)
   -- Filtering with TaxTree (only hits from the same subtree as besthit)
   let blastHitsWithTaxId = zip blastHitsFilteredByParentTaxId blastHittaxIdList
-  let bestHitTreePosition = getBestHitTreePosition (inputTaxNodes staticOptions) Family rightBestTaxIdResult
   let (usedUpperTaxLimit, filteredBlastResults) = filterByNeighborhoodTreeConditional iterationnumber upperTaxLimit blastHitsWithTaxId (inputTaxNodes staticOptions) rightBestTaxIdResult (singleHitperTaxToggle staticOptions)
   writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/5filteredBlastResults") (showlines filteredBlastResults)
   -- Coordinate generation
@@ -207,7 +189,7 @@ searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit query
   genbankFeaturesOutput <- mapM retrieveGenbankFeatures requestedGenbankFeatures
   writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/8genbankFeaturesOutput") (showlines genbankFeaturesOutput)
   let genbankFeatures = map (\(genbankfeatureOutput,taxid,subject) -> (parseGenbank genbankfeatureOutput,taxid,subject)) genbankFeaturesOutput
-  writeFile ((tempDirPath staticOptions) ++ "error") (concatMap show (lefts (map (\(a,b,c) -> a) genbankFeatures)))
+  writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log"  ++ "/error") (concatMap show (lefts (map (\(a,_,_) -> a) genbankFeatures)))
   let rightGenbankFeatures = map (\(genbankfeature,taxid,subject) -> (fromRight genbankfeature,taxid,subject)) genbankFeatures
   let annotatedSequences = map (\(rightgenbankfeature,taxid,subject) -> (map (\singleseq -> (singleseq,taxid,subject,'G')) (extractSpecificFeatureSequence (Just "gene") rightgenbankfeature))) rightGenbankFeatures
   writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/9annotatedSequences") (showlines annotatedSequences)
@@ -226,7 +208,7 @@ alignCandidates staticOptions modelConstruction candidates = do
   let iterationDirectory = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/"
   let alignmentSequences = V.concat (map (constructPairwiseAlignmentSequences candidateSequences) (V.toList alignedSequences))
   --write Fasta sequences
-  V.mapM_ (\(number,sequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") sequence) alignmentSequences
+  V.mapM_ (\(number,nucleotideSequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") nucleotideSequence) alignmentSequences
   let pairwiseFastaFilepath = constructPairwiseFastaFilePaths iterationDirectory alignmentSequences
   --let pairwiseClustalw2Filepath = constructPairwiseAlignmentFilePaths "clustalw2" iterationDirectory alignmentSequences
   --let pairwiseClustalw2SummaryFilepath = constructPairwiseAlignmentSummaryFilePaths iterationDirectory alignmentSequences
@@ -253,12 +235,12 @@ alignCandidates staticOptions modelConstruction candidates = do
   --let scoreoverview = zip3 clustalw2Score clustalw2SCI locarnaSCI
   --mapM_ (\x -> putStrLn (show x))scoreoverview
   let alignedCandidates = zip locarnaSCI candidates
-  let (selectedCandidates,rejectedCandidates)= partition (\(sci,b) -> (read sci ::Double) > 0.59 ) alignedCandidates
+  let (selectedCandidates,rejectedCandidates)= partition (\(sci,_) -> (read sci ::Double) > 0.59 ) alignedCandidates
   writeFile ((tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/log" ++ "/11selectedCandidates") (showlines selectedCandidates)
   writeFile ((tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/log" ++ "/12rejectedCandidates") (showlines rejectedCandidates)
   return (map snd selectedCandidates)
 
---selectQueries :: StaticOptions -> ModelConstruction -> [(Sequence,Int,String,String)] -> IO [String]
+selectQueries :: StaticOptions -> ModelConstruction -> [(Sequence,Int,String,Char)] -> IO [String]
 selectQueries staticOptions modelConstruction selectedCandidates = do
   putStrLn "SelectQueries"
   --Extract sequences from modelconstruction
@@ -270,18 +252,18 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
   writeFasta (iterationDirectory ++ "query" ++ ".fa") alignmentSequences
   let fastaFilepath = iterationDirectory ++ "query" ++ ".fa"
   let locarnaFilepath = iterationDirectory ++ "query" ++ ".mlocarna"
-  let locarnainClustalw2FormatFilepath = iterationDirectory ++ "query" ++ "." ++ "out" ++ "/results/result.aln"
+  --let locarnainClustalw2FormatFilepath = iterationDirectory ++ "query" ++ "." ++ "out" ++ "/results/result.aln"
   let clustalw2Filepath = iterationDirectory ++ "query" ++ ".clustalw2"
   let clustalw2SummaryFilepath = iterationDirectory ++ "query" ++ ".alnsum" 
   let clustalw2NewickFilepath = iterationDirectory ++ "query" ++ ".dnd" 
   alignSequences "mlocarna" ("--iterate --local-progressive --threads=" ++ (show (cpuThreads staticOptions)) ++ " ") [fastaFilepath] [locarnaFilepath] []
   alignSequences "clustalw2" "" [fastaFilepath] [clustalw2Filepath] [clustalw2SummaryFilepath]
   --compute SCI
-  let locarnaRNAzFilePath = iterationDirectory ++ "query" ++ ".rnazmlocarna"
-  computeAlignmentSCIs [locarnainClustalw2FormatFilepath] [locarnaRNAzFilePath]
+  --let locarnaRNAzFilePath = iterationDirectory ++ "query" ++ ".rnazmlocarna"
+  --computeAlignmentSCIs [locarnainClustalw2FormatFilepath] [locarnaRNAzFilePath]
   --retrieveAlignmentSCIs
-  mlocarnaRNAzOutput <- readRNAz locarnaRNAzFilePath  
-  let locarnaSCI = structureConservationIndex (fromRight mlocarnaRNAzOutput)
+  --mlocarnaRNAzOutput <- readRNAz locarnaRNAzFilePath  
+  --let locarnaSCI = structureConservationIndex (fromRight mlocarnaRNAzOutput)
   parsedNewickGraph <- readGraphNewick clustalw2NewickFilepath
   let rightNewick = fromRight parsedNewickGraph 
   let indexedPathLengths = pathLengthsIndexed rightNewick
@@ -315,25 +297,25 @@ constructModel alignmentConstructionResult staticOptions = do
   --retrieveAlignmentSCIs
   mlocarnaRNAzOutput <- readRNAz locarnaRNAzFilePath  
   let locarnaSCI = structureConservationIndex (fromRight mlocarnaRNAzOutput)
+  writeFile ((tempDirPath staticOptions) ++ "/log"  ++ "/") (show locarnaSCI)
   mlocarnaAlignment <- readStructuralClustalAlignment locarnaFilepath
   let stockholAlignment = convertClustaltoStockholm (fromRight mlocarnaAlignment)
   writeFile stockholmFilepath stockholAlignment
-  systemCMbuild stockholmFilepath cmFilepath
+  buildError <- systemCMbuild stockholmFilepath cmFilepath
+  appendFile ((tempDirPath staticOptions) ++ "/log"  ++ "/") (show buildError)
   return (cmFilepath)
 
-
+main :: IO ()
 main = do
-  args <- getArgs
   Options{..} <- cmdArgs options       
    -- Generate SessionID
   randomNumber <- randomIO :: IO Int16
   let sessionId = randomid randomNumber
   let iterationNumber = 0
   --create seed model
+  --ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz
   let taxNodesFile = "/home/egg/current/Data/Taxonomy/taxdump/nodes.dmp"
-  let gene2AccessionFile = "/home/egg/current/Data/gene2accession"
-  let tempDirRootFolderPath = "/scr/klingon/egg/temp/"
-  let tempDirPath = tempDirRootFolderPath ++ sessionId ++ "/"
+  let tempDirPath = outputPath ++ sessionId ++ "/"
   createDirectory (tempDirPath)
   putStrLn "Created Temp-Dir:"
   putStrLn tempDirPath
