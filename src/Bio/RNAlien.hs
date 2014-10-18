@@ -84,73 +84,6 @@ alignmentConstruction staticOptions modelconstruction = do
        return nextModelConstruction
      else return modelconstruction
 
--- | convert subtreeTaxId of last round into upper and lower search space boundry
--- In the first iteration we either set the taxfilter provided by the user or no filter at all 
--- If no filter was set, a parent node of the best git will be used instead.
--- In the nex iterations the upper taxtree limit for search results will become the lower limit and
--- a populated parent of this node the upper limit.
-getTaxonomicContext :: Int -> StaticOptions -> Maybe Int -> (Maybe Int, Maybe Int)
-getTaxonomicContext currentIterationNumber staticOptions subTreeTaxId 
-  | currentIterationNumber == 0 = (userTaxFilter, Nothing)
-  | otherwise = setTaxonomicContext (fromJust subTreeTaxId) (inputTaxNodes staticOptions)
-  where userTaxFilter = checkUserTaxId staticOptions (userTaxId staticOptions)
-
--- | Check user provided taxId for sanity and raise it to > family rank
-checkUserTaxId :: StaticOptions -> Maybe Int -> Maybe Int 
-checkUserTaxId staticOptions taxId
-  | isJust taxId = Just (simpleTaxId (rootLabel (TZ.toTree (getBestHitTreePosition (inputTaxNodes staticOptions) Family (fromJust taxId)))))
-  | otherwise = Nothing
- 
--- setTaxonomic Context for next candidate search, the upper bound of the last search become the lower bound of the next
-setTaxonomicContext :: Int -> [SimpleTaxDumpNode] -> (Maybe Int, Maybe Int) 
-setTaxonomicContext subTreeTaxId taxDumpNodes = (upperLimit,lowerLimit)
-  where upperLimit = raiseTaxIdLimit subTreeTaxId taxDumpNodes
-        lowerLimit = Just subTreeTaxId
-
-raiseTaxIdLimit :: Int -> [SimpleTaxDumpNode] -> Maybe Int
-raiseTaxIdLimit subTreeTaxId taxDumpNodes = Just (simpleTaxId parentNode)
-  where  currentNode = fromJust (retrieveNode subTreeTaxId taxDumpNodes)
-         parentRank = nextParentRank subTreeTaxId (simpleRank currentNode) taxDumpNodes "root"
-         parentNode = parentNodeWithRank currentNode parentRank taxDumpNodes
-       
-constructNext :: Int -> ModelConstruction -> [(Sequence,Int,String,Char)] -> Maybe Int -> [String] -> ModelConstruction
-constructNext currentIterationNumber modelconstruction alignmentResults subTreeTaxId selectedQueries = nextModelConstruction
-  where newIterationNumber = currentIterationNumber + 1
-        taxEntries = (taxRecords modelconstruction) ++ (buildTaxRecords alignmentResults currentIterationNumber) 
-        nextModelConstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) taxEntries subTreeTaxId selectedQueries 
-
-buildTaxRecords :: [(Sequence,Int,String,Char)] -> Int -> [TaxonomyRecord]
-buildTaxRecords alignmentResults currentIterationNumber = taxRecords
-  where taxIdGroups = groupBy sameTaxIdAlignmentResult alignmentResults
-        taxRecords = map (buildTaxRecord currentIterationNumber) taxIdGroups    
-
-sameTaxIdAlignmentResult :: (Sequence,Int,String,Char) -> (Sequence,Int,String,Char) -> Bool
-sameTaxIdAlignmentResult (_,taxId1,_,_) (_,taxId2,_,_) = taxId1 == taxId2
-
-buildTaxRecord :: Int -> [(Sequence,Int,String,Char)] -> TaxonomyRecord
-buildTaxRecord currentIterationNumber entries = taxRecord
-  where recordTaxId = (\(_,taxonomyId,_,_) -> taxonomyId) $ (head entries)
-        seqRecords = map (buildSeqRecord currentIterationNumber)  entries
-        taxRecord = TaxonomyRecord recordTaxId seqRecords
-
-buildSeqRecord :: Int -> (Sequence,Int,String,Char) -> SequenceRecord 
-buildSeqRecord currentIterationNumber (parsedFasta,_,subject,origin) = SequenceRecord parsedFasta currentIterationNumber subject origin   
-
-extractQueries :: Int -> ModelConstruction -> [Sequence]
-extractQueries iterationnumber modelconstruction
-  | iterationnumber == 0 = [fastaSeqData]
-  | otherwise = querySequences
-  where fastaSeqData = inputFasta modelconstruction
-        querySeqIds = selectedQueries modelconstruction
-        alignedSequences = map nucleotideSequence (concatMap sequenceRecords (taxRecords modelconstruction))
-        maybeQuerySequences = map (\querySeqId -> find (\alignedSeq -> show (seqid alignedSeq) == querySeqId) alignedSequences) querySeqIds
-        querySequences = map fromJust maybeQuerySequences
-
-extractQueryCandidates :: [(Sequence,Int,String,Char)] -> V.Vector (Int,Sequence)
-extractQueryCandidates candidates = indexedSeqences
-  where sequences = map (\(nucleotideSequence,_,_,_) -> nucleotideSequence) candidates
-        indexedSeqences = V.map (\(number,nucleotideSequence) -> (number + 1,nucleotideSequence))(V.indexed (V.fromList (sequences)))
-
 searchCandidates :: StaticOptions -> Int -> Maybe Int -> Maybe Int -> Sequence -> IO ([(Sequence,Int,String,Char)], Maybe Int)
 searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit query = do
   let fastaSeqData = seqdata query
@@ -194,21 +127,6 @@ searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit query
   let fullSequencesWithOrigin = map (\(parsedFasta,taxid,subject) -> (parsedFasta,taxid,subject,'B')) fullSequences
   writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/10fullSequences") (showlines fullSequences)
   return (((concat annotatedSequences) ++ fullSequencesWithOrigin),(Just usedUpperTaxLimit))
-
-buildGenbankCoordinatesAndRetrieveFeatures :: StaticOptions -> Int -> Int -> [(BlastHit,Int)] -> IO [[(Sequence, Int, String, Char)]]
-buildGenbankCoordinatesAndRetrieveFeatures staticOptions iterationnumber queryLength filteredBlastResults = do
-  if useGenbankAnnotationToogle staticOptions == True
-     then do
-       let requestedGenbankFeatures = map (getRequestedSequenceElement queryLength queryLength) filteredBlastResults  
-       writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/7requestedGenbankFeatures") (showlines requestedGenbankFeatures)
-       genbankFeaturesOutput <- mapM retrieveGenbankFeatures requestedGenbankFeatures
-       let genbankFeatures = map (\(genbankfeatureOutput,taxid,subject) -> (parseGenbank genbankfeatureOutput,taxid,subject)) genbankFeaturesOutput
-       writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log"  ++ "/error") (concatMap show (lefts (map (\(a,_,_) -> a) genbankFeatures)))
-       let rightGenbankFeatures = map (\(genbankfeature,taxid,subject) -> (fromRight genbankfeature,taxid,subject)) genbankFeatures
-       let annotatedSequences = map (\(rightgenbankfeature,taxid,subject) -> (map (\singleseq -> (singleseq,taxid,subject,'G')) (extractSpecificFeatureSequence (Just "gene") rightgenbankfeature))) rightGenbankFeatures
-       writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/9annotatedSequences") (showlines annotatedSequences)
-       return annotatedSequences
-     else return []
 
 alignCandidates :: StaticOptions -> ModelConstruction -> [(Sequence,Int,String,Char)] -> IO [(Sequence,Int,String,Char)]
 alignCandidates staticOptions modelConstruction candidates = do
