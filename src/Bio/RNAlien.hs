@@ -19,14 +19,8 @@ import System.Random
 import Data.Int (Int16)
 import Bio.BlastHTTP 
 import Bio.RNAlienData
-import Bio.Taxonomy 
-import Data.Either (lefts)
-import Data.Either.Unwrap 
-import Data.Tree
-import qualified Data.Tree.Zipper as TZ
-import Data.Maybe
-import Bio.GenbankParser 
-import Bio.GenbankTools
+import Bio.Taxonomy  
+import Data.Either.Unwrap
 import qualified Data.Vector as V
 import Bio.RNAlienLibrary
 import Bio.PhylogenyParser
@@ -78,8 +72,8 @@ alignmentConstruction staticOptions modelconstruction = do
        --select queries
        selectedQueries <- selectQueries staticOptions currentModelConstruction alignmentResults
        -- prepare next iteration 
-       let nextModelConstructionInput = constructNext (currentIterationNumber + 1) currentModelConstruction alignmentResults (snd (head candidates)) selectedQueries
-       print nextModelConstructionInput
+       let nextModelConstructionInput = constructNext currentIterationNumber currentModelConstruction alignmentResults (snd (head candidates)) selectedQueries
+       appendFile ((tempDirPath staticOptions) ++ "log") (show nextModelConstructionInput)
        nextModelConstruction <- alignmentConstruction staticOptions nextModelConstructionInput
        return nextModelConstruction
      else return modelconstruction
@@ -88,7 +82,7 @@ searchCandidates :: StaticOptions -> Int -> Maybe Int -> Maybe Int -> Sequence -
 searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit query = do
   let fastaSeqData = seqdata query
   let queryLength = fromIntegral (seqlength (query))
-  let entrezTaxFilter = buildTaxFilterQuery upperTaxLimit lowerTaxLimit (inputTaxNodes staticOptions) 
+  let entrezTaxFilter = buildTaxFilterQuery upperTaxLimit lowerTaxLimit 
   let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=250" 
   let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (Just "refseq_genomic") (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter))
   putStrLn ("Sending blast query " ++ (show iterationnumber))
@@ -139,30 +133,14 @@ alignCandidates staticOptions modelConstruction candidates = do
   --write Fasta sequences
   V.mapM_ (\(number,nucleotideSequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") nucleotideSequence) alignmentSequences
   let pairwiseFastaFilepath = constructPairwiseFastaFilePaths iterationDirectory alignmentSequences
-  --let pairwiseClustalw2Filepath = constructPairwiseAlignmentFilePaths "clustalw2" iterationDirectory alignmentSequences
-  --let pairwiseClustalw2SummaryFilepath = constructPairwiseAlignmentSummaryFilePaths iterationDirectory alignmentSequences
   let pairwiseLocarnaFilepath = constructPairwiseAlignmentFilePaths "mlocarna" iterationDirectory alignmentSequences
   let pairwiseLocarnainClustalw2FormatFilepath = constructPairwiseAlignmentFilePaths "mlocarnainclustalw2format" iterationDirectory alignmentSequences
-  --alignSequences "clustalw2" "" pairwiseFastaFilepath pairwiseClustalw2Filepath pairwiseClustalw2SummaryFilepath
   alignSequences "mlocarna" ("--iterate --local-progressive --threads=" ++ (show (cpuThreads staticOptions)) ++ " ")  pairwiseFastaFilepath pairwiseLocarnaFilepath []
-  --clustalw2Summary <- mapM readClustalw2Summary pairwiseClustalw2SummaryFilepath
-  --let clustalw2Score = map (\x -> show (alignmentScore (fromRight x))) clustalw2Summary
   --compute SCI
-  --let pairwiseClustalw2RNAzFilePaths = constructPairwiseRNAzFilePaths "clustalw2" iterationDirectory alignmentSequences
   let pairwiseLocarnaRNAzFilePaths = constructPairwiseRNAzFilePaths "mlocarna" iterationDirectory alignmentSequences
-  --computeAlignmentSCIs pairwiseClustalw2Filepath pairwiseClustalw2RNAzFilePaths
   computeAlignmentSCIs pairwiseLocarnainClustalw2FormatFilepath pairwiseLocarnaRNAzFilePaths
-  --retrieveAlignmentSCIs
-  --clustalw2RNAzOutput <- mapM readRNAz pairwiseClustalw2RNAzFilePaths
   mlocarnaRNAzOutput <- mapM readRNAz pairwiseLocarnaRNAzFilePaths
-  --putStrLn "RNAzout:"
-  --print mlocarnaRNAzOutput  
-  --putStrLn "clustalw2SCI:"
-  --let clustalw2SCI = map (\x -> show (structureConservationIndex (fromRight x))) clustalw2RNAzOutput
-  --putStrLn "mlocarnaRNAz:"
   let locarnaSCI = map (\x -> show (structureConservationIndex (fromRight x))) mlocarnaRNAzOutput
-  --let scoreoverview = zip3 clustalw2Score clustalw2SCI locarnaSCI
-  --mapM_ (\x -> putStrLn (show x))scoreoverview
   let alignedCandidates = zip locarnaSCI candidates
   let (selectedCandidates,rejectedCandidates)= partition (\(sci,_) -> (read sci ::Double) > 0.59 ) alignedCandidates
   writeFile ((tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/log" ++ "/11selectedCandidates") (showlines selectedCandidates)
@@ -187,12 +165,6 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
   let clustalw2NewickFilepath = iterationDirectory ++ "query" ++ ".dnd" 
   alignSequences "mlocarna" ("--iterate --local-progressive --threads=" ++ (show (cpuThreads staticOptions)) ++ " ") [fastaFilepath] [locarnaFilepath] []
   alignSequences "clustalw2" "" [fastaFilepath] [clustalw2Filepath] [clustalw2SummaryFilepath]
-  --compute SCI
-  --let locarnaRNAzFilePath = iterationDirectory ++ "query" ++ ".rnazmlocarna"
-  --computeAlignmentSCIs [locarnainClustalw2FormatFilepath] [locarnaRNAzFilePath]
-  --retrieveAlignmentSCIs
-  --mlocarnaRNAzOutput <- readRNAz locarnaRNAzFilePath  
-  --let locarnaSCI = structureConservationIndex (fromRight mlocarnaRNAzOutput)
   parsedNewickGraph <- readGraphNewick clustalw2NewickFilepath
   let rightNewick = fromRight parsedNewickGraph 
   let indexedPathLengths = pathLengthsIndexed rightNewick
@@ -254,6 +226,7 @@ main = do
   let fullSequenceOffsetLength = readInt fullSequenceOffset
   let staticOptions = StaticOptions tempDirPath sessionId  rightNodes inputTaxId singleHitperTax useGenbankAnnotation lengthFilter fullSequenceOffsetLength threads
   let initialization = ModelConstruction iterationNumber (head inputFasta) [] Nothing []
+  writeFile (tempDirPath ++ "log") (show initialization)
   alignmentConstructionResult <- alignmentConstruction staticOptions initialization
   --extract final alignment and build cm
   pathToModel <- constructModel alignmentConstructionResult staticOptions           
