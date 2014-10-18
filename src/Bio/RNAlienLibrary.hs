@@ -1,31 +1,21 @@
 -- | This module contains functions for RNAlien
 
 module Bio.RNAlienLibrary where
-
-import System.Console.CmdArgs    
+   
 import System.Process 
 import Text.ParserCombinators.Parsec
-import System.IO
-import System.Environment
-import System.Directory
 import Data.List
 import Data.Char
 import Bio.Core.Sequence 
 import Bio.Sequence.Fasta 
 import Bio.BlastXML
-import Bio.ViennaRNAParser
 import Bio.ClustalParser
-import System.Directory
-import System.Process
-import System.Random
 import Control.Monad
 import Data.Int (Int16)
-import Bio.BlastHTTP 
 import Bio.RNAlienData
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
-import Data.Word
 import Bio.Taxonomy 
 import Data.Either.Unwrap
 import Data.Tree
@@ -38,6 +28,7 @@ import Data.List.Split
 import Bio.GenbankParser 
 import Bio.GenbankTools
 import System.Exit
+import Data.Either (lefts)
 import qualified Data.Vector as V
 
 -- | convert subtreeTaxId of last round into upper and lower search space boundry
@@ -53,32 +44,32 @@ getTaxonomicContext currentIterationNumber staticOptions subTreeTaxId
 
 -- | Check user provided taxId for sanity and raise it to > family rank
 checkUserTaxId :: StaticOptions -> Maybe Int -> Maybe Int 
-checkUserTaxId staticOptions taxId
-  | isJust taxId = Just (simpleTaxId (rootLabel (TZ.toTree (getBestHitTreePosition (inputTaxNodes staticOptions) Family (fromJust taxId)))))
+checkUserTaxId staticOptions taxonomyId
+  | isJust taxonomyId = Just (simpleTaxId (rootLabel (TZ.toTree (getBestHitTreePosition (inputTaxNodes staticOptions) Family (fromJust taxonomyId)))))
   | otherwise = Nothing
  
 -- setTaxonomic Context for next candidate search, the upper bound of the last search become the lower bound of the next
 setTaxonomicContext :: Int -> [SimpleTaxDumpNode] -> (Maybe Int, Maybe Int) 
-setTaxonomicContext subTreeTaxId taxDumpNodes = (upperLimit,lowerLimit)
-  where upperLimit = raiseTaxIdLimit subTreeTaxId taxDumpNodes
+setTaxonomicContext subTreeTaxId taxonomyDumpNodes = (upperLimit,lowerLimit)
+  where upperLimit = raiseTaxIdLimit subTreeTaxId taxonomyDumpNodes
         lowerLimit = Just subTreeTaxId
 
 raiseTaxIdLimit :: Int -> [SimpleTaxDumpNode] -> Maybe Int
-raiseTaxIdLimit subTreeTaxId taxDumpNodes = Just (simpleTaxId parentNode)
-  where  currentNode = fromJust (retrieveNode subTreeTaxId taxDumpNodes)
-         parentRank = nextParentRank subTreeTaxId (simpleRank currentNode) taxDumpNodes "root"
-         parentNode = parentNodeWithRank currentNode parentRank taxDumpNodes
+raiseTaxIdLimit subTreeTaxId taxonomyDumpNodes = Just (simpleTaxId parentNode)
+  where  currentNode = fromJust (retrieveNode subTreeTaxId taxonomyDumpNodes)
+         parentRank = nextParentRank subTreeTaxId (simpleRank currentNode) taxonomyDumpNodes "root"
+         parentNode = parentNodeWithRank currentNode parentRank taxonomyDumpNodes
        
 constructNext :: Int -> ModelConstruction -> [(Sequence,Int,String,Char)] -> Maybe Int -> [String] -> ModelConstruction
-constructNext currentIterationNumber modelconstruction alignmentResults subTreeTaxId selectedQueries = nextModelConstruction
+constructNext currentIterationNumber modelconstruction alignmentResults subTreeTaxId inputSelectedQueries = nextModelConstruction
   where newIterationNumber = currentIterationNumber + 1
         taxEntries = (taxRecords modelconstruction) ++ (buildTaxRecords alignmentResults currentIterationNumber) 
-        nextModelConstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) taxEntries subTreeTaxId selectedQueries 
+        nextModelConstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) taxEntries subTreeTaxId inputSelectedQueries 
 
 buildTaxRecords :: [(Sequence,Int,String,Char)] -> Int -> [TaxonomyRecord]
-buildTaxRecords alignmentResults currentIterationNumber = taxRecords
+buildTaxRecords alignmentResults currentIterationNumber = taxonomyRecords
   where taxIdGroups = groupBy sameTaxIdAlignmentResult alignmentResults
-        taxRecords = map (buildTaxRecord currentIterationNumber) taxIdGroups    
+        taxonomyRecords = map (buildTaxRecord currentIterationNumber) taxIdGroups    
 
 sameTaxIdAlignmentResult :: (Sequence,Int,String,Char) -> (Sequence,Int,String,Char) -> Bool
 sameTaxIdAlignmentResult (_,taxId1,_,_) (_,taxId2,_,_) = taxId1 == taxId2
@@ -90,7 +81,7 @@ buildTaxRecord currentIterationNumber entries = taxRecord
         taxRecord = TaxonomyRecord recordTaxId seqRecords
 
 buildSeqRecord :: Int -> (Sequence,Int,String,Char) -> SequenceRecord 
-buildSeqRecord currentIterationNumber (parsedFasta,_,subject,origin) = SequenceRecord parsedFasta currentIterationNumber subject origin   
+buildSeqRecord currentIterationNumber (parsedFasta,_,seqSubject,seqOrigin) = SequenceRecord parsedFasta currentIterationNumber seqSubject seqOrigin   
 
 extractQueries :: Int -> ModelConstruction -> [Sequence]
 extractQueries iterationnumber modelconstruction
@@ -104,11 +95,11 @@ extractQueries iterationnumber modelconstruction
 
 extractQueryCandidates :: [(Sequence,Int,String,Char)] -> V.Vector (Int,Sequence)
 extractQueryCandidates candidates = indexedSeqences
-  where sequences = map (\(nucleotideSequence,_,_,_) -> nucleotideSequence) candidates
-        indexedSeqences = V.map (\(number,nucleotideSequence) -> (number + 1,nucleotideSequence))(V.indexed (V.fromList (sequences)))
+  where sequences = map (\(candidateSequence,_,_,_) -> candidateSequence) candidates
+        indexedSeqences = V.map (\(number,candidateSequence) -> (number + 1,candidateSequence))(V.indexed (V.fromList (sequences)))
 
-buildTaxFilterQuery :: Maybe Int -> Maybe Int -> [SimpleTaxDumpNode] -> String
-buildTaxFilterQuery upperTaxLimit lowerTaxLimit nodes
+buildTaxFilterQuery :: Maybe Int -> Maybe Int -> String
+buildTaxFilterQuery upperTaxLimit lowerTaxLimit
   | (isNothing upperTaxLimit) = ""
   | (isNothing lowerTaxLimit) =  "&ENTREZ_QUERY=" ++ encodedTaxIDQuery (fromJust upperTaxLimit)
   | otherwise = "&ENTREZ_QUERY=" ++ "%28tx" ++ (show upperTaxLimit)  ++ "%20%5BORGN%5D&EQ_OP%29" ++ "%20NOT%20" ++ "%28tx" ++ (show lowerTaxLimit) ++ "%20%5BORGN%5D&EQ_OP%29"
@@ -127,8 +118,8 @@ randomid number = "cm" ++ (show number)
 
 -- | Run external blast command and read the output into the corresponding datatype
 systemBlast :: String -> Int -> IO BlastResult
-systemBlast filePath iterationNumber = do
-  let outputName = (show iterationNumber) ++ ".blastout"
+systemBlast filePath inputIterationNumber = do
+  let outputName = (show inputIterationNumber) ++ ".blastout"
   system ("blastn -outfmt 5 -query " ++ filePath  ++ " -db nr -out " ++ outputName)
   inputBlast <- readXML outputName
   return inputBlast
@@ -147,7 +138,7 @@ systemClustalw2 options (inputFilePath, outputFilePath, summaryFilePath) = syste
 
 -- | Run external RNAalifold command and read the output into the corresponding datatype
 systemRNAalifold :: String -> String -> IO ExitCode
-systemRNAalifold filePath iterationNumber = system ("RNAalifold " ++ filePath  ++ " >" ++ iterationNumber ++ ".alifold")
+systemRNAalifold filePath inputIterationNumber = system ("RNAalifold " ++ filePath  ++ " >" ++ inputIterationNumber ++ ".alifold")
 
 -- | Run external RNAz command and read the output into the corresponding datatype
 systemRNAz :: (String,String) -> IO ExitCode
@@ -169,7 +160,7 @@ parseNCBISimpleGene2Accession input = parse genParserNCBISimpleGene2Accession "p
 
 genParserNCBISimpleGene2Accession :: GenParser Char st SimpleGene2Accession
 genParserNCBISimpleGene2Accession = do
-  taxIdEntry <- many1 digit
+  taxonomyIdEntry' <- many1 digit
   many1 tab
   many1 digit
   many1 tab 
@@ -183,7 +174,7 @@ genParserNCBISimpleGene2Accession = do
   many1 tab
   many1 (noneOf "\t")
   many1 tab
-  genomicNucleotideAccessionVersion <- many1 (noneOf "\t")
+  genomicNucleotideAccessionVersion' <- many1 (noneOf "\t")
   many1 tab
   many1 (noneOf "\t")
   many1 tab
@@ -198,76 +189,77 @@ genParserNCBISimpleGene2Accession = do
   many1 (noneOf "\t")
   many1 tab
   many1 (noneOf "\t")
-  return $ SimpleGene2Accession (readInt taxIdEntry) genomicNucleotideAccessionVersion
+  return $ SimpleGene2Accession (readInt taxonomyIdEntry') genomicNucleotideAccessionVersion'
 
+parseNCBIGene2Accession :: String -> Either ParseError Gene2Accession
 parseNCBIGene2Accession input = parse genParserNCBIGene2Accession "parseGene2Accession" input
 
 genParserNCBIGene2Accession :: GenParser Char st Gene2Accession
 genParserNCBIGene2Accession = do
-  taxIdEntry <- many1 digit
+  taxonomyIdEntry' <- many1 digit
   many1 tab
-  geneID <- many1 digit
+  geneId' <- many1 digit
   many1 tab 
-  status <- many1 (noneOf "\t")
+  status' <- many1 (noneOf "\t")
   many1 tab  
-  rnaNucleotideAccessionVersion <- many1 (noneOf "\t")
+  rnaNucleotideAccessionVersion' <- many1 (noneOf "\t")
   many1 tab
-  rnaNucleotideGi <- many1 (noneOf "\t")
+  rnaNucleotideGi' <- many1 (noneOf "\t")
   many1 tab
-  proteinAccessionVersion <- many1 (noneOf "\t")
+  proteinAccessionVersion' <- many1 (noneOf "\t")
   many1 tab
-  proteinGi <- many1 (noneOf "\t")
+  proteinGi' <- many1 (noneOf "\t")
   many1 tab
-  genomicNucleotideAccessionVersion <- many1 (noneOf "\t")
+  genomicNucleotideAccessionVersion' <- many1 (noneOf "\t")
   many1 tab
-  genomicNucleotideGi <- many1 (noneOf "\t")
+  genomicNucleotideGi' <- many1 (noneOf "\t")
   many1 tab
-  startPositionOnTheGenomicAccession <- many1 (noneOf "\t")
+  startPositionOnTheGenomicAccession' <- many1 (noneOf "\t")
   many1 tab
-  endPositionOnTheGenomicAccession <- many1 (noneOf "\t")
+  endPositionOnTheGenomicAccession' <- many1 (noneOf "\t")
   many1 tab
-  orientation <- many1 (noneOf "\t")
+  orientation' <- many1 (noneOf "\t")
   many1 tab
-  assembly <- many1 (noneOf "\t")
+  assembly' <- many1 (noneOf "\t")
   many1 tab 
-  maturePeptideAccessionVersion  <- many1 (noneOf "\t")
+  maturePeptideAccessionVersion'  <- many1 (noneOf "\t")
   many1 tab
-  maturePeptideGi <- many1 (noneOf "\t")
-  return $ Gene2Accession (readInt taxIdEntry) (readInt geneID) status rnaNucleotideAccessionVersion rnaNucleotideGi proteinAccessionVersion proteinGi genomicNucleotideAccessionVersion genomicNucleotideGi startPositionOnTheGenomicAccession endPositionOnTheGenomicAccession orientation assembly maturePeptideAccessionVersion maturePeptideGi
+  maturePeptideGi' <- many1 (noneOf "\t")
+  return $ Gene2Accession (readInt taxonomyIdEntry') (readInt geneId') status' rnaNucleotideAccessionVersion' rnaNucleotideGi' proteinAccessionVersion' proteinGi' genomicNucleotideAccessionVersion' genomicNucleotideGi' startPositionOnTheGenomicAccession' endPositionOnTheGenomicAccession' orientation' assembly' maturePeptideAccessionVersion' maturePeptideGi'
 
 constructPairwiseAlignmentSequences :: V.Vector (Int,Sequence) -> (Int,Sequence) ->  V.Vector (Int,[Sequence])
-constructPairwiseAlignmentSequences candidateSequences (number,sequence) = V.map (\(candNumber,candSequence) -> ((number * candNumber),([sequence] ++ [candSequence]))) candidateSequences
+constructPairwiseAlignmentSequences candidateSequences (number,inputSequence) = V.map (\(candNumber,candSequence) -> ((number * candNumber),([inputSequence] ++ [candSequence]))) candidateSequences
 
 constructPairwiseFastaFilePaths :: String -> V.Vector (Int,[Sequence]) -> [String]
 constructPairwiseFastaFilePaths currentDir alignments = V.toList (V.map (\(iterator,_) -> currentDir ++ (show iterator) ++ ".fa") alignments)
 
 constructPairwiseAlignmentFilePaths :: String -> String -> V.Vector (Int,[Sequence]) -> [String]
-constructPairwiseAlignmentFilePaths program currentDir alignments  
-  | program == "mlocarnainclustalw2format" = V.toList (V.map (\(iterator,_) -> currentDir ++ (show iterator) ++ "." ++ "out" ++ "/results/result.aln") alignments)
-  | otherwise = V.toList (V.map (\(iterator,_) -> currentDir ++ (show iterator) ++ "." ++ program) alignments)
+constructPairwiseAlignmentFilePaths program' currentDir alignments  
+  | program' == "mlocarnainclustalw2format" = V.toList (V.map (\(iterator,_) -> currentDir ++ (show iterator) ++ "." ++ "out" ++ "/results/result.aln") alignments)
+  | otherwise = V.toList (V.map (\(iterator,_) -> currentDir ++ (show iterator) ++ "." ++ program') alignments)
 
 constructPairwiseAlignmentSummaryFilePaths :: String -> V.Vector (Int,[Sequence]) -> [String]
 constructPairwiseAlignmentSummaryFilePaths currentDir alignments = V.toList (V.map (\(iterator,_) -> currentDir ++ (show iterator) ++ ".alnsum") alignments)
 
 constructPairwiseRNAzFilePaths :: String -> String -> V.Vector (Int,[Sequence]) -> [String]
-constructPairwiseRNAzFilePaths program currentDir alignments 
-  | program == "mlocarna" = V.toList (V.map (\(iterator,_) -> currentDir ++ (show iterator) ++ ".rnazmlocarna") alignments)
+constructPairwiseRNAzFilePaths inputProgram currentDir alignments 
+  | inputProgram == "mlocarna" = V.toList (V.map (\(iterator,_) -> currentDir ++ (show iterator) ++ ".rnazmlocarna") alignments)
   | otherwise = V.toList (V.map (\(iterator,_) -> currentDir ++ (show iterator) ++ ".rnaz") alignments)
 
 extractCandidateSequences :: [(Sequence,Int,String,Char)] -> V.Vector (Int,Sequence)
 extractCandidateSequences candidates = indexedSeqences
-  where sequences = map (\(seq,_,_,_) -> seq) candidates
-        indexedSeqences = V.map (\(number,seq) -> (number + 1,seq))(V.indexed (V.fromList (sequences)))
+  where sequences = map (\(inputSequence,_,_,_) -> inputSequence) candidates
+        indexedSeqences = V.map (\(number,inputSequence) -> (number + 1,inputSequence))(V.indexed (V.fromList (sequences)))
         
 extractAlignedSequences :: Int -> ModelConstruction ->  V.Vector (Int,Sequence)
 extractAlignedSequences iterationnumber modelconstruction
-  | iterationnumber == 0 =  V.map (\(number,seq) -> (number + 1,seq)) (V.indexed (V.fromList ([inputSequence])))
+  | iterationnumber == 0 =  V.map (\(number,seq') -> (number + 1,seq')) (V.indexed (V.fromList ([inputSequence])))
   | otherwise = indexedSeqRecords
   where inputSequence = (inputFasta modelconstruction)
         seqRecordsperTaxrecord = map sequenceRecords (taxRecords modelconstruction)
         seqRecords = (concat seqRecordsperTaxrecord)
         alignedSeqRecords = filter (\seqRec -> (aligned seqRec) > 0) seqRecords 
-        indexedSeqRecords = V.map (\(number,seq) -> (number + 1,seq)) (V.indexed (V.fromList (inputSequence : (map nucleotideSequence alignedSeqRecords))))
+        indexedSeqRecords = V.map (\(number,seq') -> (number + 1,seq')) (V.indexed (V.fromList (inputSequence : (map nucleotideSequence alignedSeqRecords))))
 
 filterByParentTaxId :: [(BlastHit,Int)] -> Bool -> [(BlastHit,Int)]
 filterByParentTaxId blastHitsWithParentTaxId singleHitPerParentTaxId   
@@ -299,23 +291,23 @@ hitLengthCheck queryLength blastHit = lengthStatus
          lengthStatus = fullSeqLength < (queryLength * 3)
   
 retrieveGenbankFeatures :: (String,Int,Int,String,String,Int,String) -> IO (String,Int,String)
-retrieveGenbankFeatures (geneId,seqStart,seqStop,strand,accession,taxid,subject) = do
-  let program = Just "efetch"
-  let database = Just "nucleotide"
-  let queryString = "id=" ++ accession ++ "&seq_start=" ++ (show seqStart) ++ "&seq_stop=" ++ (show seqStop) ++ "&rettype=gb" 
-  let entrezQuery = EntrezHTTPQuery program database queryString 
+retrieveGenbankFeatures (_,seqStart,seqStop,_,accession',taxid,subject') = do
+  let program' = Just "efetch"
+  let database' = Just "nucleotide"
+  let queryString = "id=" ++ accession' ++ "&seq_start=" ++ (show seqStart) ++ "&seq_stop=" ++ (show seqStop) ++ "&rettype=gb" 
+  let entrezQuery = EntrezHTTPQuery program' database' queryString 
   queryResult <- entrezHTTP entrezQuery
-  return (queryResult,taxid,subject)
+  return (queryResult,taxid,subject')
 
 retrieveFullSequence :: (String,Int,Int,String,String,Int,String) -> IO (Sequence,Int,String)
-retrieveFullSequence (geneId,seqStart,seqStop,strand,accession,taxid,subject) = do
-  let program = Just "efetch"
-  let database = Just "nucleotide" 
+retrieveFullSequence (geneId,seqStart,seqStop,strand,_,taxid,subject') = do
+  let program' = Just "efetch"
+  let database' = Just "nucleotide" 
   let queryString = "id=" ++ geneId ++ "&seq_start=" ++ (show seqStart) ++ "&seq_stop=" ++ (show seqStop) ++ "&rettype=fasta" ++ "&strand=" ++ strand
-  let entrezQuery = EntrezHTTPQuery program database queryString 
+  let entrezQuery = EntrezHTTPQuery program' database' queryString 
   result <- entrezHTTP entrezQuery
   let parsedFasta = head ((mkSeqs . L.lines) (L.pack result))
-  return (parsedFasta,taxid,subject)
+  return (parsedFasta,taxid,subject')
  
 getRequestedSequenceElement :: Int -> Int -> (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
 getRequestedSequenceElement retrievalOffset queryLength (blastHit,taxid) 
@@ -323,17 +315,17 @@ getRequestedSequenceElement retrievalOffset queryLength (blastHit,taxid)
   | otherwise = getForwardRequestedSequenceElement retrievalOffset queryLength (blastHit,taxid)
 
 blastHitIsReverseComplement :: (BlastHit,Int) -> Bool
-blastHitIsReverseComplement (blastHit,taxid) = isReverse
+blastHitIsReverseComplement (blastHit,_) = isReverse
   where blastMatches = matches blastHit
         firstHSPfrom = h_from (head blastMatches)
         firstHSPto = h_to (head blastMatches)
         isReverse = firstHSPfrom > firstHSPto
 
 getForwardRequestedSequenceElement :: Int -> Int -> (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
-getForwardRequestedSequenceElement retrievalOffset queryLength (blastHit,taxid) = (geneIdentifier,startcoordinate,endcoordinate,strand,accession,taxid,subjectBlast)
-  where    accession = L.unpack (extractAccession blastHit)
+getForwardRequestedSequenceElement retrievalOffset queryLength (blastHit,taxid) = (geneIdentifier',startcoordinate,endcoordinate,strand,accession',taxid,subjectBlast)
+  where    accession' = L.unpack (extractAccession blastHit)
            subjectBlast = L.unpack (unSL (subject blastHit))
-           geneIdentifier = extractGeneId blastHit
+           geneIdentifier' = extractGeneId blastHit
            blastMatches = matches blastHit
            minHfrom = minimum (map h_from blastMatches)
            minHfromHSP = fromJust (find (\hsp -> minHfrom == (h_from hsp)) blastMatches)
@@ -346,10 +338,10 @@ getForwardRequestedSequenceElement retrievalOffset queryLength (blastHit,taxid) 
            strand = "1"
 
 getReverseRequestedSequenceElement :: Int -> Int -> (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
-getReverseRequestedSequenceElement retrievalOffset queryLength (blastHit,taxid) = (geneIdentifier,startcoordinate,endcoordinate,strand,accession,taxid,subjectBlast)
-  where   accession = L.unpack (extractAccession blastHit)
+getReverseRequestedSequenceElement retrievalOffset queryLength (blastHit,taxid) = (geneIdentifier',startcoordinate,endcoordinate,strand,accession',taxid,subjectBlast)
+  where   accession' = L.unpack (extractAccession blastHit)
           subjectBlast = L.unpack (unSL (subject blastHit))           
-          geneIdentifier = extractGeneId blastHit
+          geneIdentifier' = extractGeneId blastHit
           blastMatches = matches blastHit
           maxHfrom = maximum (map h_from blastMatches)
           maxHfromHSP = fromJust (find (\hsp -> maxHfrom == (h_from hsp)) blastMatches)
@@ -362,7 +354,7 @@ getReverseRequestedSequenceElement retrievalOffset queryLength (blastHit,taxid) 
           strand = "2"
 
 constructCandidateFromFasta :: Sequence -> String
-constructCandidateFromFasta inputFasta = ">" ++ (filter (\char -> char /= '|') (L.unpack (unSL (seqheader inputFasta)))) ++ "\n" ++ (map toUpper (L.unpack (unSD (seqdata inputFasta)))) ++ "\n"
+constructCandidateFromFasta inputFasta' = ">" ++ (filter (\char' -> char' /= '|') (L.unpack (unSL (seqheader inputFasta')))) ++ "\n" ++ (map toUpper (L.unpack (unSD (seqdata inputFasta')))) ++ "\n"
 
 computeAlignmentSCIs :: [String] -> [String] -> IO ()
 computeAlignmentSCIs alignmentFilepaths rnazOutputFilepaths = do
@@ -370,54 +362,54 @@ computeAlignmentSCIs alignmentFilepaths rnazOutputFilepaths = do
   mapM_ systemRNAz zippedFilepaths  
 
 alignSequences :: String -> String -> [String] -> [String] -> [String] -> IO ()
-alignSequences program options fastaFilepaths alignmentFilepaths summaryFilepaths = do
+alignSequences program' options fastaFilepaths alignmentFilepaths summaryFilepaths = do
   let zipped3Filepaths = zip3 fastaFilepaths alignmentFilepaths summaryFilepaths 
   let zippedFilepaths = zip fastaFilepaths alignmentFilepaths
   let timeout = "3600"
-  case program of
+  case program' of
     "mlocarna" -> mapM_ (systemLocarna options) zippedFilepaths
     "mlocarnatimeout" -> mapM_ (systemLocarnaWithTimeout timeout options) zippedFilepaths
     _ -> mapM_ (systemClustalw2 options) zipped3Filepaths
 
 replacePipeChars :: Char -> Char
 replacePipeChars '|' = '-'
-replacePipeChars char = char
+replacePipeChars char' = char'
 
 constructFastaFilePaths :: String -> Int -> (String, String) -> String
-constructFastaFilePaths currentDir iterationNumber (fastaIdentifier, _) = currentDir ++ (show iterationNumber) ++ fastaIdentifier ++".fa"
+constructFastaFilePaths currentDir iterationNumber' (fastaIdentifier, _) = currentDir ++ (show iterationNumber') ++ fastaIdentifier ++".fa"
 
 constructAlignmentFilePaths :: String -> Int -> (String, String) -> String
-constructAlignmentFilePaths currentDir iterationNumber (fastaIdentifier, _) = currentDir ++ (show iterationNumber) ++ fastaIdentifier ++".aln"
+constructAlignmentFilePaths currentDir iterationNumber' (fastaIdentifier, _) = currentDir ++ (show iterationNumber') ++ fastaIdentifier ++".aln"
 
 constructAlignmentSummaryFilePaths :: String -> Int -> (String, String) -> String
-constructAlignmentSummaryFilePaths currentDir iterationNumber (fastaIdentifier, _) = currentDir ++ (show iterationNumber) ++ fastaIdentifier ++".alnsum"
+constructAlignmentSummaryFilePaths currentDir iterationNumber' (fastaIdentifier, _) = currentDir ++ (show iterationNumber') ++ fastaIdentifier ++".alnsum"
 
 constructRNAzFilePaths :: String -> Int -> (String, String) -> String
-constructRNAzFilePaths currentDir iterationNumber (fastaIdentifier, _) = currentDir ++ (show iterationNumber) ++ fastaIdentifier ++".rnaz"
+constructRNAzFilePaths currentDir iterationNumber' (fastaIdentifier, _) = currentDir ++ (show iterationNumber') ++ fastaIdentifier ++".rnaz"
 
 constructSeedFromBlast :: BlastHit -> String
 constructSeedFromBlast blasthit = fastaString
-  where header = (filter (\char -> char /= '|') (L.unpack (hitId blasthit)))
-        sequence = L.unpack (hseq (head (matches blasthit)))
-        fastaString = (">" ++ header ++ "\n" ++ sequence ++ "\n")
+  where header = (filter (\char' -> char' /= '|') (L.unpack (hitId blasthit)))
+        sequence' = L.unpack (hseq (head (matches blasthit)))
+        fastaString = (">" ++ header ++ "\n" ++ sequence' ++ "\n")
 
 constructCandidateFromBlast :: String -> BlastHit -> (String,String)
 constructCandidateFromBlast seed blasthit = fastaString
-  where header = (filter (\char -> char /= '|') (L.unpack (hitId blasthit)))
-        sequence = L.unpack (hseq (head (matches blasthit)))
-        fastaString = (header, ">" ++ header ++ "\n" ++ sequence ++ "\n" ++ seed)
+  where header = (filter (\char' -> char' /= '|') (L.unpack (hitId blasthit)))
+        sequence' = L.unpack (hseq (head (matches blasthit)))
+        fastaString = (header, ">" ++ header ++ "\n" ++ sequence' ++ "\n" ++ seed)
 
 writeFastaFiles :: String -> Int -> [(String,String)] -> IO ()
-writeFastaFiles currentDir iterationNumber candidateFastaStrings  = do
-  mapM_ (writeFastaFile currentDir iterationNumber) candidateFastaStrings
+writeFastaFiles currentDir iterationNumber' candidateFastaStrings  = do
+  mapM_ (writeFastaFile currentDir iterationNumber') candidateFastaStrings
 
 writeFastaFile :: String -> Int -> (String,String) -> IO ()
-writeFastaFile currentPath iterationNumber (fileName,content) = writeFile (currentPath ++ (show iterationNumber) ++ fileName ++ ".fa") content
+writeFastaFile currentPath iterationNumber' (fileName,content) = writeFile (currentPath ++ (show iterationNumber') ++ fileName ++ ".fa") content
 
 getBestHitTreePosition :: [SimpleTaxDumpNode] -> Rank -> Int -> TZ.TreePos TZ.Full SimpleTaxDumpNode
-getBestHitTreePosition nodes rank rightBestTaxIdResult = bestHitTreePosition
+getBestHitTreePosition nodes rank' rightBestTaxIdResult = bestHitTreePosition
   where  hitNode = fromJust (retrieveNode rightBestTaxIdResult nodes)
-         parentFamilyNode = parentNodeWithRank hitNode rank nodes
+         parentFamilyNode = parentNodeWithRank hitNode rank' nodes
          neighborhoodNodes = (retrieveAllDescendents nodes parentFamilyNode)
          simpleTaxTree = constructSimpleTaxTree neighborhoodNodes
          rootNode = TZ.fromTree simpleTaxTree
@@ -494,26 +486,23 @@ findChildTaxTreeNodePosition searchedTaxId currentPosition
 
 checkSiblings :: Int -> TZ.TreePos TZ.Full SimpleTaxDumpNode -> [TZ.TreePos TZ.Full SimpleTaxDumpNode]        
 checkSiblings searchedTaxId currentPosition  
-  -- | (TZ.isLast currentPosition) = [("islast" ++ (show currentTaxId))]
   | (TZ.isLast currentPosition) = (findChildTaxTreeNodePosition searchedTaxId currentPosition)
   | otherwise = (findChildTaxTreeNodePosition searchedTaxId currentPosition) ++ (checkSiblings searchedTaxId (fromJust (TZ.next currentPosition)))
-  where currentTaxId = simpleTaxId (TZ.label currentPosition)
         
 nextParentRank :: Int -> Rank -> [SimpleTaxDumpNode] -> String -> Rank
-nextParentRank bestHitTaxId rank nodes direction = nextRank
+nextParentRank bestHitTaxId rank' nodes direction = nextRank
   where hitNode = fromJust (retrieveNode bestHitTaxId nodes)
-        nextParentRank = nextRankByDirection rank direction
-        currentParent = parentNodeWithRank hitNode rank nodes
-        nextRank = isPopulated currentParent (parentNodeWithRank hitNode rank nodes) bestHitTaxId rank nodes direction
+        currentParent = parentNodeWithRank hitNode rank' nodes
+        nextRank = isPopulated currentParent (parentNodeWithRank hitNode rank' nodes) bestHitTaxId rank' nodes direction
 
 convertClustaltoStockholm :: StructuralClustalAlignment -> String
 convertClustaltoStockholm parsedMlocarnaAlignment = stockholmOutput
   where header = "# STOCKHOLM 1.0\n\n"
         clustalAlignment = structuralAlignmentEntries parsedMlocarnaAlignment
         maxIdentifierLenght = maximum (map length (map entrySequenceIdentifier clustalAlignment))
-        spacerLength = maxIdentifierLenght + 2
-        stockholmEntries = concatMap (buildStockholmAlignmentEntries spacerLength) clustalAlignment
-        structureString = "#=GC SS_cons" ++ (replicate (spacerLength - 12) ' ') ++ (secondaryStructureTrack parsedMlocarnaAlignment) ++ "\n"
+        spacerLength' = maxIdentifierLenght + 2
+        stockholmEntries = concatMap (buildStockholmAlignmentEntries spacerLength') clustalAlignment
+        structureString = "#=GC SS_cons" ++ (replicate (spacerLength' - 12) ' ') ++ (secondaryStructureTrack parsedMlocarnaAlignment) ++ "\n"
         bottom = "//"
         stockholmOutput = header ++ stockholmEntries ++ structureString ++ bottom
 
@@ -524,17 +513,17 @@ buildStockholmAlignmentEntries inputSpacerLength entry = entrystring
         entrystring = (entrySequenceIdentifier entry) ++ spacer ++ (entryAlignedSequence entry) ++ "\n"
 
 isPopulated :: SimpleTaxDumpNode -> SimpleTaxDumpNode -> Int -> Rank -> [SimpleTaxDumpNode] -> String -> Rank
-isPopulated currentParent nextParent bestHitTaxId rank nodes direction
-  | currentParent == nextParent = (nextParentRank bestHitTaxId (nextRankByDirection rank direction) nodes direction)
-  | otherwise = (nextRankByDirection rank direction)
+isPopulated currentParent nextParent bestHitTaxId rank' nodes direction
+  | currentParent == nextParent = (nextParentRank bestHitTaxId (nextRankByDirection rank' direction) nodes direction)
+  | otherwise = (nextRankByDirection rank' direction)
 
 nextRankByDirection :: Rank -> String -> Rank
-nextRankByDirection rank direction
-  | direction == "root"  = (succ rank)
-  | direction == "leave" = (pred rank)
+nextRankByDirection rank' direction
+  | direction == "root"  = (succ rank')
+  | direction == "leave" = (pred rank')
 
 isInNeighborhood :: [Int] -> (BlastHit,Int) -> Bool
-isInNeighborhood neighborhoodTaxIds (blastHit,hitTaxId) = elem hitTaxId neighborhoodTaxIds
+isInNeighborhood neighborhoodTaxIds (_,hitTaxId) = elem hitTaxId neighborhoodTaxIds
 
 checkisNeighbor :: Either ParseError Int -> [Int] -> Bool
 checkisNeighbor (Right hitTaxId) neighborhoodTaxIds = elem hitTaxId neighborhoodTaxIds
@@ -542,12 +531,12 @@ checkisNeighbor (Left _) _ = False
 
 retrieveParentTaxIdEntrez :: [Int] -> IO [Int]
 retrieveParentTaxIdEntrez taxIds = do
-  let program = Just "efetch"
-  let database = Just "taxonomy"
+  let program' = Just "efetch"
+  let database' = Just "taxonomy"
   let taxIdStrings = map show taxIds
   let taxIdQuery = intercalate "," taxIdStrings
   let queryString = "id=" ++ taxIdQuery
-  let entrezQuery = EntrezHTTPQuery program database queryString 
+  let entrezQuery = EntrezHTTPQuery program' database' queryString 
   result <- entrezHTTP entrezQuery
   let parentTaxIds = readEntrezParentIds result
   --let parentTaxIds = map getEntrezParentTaxIds resulttaxons
@@ -559,8 +548,8 @@ retrieveBlastHitTaxIdEntrez blastHits = do
   let geneIds = map extractGeneId blastHits
   let idList = intercalate "," geneIds
   --let idsString = concat idList
-  let query = "id=" ++ idList
-  let entrezQuery = EntrezHTTPQuery (Just "esummary") (Just "nucleotide") query
+  let query' = "id=" ++ idList
+  let entrezQuery = EntrezHTTPQuery (Just "esummary") (Just "nucleotide") query'
   result <- entrezHTTP entrezQuery
   return result
 
@@ -572,9 +561,9 @@ extractTaxIdFromEntrySummaries input = hitTaxIds
         hitTaxIds = map readInt hitTaxIdStrings
 
 extractAccession :: BlastHit -> L.ByteString
-extractAccession currentBlastHit = accession
+extractAccession currentBlastHit = accession'
   where splitedFields = splitOn "|" (L.unpack (hitId currentBlastHit))
-        accession =  L.pack (splitedFields !! 3) 
+        accession' =  L.pack (splitedFields !! 3) 
         
 extractGeneId :: BlastHit -> String
 extractGeneId currentBlastHit = geneId
@@ -586,11 +575,12 @@ extractTaxIdfromDocumentSummary :: EntrezDocSum -> String
 extractTaxIdfromDocumentSummary documentSummary = itemContent (fromJust (find (\item -> "TaxId" == (itemName item)) (summaryItems (documentSummary))))
 
 taxIDFromGene2Accession :: [B.ByteString] -> L.ByteString -> Either ParseError Int
-taxIDFromGene2Accession fileContent accessionNumber = taxId
+taxIDFromGene2Accession fileContent accessionNumber = taxId'
   where entry = find (B.isInfixOf (L.toStrict accessionNumber)) fileContent
         parsedEntry = tryParseNCBIGene2Accession entry accessionNumber
-        taxId = tryGetTaxId parsedEntry
+        taxId' = tryGetTaxId parsedEntry
 
+reportBestBlastHit :: Either String Int -> IO ()
 reportBestBlastHit (Right bestTaxId) = putStrLn ("Extracted best blast hit " ++ (show bestTaxId))
 reportBestBlastHit (Left e) = putStrLn ("Best TaxId Lookup failed " ++ (show e))
 
@@ -600,7 +590,7 @@ tryParseNCBIGene2Accession entry accessionNumber
   | otherwise = parseNCBISimpleGene2Accession (BC.unpack (fromJust entry))
 
 tryGetTaxId :: Either ParseError SimpleGene2Accession ->  Either ParseError Int
-tryGetTaxId (Left error) = (Left error)
+tryGetTaxId (Left error') = (Left error')
 tryGetTaxId parsedEntry = liftM simpleTaxIdEntry parsedEntry
 
 getHitAccession :: BlastHit -> String
@@ -613,9 +603,9 @@ getBestHitAccession :: BlastResult -> L.ByteString
 getBestHitAccession blastResult = extractAccession (head (hits (head (results blastResult))))
 
 retrieveNeighborhoodTaxIds :: Int -> [SimpleTaxDumpNode] -> Rank -> [Int]
-retrieveNeighborhoodTaxIds bestHitTaxId nodes rank = neighborhoodNodesIds
+retrieveNeighborhoodTaxIds bestHitTaxId nodes rank' = neighborhoodNodesIds
   where hitNode = fromJust (retrieveNode bestHitTaxId nodes)
-        parentFamilyNode = parentNodeWithRank hitNode rank nodes
+        parentFamilyNode = parentNodeWithRank hitNode rank' nodes
         neighborhoodNodes = (retrieveAllDescendents nodes parentFamilyNode)
         neighborhoodNodesIds = map simpleTaxId neighborhoodNodes
 
@@ -647,13 +637,13 @@ buildGenbankCoordinatesAndRetrieveFeatures staticOptions iterationnumber queryLe
        let requestedGenbankFeatures = map (getRequestedSequenceElement queryLength queryLength) filteredBlastResults  
        writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/7requestedGenbankFeatures") (showlines requestedGenbankFeatures)
        genbankFeaturesOutput <- mapM retrieveGenbankFeatures requestedGenbankFeatures
-       let genbankFeatures = map (\(genbankfeatureOutput,taxid,subject) -> (parseGenbank genbankfeatureOutput,taxid,subject)) genbankFeaturesOutput
+       let genbankFeatures = map (\(genbankfeatureOutput,taxid,subject') -> (parseGenbank genbankfeatureOutput,taxid,subject')) genbankFeaturesOutput
        writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log"  ++ "/error") (concatMap show (lefts (map (\(a,_,_) -> a) genbankFeatures)))
-       let rightGenbankFeatures = map (\(genbankfeature,taxid,subject) -> (fromRight genbankfeature,taxid,subject)) genbankFeatures
-       let annotatedSequences = map (\(rightgenbankfeature,taxid,subject) -> (map (\singleseq -> (singleseq,taxid,subject,'G')) (extractSpecificFeatureSequence (Just "gene") rightgenbankfeature))) rightGenbankFeatures
+       let rightGenbankFeatures = map (\(genbankfeature,taxid,subject') -> (fromRight genbankfeature,taxid,subject')) genbankFeatures
+       let annotatedSequences = map (\(rightgenbankfeature,taxid,subject') -> (map (\singleseq -> (singleseq,taxid,subject','G')) (extractSpecificFeatureSequence (Just "gene") rightgenbankfeature))) rightGenbankFeatures
        writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/9annotatedSequences") (showlines annotatedSequences)
        return annotatedSequences
      else return []
 
--- typesignature
+showlines :: Show a => [a] -> [Char]
 showlines input = concatMap (\x -> show x ++ "\n") input
