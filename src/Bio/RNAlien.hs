@@ -52,31 +52,34 @@ options = Options
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 alignmentConstruction :: StaticOptions -> ModelConstruction -> IO ModelConstruction
 alignmentConstruction staticOptions modelconstruction = do
-  putStrLn (show (iterationNumber modelconstruction))
+  putStrLn ("Iteration " ++ show (iterationNumber modelconstruction))
   let currentModelConstruction = modelconstruction
   let currentIterationNumber = (iterationNumber currentModelConstruction)
   --extract queries
-  let queries = extractQueries currentIterationNumber currentModelConstruction
+  let (queries,convertedqueryids) = extractQueries currentIterationNumber currentModelConstruction
+  putStrLn "convertedqueryids"
+  print convertedqueryids
   putStrLn "Queries"
   print queries
-  if queries /= []
+  if ((queries /= []) && (maybe True (\x -> x > 1) (upperTaxonomyLimit currentModelConstruction)))
      then do
        let iterationDirectory = (tempDirPath staticOptions) ++ (show currentIterationNumber) ++ "/"
        createDirectory (iterationDirectory) 
        --taxonomic context
        let (upperTaxLimit,lowerTaxLimit) = getTaxonomicContext currentIterationNumber staticOptions (upperTaxonomyLimit currentModelConstruction)
        putStrLn "Upper and lower:"
-       print ((show upperTaxLimit) ++ " " ++ (show lowerTaxLimit) ++ "\n")
+       print ((show upperTaxLimit) ++ " " ++ show lowerTaxLimit)
        --search queries
-       candidates <- mapM (searchCandidates staticOptions currentIterationNumber upperTaxLimit lowerTaxLimit) queries        
+       candidates <- mapM (searchCandidates staticOptions currentIterationNumber upperTaxLimit lowerTaxLimit) queries 
+       let usedUpperTaxonomyLimit = (snd (head candidates))    
        --align search results - candidates > SCI 0.59 
        alignmentResults <- alignCandidates staticOptions currentModelConstruction (concat (map fst candidates))   
        --select queries
        selectedQueries <- selectQueries staticOptions currentModelConstruction alignmentResults
        -- prepare next iteration 
-       let nextModelConstructionInput = constructNext currentIterationNumber currentModelConstruction alignmentResults (snd (head candidates)) selectedQueries
-       print ("upperTaxTreeLimit:" ++ show (snd (head candidates)))
+       let nextModelConstructionInput = constructNext currentIterationNumber currentModelConstruction alignmentResults usedUpperTaxonomyLimit selectedQueries
        appendFile ((tempDirPath staticOptions) ++ "log") (show nextModelConstructionInput)
+       print ("upperTaxTreeLimit:" ++ show usedUpperTaxonomyLimit)
        nextModelConstruction <- alignmentConstruction staticOptions nextModelConstructionInput
        return nextModelConstruction     
      else return modelconstruction

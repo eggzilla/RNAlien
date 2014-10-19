@@ -85,15 +85,25 @@ buildTaxRecord currentIterationNumber entries = taxRecord
 buildSeqRecord :: Int -> (Sequence,Int,String,Char) -> SequenceRecord 
 buildSeqRecord currentIterationNumber (parsedFasta,_,seqSubject,seqOrigin) = SequenceRecord parsedFasta currentIterationNumber seqSubject seqOrigin   
 
-extractQueries :: Int -> ModelConstruction -> [Sequence]
+extractQueries :: Int -> ModelConstruction -> ([Sequence],[String])
 extractQueries iterationnumber modelconstruction
-  | iterationnumber == 0 = [fastaSeqData]
-  | otherwise = querySequences
+  | iterationnumber == 0 = ([fastaSeqData],["Test","Test2"])
+  | otherwise = (querySequences,convertedqueryids)
   where fastaSeqData = inputFasta modelconstruction
         querySeqIds = selectedQueries modelconstruction
         alignedSequences = map nucleotideSequence (concatMap sequenceRecords (taxRecords modelconstruction))
-        maybeQuerySequences = map (\querySeqId -> find (\alignedSeq -> show (seqid alignedSeq) == querySeqId) alignedSequences) querySeqIds
-        querySequences = catMaybes maybeQuerySequences
+        querySequences = concatMap (\querySeqId -> filter (\alignedSeq -> (convertToClustalw2SequenceId (L.unpack (unSL (seqid alignedSeq)))) == querySeqId) alignedSequences) querySeqIds
+        convertedqueryids = concatMap (\querySeqId -> map (\alignedSeq -> (convertToClustalw2SequenceId (L.unpack (unSL (seqid alignedSeq))))) alignedSequences) querySeqIds
+
+-- |  Performs the same character conversions in sequenceIds of phylogenetic tree files as clustal   
+convertToClustalw2SequenceId :: String -> String 
+convertToClustalw2SequenceId = map clustalReplaceChar
+
+--  ; and : characters converted to _ 
+clustalReplaceChar :: Char -> Char
+clustalReplaceChar ':' = '_'
+clustalReplaceChar ';' = '_'
+clustalReplaceChar c = c
 
 extractQueryCandidates :: [(Sequence,Int,String,Char)] -> V.Vector (Int,Sequence)
 extractQueryCandidates candidates = indexedSeqences
@@ -260,8 +270,8 @@ extractAlignedSequences iterationnumber modelconstruction
   where inputSequence = (inputFasta modelconstruction)
         seqRecordsperTaxrecord = map sequenceRecords (taxRecords modelconstruction)
         seqRecords = (concat seqRecordsperTaxrecord)
-        alignedSeqRecords = filter (\seqRec -> (aligned seqRec) > 0) seqRecords 
-        indexedSeqRecords = V.map (\(number,seq') -> (number + 1,seq')) (V.indexed (V.fromList (inputSequence : (map nucleotideSequence alignedSeqRecords))))
+        --alignedSeqRecords = filter (\seqRec -> (aligned seqRec) > 0) seqRecords 
+        indexedSeqRecords = V.map (\(number,seq') -> (number + 1,seq')) (V.indexed (V.fromList (inputSequence : (map nucleotideSequence seqRecords))))
 
 filterByParentTaxId :: [(BlastHit,Int)] -> Bool -> [(BlastHit,Int)]
 filterByParentTaxId blastHitsWithParentTaxId singleHitPerParentTaxId   
