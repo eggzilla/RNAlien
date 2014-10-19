@@ -44,7 +44,7 @@ options = Options
     inputTaxId = Nothing &= name "t" &= help "NCBI taxonomy ID number of input RNA organism",
     fullSequenceOffset = "0" &= name "f" &= help "Overhangs of retrieved fasta sequences compared to query sequence",
     lengthFilter = False &= name "l" &= help "Filter blast hits per genomic length",
-    singleHitperTax = False &= name "s" &= help "Only the best blast hit per taxonomic entry is considered",
+    singleHitperTax = True &= name "s" &= help "Only the best blast hit per taxonomic entry is considered",
     useGenbankAnnotation = False &= name "g" &= help "Include genbank features overlapping with blasthits into alignment construction",
     threads = 1 &= name "c" &= help "Number of available cpu slots/cores, default 1"
   } &= summary "RNAlien devel version" &= help "Florian Eggenhofer - >2013" &= verbosity       
@@ -65,6 +65,8 @@ alignmentConstruction staticOptions modelconstruction = do
        createDirectory (iterationDirectory) 
        --taxonomic context
        let (upperTaxLimit,lowerTaxLimit) = getTaxonomicContext currentIterationNumber staticOptions (upperTaxonomyLimit currentModelConstruction)
+       putStrLn "Upper and lower:"
+       print ((show upperTaxLimit) ++ " " ++ (show lowerTaxLimit) ++ "\n")
        --search queries
        candidates <- mapM (searchCandidates staticOptions currentIterationNumber upperTaxLimit lowerTaxLimit) queries        
        --align search results - candidates > SCI 0.59 
@@ -73,9 +75,10 @@ alignmentConstruction staticOptions modelconstruction = do
        selectedQueries <- selectQueries staticOptions currentModelConstruction alignmentResults
        -- prepare next iteration 
        let nextModelConstructionInput = constructNext currentIterationNumber currentModelConstruction alignmentResults (snd (head candidates)) selectedQueries
+       print ("upperTaxTreeLimit:" ++ show (snd (head candidates)))
        appendFile ((tempDirPath staticOptions) ++ "log") (show nextModelConstructionInput)
        nextModelConstruction <- alignmentConstruction staticOptions nextModelConstructionInput
-       return nextModelConstruction
+       return nextModelConstruction     
      else return modelconstruction
 
 searchCandidates :: StaticOptions -> Int -> Maybe Int -> Maybe Int -> Sequence -> IO ([(Sequence,Int,String,Char)], Maybe Int)
@@ -222,10 +225,12 @@ main = do
   putStrLn tempDirPath
   inputFasta <- readFasta inputFastaFilePath
   nodes <- readNCBISimpleTaxDumpNodes taxNodesFile 
+  putStrLn "Input taxId:"
+  putStrLn (show inputTaxId)
   let rightNodes = fromRight nodes
   let fullSequenceOffsetLength = readInt fullSequenceOffset
   let staticOptions = StaticOptions tempDirPath sessionId  rightNodes inputTaxId singleHitperTax useGenbankAnnotation lengthFilter fullSequenceOffsetLength threads
-  let initialization = ModelConstruction iterationNumber (head inputFasta) [] Nothing []
+  let initialization = ModelConstruction iterationNumber (head inputFasta) [] (maybe Nothing Just inputTaxId) []
   writeFile (tempDirPath ++ "log") (show initialization)
   alignmentConstructionResult <- alignmentConstruction staticOptions initialization
   --extract final alignment and build cm

@@ -40,13 +40,15 @@ getTaxonomicContext :: Int -> StaticOptions -> Maybe Int -> (Maybe Int, Maybe In
 getTaxonomicContext currentIterationNumber staticOptions subTreeTaxId 
   | currentIterationNumber == 0 = (userTaxFilter, Nothing)
   | otherwise = setTaxonomicContext (fromJust subTreeTaxId) (inputTaxNodes staticOptions)
-  where userTaxFilter = checkUserTaxId staticOptions (userTaxId staticOptions)
+  where userTaxFilter = checkUserTaxId staticOptions 
 
 -- | Check user provided taxId for sanity and raise it to > family rank
-checkUserTaxId :: StaticOptions -> Maybe Int -> Maybe Int 
-checkUserTaxId staticOptions taxonomyId
-  | isJust taxonomyId = Just (simpleTaxId (rootLabel (TZ.toTree (getBestHitTreePosition (inputTaxNodes staticOptions) Family (fromJust taxonomyId)))))
+checkUserTaxId :: StaticOptions -> Maybe Int 
+checkUserTaxId staticOptions
+  | isJust taxonomyId = Just (simpleTaxId (parentNodeWithRank currentNode Genus (inputTaxNodes staticOptions)))
   | otherwise = Nothing
+  where taxonomyId = userTaxId staticOptions
+        currentNode = fromJust (retrieveNode (fromJust taxonomyId) (inputTaxNodes staticOptions))
  
 -- setTaxonomic Context for next candidate search, the upper bound of the last search become the lower bound of the next
 setTaxonomicContext :: Int -> [SimpleTaxDumpNode] -> (Maybe Int, Maybe Int) 
@@ -61,10 +63,10 @@ raiseTaxIdLimit subTreeTaxId taxonomyDumpNodes = Just (simpleTaxId parentNode)
          parentNode = parentNodeWithRank currentNode parentRank taxonomyDumpNodes
        
 constructNext :: Int -> ModelConstruction -> [(Sequence,Int,String,Char)] -> Maybe Int -> [String] -> ModelConstruction
-constructNext currentIterationNumber modelconstruction alignmentResults subTreeTaxId inputSelectedQueries = nextModelConstruction
+constructNext currentIterationNumber modelconstruction alignmentResults upperTaxLimit inputSelectedQueries = nextModelConstruction
   where newIterationNumber = currentIterationNumber + 1
         taxEntries = (taxRecords modelconstruction) ++ (buildTaxRecords alignmentResults currentIterationNumber) 
-        nextModelConstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) taxEntries subTreeTaxId inputSelectedQueries 
+        nextModelConstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) taxEntries upperTaxLimit inputSelectedQueries 
 
 buildTaxRecords :: [(Sequence,Int,String,Char)] -> Int -> [TaxonomyRecord]
 buildTaxRecords alignmentResults currentIterationNumber = taxonomyRecords
@@ -91,7 +93,7 @@ extractQueries iterationnumber modelconstruction
         querySeqIds = selectedQueries modelconstruction
         alignedSequences = map nucleotideSequence (concatMap sequenceRecords (taxRecords modelconstruction))
         maybeQuerySequences = map (\querySeqId -> find (\alignedSeq -> show (seqid alignedSeq) == querySeqId) alignedSequences) querySeqIds
-        querySequences = map fromJust maybeQuerySequences
+        querySequences = catMaybes maybeQuerySequences
 
 extractQueryCandidates :: [(Sequence,Int,String,Char)] -> V.Vector (Int,Sequence)
 extractQueryCandidates candidates = indexedSeqences
@@ -418,7 +420,7 @@ getBestHitTreePosition nodes rank' rightBestTaxIdResult = bestHitTreePosition
 -- | If no species of origin as been set by the user we blast without tax restriction and filter after blasting
 filterByNeighborhoodTreeConditional :: Int -> Maybe Int -> [(BlastHit,Int)] -> [SimpleTaxDumpNode] -> Int -> Bool -> (Int, [(BlastHit,Int)])
 filterByNeighborhoodTreeConditional iterationnumber upperTaxIdLimit blastHitsWithTaxId taxNodes rightBestTaxIdResult singleHitperTax 
-  | iterationnumber == 1 && (show upperTaxIdLimit) == "0" = (firstUpperTaxIdLimit,filterByNeighborhoodTree blastHitsWithTaxId bestHitTreePosition singleHitperTax)
+  | iterationnumber == 0 && isNothing upperTaxIdLimit = (firstUpperTaxIdLimit,filterByNeighborhoodTree blastHitsWithTaxId bestHitTreePosition singleHitperTax)
   --already resticted search space during blast search
   | otherwise = ((fromJust upperTaxIdLimit), blastHitsWithTaxId)
   where bestHitTreePosition = getBestHitTreePosition taxNodes Family rightBestTaxIdResult
