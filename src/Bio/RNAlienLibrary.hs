@@ -57,10 +57,9 @@ setTaxonomicContext subTreeTaxId taxonomyDumpNodes = (upperLimit,lowerLimit)
         lowerLimit = Just subTreeTaxId
 
 raiseTaxIdLimit :: Int -> [SimpleTaxDumpNode] -> Maybe Int
-raiseTaxIdLimit subTreeTaxId taxonomyDumpNodes = Just (simpleTaxId parentNode)
+raiseTaxIdLimit subTreeTaxId taxonomyDumpNodes = parentNodeTaxId
   where  currentNode = fromJust (retrieveNode subTreeTaxId taxonomyDumpNodes)
-         parentRank = nextParentRank subTreeTaxId (simpleRank currentNode) taxonomyDumpNodes "root"
-         parentNode = parentNodeWithRank currentNode parentRank taxonomyDumpNodes
+         parentNodeTaxId = Just (simpleParentTaxId currentNode)
        
 constructNext :: Int -> ModelConstruction -> [(Sequence,Int,String,Char)] -> Maybe Int -> [String] -> ModelConstruction
 constructNext currentIterationNumber modelconstruction alignmentResults upperTaxLimit inputSelectedQueries = nextModelConstruction
@@ -418,6 +417,7 @@ writeFastaFiles currentDir iterationNumber' candidateFastaStrings  = do
 writeFastaFile :: String -> Int -> (String,String) -> IO ()
 writeFastaFile currentPath iterationNumber' (fileName,content) = writeFile (currentPath ++ (show iterationNumber') ++ fileName ++ ".fa") content
 
+--deprecated
 getBestHitTreePosition :: [SimpleTaxDumpNode] -> Rank -> Int -> TZ.TreePos TZ.Full SimpleTaxDumpNode
 getBestHitTreePosition nodes rank' rightBestTaxIdResult = bestHitTreePosition
   where  hitNode = fromJust (retrieveNode rightBestTaxIdResult nodes)
@@ -500,7 +500,8 @@ checkSiblings :: Int -> TZ.TreePos TZ.Full SimpleTaxDumpNode -> [TZ.TreePos TZ.F
 checkSiblings searchedTaxId currentPosition  
   | (TZ.isLast currentPosition) = (findChildTaxTreeNodePosition searchedTaxId currentPosition)
   | otherwise = (findChildTaxTreeNodePosition searchedTaxId currentPosition) ++ (checkSiblings searchedTaxId (fromJust (TZ.next currentPosition)))
-        
+
+--deprecated       
 nextParentRank :: Int -> Rank -> [SimpleTaxDumpNode] -> String -> Rank
 nextParentRank bestHitTaxId rank' nodes direction = nextRank
   where hitNode = fromJust (retrieveNode bestHitTaxId nodes)
