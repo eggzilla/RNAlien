@@ -89,6 +89,7 @@ searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit query
   let fastaSeqData = seqdata query
   let queryLength = fromIntegral (seqlength (query))
   let entrezTaxFilter = buildTaxFilterQuery upperTaxLimit lowerTaxLimit 
+  print entrezTaxFilter
   let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=250" 
   let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (Just "refseq_genomic") (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter))
   putStrLn ("Sending blast query " ++ (show iterationnumber))

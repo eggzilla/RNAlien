@@ -113,7 +113,7 @@ buildTaxFilterQuery :: Maybe Int -> Maybe Int -> String
 buildTaxFilterQuery upperTaxLimit lowerTaxLimit
   | (isNothing upperTaxLimit) = ""
   | (isNothing lowerTaxLimit) =  "&ENTREZ_QUERY=" ++ encodedTaxIDQuery (fromJust upperTaxLimit)
-  | otherwise = "&ENTREZ_QUERY=" ++ "%28tx" ++ (show upperTaxLimit)  ++ "%20%5BORGN%5D&EQ_OP%29" ++ "%20NOT%20" ++ "%28tx" ++ (show lowerTaxLimit) ++ "%20%5BORGN%5D&EQ_OP%29"
+  | otherwise = "&ENTREZ_QUERY=" ++ "%28txid" ++ (show (fromJust upperTaxLimit))  ++ "%5BORGN%5D%29" ++ "NOT" ++ "%28txid" ++ (show (fromJust lowerTaxLimit)) ++ "%5BORGN%5D&EQ_OP%29"
  
 buildHitNumberQuery :: String -> String
 buildHitNumberQuery hitNumber
