@@ -157,7 +157,7 @@ systemRNAz (inputFilePath, outputFilePath) = system ("RNAz " ++ inputFilePath ++
 
 -- | Run external CMbuild command and read the output into the corresponding datatype 
 systemCMbuild ::  String -> String -> IO ExitCode
-systemCMbuild inputFilepath outputFilepath = system ("cmbuild " ++ inputFilepath ++ " > " ++ outputFilepath)  
+systemCMbuild aligmentFilepath modelFilepath = system ("cmbuild " ++ modelFilepath ++ " " ++ alignmentFilepath)  
                                        
 -- | Run CMCompare and read the output into the corresponding datatype
 systemCMcompare ::  String -> String -> IO ExitCode
@@ -660,3 +660,22 @@ buildGenbankCoordinatesAndRetrieveFeatures staticOptions iterationnumber queryLe
 
 showlines :: Show a => [a] -> [Char]
 showlines input = concatMap (\x -> show x ++ "\n") input
+
+logMessage :: String -> String -> IO ()
+logMessage logoutput tempDirPath = appendFile (tempDirPath ++ "Log") (show logoutput)
+logMessage _ _ = return ()
+                  
+logEither :: (Show a) => Either a b -> String -> IO ()
+logEither (Left logoutput) tempDirPath = appendFile (tempDirPath ++ "Log") (show logoutput)
+logEither  _ _ = return ()
+
+buildCMfromLocarnaFilePath :: String -> IO ExitCode
+buildCMfromLocarnaFilePath outputDirectory = do
+  let locarnaFilepath = outputDirectory ++ "result" ++ ".mlocarna"
+  let stockholmFilepath = outputDirectory ++ "result" ++ ".stockholm"
+  let cmFilepath = outputDirectory ++ "result" ++ ".cm"
+  mlocarnaAlignment <- readStructuralClustalAlignment locarnaFilepath
+  let stockholAlignment = convertClustaltoStockholm (fromRight mlocarnaAlignment)
+  writeFile stockholmFilepath stockholAlignment
+  buildLog <- systemCMbuild stockholmFilepath cmFilepath
+  return buildLog
