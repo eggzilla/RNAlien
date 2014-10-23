@@ -157,7 +157,7 @@ systemRNAz (inputFilePath, outputFilePath) = system ("RNAz " ++ inputFilePath ++
 
 -- | Run external CMbuild command and read the output into the corresponding datatype 
 systemCMbuild ::  String -> String -> IO ExitCode
-systemCMbuild aligmentFilepath modelFilepath = system ("cmbuild " ++ modelFilepath ++ " " ++ alignmentFilepath)  
+systemCMbuild alignmentFilepath modelFilepath = system ("cmbuild " ++ modelFilepath ++ " " ++ alignmentFilepath)  
                                        
 -- | Run CMCompare and read the output into the corresponding datatype
 systemCMcompare ::  String -> String -> IO ExitCode

@@ -90,12 +90,13 @@ searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit query
   let queryLength = fromIntegral (seqlength (query))
   let entrezTaxFilter = buildTaxFilterQuery upperTaxLimit lowerTaxLimit 
   print entrezTaxFilter
-  let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=250" 
+  let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=1000" 
   let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (Just "refseq_genomic") (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter))
   putStrLn ("Sending blast query " ++ (show iterationnumber))
   blastOutput <- blastHTTP blastQuery 
   createDirectory ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log")
   writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/1blastOutput") (show blastOutput)
+  logEither blastOutput (tempDirPath staticOptions)
   let rightBlast = fromRight blastOutput
   let bestHit = getBestHit rightBlast
   bestBlastHitTaxIdOutput <- retrieveBlastHitTaxIdEntrez [bestHit]
@@ -220,27 +221,29 @@ main = do
   randomNumber <- randomIO :: IO Int16
   let sessionId = randomid randomNumber
   let iterationNumber = 0
-  --create seed model
-  --ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz
   let taxNodesFile = "/home/egg/current/Data/Taxonomy/taxdump/nodes.dmp"
-  let tempDirPath = outputPath ++ sessionId ++ "/"
-  createDirectory (tempDirPath)
+  let temporaryDirectoryPath = outputPath ++ sessionId ++ "/"                               
+  createDirectory (temporaryDirectoryPath)
   putStrLn "Created Temp-Dir:"
-  putStrLn tempDirPath
+  putStrLn temporaryDirectoryPath
+  -- create Log file
+  writeFile (temporaryDirectoryPath ++ "Log") ("")
   inputFasta <- readFasta inputFastaFilePath
   nodes <- readNCBISimpleTaxDumpNodes taxNodesFile 
-  putStrLn "Input taxId:"
-  putStrLn (show inputTaxId)
+  logMessage ("Input taxId:" ++ (show inputTaxId)) temporaryDirectoryPath
+  logEither nodes temporaryDirectoryPath
   let rightNodes = fromRight nodes
   let fullSequenceOffsetLength = readInt fullSequenceOffset
-  let staticOptions = StaticOptions tempDirPath sessionId  rightNodes inputTaxId singleHitperTax useGenbankAnnotation lengthFilter fullSequenceOffsetLength threads
+  let staticOptions = StaticOptions temporaryDirectoryPath sessionId  rightNodes inputTaxId singleHitperTax useGenbankAnnotation lengthFilter fullSequenceOffsetLength threads
   let initialization = ModelConstruction iterationNumber (head inputFasta) [] (maybe Nothing Just inputTaxId) []
-  writeFile (tempDirPath ++ "log") (show initialization)
+  writeFile (temporaryDirectoryPath ++ "log") (show initialization)
   alignmentConstructionResult <- alignmentConstruction staticOptions initialization
   --extract final alignment and build cm
-  pathToModel <- constructModel alignmentConstructionResult staticOptions           
+  pathToModel <- constructModel alignmentConstructionResult staticOptions
   putStrLn "Path to result model: "
   putStrLn pathToModel
   print alignmentConstructionResult
   putStrLn "Done"
-  
+
+
+                         
