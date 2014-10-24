@@ -35,11 +35,11 @@ import qualified Data.Vector as V
 -- | Check blastHits for similarity with Query
 blastHitQueryIdentity :: (Sequence,Int,String) -> (Sequence,Int,String) -> Double
 blastHitQueryIdentity blastHit1 blastHit2 = identity
-  where distance = ED.levenshteinDistance ED.defaultEditCosts querySequence blastHitSequence
-        querySequence = unSD (\(a,_,_) -> a)
-        blastHitSequence = unSD (\(a,_,_) -> a)
-        maximum distance = maximum [(length querySequence),(length blastHitSequence)]
-        identity = (distance/maximum distance) * (read "100" ::Double)
+  where distance = ED.levenshteinDistance ED.defaultEditCosts blastHit1Sequence blastHit2Sequence
+        blastHit1Sequence = L.unpack (unSD (seqdata ((\(a,_,_) -> a) blastHit1)))
+        blastHit2Sequence = L.unpack (unSD (seqdata ((\(a,_,_) -> a) blastHit2)))
+        maximumDistance = maximum [(length blastHit1Sequence),(length blastHit2Sequence)]
+        identity = (fromIntegral distance/fromIntegral (maximumDistance)) * (read "100" ::Double)
                           
 -- | convert subtreeTaxId of last round into upper and lower search space boundry
 -- In the first iteration we either set the taxfilter provided by the user or no filter at all 
