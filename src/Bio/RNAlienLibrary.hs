@@ -32,14 +32,22 @@ import Data.Either (lefts)
 import qualified Text.EditDistance as ED   
 import qualified Data.Vector as V
 
--- | Check blastHits for similarity with Query
-blastHitQueryIdentity :: (Sequence,Int,String) -> (Sequence,Int,String) -> Double
-blastHitQueryIdentity blastHit1 blastHit2 = identity
-  where distance = ED.levenshteinDistance ED.defaultEditCosts blastHit1Sequence blastHit2Sequence
-        blastHit1Sequence = L.unpack (unSD (seqdata ((\(a,_,_) -> a) blastHit1)))
-        blastHit2Sequence = L.unpack (unSD (seqdata ((\(a,_,_) -> a) blastHit2)))
-        maximumDistance = maximum [(length blastHit1Sequence),(length blastHit2Sequence)]
-        identity = (fromIntegral distance/fromIntegral (maximumDistance)) * (read "100" ::Double)
+-- | Filter a list of similar extended blast hits   
+filterIdenticalSequences :: [(Sequence,Int,String)] -> [(Sequence,Int,String)] 
+filterIdenticalSequences (headSequence:rest) = result
+  where filteredSequences = filter (\x -> (sequenceIdentity (firstOfTripel headSequence) (firstOfTripel x)) > 90) rest 
+        result = headSequence:(filterIdenticalSequences filteredSequences)
+
+firstOfTripel (a,_,_) = a 
+
+-- | Compute identity of sequences
+sequenceIdentity :: Sequence -> Sequence -> Double
+sequenceIdentity sequence1 sequence2 = identity
+  where distance = ED.levenshteinDistance ED.defaultEditCosts sequence1string sequence2string
+        sequence1string = L.unpack (unSD (seqdata sequence1))
+        sequence2string = L.unpack (unSD (seqdata sequence2))
+        maximumDistance = maximum [(length sequence1string),(length sequence2string)]
+        identity = 100 - ((fromIntegral distance/fromIntegral (maximumDistance)) * (read "100" ::Double))
                           
 -- | convert subtreeTaxId of last round into upper and lower search space boundry
 -- In the first iteration we either set the taxfilter provided by the user or no filter at all 

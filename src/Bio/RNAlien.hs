@@ -125,7 +125,8 @@ searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit query
   -- Retrieval of genbank features in the hit region (if enabled by commandline toggle)
   annotatedSequences <- buildGenbankCoordinatesAndRetrieveFeatures staticOptions iterationnumber queryLength filteredBlastResults
   -- Retrieval of full sequences from entrez
-  fullSequences <- mapM retrieveFullSequence requestedSequenceElements
+  fullSequencesWithSimilars <- mapM retrieveFullSequence requestedSequenceElements
+  let fullSequences = filterIdenticalSequences fullSequencesWithSimilars 
   let fullSequencesWithOrigin = map (\(parsedFasta,taxid,subject) -> (parsedFasta,taxid,subject,'B')) fullSequences
   writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/10fullSequences") (showlines fullSequences)
   return (((concat annotatedSequences) ++ fullSequencesWithOrigin),(Just usedUpperTaxLimit))
