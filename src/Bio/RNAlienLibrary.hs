@@ -29,8 +29,18 @@ import Bio.GenbankParser
 import Bio.GenbankTools
 import System.Exit
 import Data.Either (lefts)
+import qualified Text.EditDistance as ED   
 import qualified Data.Vector as V
 
+-- | Check blastHits for similarity with Query
+blastHitQueryIdentity :: (Sequence,Int,String) -> (Sequence,Int,String) -> Double
+blastHitQueryIdentity blastHit1 blastHit2 = identity
+  where distance = ED.levenshteinDistance ED.defaultEditCosts querySequence blastHitSequence
+        querySequence = unSD (\(a,_,_) -> a)
+        blastHitSequence = unSD (\(a,_,_) -> a)
+        maximum distance = maximum [(length querySequence),(length blastHitSequence)]
+        identity = (distance/maximum distance) * (read "100" ::Double)
+                          
 -- | convert subtreeTaxId of last round into upper and lower search space boundry
 -- In the first iteration we either set the taxfilter provided by the user or no filter at all 
 -- If no filter was set, a parent node of the best git will be used instead.
@@ -83,7 +93,7 @@ buildTaxRecord currentIterationNumber entries = taxRecord
 
 buildSeqRecord :: Int -> (Sequence,Int,String,Char) -> SequenceRecord 
 buildSeqRecord currentIterationNumber (parsedFasta,_,seqSubject,seqOrigin) = SequenceRecord parsedFasta currentIterationNumber seqSubject seqOrigin   
-
+                                                                             
 extractQueries :: Int -> ModelConstruction -> ([Sequence],[String])
 extractQueries iterationnumber modelconstruction
   | iterationnumber == 0 = ([fastaSeqData],["Test","Test2"])
