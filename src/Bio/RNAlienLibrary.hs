@@ -33,11 +33,14 @@ import qualified Text.EditDistance as ED
 import qualified Data.Vector as V
 
 -- | Filter a list of similar extended blast hits   
-filterIdenticalSequences :: [(Sequence,Int,String)] -> [(Sequence,Int,String)] 
-filterIdenticalSequences (headSequence:rest) = result
+filterIdenticalSequences :: [(Sequence,Int,String)] -> [(Sequence,Int,String)]
+filterIdenticalSequences [] = []                            
+filterIdenticalSequences (headSequence:rest)
+  | not (null rest) = result
+  | otherwise = [headSequence]            
   where filteredSequences = filter (\x -> (sequenceIdentity (firstOfTripel headSequence) (firstOfTripel x)) > 90) rest 
         result = headSequence:(filterIdenticalSequences filteredSequences)
-
+      
 firstOfTripel (a,_,_) = a 
 
 -- | Compute identity of sequences
