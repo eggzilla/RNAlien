@@ -43,7 +43,7 @@ options = Options
     outputPath = def &= name "o" &= help "Path to output directory",
     inputTaxId = Nothing &= name "t" &= help "NCBI taxonomy ID number of input RNA organism",
     fullSequenceOffset = "0" &= name "f" &= help "Overhangs of retrieved fasta sequences compared to query sequence",
-    lengthFilter = False &= name "l" &= help "Filter blast hits per genomic length",
+    lengthFilter = True &= name "l" &= help "Filter blast hits per genomic length",
     singleHitperTax = True &= name "s" &= help "Only the best blast hit per taxonomic entry is considered",
     useGenbankAnnotation = False &= name "g" &= help "Include genbank features overlapping with blasthits into alignment construction",
     threads = 1 &= name "c" &= help "Number of available cpu slots/cores, default 1"
@@ -130,7 +130,8 @@ searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit query
        -- Retrieval of genbank features in the hit region (if enabled by commandline toggle)
        annotatedSequences <- buildGenbankCoordinatesAndRetrieveFeatures staticOptions iterationnumber queryLength filteredBlastResults
        -- Retrieval of full sequences from entrez
-       fullSequencesWithSimilars <- mapM retrieveFullSequence requestedSequenceElements
+       --fullSequencesWithSimilars <- mapM retrieveFullSequence requestedSequenceElements
+       fullSequencesWithSimilars <- retrieveFullSequences requestedSequenceElements
        writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/10afullSequencesWithSimilars") (showlines fullSequencesWithSimilars)
        let fullSequences = filterIdenticalSequences fullSequencesWithSimilars 
        let fullSequencesWithOrigin = map (\(parsedFasta,taxid,subject) -> (parsedFasta,taxid,subject,'B')) fullSequences
@@ -214,12 +215,12 @@ constructModel alignmentConstructionResult staticOptions = do
   --retrieveAlignmentSCIs
   mlocarnaRNAzOutput <- readRNAz locarnaRNAzFilePath  
   let locarnaSCI = structureConservationIndex (fromRight mlocarnaRNAzOutput)
-  appendFile ((tempDirPath staticOptions) ++ "/log") (show locarnaSCI)
+  logMessage (show locarnaSCI) (tempDirPath staticOptions)
   mlocarnaAlignment <- readStructuralClustalAlignment locarnaFilepath
   let stockholAlignment = convertClustaltoStockholm (fromRight mlocarnaAlignment)
   writeFile stockholmFilepath stockholAlignment
   buildLog <- systemCMbuild stockholmFilepath cmFilepath
-  appendFile ((tempDirPath staticOptions) ++ "log") (show buildLog)
+  logMessage (show buildLog) (tempDirPath staticOptions) 
   return (cmFilepath)
 
 main :: IO ()
@@ -244,7 +245,7 @@ main = do
   let fullSequenceOffsetLength = readInt fullSequenceOffset
   let staticOptions = StaticOptions temporaryDirectoryPath sessionId  rightNodes inputTaxId singleHitperTax useGenbankAnnotation lengthFilter fullSequenceOffsetLength threads
   let initialization = ModelConstruction iterationNumber (head inputFasta) [] (maybe Nothing Just inputTaxId) []
-  writeFile (temporaryDirectoryPath ++ "log") (show initialization)
+  logMessage (show initialization)
   alignmentConstructionResult <- alignmentConstruction staticOptions initialization
   --extract final alignment and build cm
   pathToModel <- constructModel alignmentConstructionResult staticOptions

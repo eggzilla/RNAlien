@@ -35,12 +35,12 @@ import qualified Data.Vector as V
 -- | Filter a list of similar extended blast hits   
 filterIdenticalSequences :: [(Sequence,Int,String)] -> [(Sequence,Int,String)]                            
 filterIdenticalSequences (headSequence:rest) = result
-  where filteredSequences = filter (\x -> (sequenceIdentity (firstOfTripel headSequence) (firstOfTripel x)) < 90) rest 
+  where filteredSequences = filter (\x -> (sequenceIdentity (firstOfTriple headSequence) (firstOfTriple x)) < 90) rest 
         result = headSequence:(filterIdenticalSequences filteredSequences)
 filterIdenticalSequences [] = []
                  
-firstOfTripel :: (t, t1, t2) -> t
-firstOfTripel (a,_,_) = a 
+firstOfTriple :: (t, t1, t2) -> t
+firstOfTriple (a,_,_) = a 
 
 -- | Compute identity of sequences
 sequenceIdentity :: Sequence -> Sequence -> Double
@@ -329,6 +329,21 @@ retrieveGenbankFeatures (_,seqStart,seqStop,_,accession',taxid,subject') = do
   queryResult <- entrezHTTP entrezQuery
   return (queryResult,taxid,subject')
 
+-- | Wrapper for retrieveFullSequence that rerequests incomplete return sequees
+retrieveFullSequences :: [(String,Int,Int,String,String,Int,String)] -> IO [(Sequence,Int,String)]
+retrieveFullSequences requestedSequences = do
+  fullSequences <- mapM retrieveFullSequence requestedSequences
+  if (not (null (filter (\fullSequence -> L.null (unSD (seqdata fullSequence))) (map firstOfTriple fullSequences))))
+    then do
+      let fullSequencesWithRequestedSequences = zip fullSequences requestedSequences
+      let (failedRetrievals, successfulRetrievals) = partition (\x -> L.null (unSD (seqdata (firstOfTriple (fst x))))) fullSequencesWithRequestedSequences
+      --we try to reretrieve failed entries once
+      missingSequences <- mapM retrieveFullSequence (map snd failedRetrievals)
+      let stillMissingSequences = (filter (\fullSequence -> L.null (unSD (seqdata fullSequence))) (map firstOfTriple missingSequences))
+      print stillMissingSequences                            
+      return ((map fst successfulRetrievals) ++ missingSequences) 
+    else return fullSequences 
+         
 retrieveFullSequence :: (String,Int,Int,String,String,Int,String) -> IO (Sequence,Int,String)
 retrieveFullSequence (geneId,seqStart,seqStop,strand,_,taxid,subject') = do
   let program' = Just "efetch"
