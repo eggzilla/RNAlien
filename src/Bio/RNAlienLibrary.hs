@@ -42,6 +42,15 @@ filterIdenticalSequences [] = []
 firstOfTriple :: (t, t1, t2) -> t
 firstOfTriple (a,_,_) = a 
 
+-- | Check if the result field of BlastResult is filled and if hits are present
+blastHitsPresent :: BlastResult -> Bool
+blastHitsPresent blastResult 
+  | (null resultList) = False
+  | not (null resultList) = null (concatMap hits resultList)
+  | _ = False
+  where resultList = (results blastResult)
+         
+                        
 -- | Compute identity of sequences
 sequenceIdentity :: Sequence -> Sequence -> Double
 sequenceIdentity sequence1 sequence2 = identityPercent
@@ -339,7 +348,7 @@ retrieveFullSequences requestedSequences = do
       let (failedRetrievals, successfulRetrievals) = partition (\x -> L.null (unSD (seqdata (firstOfTriple (fst x))))) fullSequencesWithRequestedSequences
       --we try to reretrieve failed entries once
       missingSequences <- mapM retrieveFullSequence (map snd failedRetrievals)
-      let (reRetrievedSequences,stillMissingSequences) = partition (\fullSequence -> L.null (unSD (seqdata fullSequence))) (map firstOfTriple missingSequences)
+      let (reRetrievedSequences,stillMissingSequences) = partition (\fullSequence -> L.null (unSD (seqdata (firstOfTriple fullSequence)))) missingSequences
       print stillMissingSequences                            
       return ((map fst successfulRetrievals) ++ reRetrievedSequences) 
     else return fullSequences 

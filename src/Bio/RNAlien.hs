@@ -101,7 +101,7 @@ searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit query
   writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/1blastOutput") (show blastOutput)
   logEither blastOutput (tempDirPath staticOptions)
   let rightBlast = fromRight blastOutput
-  if not (null (results rightBlast))
+  if (blastHitsPresent rightBlast)
      then do
        let bestHit = getBestHit rightBlast
        bestBlastHitTaxIdOutput <- retrieveBlastHitTaxIdEntrez [bestHit]
