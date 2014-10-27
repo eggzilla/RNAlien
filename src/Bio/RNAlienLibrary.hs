@@ -339,9 +339,9 @@ retrieveFullSequences requestedSequences = do
       let (failedRetrievals, successfulRetrievals) = partition (\x -> L.null (unSD (seqdata (firstOfTriple (fst x))))) fullSequencesWithRequestedSequences
       --we try to reretrieve failed entries once
       missingSequences <- mapM retrieveFullSequence (map snd failedRetrievals)
-      let stillMissingSequences = (filter (\fullSequence -> L.null (unSD (seqdata fullSequence))) (map firstOfTriple missingSequences))
+      let (reRetrievedSequences,stillMissingSequences) = partition (\fullSequence -> L.null (unSD (seqdata fullSequence))) (map firstOfTriple missingSequences)
       print stillMissingSequences                            
-      return ((map fst successfulRetrievals) ++ missingSequences) 
+      return ((map fst successfulRetrievals) ++ reRetrievedSequences) 
     else return fullSequences 
          
 retrieveFullSequence :: (String,Int,Int,String,String,Int,String) -> IO (Sequence,Int,String)
