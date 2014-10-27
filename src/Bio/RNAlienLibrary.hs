@@ -33,24 +33,23 @@ import qualified Text.EditDistance as ED
 import qualified Data.Vector as V
 
 -- | Filter a list of similar extended blast hits   
-filterIdenticalSequences :: [(Sequence,Int,String)] -> [(Sequence,Int,String)]
-filterIdenticalSequences [] = []                            
-filterIdenticalSequences (headSequence:rest)
-  | not (null rest) = result
-  | otherwise = [headSequence]            
-  where filteredSequences = filter (\x -> (sequenceIdentity (firstOfTripel headSequence) (firstOfTripel x)) > 90) rest 
+filterIdenticalSequences :: [(Sequence,Int,String)] -> [(Sequence,Int,String)]                            
+filterIdenticalSequences (headSequence:rest) = result
+  where filteredSequences = filter (\x -> (sequenceIdentity (firstOfTripel headSequence) (firstOfTripel x)) < 90) rest 
         result = headSequence:(filterIdenticalSequences filteredSequences)
-      
+filterIdenticalSequences [] = []
+                 
+firstOfTripel :: (t, t1, t2) -> t
 firstOfTripel (a,_,_) = a 
 
 -- | Compute identity of sequences
 sequenceIdentity :: Sequence -> Sequence -> Double
-sequenceIdentity sequence1 sequence2 = identity
+sequenceIdentity sequence1 sequence2 = identityPercent
   where distance = ED.levenshteinDistance ED.defaultEditCosts sequence1string sequence2string
         sequence1string = L.unpack (unSD (seqdata sequence1))
         sequence2string = L.unpack (unSD (seqdata sequence2))
         maximumDistance = maximum [(length sequence1string),(length sequence2string)]
-        identity = 100 - ((fromIntegral distance/fromIntegral (maximumDistance)) * (read "100" ::Double))
+        identityPercent = 100 - ((fromIntegral distance/fromIntegral (maximumDistance)) * (read "100" ::Double))
                           
 -- | convert subtreeTaxId of last round into upper and lower search space boundry
 -- In the first iteration we either set the taxfilter provided by the user or no filter at all 
@@ -105,16 +104,15 @@ buildTaxRecord currentIterationNumber entries = taxRecord
 buildSeqRecord :: Int -> (Sequence,Int,String,Char) -> SequenceRecord 
 buildSeqRecord currentIterationNumber (parsedFasta,_,seqSubject,seqOrigin) = SequenceRecord parsedFasta currentIterationNumber seqSubject seqOrigin   
                                                                              
-extractQueries :: Int -> ModelConstruction -> ([Sequence],[String])
+extractQueries :: Int -> ModelConstruction -> [Sequence] 
 extractQueries iterationnumber modelconstruction
-  | iterationnumber == 0 = ([fastaSeqData],["Test","Test2"])
-  | otherwise = (querySequences,convertedqueryids)
+  | iterationnumber == 0 = [fastaSeqData] 
+  | otherwise = querySequences 
   where fastaSeqData = inputFasta modelconstruction
         querySeqIds = selectedQueries modelconstruction
         alignedSequences = map nucleotideSequence (concatMap sequenceRecords (taxRecords modelconstruction))
         querySequences = concatMap (\querySeqId -> filter (\alignedSeq -> (convertToClustalw2SequenceId (L.unpack (unSL (seqid alignedSeq)))) == querySeqId) alignedSequences) querySeqIds
-        convertedqueryids = concatMap (\querySeqId -> map (\alignedSeq -> (convertToClustalw2SequenceId (L.unpack (unSL (seqid alignedSeq))))) alignedSequences) querySeqIds
-
+        
 -- |  Performs the same character conversions in sequenceIds of phylogenetic tree files as clustal   
 convertToClustalw2SequenceId :: String -> String 
 convertToClustalw2SequenceId = map clustalReplaceChar
@@ -152,9 +150,9 @@ randomid number = "cm" ++ (show number)
 systemBlast :: String -> Int -> IO BlastResult
 systemBlast filePath inputIterationNumber = do
   let outputName = (show inputIterationNumber) ++ ".blastout"
-  system ("blastn -outfmt 5 -query " ++ filePath  ++ " -db nr -out " ++ outputName)
-  inputBlast <- readXML outputName
-  return inputBlast
+  _ <- system ("blastn -outfmt 5 -query " ++ filePath  ++ " -db nr -out " ++ outputName)
+  outputBlast <- readXML outputName
+  return outputBlast
 
 -- | Run external mlocarna command and read the output into the corresponding datatype, there is also a folder created at the location of the input fasta file
 systemLocarna :: String -> (String,String) -> IO ExitCode
@@ -193,34 +191,34 @@ parseNCBISimpleGene2Accession input = parse genParserNCBISimpleGene2Accession "p
 genParserNCBISimpleGene2Accession :: GenParser Char st SimpleGene2Accession
 genParserNCBISimpleGene2Accession = do
   taxonomyIdEntry' <- many1 digit
-  many1 tab
-  many1 digit
-  many1 tab 
-  many1 (noneOf "\t")
-  many1 tab  
-  many1 (noneOf "\t")
-  many1 tab
-  many1 (noneOf "\t")
-  many1 tab
-  many1 (noneOf "\t")
-  many1 tab
-  many1 (noneOf "\t")
-  many1 tab
+  _ <- many1 tab
+  _ <- many1 digit
+  _ <- many1 tab 
+  _ <- many1 (noneOf "\t")
+  _ <- many1 tab  
+  _ <- many1 (noneOf "\t")
+  _ <- many1 tab
+  _ <- many1 (noneOf "\t")
+  _ <- many1 tab
+  _ <- many1 (noneOf "\t")
+  _ <- many1 tab
+  _ <- many1 (noneOf "\t")
+  _ <- many1 tab
   genomicNucleotideAccessionVersion' <- many1 (noneOf "\t")
-  many1 tab
-  many1 (noneOf "\t")
-  many1 tab
-  many1 (noneOf "\t")
-  many1 tab
-  many1 (noneOf "\t")
-  many1 tab
-  many1 (noneOf "\t")
-  many1 tab
-  many1 (noneOf "\t")
-  many1 tab 
-  many1 (noneOf "\t")
-  many1 tab
-  many1 (noneOf "\t")
+  _ <- many1 tab
+  _ <- many1 (noneOf "\t")
+  _ <- many1 tab
+  _ <- many1 (noneOf "\t")
+  _ <- many1 tab
+  _ <- many1 (noneOf "\t")
+  _ <- many1 tab
+  _ <- many1 (noneOf "\t")
+  _ <- many1 tab
+  _ <- many1 (noneOf "\t")
+  _ <- many1 tab 
+  _ <- many1 (noneOf "\t")
+  _ <- many1 tab
+  _ <- many1 (noneOf "\t")
   return $ SimpleGene2Accession (readInt taxonomyIdEntry') genomicNucleotideAccessionVersion'
 
 parseNCBIGene2Accession :: String -> Either ParseError Gene2Accession
@@ -229,33 +227,33 @@ parseNCBIGene2Accession input = parse genParserNCBIGene2Accession "parseGene2Acc
 genParserNCBIGene2Accession :: GenParser Char st Gene2Accession
 genParserNCBIGene2Accession = do
   taxonomyIdEntry' <- many1 digit
-  many1 tab
+  _ <- many1 tab
   geneId' <- many1 digit
-  many1 tab 
+  _ <- many1 tab 
   status' <- many1 (noneOf "\t")
-  many1 tab  
+  _ <- many1 tab  
   rnaNucleotideAccessionVersion' <- many1 (noneOf "\t")
-  many1 tab
+  _ <- many1 tab
   rnaNucleotideGi' <- many1 (noneOf "\t")
-  many1 tab
+  _ <- many1 tab
   proteinAccessionVersion' <- many1 (noneOf "\t")
-  many1 tab
+  _ <- many1 tab
   proteinGi' <- many1 (noneOf "\t")
-  many1 tab
+  _ <- many1 tab
   genomicNucleotideAccessionVersion' <- many1 (noneOf "\t")
-  many1 tab
+  _ <- many1 tab
   genomicNucleotideGi' <- many1 (noneOf "\t")
-  many1 tab
+  _ <- many1 tab
   startPositionOnTheGenomicAccession' <- many1 (noneOf "\t")
-  many1 tab
+  _ <- many1 tab
   endPositionOnTheGenomicAccession' <- many1 (noneOf "\t")
-  many1 tab
+  _ <- many1 tab
   orientation' <- many1 (noneOf "\t")
-  many1 tab
+  _ <- many1 tab
   assembly' <- many1 (noneOf "\t")
-  many1 tab 
+  _ <- many1 tab 
   maturePeptideAccessionVersion'  <- many1 (noneOf "\t")
-  many1 tab
+  _ <- many1 tab
   maturePeptideGi' <- many1 (noneOf "\t")
   return $ Gene2Accession (readInt taxonomyIdEntry') (readInt geneId') status' rnaNucleotideAccessionVersion' rnaNucleotideGi' proteinAccessionVersion' proteinGi' genomicNucleotideAccessionVersion' genomicNucleotideGi' startPositionOnTheGenomicAccession' endPositionOnTheGenomicAccession' orientation' assembly' maturePeptideAccessionVersion' maturePeptideGi'
 
@@ -477,21 +475,23 @@ filterNeighborhoodEntries blastHitsWithTaxId neighborhoodTaxIds singleHitperTax
         singleBlastHitperTaxId = map (maximumBy compareHitEValue) neighborhoodBlastHitsWithTaxIdGroupedByTaxId
         
 -- Smaller e-Values are greater, the maximum function is applied
-compareHitEValue :: (BlastHit,Int) -> (BlastHit,Int) -> Ordering
+compareHitEValue :: (BlastHit,Int) -> (BlastHit,Int) -> Ordering                    
 compareHitEValue (hit1,_) (hit2,_)
   | (hitEValue hit1) > (hitEValue hit2) = LT
   | (hitEValue hit1) < (hitEValue hit2) = GT
   -- in case of equal evalues the first hit is selected
-  | (hitEValue hit1) == (hitEValue hit2) = GT
+  | (hitEValue hit1) == (hitEValue hit2) = GT                                           
 -- comparing (hitEValue . Down . fst)
+compareHitEValue (_,_) (_,_) = EQ 
 
-compareTaxId :: (BlastHit,Int) -> (BlastHit,Int) -> Ordering
+compareTaxId :: (BlastHit,Int) -> (BlastHit,Int) -> Ordering            
 compareTaxId (_,taxId1) (_,taxId2)
   | taxId1 > taxId2 = LT
   | taxId1 < taxId2 = GT
   -- in case of equal evalues the first hit is selected
   | taxId1 == taxId2 = EQ
-
+compareTaxId (_,_)  (_,_) = EQ
+                       
 sameTaxId :: (BlastHit,Int) -> (BlastHit,Int) -> Bool
 sameTaxId (_,taxId1) (_,taxId2) = taxId1 == taxId2
 
@@ -516,7 +516,8 @@ findChildTaxTreeNodePosition searchedTaxId currentPosition
   | (isLabelMatching == False) = []
   where currentTaxId = simpleTaxId (TZ.label currentPosition)
         isLabelMatching = currentTaxId == searchedTaxId
-
+findChildTaxTreeNodePosition _ _ = []
+                          
 checkSiblings :: Int -> TZ.TreePos TZ.Full SimpleTaxDumpNode -> [TZ.TreePos TZ.Full SimpleTaxDumpNode]        
 checkSiblings searchedTaxId currentPosition  
   | (TZ.isLast currentPosition) = (findChildTaxTreeNodePosition searchedTaxId currentPosition)
@@ -554,8 +555,9 @@ isPopulated currentParent nextParent bestHitTaxId rank' nodes direction
 nextRankByDirection :: Rank -> String -> Rank
 nextRankByDirection rank' direction
   | direction == "root"  = (succ rank')
-  | direction == "leave" = (pred rank')
-
+  | direction == "leaf" = (pred rank')
+nextRankByDirection _ _ = Norank
+                    
 isInNeighborhood :: [Int] -> (BlastHit,Int) -> Bool
 isInNeighborhood neighborhoodTaxIds (_,hitTaxId) = elem hitTaxId neighborhoodTaxIds
 
@@ -683,11 +685,10 @@ showlines :: Show a => [a] -> [Char]
 showlines input = concatMap (\x -> show x ++ "\n") input
 
 logMessage :: String -> String -> IO ()
-logMessage logoutput tempDirPath = appendFile (tempDirPath ++ "Log") (show logoutput)
-logMessage _ _ = return ()
+logMessage logoutput temporaryDirectoryPath = appendFile (temporaryDirectoryPath ++ "Log") (show logoutput)
                   
 logEither :: (Show a) => Either a b -> String -> IO ()
-logEither (Left logoutput) tempDirPath = appendFile (tempDirPath ++ "Log") (show logoutput)
+logEither (Left logoutput) temporaryDirectoryPath = appendFile (temporaryDirectoryPath ++ "Log") (show logoutput)
 logEither  _ _ = return ()
 
 buildCMfromLocarnaFilePath :: String -> IO ExitCode

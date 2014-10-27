@@ -56,9 +56,7 @@ alignmentConstruction staticOptions modelconstruction = do
   let currentModelConstruction = modelconstruction
   let currentIterationNumber = (iterationNumber currentModelConstruction)
   --extract queries
-  let (queries,convertedqueryids) = extractQueries currentIterationNumber currentModelConstruction
-  putStrLn "convertedqueryids"
-  print convertedqueryids
+  let queries = extractQueries currentIterationNumber currentModelConstruction
   putStrLn "Queries"
   print queries
   if ((not (null queries)) && (maybe True (\x -> x > 1) (upperTaxonomyLimit currentModelConstruction)))
@@ -252,8 +250,10 @@ main = do
   pathToModel <- constructModel alignmentConstructionResult staticOptions
   putStrLn "Path to result model: "
   putStrLn pathToModel
-  print alignmentConstructionResult
+  print alignmentConstructionResult  
   putStrLn "Done"
+
+           
 
 
                          
