@@ -2,7 +2,6 @@
 
 module Bio.RNAlienData where
 
-import Bio.BlastXML
 import qualified Data.ByteString.Lazy.Char8 as L
 import Bio.Sequence.Fasta 
 import Bio.Taxonomy
@@ -45,7 +44,34 @@ data SequenceRecord = SequenceRecord
     sequenceOrigin :: Char    
   } deriving (Show)  
 
--- | Simple Gene2Accession table, just containing 
+-- |  
+data CMsearch = CMsearch
+  { queryCMfile :: Int,
+    targetSequenceDatabase :: String,
+    numberOfWorkerThreads :: Int,
+    hitScores :: [CMsearchHitScore]
+--    hitAlignments :: [CMsearchHitAlignment]
+--    internalCMPipelineStatisticsSummary                 
+  } deriving (Show, Eq, Read) 
+
+-- |  
+data CMsearchHitScore = CMsearchHitScore
+  { hitRank :: Int,
+    hitSignificance :: Char,
+    hitEvalue :: Double,
+    hitScore :: Double,
+    hitBias :: Double,
+    hitSequenceHeader :: L.ByteString,
+    hitStart :: Int,
+    hitEnd :: Int,
+    hitStrand :: Char,
+    hitModel :: L.ByteString,
+    hitTruncation :: L.ByteString,
+    hitGCContent :: Double,
+    hitDescription :: L.ByteString
+  } deriving (Show, Eq, Read) 
+
+-- | Simple Gene2Accession table 
 data SimpleGene2Accession = SimpleGene2Accession
   { simpleTaxIdEntry :: Int,
     simpleGenomicNucleotideAccessionVersion :: String
