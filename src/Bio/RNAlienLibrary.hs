@@ -779,18 +779,18 @@ retrieveAllDescendents nodes parentNode
   where
   childNodes = retrieveChildren nodes parentNode
 
-buildGenbankCoordinatesAndRetrieveFeatures :: StaticOptions -> Int -> Int -> [(BlastHit,Int)] -> IO [[(Sequence, Int, String, Char)]]
-buildGenbankCoordinatesAndRetrieveFeatures staticOptions iterationnumber queryLength filteredBlastResults = do
+buildGenbankCoordinatesAndRetrieveFeatures :: StaticOptions -> Int -> Int -> String -> [(BlastHit,Int)] -> IO [[(Sequence, Int, String, Char)]]
+buildGenbankCoordinatesAndRetrieveFeatures staticOptions iterationnumber queryLength queryIndexString filteredBlastResults = do
   if useGenbankAnnotationToogle staticOptions == True
      then do
        let requestedGenbankFeatures = map (getRequestedSequenceElement queryLength queryLength) filteredBlastResults  
-       writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/7requestedGenbankFeatures") (showlines requestedGenbankFeatures)
+       writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/" ++ queryIndexString ++ "_7requestedGenbankFeatures") (showlines requestedGenbankFeatures)
        genbankFeaturesOutput <- mapM retrieveGenbankFeatures requestedGenbankFeatures
        let genbankFeatures = map (\(genbankfeatureOutput,taxid,subject') -> (parseGenbank genbankfeatureOutput,taxid,subject')) genbankFeaturesOutput
-       writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log"  ++ "/error") (concatMap show (lefts (map (\(a,_,_) -> a) genbankFeatures)))
+       writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log"  ++ "/" ++ queryIndexString ++ "_error") (concatMap show (lefts (map (\(a,_,_) -> a) genbankFeatures)))
        let rightGenbankFeatures = map (\(genbankfeature,taxid,subject') -> (fromRight genbankfeature,taxid,subject')) genbankFeatures
        let annotatedSequences = map (\(rightgenbankfeature,taxid,subject') -> (map (\singleseq -> (singleseq,taxid,subject','G')) (extractSpecificFeatureSequence (Just "gene") rightgenbankfeature))) rightGenbankFeatures
-       writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/9annotatedSequences") (showlines annotatedSequences)
+       writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/" ++ queryIndexString ++ "_9annotatedSequences") (showlines annotatedSequences)
        return annotatedSequences
      else return []
 
