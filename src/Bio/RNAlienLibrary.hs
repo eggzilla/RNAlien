@@ -3,7 +3,7 @@
 module Bio.RNAlienLibrary where
    
 import System.Process 
-import Text.ParserCombinators.Parsec
+import Text.ParserCombinators.Parsec 
 import Data.List
 import Data.Char
 import Bio.Core.Sequence 
@@ -24,7 +24,7 @@ import Data.Maybe
 import Text.Parsec.Error
 import Text.ParserCombinators.Parsec.Pos
 import Bio.EntrezHTTP
-import Data.List.Split
+import qualified Data.List.Split as DS
 import Bio.GenbankParser 
 import Bio.GenbankTools
 import System.Exit
@@ -46,11 +46,10 @@ firstOfTriple (a,_,_) = a
 blastHitsPresent :: BlastResult -> Bool
 blastHitsPresent blastResult 
   | (null resultList) = False
-  | not (null resultList) = null (concatMap hits resultList)
+  | not (null resultList) = not (null (concatMap hits resultList))
   | otherwise = False
   where resultList = (results blastResult)
-         
-                        
+                                
 -- | Compute identity of sequences
 sequenceIdentity :: Sequence -> Sequence -> Double
 sequenceIdentity sequence1 sequence2 = identityPercent
@@ -201,41 +200,123 @@ systemCMcalibrate covarianceModelPath outputPath = system ("CMcalibrate " ++ cov
                                                                  
 readInt :: String -> Int
 readInt = read
-          
+
+readDouble :: String -> Double
+readDouble = read
+
+parseCMSearch :: String -> Either ParseError CMsearch
+parseCMSearch input = parse genParserCMsearch "parseCMsearch" input
+
+genParserCMsearch :: GenParser Char st CMsearch
+genParserCMsearch = do
+  string "# cmsearch :: search CM(s) against a sequence database"
+  newline
+  string "# INFERNAL "
+  _ <- many1 (noneOf "\n")
+  newline       
+  string "# Copyright (C) 2013 Howard Hughes Medical Institute."
+  newline       
+  string "# Freely distributed under the GNU General Public License (GPLv3)."
+  newline       
+  string "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -"
+  string "# query CM file:"
+  _ <- many1 space
+  queryCMfile' <- many1 (noneOf "\n")
+  newline
+  string "# target sequence database:"
+  _ <- many1 space      
+  targetSequenceDatabase' <- many1 (noneOf "\n")
+  newline
+  string "# target sequence database:"
+  _ <- many1 space
+  numberOfWorkerThreads' <- many1 (noneOf "\n")
+  newline
+  string "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -"
+  newline
+  newline
+  string "Query:"
+  _ <- many1 (noneOf "\n")       
+  newline
+  string "Hit scores:"
+  newline
+  string " rank     E-value  score  bias  sequence                       start    end   mdl trunc   gc  description"
+  newline
+  string " ----   --------- ------ -----  ----------------------------- ------ ------   --- ----- ----  -----------"
+  hitScores' <- many1 (try genParserCMsearchHitScore)
+  -- this is followed by hit alignments and internal cmsearch statistics which are not parsed
+  _ <- many anyChar
+  eof
+  return $ CMsearch queryCMfile' targetSequenceDatabase' (readInt numberOfWorkerThreads') hitScores'
+
+genParserCMsearchHitScore :: GenParser Char st CMsearchHitScore
+genParserCMsearchHitScore = do
+  _ <- many1 space
+  string "("     
+  hitRank' <- many1 digit
+  string ")"
+  many1 space
+  hitSignificant' <- choice [char '!', char '?']
+  many1 space                  
+  hitEValue' <- many1 (oneOf "0123456789.")
+  many1 space             
+  hitScore'  <- many1 (oneOf "0123456789.")
+  many1 space   
+  hitBias' <- many1 (oneOf "0123456789.")
+  many1 space
+  hitSequenceHeader' <- many1 (noneOf " ")
+  many1 space                
+  hitStart' <- many1 digit
+  many1 space
+  hitEnd' <- many1 digit
+  many1 space            
+  hitStrand' <- choice [char '+', char '-', char '.']
+  many1 space              
+  hitModel' <- many1 letter
+  many1 space          
+  hitTruncation' <- many1 letter
+  many1 space                   
+  hitGCcontent' <- many1 (oneOf "0123456789.")
+  many1 space                
+  hitDescription' <- many1 (noneOf "\n")     
+  newline
+  optional (try (string " ------ inclusion threshold ------"))
+  optional (try newline)
+  return $ CMsearchHitScore (readInt hitRank') hitSignificant' (readDouble hitEValue') (readDouble hitScore') (readDouble hitBias') (L.pack hitSequenceHeader') (readInt hitStart') (readInt hitEnd') hitStrand' (L.pack hitModel') (L.pack hitTruncation') (readDouble hitGCcontent') (L.pack hitDescription')
+         
 parseNCBISimpleGene2Accession :: String -> Either ParseError SimpleGene2Accession
 parseNCBISimpleGene2Accession input = parse genParserNCBISimpleGene2Accession "parseSimpleGene2Accession" input
 
 genParserNCBISimpleGene2Accession :: GenParser Char st SimpleGene2Accession
 genParserNCBISimpleGene2Accession = do
   taxonomyIdEntry' <- many1 digit
-  _ <- many1 tab
-  _ <- many1 digit
-  _ <- many1 tab 
-  _ <- many1 (noneOf "\t")
-  _ <- many1 tab  
-  _ <- many1 (noneOf "\t")
-  _ <- many1 tab
-  _ <- many1 (noneOf "\t")
-  _ <- many1 tab
-  _ <- many1 (noneOf "\t")
-  _ <- many1 tab
-  _ <- many1 (noneOf "\t")
-  _ <- many1 tab
+  many1 tab
+  many1 digit
+  many1 tab 
+  many1 (noneOf "\t")
+  many1 tab  
+  many1 (noneOf "\t")
+  many1 tab
+  many1 (noneOf "\t")
+  many1 tab
+  many1 (noneOf "\t")
+  many1 tab
+  many1 (noneOf "\t")
+  many1 tab
   genomicNucleotideAccessionVersion' <- many1 (noneOf "\t")
-  _ <- many1 tab
-  _ <- many1 (noneOf "\t")
-  _ <- many1 tab
-  _ <- many1 (noneOf "\t")
-  _ <- many1 tab
-  _ <- many1 (noneOf "\t")
-  _ <- many1 tab
-  _ <- many1 (noneOf "\t")
-  _ <- many1 tab
-  _ <- many1 (noneOf "\t")
-  _ <- many1 tab 
-  _ <- many1 (noneOf "\t")
-  _ <- many1 tab
-  _ <- many1 (noneOf "\t")
+  many1 tab
+  many1 (noneOf "\t")
+  many1 tab
+  many1 (noneOf "\t")
+  many1 tab
+  many1 (noneOf "\t")
+  many1 tab
+  many1 (noneOf "\t")
+  many1 tab
+  many1 (noneOf "\t")
+  many1 tab 
+  many1 (noneOf "\t")
+  many1 tab
+  many1 (noneOf "\t")
   return $ SimpleGene2Accession (readInt taxonomyIdEntry') genomicNucleotideAccessionVersion'
 
 parseNCBIGene2Accession :: String -> Either ParseError Gene2Accession
@@ -244,33 +325,33 @@ parseNCBIGene2Accession input = parse genParserNCBIGene2Accession "parseGene2Acc
 genParserNCBIGene2Accession :: GenParser Char st Gene2Accession
 genParserNCBIGene2Accession = do
   taxonomyIdEntry' <- many1 digit
-  _ <- many1 tab
+  many1 tab
   geneId' <- many1 digit
-  _ <- many1 tab 
+  many1 tab 
   status' <- many1 (noneOf "\t")
-  _ <- many1 tab  
+  many1 tab  
   rnaNucleotideAccessionVersion' <- many1 (noneOf "\t")
-  _ <- many1 tab
+  many1 tab
   rnaNucleotideGi' <- many1 (noneOf "\t")
-  _ <- many1 tab
+  many1 tab
   proteinAccessionVersion' <- many1 (noneOf "\t")
-  _ <- many1 tab
+  many1 tab
   proteinGi' <- many1 (noneOf "\t")
-  _ <- many1 tab
+  many1 tab
   genomicNucleotideAccessionVersion' <- many1 (noneOf "\t")
-  _ <- many1 tab
+  many1 tab
   genomicNucleotideGi' <- many1 (noneOf "\t")
-  _ <- many1 tab
+  many1 tab
   startPositionOnTheGenomicAccession' <- many1 (noneOf "\t")
-  _ <- many1 tab
+  many1 tab
   endPositionOnTheGenomicAccession' <- many1 (noneOf "\t")
-  _ <- many1 tab
+  many1 tab
   orientation' <- many1 (noneOf "\t")
-  _ <- many1 tab
+  many1 tab
   assembly' <- many1 (noneOf "\t")
-  _ <- many1 tab 
+  many1 tab 
   maturePeptideAccessionVersion'  <- many1 (noneOf "\t")
-  _ <- many1 tab
+  many1 tab
   maturePeptideGi' <- many1 (noneOf "\t")
   return $ Gene2Accession (readInt taxonomyIdEntry') (readInt geneId') status' rnaNucleotideAccessionVersion' rnaNucleotideGi' proteinAccessionVersion' proteinGi' genomicNucleotideAccessionVersion' genomicNucleotideGi' startPositionOnTheGenomicAccession' endPositionOnTheGenomicAccession' orientation' assembly' maturePeptideAccessionVersion' maturePeptideGi'
 
@@ -630,7 +711,7 @@ extractTaxIdFromEntrySummaries input = hitTaxIds
 
 extractAccession :: BlastHit -> L.ByteString
 extractAccession currentBlastHit = accession'
-  where splitedFields = splitOn "|" (L.unpack (hitId currentBlastHit))
+  where splitedFields = DS.splitOn "|" (L.unpack (hitId currentBlastHit))
         accession' =  L.pack (splitedFields !! 3) 
         
 extractGeneId :: BlastHit -> String

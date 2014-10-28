@@ -46,7 +46,7 @@ data SequenceRecord = SequenceRecord
 
 -- |  
 data CMsearch = CMsearch
-  { queryCMfile :: Int,
+  { queryCMfile :: String,
     targetSequenceDatabase :: String,
     numberOfWorkerThreads :: Int,
     hitScores :: [CMsearchHitScore]

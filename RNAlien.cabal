@@ -22,7 +22,7 @@ executable RNAlien
 
 Library
   Hs-Source-Dirs:      ./src/
-  ghc-options:         -Wall -O2
+  ghc-options:         -Wall -O2 -fno-warn-unused-do-bind
   build-depends:       base >=4.5, cmdargs, ViennaRNAParser, process, directory, blastxml>=0.3.2, biofasta, parsec, random, BlastHTTP, biocore, bytestring, Taxonomy, either-unwrap, containers, ClustalParser, rosezipper, EntrezHTTP, split, Genbank, vector, edit-distance
   Exposed-Modules:     Bio.RNAlienData
                        Bio.RNAlienLibrary
