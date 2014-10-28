@@ -245,7 +245,7 @@ main = do
   let fullSequenceOffsetLength = readInt fullSequenceOffset
   let staticOptions = StaticOptions temporaryDirectoryPath sessionId  rightNodes inputTaxId singleHitperTax useGenbankAnnotation lengthFilter fullSequenceOffsetLength threads
   let initialization = ModelConstruction iterationNumber (head inputFasta) [] (maybe Nothing Just inputTaxId) []
-  logMessage (show initialization)
+  logMessage (show initialization) temporaryDirectoryPath
   alignmentConstructionResult <- alignmentConstruction staticOptions initialization
   --extract final alignment and build cm
   pathToModel <- constructModel alignmentConstructionResult staticOptions

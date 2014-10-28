@@ -47,7 +47,7 @@ blastHitsPresent :: BlastResult -> Bool
 blastHitsPresent blastResult 
   | (null resultList) = False
   | not (null resultList) = null (concatMap hits resultList)
-  | _ = False
+  | otherwise = False
   where resultList = (results blastResult)
          
                         
