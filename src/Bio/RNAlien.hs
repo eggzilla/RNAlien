@@ -69,7 +69,7 @@ alignmentConstruction staticOptions modelconstruction = do
        print ((show upperTaxLimit) ++ " " ++ show lowerTaxLimit)
        --search queries
        candidates <- mapM (searchCandidates staticOptions currentIterationNumber upperTaxLimit lowerTaxLimit) queries
-       if ((concat (map fst candidates)) /= [])
+       if (not (null (concat (map fst candidates))))
           then do
             let usedUpperTaxonomyLimit = (snd (head candidates))    
             --align search results - candidates > SCI 0.59 
@@ -78,6 +78,7 @@ alignmentConstruction staticOptions modelconstruction = do
             selectedQueries <- selectQueries staticOptions currentModelConstruction alignmentResults
             -- prepare next iteration 
             let nextModelConstructionInput = constructNext currentIterationNumber currentModelConstruction alignmentResults usedUpperTaxonomyLimit selectedQueries
+                                             
             appendFile ((tempDirPath staticOptions) ++ "log") (show nextModelConstructionInput)
             print ("upperTaxTreeLimit:" ++ show usedUpperTaxonomyLimit)
             nextModelConstruction <- alignmentConstruction staticOptions nextModelConstructionInput
@@ -231,7 +232,7 @@ main = do
   let sessionId = randomid randomNumber
   let iterationNumber = 0
   let taxNodesFile = "/home/egg/current/Data/Taxonomy/taxdump/nodes.dmp"
-  let temporaryDirectoryPath = outputPath ++ sessionId ++ "/"                               
+  let temporaryDirectoryPath = outputPath ++ sessionId ++ "/"                     
   createDirectory (temporaryDirectoryPath)
   putStrLn "Created Temp-Dir:"
   putStrLn temporaryDirectoryPath
@@ -239,7 +240,6 @@ main = do
   writeFile (temporaryDirectoryPath ++ "Log") ("")
   inputFasta <- readFasta inputFastaFilePath
   nodes <- readNCBISimpleTaxDumpNodes taxNodesFile 
-  logMessage ("Input taxId:" ++ (show inputTaxId)) temporaryDirectoryPath
   logEither nodes temporaryDirectoryPath
   let rightNodes = fromRight nodes
   let fullSequenceOffsetLength = readInt fullSequenceOffset
