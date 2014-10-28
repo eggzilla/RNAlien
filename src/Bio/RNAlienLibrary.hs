@@ -191,9 +191,17 @@ systemCMbuild alignmentFilepath modelFilepath = system ("cmbuild " ++ modelFilep
 systemCMcompare ::  String -> String -> IO ExitCode
 systemCMcompare inputFilePath outputFilePath = system ("CMcompare " ++ inputFilePath ++ " >" ++ outputFilePath ++ ".cmcoutput")
 
+-- | Run CMsearch and read the output into the corresponding datatype
+systemCMsearch :: String -> String -> String -> IO ExitCode
+systemCMsearch covarianceModelPath sequenceFilePath outputPath = system ("CMsearch " ++ covarianceModelPath ++ " " ++ sequenceFilePath ++ "> " ++ outputPath ++ ".cmsearch")
+
+-- | Run CMcalibrate and return exitcode
+systemCMcalibrate :: String -> String -> IO ExitCode 
+systemCMcalibrate covarianceModelPath outputPath = system ("CMcalibrate " ++ covarianceModelPath ++ "> " ++ outputPath ++ ".cmcalibrate")
+                                                                 
 readInt :: String -> Int
 readInt = read
-
+          
 parseNCBISimpleGene2Accession :: String -> Either ParseError SimpleGene2Accession
 parseNCBISimpleGene2Accession input = parse genParserNCBISimpleGene2Accession "parseSimpleGene2Accession" input
 
