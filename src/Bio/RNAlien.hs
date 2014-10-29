@@ -138,7 +138,7 @@ searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit (quer
        --fullSequencesWithSimilars <- mapM retrieveFullSequence requestedSequenceElements
        fullSequencesWithSimilars <- retrieveFullSequences requestedSequenceElements
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10afullSequencesWithSimilars") (showlines fullSequencesWithSimilars)
-       let fullSequences = filterIdenticalSequences fullSequencesWithSimilars 
+       let fullSequences = filterIdenticalSequences fullSequencesWithSimilars 95
        let fullSequencesWithOrigin = map (\(parsedFasta,taxid,subject) -> (parsedFasta,taxid,subject,'B')) fullSequences
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10fullSequences") (showlines fullSequences)
        return (((concat annotatedSequences) ++ fullSequencesWithOrigin),(Just usedUpperTaxLimit))
@@ -164,7 +164,7 @@ alignCandidates staticOptions modelConstruction candidates = do
   mlocarnaRNAzOutput <- mapM readRNAz pairwiseLocarnaRNAzFilePaths
   let locarnaSCI = map (\x -> show (structureConservationIndex (fromRight x))) mlocarnaRNAzOutput
   let alignedCandidates = zip locarnaSCI candidates
-  let (selectedCandidates,rejectedCandidates)= partition (\(sci,_) -> (read sci ::Double) > 0.59 ) alignedCandidates
+  let (selectedCandidates,rejectedCandidates)= partition (\(sci,_) -> (read sci ::Double) > 0.7 ) alignedCandidates
   writeFile ((tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/log" ++ "/11selectedCandidates") (showlines selectedCandidates)
   writeFile ((tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/log" ++ "/12rejectedCandidates") (showlines rejectedCandidates)
   return (map snd selectedCandidates)
