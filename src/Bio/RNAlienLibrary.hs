@@ -204,15 +204,20 @@ readInt = read
 readDouble :: String -> Double
 readDouble = read
 
+-- | parse from input filePath              
 parseCMSearch :: String -> Either ParseError CMsearch
 parseCMSearch input = parse genParserCMsearch "parseCMsearch" input
 
+-- | parse from input filePath                      
+readCMSearch :: String -> IO Either ParseError CMsearch             
+readCMSearch filePath = parseFromFile genParserCMsearch filePath
+                      
 genParserCMsearch :: GenParser Char st CMsearch
 genParserCMsearch = do
   string "# cmsearch :: search CM(s) against a sequence database"
   newline
   string "# INFERNAL "
-  _ <- many1 (noneOf "\n")
+  many1 (noneOf "\n")
   newline       
   string "# Copyright (C) 2013 Howard Hughes Medical Institute."
   newline       
@@ -220,22 +225,22 @@ genParserCMsearch = do
   newline       
   string "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -"
   string "# query CM file:"
-  _ <- many1 space
+  many1 space
   queryCMfile' <- many1 (noneOf "\n")
   newline
   string "# target sequence database:"
-  _ <- many1 space      
+  many1 space      
   targetSequenceDatabase' <- many1 (noneOf "\n")
   newline
   string "# target sequence database:"
-  _ <- many1 space
+  many1 space
   numberOfWorkerThreads' <- many1 (noneOf "\n")
   newline
   string "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -"
   newline
   newline
   string "Query:"
-  _ <- many1 (noneOf "\n")       
+  many1 (noneOf "\n")       
   newline
   string "Hit scores:"
   newline
@@ -244,13 +249,13 @@ genParserCMsearch = do
   string " ----   --------- ------ -----  ----------------------------- ------ ------   --- ----- ----  -----------"
   hitScores' <- many1 (try genParserCMsearchHitScore)
   -- this is followed by hit alignments and internal cmsearch statistics which are not parsed
-  _ <- many anyChar
+  many anyChar
   eof
   return $ CMsearch queryCMfile' targetSequenceDatabase' (readInt numberOfWorkerThreads') hitScores'
 
 genParserCMsearchHitScore :: GenParser Char st CMsearchHitScore
 genParserCMsearchHitScore = do
-  _ <- many1 space
+  many1 space
   string "("     
   hitRank' <- many1 digit
   string ")"
