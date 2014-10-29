@@ -25,6 +25,7 @@ import qualified Data.Vector as V
 import Bio.RNAlienLibrary
 import Bio.PhylogenyParser
 import Bio.PhylogenyTools
+import Data.Either
     
 data Options = Options            
   { inputFastaFilePath :: String,
@@ -76,12 +77,12 @@ alignmentConstruction staticOptions modelconstruction = do
             alignmentResults <- alignCandidates staticOptions currentModelConstruction (concat (map fst candidates))   
             --select queries
             selectedQueries <- selectQueries staticOptions currentModelConstruction alignmentResults
-            -- prepare next iteration 
+            --prepare next iteration 
             let nextModelConstructionInput = constructNext currentIterationNumber currentModelConstruction alignmentResults usedUpperTaxonomyLimit selectedQueries
-                                             
             appendFile ((tempDirPath staticOptions) ++ "Log") (show nextModelConstructionInput)
             print ("upperTaxTreeLimit:" ++ show usedUpperTaxonomyLimit)
             nextModelConstruction <- alignmentConstruction staticOptions nextModelConstructionInput
+            constructModel nextModelConstruction staticOptions                         
             return nextModelConstruction
           else do
             print ("Empty Blast resultlist - iteration number: " ++ (show currentIterationNumber))
@@ -147,28 +148,46 @@ searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit (quer
 alignCandidates :: StaticOptions -> ModelConstruction -> [(Sequence,Int,String,Char)] -> IO [(Sequence,Int,String,Char)]
 alignCandidates staticOptions modelConstruction candidates = do
   putStrLn "Aligning Candidates"
-  --Extract sequences from modelconstruction
-  let alignedSequences = extractAlignedSequences (iterationNumber modelConstruction) modelConstruction 
-  let candidateSequences = extractCandidateSequences candidates
   let iterationDirectory = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/"
-  let alignmentSequences = V.concat (map (constructPairwiseAlignmentSequences candidateSequences) (V.toList alignedSequences))
-  --write Fasta sequences
-  V.mapM_ (\(number,nucleotideSequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") nucleotideSequence) alignmentSequences
-  let pairwiseFastaFilepath = constructPairwiseFastaFilePaths iterationDirectory alignmentSequences
-  let pairwiseLocarnaFilepath = constructPairwiseAlignmentFilePaths "mlocarna" iterationDirectory alignmentSequences
-  let pairwiseLocarnainClustalw2FormatFilepath = constructPairwiseAlignmentFilePaths "mlocarnainclustalw2format" iterationDirectory alignmentSequences
-  alignSequences "mlocarna" ("--iterate --local-progressive --threads=" ++ (show (cpuThreads staticOptions)) ++ " ")  pairwiseFastaFilepath pairwiseLocarnaFilepath []
-  --compute SCI
-  let pairwiseLocarnaRNAzFilePaths = constructPairwiseRNAzFilePaths "mlocarna" iterationDirectory alignmentSequences
-  computeAlignmentSCIs pairwiseLocarnainClustalw2FormatFilepath pairwiseLocarnaRNAzFilePaths
-  mlocarnaRNAzOutput <- mapM readRNAz pairwiseLocarnaRNAzFilePaths
-  let locarnaSCI = map (\x -> show (structureConservationIndex (fromRight x))) mlocarnaRNAzOutput
-  let alignedCandidates = zip locarnaSCI candidates
-  let (selectedCandidates,rejectedCandidates)= partition (\(sci,_) -> (read sci ::Double) > 0.7 ) alignedCandidates
-  writeFile ((tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/log" ++ "/11selectedCandidates") (showlines selectedCandidates)
-  writeFile ((tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/log" ++ "/12rejectedCandidates") (showlines rejectedCandidates)
-  return (map snd selectedCandidates)
-
+  let candidateSequences = extractCandidateSequences candidates
+  --Extract sequences from modelconstruction
+  let previouslyAlignedSequences = extractAlignedSequences (iterationNumber modelConstruction) modelConstruction                  
+  if(iterationNumber modelConstruction >= 0)
+    then do
+      --Extract sequences from modelconstruction
+      let currentAlignmentSequences = V.concat (map (constructPairwiseAlignmentSequences candidateSequences) (V.toList previouslyAlignedSequences))
+      --write Fasta sequences
+      V.mapM_ (\(number,nucleotideSequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") nucleotideSequence) currentAlignmentSequences
+      let pairwiseFastaFilepath = constructPairwiseFastaFilePaths iterationDirectory currentAlignmentSequences
+      let pairwiseLocarnaFilepath = constructPairwiseAlignmentFilePaths "mlocarna" iterationDirectory currentAlignmentSequences
+      let pairwiseLocarnainClustalw2FormatFilepath = constructPairwiseAlignmentFilePaths "mlocarnainclustalw2format" iterationDirectory currentAlignmentSequences
+      alignSequences "mlocarna" ("--iterate --local-progressive --threads=" ++ (show (cpuThreads staticOptions)) ++ " ") pairwiseFastaFilepath pairwiseLocarnaFilepath []
+      --compute SCI
+      let pairwiseLocarnaRNAzFilePaths = constructPairwiseRNAzFilePaths "mlocarna" iterationDirectory currentAlignmentSequences
+      computeAlignmentSCIs pairwiseLocarnainClustalw2FormatFilepath pairwiseLocarnaRNAzFilePaths
+      mlocarnaRNAzOutput <- mapM readRNAz pairwiseLocarnaRNAzFilePaths
+      let locarnaSCI = map (\x -> show (structureConservationIndex (fromRight x))) mlocarnaRNAzOutput
+      let alignedCandidates = zip locarnaSCI candidates
+      let (selectedCandidates,rejectedCandidates) = partition (\(sci,_) -> (read sci ::Double) > 0.7 ) alignedCandidates
+      writeFile (iterationDirectory ++ "log" ++ "/11selectedCandidates") (showlines selectedCandidates)
+      writeFile (iterationDirectory ++ "log" ++ "/12rejectedCandidates") (showlines rejectedCandidates)
+      return (map snd selectedCandidates)
+    else do
+      let cmSearchFastaFilePaths = map constructFastaFilePaths iterationDirectory candidateSequences
+      let cmSearchFilePaths = map constructCMsearchFilePaths iterationDirectory candidateSequences
+      let covarianceModelPath = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction - 1)) ++ "/" ++ "model.cm"
+      mapM_ (\(number,nucleotideSequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") nucleotideSequence) candidateSequences
+      --check with cmSearch
+      mapM_ (systemCMsearch covarianceModelPath) cmSearchFastaFilePaths
+      cmSearchResults <- mapM readCMSearch cmSearchFilePaths
+      writeFile (iterationDirectory ++ "log"  ++ "/" ++ "cm_error") (concatMap show (lefts (map (\(a,_,_) -> a) cmSearchResults)))
+      rightCMSearchResults <- fromRight (rights cmSearchResults)
+      let cmSearchCandidatesWithSequences = zip rightCMSearchResults candidateSequences
+      let (selectedCandidates',rejectedCandidates') = partition (\(cmSearchResult,_) -> any (hitScore' -> ("!" == (hitSignificance hitScore'))) (hitScores cmSearchResult)) cmSearchCandidatesWithSequences
+      writeFile (iterationDirectory ++ "log" ++ "/11selectedCandidates'") (showlines selectedCandidates')
+      writeFile (iterationDirectory ++ "log" ++ "/12rejectedCandidates'") (showlines rejectedCandidates')                                               
+      return (map snd selectedCandidates')
+             
 selectQueries :: StaticOptions -> ModelConstruction -> [(Sequence,Int,String,Char)] -> IO [String]
 selectQueries staticOptions modelConstruction selectedCandidates = do
   putStrLn "SelectQueries"
@@ -200,32 +219,36 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
   return (selectedQueries)
 
 constructModel :: ModelConstruction -> StaticOptions -> IO String
-constructModel alignmentConstructionResult staticOptions = do
+constructModel modelConstruction staticOptions = do
   putStrLn "ConstructModel"
   --Extract sequences from modelconstruction
-  let alignedSequences = extractAlignedSequences (iterationNumber alignmentConstructionResult) alignmentConstructionResult 
-  let outputDirectory = (tempDirPath staticOptions) 
+  let alignedSequences = extractAlignedSequences (iterationNumber modelConstruction) modelConstruction
+  --The CM resides in the iteration directory where its input alignment originates from 
+  let outputDirectory = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction - 1)) ++ "/"
   let alignmentSequences = map snd (V.toList (V.concat [alignedSequences]))
   --write Fasta sequences
-  writeFasta (outputDirectory ++ "result" ++ ".fa") alignmentSequences
-  let fastaFilepath = outputDirectory ++ "result" ++ ".fa"
-  let locarnaFilepath = outputDirectory ++ "result" ++ ".mlocarna"
-  let stockholmFilepath = outputDirectory ++ "result" ++ ".stockholm"
-  let cmFilepath = outputDirectory ++ "result" ++ ".cm"
-  let locarnainClustalw2FormatFilepath = outputDirectory ++ "result" ++ "." ++ "out" ++ "/results/result.aln" 
+  writeFasta (outputDirectory ++ "model" ++ ".fa") alignmentSequences
+  let fastaFilepath = outputDirectory ++ "model" ++ ".fa"
+  let locarnaFilepath = outputDirectory ++ "model" ++ ".mlocarna"
+  let stockholmFilepath = outputDirectory ++ "model" ++ ".stockholm"
+  let cmFilepath = outputDirectory ++ "model" ++ ".cm"
+  let cmCalibrateFilepath = outputDirectory ++ "model" ++ ".cmcalibrate"           
+  let locarnainClustalw2FormatFilepath = outputDirectory ++ "model" ++ "." ++ "out" ++ "/results/result.aln" 
   alignSequences "mlocarna" ("--iterate --local-progressive --threads=" ++ (show (cpuThreads staticOptions)) ++ " ") [fastaFilepath] [locarnaFilepath] []
   --compute SCI
-  let locarnaRNAzFilePath = outputDirectory ++ "result" ++ ".rnazmlocarna"
-  computeAlignmentSCIs [locarnainClustalw2FormatFilepath] [locarnaRNAzFilePath]
+  --let locarnaRNAzFilePath = outputDirectory ++ "result" ++ ".rnazmlocarna"
+  --computeAlignmentSCIs [locarnainClustalw2FormatFilepath] [locarnaRNAzFilePath]
   --retrieveAlignmentSCIs
-  mlocarnaRNAzOutput <- readRNAz locarnaRNAzFilePath  
-  let locarnaSCI = structureConservationIndex (fromRight mlocarnaRNAzOutput)
-  logMessage (show locarnaSCI) (tempDirPath staticOptions)
+  --mlocarnaRNAzOutput <- readRNAz locarnaRNAzFilePath  
+  --let locarnaSCI = structureConservationIndex (fromRight mlocarnaRNAzOutput)
+  --logMessage (show locarnaSCI) (tempDirPath staticOptions)
   mlocarnaAlignment <- readStructuralClustalAlignment locarnaFilepath
   let stockholAlignment = convertClustaltoStockholm (fromRight mlocarnaAlignment)
   writeFile stockholmFilepath stockholAlignment
   buildLog <- systemCMbuild stockholmFilepath cmFilepath
-  logMessage (show buildLog) (tempDirPath staticOptions) 
+  calibrateLog <- systemCMcalibrate cmFilepath cmCalibrateFilepath
+  logMessage (show buildLog) (tempDirPath staticOptions)
+  logMessage (show calibrateLog) (tempDirPath staticOptions)
   return (cmFilepath)
 
 main :: IO ()
@@ -252,9 +275,9 @@ main = do
   logMessage (show initialization) temporaryDirectoryPath
   alignmentConstructionResult <- alignmentConstruction staticOptions initialization
   --extract final alignment and build cm
-  pathToModel <- constructModel alignmentConstructionResult staticOptions
-  putStrLn "Path to result model: "
-  putStrLn pathToModel
+  --pathToModel <- constructModel alignmentConstructionResult staticOptions
+  --putStrLn "Path to result model: "
+  --putStrLn pathToModel
   print alignmentConstructionResult                
   putStrLn "Done"
 

@@ -192,11 +192,11 @@ systemCMcompare inputFilePath outputFilePath = system ("CMcompare " ++ inputFile
 
 -- | Run CMsearch and read the output into the corresponding datatype
 systemCMsearch :: String -> String -> String -> IO ExitCode
-systemCMsearch covarianceModelPath sequenceFilePath outputPath = system ("CMsearch " ++ covarianceModelPath ++ " " ++ sequenceFilePath ++ "> " ++ outputPath ++ ".cmsearch")
+systemCMsearch covarianceModelPath sequenceFilePath outputPath = system ("cmsearch " ++ covarianceModelPath ++ " " ++ sequenceFilePath ++ "> " ++ outputPath)
 
 -- | Run CMcalibrate and return exitcode
 systemCMcalibrate :: String -> String -> IO ExitCode 
-systemCMcalibrate covarianceModelPath outputPath = system ("CMcalibrate " ++ covarianceModelPath ++ "> " ++ outputPath ++ ".cmcalibrate")
+systemCMcalibrate covarianceModelPath outputPath = system ("cmcalibrate " ++ covarianceModelPath ++ "> " ++ outputPath)
                                                                  
 readInt :: String -> Int
 readInt = read
@@ -524,8 +524,8 @@ replacePipeChars :: Char -> Char
 replacePipeChars '|' = '-'
 replacePipeChars char' = char'
 
-constructFastaFilePaths :: String -> Int -> (String, String) -> String
-constructFastaFilePaths currentDir iterationNumber' (fastaIdentifier, _) = currentDir ++ (show iterationNumber') ++ fastaIdentifier ++".fa"
+constructFastaFilePaths :: String -> (String, String) -> String
+constructFastaFilePaths currentDirectory (fastaIdentifier, _) = currentDirectory ++ fastaIdentifier ++".fa"
 
 constructAlignmentFilePaths :: String -> Int -> (String, String) -> String
 constructAlignmentFilePaths currentDir iterationNumber' (fastaIdentifier, _) = currentDir ++ (show iterationNumber') ++ fastaIdentifier ++".aln"
@@ -536,6 +536,9 @@ constructAlignmentSummaryFilePaths currentDir iterationNumber' (fastaIdentifier,
 constructRNAzFilePaths :: String -> Int -> (String, String) -> String
 constructRNAzFilePaths currentDir iterationNumber' (fastaIdentifier, _) = currentDir ++ (show iterationNumber') ++ fastaIdentifier ++".rnaz"
 
+constructCMsearchFilePaths :: String -> (String, String) -> String
+constructCMsearchFilePaths currentDirectory (fastaIdentifier, _) = currentDirectory ++ fastaIdentifier ++".cmsearch"
+                                                                          
 constructSeedFromBlast :: BlastHit -> String
 constructSeedFromBlast blasthit = fastaString
   where header = (filter (\char' -> char' /= '|') (L.unpack (hitId blasthit)))
