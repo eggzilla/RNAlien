@@ -524,8 +524,8 @@ replacePipeChars :: Char -> Char
 replacePipeChars '|' = '-'
 replacePipeChars char' = char'
 
-constructFastaFilePaths :: String -> (String, String) -> String
-constructFastaFilePaths currentDirectory (fastaIdentifier, _) = currentDirectory ++ fastaIdentifier ++".fa"
+constructFastaFilePaths :: String -> (Int, Sequence) -> String
+constructFastaFilePaths currentDirectory (fastaIdentifier, _) = currentDirectory ++ (show fastaIdentifier) ++".fa"
 
 constructAlignmentFilePaths :: String -> Int -> (String, String) -> String
 constructAlignmentFilePaths currentDir iterationNumber' (fastaIdentifier, _) = currentDir ++ (show iterationNumber') ++ fastaIdentifier ++".aln"
@@ -536,8 +536,8 @@ constructAlignmentSummaryFilePaths currentDir iterationNumber' (fastaIdentifier,
 constructRNAzFilePaths :: String -> Int -> (String, String) -> String
 constructRNAzFilePaths currentDir iterationNumber' (fastaIdentifier, _) = currentDir ++ (show iterationNumber') ++ fastaIdentifier ++".rnaz"
 
-constructCMsearchFilePaths :: String -> (String, String) -> String
-constructCMsearchFilePaths currentDirectory (fastaIdentifier, _) = currentDirectory ++ fastaIdentifier ++".cmsearch"
+constructCMsearchFilePaths :: String -> (Int, Sequence) -> String
+constructCMsearchFilePaths currentDirectory (fastaIdentifier, _) = currentDirectory ++ (show fastaIdentifier) ++".cmsearch"
                                                                           
 constructSeedFromBlast :: BlastHit -> String
 constructSeedFromBlast blasthit = fastaString

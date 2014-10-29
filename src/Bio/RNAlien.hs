@@ -82,7 +82,7 @@ alignmentConstruction staticOptions modelconstruction = do
             appendFile ((tempDirPath staticOptions) ++ "Log") (show nextModelConstructionInput)
             print ("upperTaxTreeLimit:" ++ show usedUpperTaxonomyLimit)
             nextModelConstruction <- alignmentConstruction staticOptions nextModelConstructionInput
-            constructModel nextModelConstruction staticOptions                         
+            _ <- constructModel nextModelConstruction staticOptions                         
             return nextModelConstruction
           else do
             print ("Empty Blast resultlist - iteration number: " ++ (show currentIterationNumber))
@@ -173,17 +173,19 @@ alignCandidates staticOptions modelConstruction candidates = do
       writeFile (iterationDirectory ++ "log" ++ "/12rejectedCandidates") (showlines rejectedCandidates)
       return (map snd selectedCandidates)
     else do
-      let cmSearchFastaFilePaths = map constructFastaFilePaths iterationDirectory candidateSequences
-      let cmSearchFilePaths = map constructCMsearchFilePaths iterationDirectory candidateSequences
+      let indexedCandidateSequenceList = (V.toList candidateSequences)
+      let cmSearchFastaFilePaths = map (constructFastaFilePaths iterationDirectory) indexedCandidateSequenceList
+      let cmSearchFilePaths = map (constructCMsearchFilePaths iterationDirectory) indexedCandidateSequenceList
       let covarianceModelPath = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction - 1)) ++ "/" ++ "model.cm"
-      mapM_ (\(number,nucleotideSequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") nucleotideSequence) candidateSequences
+      mapM_ (\(number,nucleotideSequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") [nucleotideSequence]) indexedCandidateSequenceList
+      let zippedFastaCMSearchResultPaths = zip cmSearchFastaFilePaths cmSearchFilePaths       
       --check with cmSearch
-      mapM_ (systemCMsearch covarianceModelPath) cmSearchFastaFilePaths
-      cmSearchResults <- mapM readCMSearch cmSearchFilePaths
-      writeFile (iterationDirectory ++ "log"  ++ "/" ++ "cm_error") (concatMap show (lefts (map (\(a,_,_) -> a) cmSearchResults)))
-      rightCMSearchResults <- fromRight (rights cmSearchResults)
-      let cmSearchCandidatesWithSequences = zip rightCMSearchResults candidateSequences
-      let (selectedCandidates',rejectedCandidates') = partition (\(cmSearchResult,_) -> any (hitScore' -> ("!" == (hitSignificance hitScore'))) (hitScores cmSearchResult)) cmSearchCandidatesWithSequences
+      mapM_ (\(fastaPath,resultPath) -> systemCMsearch covarianceModelPath fastaPath resultPath) zippedFastaCMSearchResultPaths
+      cmSearchResults <- mapM readCMSearch cmSearchFilePaths 
+      writeFile (iterationDirectory ++ "log"  ++ "/" ++ "cm_error") (concatMap show (lefts cmSearchResults))
+      let rightCMSearchResults = rights cmSearchResults
+      let cmSearchCandidatesWithSequences = zip rightCMSearchResults candidates
+      let (selectedCandidates',rejectedCandidates') = partition (\(cmSearchResult,_) -> any (\hitScore' -> ('!' == (hitSignificance hitScore'))) (hitScores cmSearchResult)) cmSearchCandidatesWithSequences
       writeFile (iterationDirectory ++ "log" ++ "/11selectedCandidates'") (showlines selectedCandidates')
       writeFile (iterationDirectory ++ "log" ++ "/12rejectedCandidates'") (showlines rejectedCandidates')                                               
       return (map snd selectedCandidates')
@@ -233,7 +235,7 @@ constructModel modelConstruction staticOptions = do
   let stockholmFilepath = outputDirectory ++ "model" ++ ".stockholm"
   let cmFilepath = outputDirectory ++ "model" ++ ".cm"
   let cmCalibrateFilepath = outputDirectory ++ "model" ++ ".cmcalibrate"           
-  let locarnainClustalw2FormatFilepath = outputDirectory ++ "model" ++ "." ++ "out" ++ "/results/result.aln" 
+  --let locarnainClustalw2FormatFilepath = outputDirectory ++ "model" ++ "." ++ "out" ++ "/results/result.aln" 
   alignSequences "mlocarna" ("--iterate --local-progressive --threads=" ++ (show (cpuThreads staticOptions)) ++ " ") [fastaFilepath] [locarnaFilepath] []
   --compute SCI
   --let locarnaRNAzFilePath = outputDirectory ++ "result" ++ ".rnazmlocarna"
