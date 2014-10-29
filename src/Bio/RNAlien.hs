@@ -99,10 +99,10 @@ searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit (quer
   let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (Just "refseq_genomic") (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter))
   putStrLn ("Sending blast query " ++ (show iterationnumber))
   blastOutput <- blastHTTP blastQuery
-  let logFileDirectoryPath = (tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log"               
-  if (not (doesDirectoryExist logFileDirectoryPath))
-     then do 
-       createDirectory (logFileDirectoryPath)
+  let logFileDirectoryPath = (tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log"
+  logDirectoryPresent <- doesDirectoryExist logFileDirectoryPath                      
+  if (not logDirectoryPresent)
+    then createDirectory (logFileDirectoryPath) else return ()
   writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_1blastOutput") (show blastOutput)
   logEither blastOutput (tempDirPath staticOptions)
   let rightBlast = fromRight blastOutput
@@ -251,7 +251,7 @@ main = do
   let initialization = ModelConstruction iterationNumber (head inputFasta) [] (maybe Nothing Just inputTaxId) []
   logMessage (show initialization) temporaryDirectoryPath
   alignmentConstructionResult <- alignmentConstruction staticOptions initialization
-  extract final alignment and build cm
+  --extract final alignment and build cm
   pathToModel <- constructModel alignmentConstructionResult staticOptions
   putStrLn "Path to result model: "
   putStrLn pathToModel
