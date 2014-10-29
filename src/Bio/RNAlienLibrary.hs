@@ -209,7 +209,7 @@ parseCMSearch :: String -> Either ParseError CMsearch
 parseCMSearch input = parse genParserCMsearch "parseCMsearch" input
 
 -- | parse from input filePath                      
-readCMSearch :: String -> IO Either ParseError CMsearch             
+readCMSearch :: String -> IO (Either ParseError CMsearch)             
 readCMSearch filePath = parseFromFile genParserCMsearch filePath
                       
 genParserCMsearch :: GenParser Char st CMsearch
@@ -224,6 +224,7 @@ genParserCMsearch = do
   string "# Freely distributed under the GNU General Public License (GPLv3)."
   newline       
   string "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -"
+  newline
   string "# query CM file:"
   many1 space
   queryCMfile' <- many1 (noneOf "\n")
@@ -232,7 +233,7 @@ genParserCMsearch = do
   many1 space      
   targetSequenceDatabase' <- many1 (noneOf "\n")
   newline
-  string "# target sequence database:"
+  string "# number of worker threads:"
   many1 space
   numberOfWorkerThreads' <- many1 (noneOf "\n")
   newline
