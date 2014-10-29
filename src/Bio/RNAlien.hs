@@ -79,7 +79,7 @@ alignmentConstruction staticOptions modelconstruction = do
             -- prepare next iteration 
             let nextModelConstructionInput = constructNext currentIterationNumber currentModelConstruction alignmentResults usedUpperTaxonomyLimit selectedQueries
                                              
-            appendFile ((tempDirPath staticOptions) ++ "log") (show nextModelConstructionInput)
+            appendFile ((tempDirPath staticOptions) ++ "Log") (show nextModelConstructionInput)
             print ("upperTaxTreeLimit:" ++ show usedUpperTaxonomyLimit)
             nextModelConstruction <- alignmentConstruction staticOptions nextModelConstructionInput
             return nextModelConstruction
@@ -98,9 +98,12 @@ searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit (quer
   let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=1000" 
   let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (Just "refseq_genomic") (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter))
   putStrLn ("Sending blast query " ++ (show iterationnumber))
-  blastOutput <- blastHTTP blastQuery 
-  createDirectory ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log")
-  writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/" ++ queryIndexString  ++ "_1blastOutput") (show blastOutput)
+  blastOutput <- blastHTTP blastQuery
+  let logFileDirectoryPath = (tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log"               
+  if (not (doesDirectoryExist logFileDirectoryPath))
+     then do 
+       createDirectory (logFileDirectoryPath)
+  writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_1blastOutput") (show blastOutput)
   logEither blastOutput (tempDirPath staticOptions)
   let rightBlast = fromRight blastOutput
   if (blastHitsPresent rightBlast)
@@ -109,10 +112,10 @@ searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit (quer
        bestBlastHitTaxIdOutput <- retrieveBlastHitTaxIdEntrez [bestHit]
        let rightBestTaxIdResult = head (extractTaxIdFromEntrySummaries bestBlastHitTaxIdOutput)
        let blastHits = (concat (map hits (results rightBlast)))
-       writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/" ++ queryIndexString  ++ "_2blastHits") (showlines blastHits)
+       writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_2blastHits") (showlines blastHits)
        --filter by length
        let blastHitsFilteredByLength = filterByHitLength blastHits queryLength (lengthFilterToggle staticOptions)
-       writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/" ++ queryIndexString  ++ "_3blastHitsFilteredByLength") (showlines blastHitsFilteredByLength)
+       writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_3blastHitsFilteredByLength") (showlines blastHitsFilteredByLength)
        --tag BlastHits with TaxId
        blastHitTaxIdOutput <- retrieveBlastHitTaxIdEntrez blastHitsFilteredByLength
        let blastHittaxIdList = extractTaxIdFromEntrySummaries  blastHitTaxIdOutput
@@ -121,23 +124,23 @@ searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit (quer
        let blastHitsWithParentTaxId = zip blastHitsFilteredByLength blastHitsParentTaxIdOutput
        let blastHitsFilteredByParentTaxIdWithParentTaxId = filterByParentTaxId blastHitsWithParentTaxId True
        let blastHitsFilteredByParentTaxId = map fst blastHitsFilteredByParentTaxIdWithParentTaxId
-       writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/" ++ queryIndexString ++ "_4blastHitsFilteredByParentTaxId") (showlines blastHitsFilteredByParentTaxId)
+       writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_4blastHitsFilteredByParentTaxId") (showlines blastHitsFilteredByParentTaxId)
        -- Filtering with TaxTree (only hits from the same subtree as besthit)
        let blastHitsWithTaxId = zip blastHitsFilteredByParentTaxId blastHittaxIdList
        let (usedUpperTaxLimit, filteredBlastResults) = filterByNeighborhoodTreeConditional iterationnumber upperTaxLimit blastHitsWithTaxId (inputTaxNodes staticOptions) rightBestTaxIdResult (singleHitperTaxToggle staticOptions)
-       writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/" ++ queryIndexString ++ "_5filteredBlastResults") (showlines filteredBlastResults)
+       writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_5filteredBlastResults") (showlines filteredBlastResults)
        -- Coordinate generation
        let requestedSequenceElements = map (getRequestedSequenceElement (fullSequenceOffsetLength staticOptions) queryLength) filteredBlastResults
-       writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/" ++ queryIndexString ++  "_6requestedSequenceElements") (showlines requestedSequenceElements)
+       writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++  "_6requestedSequenceElements") (showlines requestedSequenceElements)
        -- Retrieval of genbank features in the hit region (if enabled by commandline toggle)
        annotatedSequences <- buildGenbankCoordinatesAndRetrieveFeatures staticOptions iterationnumber queryLength queryIndexString filteredBlastResults
        -- Retrieval of full sequences from entrez
        --fullSequencesWithSimilars <- mapM retrieveFullSequence requestedSequenceElements
        fullSequencesWithSimilars <- retrieveFullSequences requestedSequenceElements
-       writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/" ++ queryIndexString ++ "_10afullSequencesWithSimilars") (showlines fullSequencesWithSimilars)
+       writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10afullSequencesWithSimilars") (showlines fullSequencesWithSimilars)
        let fullSequences = filterIdenticalSequences fullSequencesWithSimilars 
        let fullSequencesWithOrigin = map (\(parsedFasta,taxid,subject) -> (parsedFasta,taxid,subject,'B')) fullSequences
-       writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/" ++ queryIndexString ++ "_10fullSequences") (showlines fullSequences)
+       writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10fullSequences") (showlines fullSequences)
        return (((concat annotatedSequences) ++ fullSequencesWithOrigin),(Just usedUpperTaxLimit))
      else return ([],upperTaxLimit) 
 
@@ -248,11 +251,11 @@ main = do
   let initialization = ModelConstruction iterationNumber (head inputFasta) [] (maybe Nothing Just inputTaxId) []
   logMessage (show initialization) temporaryDirectoryPath
   alignmentConstructionResult <- alignmentConstruction staticOptions initialization
-  --extract final alignment and build cm
+  extract final alignment and build cm
   pathToModel <- constructModel alignmentConstructionResult staticOptions
   putStrLn "Path to result model: "
   putStrLn pathToModel
-  print alignmentConstructionResult  
+  print alignmentConstructionResult                
   putStrLn "Done"
 
            
