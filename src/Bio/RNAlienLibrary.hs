@@ -111,7 +111,17 @@ buildTaxRecord currentIterationNumber entries = taxRecord
 
 buildSeqRecord :: Int -> (Sequence,Int,String,Char) -> SequenceRecord 
 buildSeqRecord currentIterationNumber (parsedFasta,_,seqSubject,seqOrigin) = SequenceRecord parsedFasta currentIterationNumber seqSubject seqOrigin   
-                                                                             
+
+extractCMsearchHit :: CMsearchHitScore -> Sequence -> Sequence
+extractCMsearchHit hitScoreEntry inputSequence = subSequence
+  where sequenceString = L.unpack (unSD (seqdata inputSequence))
+        sequenceSubstring = subString (hitStart hitScoreEntry) (hitEnd hitScoreEntry) sequenceString
+        newSequenceHeader =  L.pack ((L.unpack (unSL (seqheader inputSequence))) ++ "cmS_" ++ (show (hitStart hitScoreEntry)) ++ "_" ++ (show (hitEnd hitScoreEntry)) ++ "_" ++ (show (hitStrand hitScoreEntry)))
+        subSequence = Seq (SeqLabel newSequenceHeader) (SeqData (L.pack sequenceSubstring)) Nothing
+
+subString :: Int -> Int -> String -> String
+subString startSubString endSubString inputString = take (endSubString - startSubString)(drop startSubString inputString)
+                         
 extractQueries :: Int -> ModelConstruction -> [Sequence] 
 extractQueries iterationnumber modelconstruction
   | iterationnumber == 0 = [fastaSeqData] 
