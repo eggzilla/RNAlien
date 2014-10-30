@@ -81,8 +81,9 @@ alignmentConstruction staticOptions modelconstruction = do
             let nextModelConstructionInput = constructNext currentIterationNumber currentModelConstruction alignmentResults usedUpperTaxonomyLimit selectedQueries
             appendFile ((tempDirPath staticOptions) ++ "Log") (show nextModelConstructionInput)
             print ("upperTaxTreeLimit:" ++ show usedUpperTaxonomyLimit)
-            nextModelConstruction <- alignmentConstruction staticOptions nextModelConstructionInput
-            _ <- constructModel nextModelConstruction staticOptions                         
+            cmFilepath <- constructModel nextModelConstructionInput staticOptions
+            print cmFilepath                 
+            nextModelConstruction <- alignmentConstruction staticOptions nextModelConstructionInput               
             return nextModelConstruction
           else do
             print ("Empty Blast resultlist - iteration number: " ++ (show currentIterationNumber))
@@ -152,7 +153,7 @@ alignCandidates staticOptions modelConstruction candidates = do
   let candidateSequences = extractCandidateSequences candidates
   --Extract sequences from modelconstruction
   let previouslyAlignedSequences = extractAlignedSequences (iterationNumber modelConstruction) modelConstruction                  
-  if(iterationNumber modelConstruction >= 0)
+  if(iterationNumber modelConstruction == 0)
     then do
       --Extract sequences from modelconstruction
       let currentAlignmentSequences = V.concat (map (constructPairwiseAlignmentSequences candidateSequences) (V.toList previouslyAlignedSequences))
