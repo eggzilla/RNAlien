@@ -229,7 +229,8 @@ genParserCMsearch = do
   string "# INFERNAL "
   many1 (noneOf "\n")
   newline       
-  string "# Copyright (C) 2013 Howard Hughes Medical Institute."
+  string "# Copyright (C) 201"
+  many1 (noneOf "\n")
   newline       
   string "# Freely distributed under the GNU General Public License (GPLv3)."
   newline       
