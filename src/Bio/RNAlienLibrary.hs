@@ -250,15 +250,21 @@ genParserCMsearch = do
   newline
   string "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -"
   newline
-  newline
+  optional newline
   string "Query:"
   many1 (noneOf "\n")       
   newline
   string "Hit scores:"
   newline
-  string " rank     E-value  score  bias  sequence                       start    end   mdl trunc   gc  description"
+  string " rank     E-value  score  bias  sequence"
+  many1 space   
+  string "start    end   mdl trunc   gc  description"
   newline
-  string " ----   --------- ------ -----  ----------------------------- ------ ------   --- ----- ----  -----------"
+  string " -"
+  many1 (try (oneOf " -"))
+  newline
+  optional (try (string " ------ inclusion threshold ------"))
+  optional (try newline)
   hitScores' <- many1 (try genParserCMsearchHitScore)
   -- this is followed by hit alignments and internal cmsearch statistics which are not parsed
   many anyChar
@@ -290,7 +296,7 @@ genParserCMsearchHitScore = do
   many1 space              
   hitModel' <- many1 letter
   many1 space          
-  hitTruncation' <- many1 letter
+  hitTruncation' <- many1 (choice [alphaNum, char '\''])
   many1 space                   
   hitGCcontent' <- many1 (oneOf "0123456789.")
   many1 space                
