@@ -264,12 +264,20 @@ genParserCMsearch = do
   many1 (try (oneOf " -"))
   newline
   optional (try (string " ------ inclusion threshold ------"))
-  optional (try newline)
-  hitScores' <- many1 (try genParserCMsearchHitScore)
+  many newline
+  hitScores' <- many (try genParserCMsearchHitScore) --`endBy` (try (string "Hit alignments:"))
+  optional (try genParserCMsearchEmptyHitScore)
   -- this is followed by hit alignments and internal cmsearch statistics which are not parsed
   many anyChar
   eof
   return $ CMsearch queryCMfile' targetSequenceDatabase' (readInt numberOfWorkerThreads') hitScores'
+
+genParserCMsearchEmptyHitScore :: GenParser Char st [CMsearchHitScore]
+genParserCMsearchEmptyHitScore = do
+  string "   [No hits detected that satisfy reporting thresholds]"
+  newline
+  optional (try newline)
+  return []
 
 genParserCMsearchHitScore :: GenParser Char st CMsearchHitScore
 genParserCMsearchHitScore = do
@@ -280,11 +288,11 @@ genParserCMsearchHitScore = do
   many1 space
   hitSignificant' <- choice [char '!', char '?']
   many1 space                  
-  hitEValue' <- many1 (oneOf "0123456789.")
+  hitEValue' <- many1 (oneOf "0123456789.e-")
   many1 space             
-  hitScore'  <- many1 (oneOf "0123456789.")
+  hitScore'  <- many1 (oneOf "0123456789.e-")
   many1 space   
-  hitBias' <- many1 (oneOf "0123456789.")
+  hitBias' <- many1 (oneOf "0123456789.e-")
   many1 space
   hitSequenceHeader' <- many1 (noneOf " ")
   many1 space                
@@ -298,7 +306,7 @@ genParserCMsearchHitScore = do
   many1 space          
   hitTruncation' <- many1 (choice [alphaNum, char '\''])
   many1 space                   
-  hitGCcontent' <- many1 (oneOf "0123456789.")
+  hitGCcontent' <- many1 (oneOf "0123456789.e-")
   many1 space                
   hitDescription' <- many1 (noneOf "\n")     
   newline
