@@ -33,6 +33,13 @@ import qualified Text.EditDistance as ED
 import qualified Data.Vector as V
 
 -- | Filter a list of similar extended blast hits   
+filterIdenticalSequencesWithOrigin :: [(Sequence,Int,String,Char)] -> Double -> [(Sequence,Int,String,Char)]                            
+filterIdenticalSequencesWithOrigin (headSequence:rest) identitycutoff = result
+  where filteredSequences = filter (\x -> (sequenceIdentity (firstOfQuadruple headSequence) (firstOfQuadruple x)) < identitycutoff) rest 
+        result = headSequence:(filterIdenticalSequencesWithOrigin filteredSequences identitycutoff)
+filterIdenticalSequencesWithOrigin [] _ = []
+
+-- | Filter a list of similar extended blast hits   
 filterIdenticalSequences :: [(Sequence,Int,String)] -> Double -> [(Sequence,Int,String)]                            
 filterIdenticalSequences (headSequence:rest) identitycutoff = result
   where filteredSequences = filter (\x -> (sequenceIdentity (firstOfTriple headSequence) (firstOfTriple x)) < identitycutoff) rest 
@@ -41,6 +48,9 @@ filterIdenticalSequences [] _ = []
                  
 firstOfTriple :: (t, t1, t2) -> t
 firstOfTriple (a,_,_) = a 
+
+firstOfQuadruple :: (t, t1, t2, t3) -> t
+firstOfQuadruple (a,_,_,_) = a 
 
 -- | Check if the result field of BlastResult is filled and if hits are present
 blastHitsPresent :: BlastResult -> Bool

@@ -72,9 +72,11 @@ alignmentConstruction staticOptions modelconstruction = do
        candidates <- mapM (searchCandidates staticOptions currentIterationNumber upperTaxLimit lowerTaxLimit) (zip [1..(length queries)] queries)
        if (not (null (concat (map fst candidates))))
           then do
-            let usedUpperTaxonomyLimit = (snd (head candidates))    
+            let usedUpperTaxonomyLimit = (snd (head candidates)) 
+            --refilter for similarity for multiple queries
+            let filteredCandidates = filterIdenticalSequencesWithOrigin (concat (map fst candidates)) 95
             --align search results - candidates > SCI 0.59 
-            alignmentResults <- alignCandidates staticOptions currentModelConstruction (concat (map fst candidates))   
+            alignmentResults <- alignCandidates staticOptions currentModelConstruction filteredCandidates
             --select queries
             selectedQueries <- selectQueries staticOptions currentModelConstruction alignmentResults
             --prepare next iteration 
