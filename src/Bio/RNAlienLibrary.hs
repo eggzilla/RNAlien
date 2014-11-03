@@ -31,6 +31,7 @@ import System.Exit
 import Data.Either (lefts)
 import qualified Text.EditDistance as ED   
 import qualified Data.Vector as V
+import Control.Concurrent 
 
 -- | Filter a list of similar extended blast hits   
 filterIdenticalSequencesWithOrigin :: [(Sequence,Int,String,Char)] -> Double -> [(Sequence,Int,String,Char)]                            
@@ -755,6 +756,7 @@ retrieveBlastHitTaxIdEntrez blastHits = do
   --let idsString = concat idList
   let query' = "id=" ++ idList
   let entrezQuery = EntrezHTTPQuery (Just "esummary") (Just "nucleotide") query'
+  threadDelay 30000000                  
   result <- entrezHTTP entrezQuery
   return result
 
