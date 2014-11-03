@@ -736,6 +736,18 @@ retrieveParentTaxIdEntrez taxIds = do
   --print result
   return parentTaxIds
 
+-- | Wrapper functions that ensures that only 10 queries are sent per request
+retrieveBlastHitsTaxIdEntrez :: [BlastHit] -> IO String
+retrieveBlastHitsTaxIdEntrez blastHits = do
+  let splits = partitionBlastHits blastHits 10
+  blastHitTaxIdOutput <- mapM retrieveBlastHitTaxIdEntrez splits
+  return (concat blastHitTaxIdOutput)
+
+partitionBlastHits :: [BlastHit] -> Int -> [[BlastHit]]
+partitionBlastHits blastHits hitsperSplit = result
+  where (heads,xs) = splitAt hitsperSplit blastHits
+        result = (heads:(partitionBlastHits xs hitsperSplit))
+
 retrieveBlastHitTaxIdEntrez :: [BlastHit] -> IO String
 retrieveBlastHitTaxIdEntrez blastHits = do
   let geneIds = map extractGeneId blastHits

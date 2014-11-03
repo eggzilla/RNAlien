@@ -121,7 +121,7 @@ searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit (quer
        let blastHitsFilteredByLength = filterByHitLength blastHits queryLength (lengthFilterToggle staticOptions)
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_3blastHitsFilteredByLength") (showlines blastHitsFilteredByLength)
        --tag BlastHits with TaxId
-       blastHitTaxIdOutput <- retrieveBlastHitTaxIdEntrez blastHitsFilteredByLength
+       blastHitTaxIdOutput <- retrieveBlastHitsTaxIdEntrez blastHitsFilteredByLength
        let blastHittaxIdList = extractTaxIdFromEntrySummaries  blastHitTaxIdOutput
        --filter by ParentTaxId (only one hit per TaxId)
        blastHitsParentTaxIdOutput <- retrieveParentTaxIdEntrez blastHittaxIdList 
