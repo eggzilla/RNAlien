@@ -25,8 +25,8 @@ import qualified Data.Vector as V
 import Bio.RNAlienLibrary
 import Bio.PhylogenyParser
 import Bio.PhylogenyTools
-import Data.Either
-    
+import Data.Either  
+
 data Options = Options            
   { inputFastaFilePath :: String,
     inputTaxId :: Maybe Int,
