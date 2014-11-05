@@ -125,8 +125,11 @@ searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit (quer
        let blastHittaxIdList = extractTaxIdFromEntrySummaries  blastHitTaxIdOutput
        --filter by ParentTaxId (only one hit per TaxId)
        blastHitsParentTaxIdOutput <- retrieveParentTaxIdEntrez blastHittaxIdList 
+       print blastHitsParentTaxIdOutput
        let blastHitsWithParentTaxId = zip blastHitsFilteredByLength blastHitsParentTaxIdOutput
+       print blastHitsWithParentTaxId
        let blastHitsFilteredByParentTaxIdWithParentTaxId = filterByParentTaxId blastHitsWithParentTaxId True
+       writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_3ablastHitsFilteredByLengthwithpartenttaxid") (showlines blastHitsFilteredByParentTaxIdWithParentTaxId)
        let blastHitsFilteredByParentTaxId = map fst blastHitsFilteredByParentTaxIdWithParentTaxId
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_4blastHitsFilteredByParentTaxId") (showlines blastHitsFilteredByParentTaxId)
        -- Filtering with TaxTree (only hits from the same subtree as besthit)

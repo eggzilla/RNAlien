@@ -725,45 +725,53 @@ checkisNeighbor (Left _) _ = False
 
 retrieveParentTaxIdEntrez :: [Int] -> IO [Int]
 retrieveParentTaxIdEntrez taxIds = do
-  let program' = Just "efetch"
-  let database' = Just "taxonomy"
-  let taxIdStrings = map show taxIds
-  let taxIdQuery = intercalate "," taxIdStrings
-  let queryString = "id=" ++ taxIdQuery
-  let entrezQuery = EntrezHTTPQuery program' database' queryString 
-  result <- entrezHTTP entrezQuery
-  let parentTaxIds = readEntrezParentIds result
-  --let parentTaxIds = map getEntrezParentTaxIds resulttaxons
-  --print result
-  return parentTaxIds
+  if not (null taxIds)
+     then do
+       let program' = Just "efetch"
+       let database' = Just "taxonomy"
+       let taxIdStrings = map show taxIds
+       let taxIdQuery = intercalate "," taxIdStrings
+       let queryString = "id=" ++ taxIdQuery
+       let entrezQuery = EntrezHTTPQuery program' database' queryString 
+       result <- entrezHTTP entrezQuery
+       let parentTaxIds = readEntrezParentIds result
+       --let parentTaxIds = map getEntrezParentTaxIds resulttaxons
+       --print result
+       return parentTaxIds
+    else return []
 
 -- | Wrapper functions that ensures that only 10 queries are sent per request
 retrieveBlastHitsTaxIdEntrez :: [BlastHit] -> IO String
 retrieveBlastHitsTaxIdEntrez blastHits = do
-  let splits = partitionBlastHits blastHits 15
+  let splits = partitionBlastHits blastHits 20
   blastHitTaxIdOutput <- mapM retrieveBlastHitTaxIdEntrez splits
   return (concat blastHitTaxIdOutput)
 
 partitionBlastHits :: [BlastHit] -> Int -> [[BlastHit]]
 partitionBlastHits blastHits hitsperSplit
-  | not (null blastHits) = result
+  | not (null blastHits) = filter (\e ->not (null e)) result
   | otherwise = []
   where (heads,xs) = splitAt hitsperSplit blastHits
         result = (heads:(partitionBlastHits xs hitsperSplit))
 
 retrieveBlastHitTaxIdEntrez :: [BlastHit] -> IO String
 retrieveBlastHitTaxIdEntrez blastHits = do
-  let geneIds = map extractGeneId blastHits
-  let idList = intercalate "," geneIds
-  let query' = "id=" ++ idList
-  --print query'
-  let entrezQuery = EntrezHTTPQuery (Just "esummary") (Just "nucleotide") query'
-  threadDelay 10000000                  
-  result <- entrezHTTP entrezQuery
-  return result
+  if not (null blastHits)
+     then do
+       let geneIds = map extractGeneId blastHits
+       let idList = intercalate "," geneIds
+       let query' = "id=" ++ idList
+       print query'
+       let entrezQuery = EntrezHTTPQuery (Just "esummary") (Just "nucleotide") query'
+       threadDelay 10000000                  
+       result <- entrezHTTP entrezQuery
+       return result
+     else return ""
 
 extractTaxIdFromEntrySummaries :: String -> [Int]
-extractTaxIdFromEntrySummaries input = hitTaxIds
+extractTaxIdFromEntrySummaries input
+  | not (null input) = hitTaxIds
+  | otherwise = []
   where parsedResult = (head (readEntrezSummaries input))
         blastHitSummaries = documentSummaries parsedResult
         hitTaxIdStrings = map extractTaxIdfromDocumentSummary blastHitSummaries
