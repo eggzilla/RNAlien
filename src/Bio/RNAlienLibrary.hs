@@ -741,11 +741,11 @@ retrieveParentTaxIdEntrez taxIds = do
     else return []
 
 -- | Wrapper functions that ensures that only 10 queries are sent per request
-retrieveBlastHitsTaxIdEntrez :: [BlastHit] -> IO String
+retrieveBlastHitsTaxIdEntrez :: [BlastHit] -> IO [String]
 retrieveBlastHitsTaxIdEntrez blastHits = do
   let splits = partitionBlastHits blastHits 20
   blastHitTaxIdOutput <- mapM retrieveBlastHitTaxIdEntrez splits
-  return (concat blastHitTaxIdOutput)
+  return blastHitTaxIdOutput
 
 partitionBlastHits :: [BlastHit] -> Int -> [[BlastHit]]
 partitionBlastHits blastHits hitsperSplit

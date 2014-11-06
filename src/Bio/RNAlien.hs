@@ -115,6 +115,7 @@ searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit (quer
        let bestHit = getBestHit rightBlast
        bestBlastHitTaxIdOutput <- retrieveBlastHitTaxIdEntrez [bestHit]
        let rightBestTaxIdResult = head (extractTaxIdFromEntrySummaries bestBlastHitTaxIdOutput)
+       print ("rightbestTaxIdResult: " ++ (show rightBestTaxIdResult))
        let blastHits = (concat (map hits (results rightBlast)))
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_2blastHits") (showlines blastHits)
        --filter by length
@@ -122,14 +123,12 @@ searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit (quer
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_3blastHitsFilteredByLength") (showlines blastHitsFilteredByLength)
        --tag BlastHits with TaxId
        blastHitTaxIdOutput <- retrieveBlastHitsTaxIdEntrez blastHitsFilteredByLength
-       let blastHittaxIdList = extractTaxIdFromEntrySummaries  blastHitTaxIdOutput
-       --filter by ParentTaxId (only one hit per TaxId)
+       let blastHittaxIdList = concat (map extractTaxIdFromEntrySummaries blastHitTaxIdOutput)
        blastHitsParentTaxIdOutput <- retrieveParentTaxIdEntrez blastHittaxIdList 
-       print blastHitsParentTaxIdOutput
+       -- filter by taxid
        let blastHitsWithParentTaxId = zip blastHitsFilteredByLength blastHitsParentTaxIdOutput
-       print blastHitsWithParentTaxId
+       -- filter by ParentTaxId (only one hit per TaxId)
        let blastHitsFilteredByParentTaxIdWithParentTaxId = filterByParentTaxId blastHitsWithParentTaxId True
-       writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_3ablastHitsFilteredByLengthwithpartenttaxid") (showlines blastHitsFilteredByParentTaxIdWithParentTaxId)
        let blastHitsFilteredByParentTaxId = map fst blastHitsFilteredByParentTaxIdWithParentTaxId
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_4blastHitsFilteredByParentTaxId") (showlines blastHitsFilteredByParentTaxId)
        -- Filtering with TaxTree (only hits from the same subtree as besthit)
@@ -282,10 +281,6 @@ main = do
   let initialization = ModelConstruction iterationNumber (head inputFasta) [] (maybe Nothing Just inputTaxId) []
   logMessage (show initialization) temporaryDirectoryPath
   alignmentConstructionResult <- alignmentConstruction staticOptions initialization
-  --extract final alignment and build cm
-  --pathToModel <- constructModel alignmentConstructionResult staticOptions
-  --putStrLn "Path to result model: "
-  --putStrLn pathToModel
   print alignmentConstructionResult                
   putStrLn "Done"
 
