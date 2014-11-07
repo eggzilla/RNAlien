@@ -123,16 +123,31 @@ buildTaxRecord currentIterationNumber entries = taxRecord
 buildSeqRecord :: Int -> (Sequence,Int,String,Char) -> SequenceRecord 
 buildSeqRecord currentIterationNumber (parsedFasta,_,seqSubject,seqOrigin) = SequenceRecord parsedFasta currentIterationNumber seqSubject seqOrigin   
 
-extractCMsearchHit :: CMsearchHitScore -> Sequence -> Sequence
-extractCMsearchHit hitScoreEntry inputSequence = subSequence
-  where sequenceString = L.unpack (unSD (seqdata inputSequence))
-        sequenceSubstring = subString (hitStart hitScoreEntry) (hitEnd hitScoreEntry) sequenceString
+-- | Partitions sequences by containing a cmsearch hit and extracts the hit region as new sequence
+partitionTrimCMsearchHits :: [(CMsearch,(Sequence, Int, String, Char))] -> ([(CMsearch,(Sequence, Int, String, Char))],[(CMsearch,(Sequence, Int, String, Char))])
+partitionTrimCMsearchHits cmSearchCandidatesWithSequences = (trimmedSelectedCandidates,rejectedCandidates')
+  where (selectedCandidates',rejectedCandidates') = partition (\(cmSearchResult,_) -> any (\hitScore' -> ('!' == (hitSignificance hitScore'))) (hitScores cmSearchResult)) cmSearchCandidatesWithSequences
+        trimmedSelectedCandidates = map (\(cmSearchResult,inputSequence) -> (cmSearchResult,(trimCMsearchHit cmSearchResult inputSequence))) selectedCandidates'
+        
+trimCMsearchHit :: CMsearch -> (Sequence, Int, String, Char) -> (Sequence, Int, String, Char)
+trimCMsearchHit cmSearchResult (inputSequence,b,c,d) = (subSequence,b,c,d)
+  where hitScoreEntry = head (hitScores cmSearchResult)
+        sequenceString = L.unpack (unSD (seqdata inputSequence))
+        sequenceSubstring = cmSearchsubString (hitStart hitScoreEntry) (hitEnd hitScoreEntry) sequenceString
+        --extend original seqheader
         newSequenceHeader =  L.pack ((L.unpack (unSL (seqheader inputSequence))) ++ "cmS_" ++ (show (hitStart hitScoreEntry)) ++ "_" ++ (show (hitEnd hitScoreEntry)) ++ "_" ++ (show (hitStrand hitScoreEntry)))
         subSequence = Seq (SeqLabel newSequenceHeader) (SeqData (L.pack sequenceSubstring)) Nothing
 
-subString :: Int -> Int -> String -> String
-subString startSubString endSubString inputString = take (endSubString - startSubString)(drop startSubString inputString)
-                         
+-- | Extract a substring with coordinates from cmsearch, first nucleotide has index 1
+cmSearchsubString :: Int -> Int -> String -> String
+cmSearchsubString startSubString endSubString inputString 
+  | startSubString < endSubString = take (endSubString - (startSubString -1))(drop (startSubString - 1) inputString)
+  | startSubString < endSubString = take (reverseEnd - (reverseStart - 1))(drop (reverseStart - 1 ) (reverse inputString))
+  | otherwise = take (endSubString - (startSubString -1))(drop (startSubString - 1) inputString)
+  where stringLength = length inputString
+        reverseStart = stringLength - (startSubString + 1)
+        reverseEnd = stringLength - (endSubString - 1)
+                     
 extractQueries :: Int -> ModelConstruction -> [Sequence] 
 extractQueries iterationnumber modelconstruction
   | iterationnumber == 0 = [fastaSeqData] 
