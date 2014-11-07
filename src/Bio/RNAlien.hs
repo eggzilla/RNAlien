@@ -190,7 +190,6 @@ alignCandidates staticOptions modelConstruction candidates = do
       writeFile (iterationDirectory ++ "log"  ++ "/" ++ "cm_error") (concatMap show (lefts cmSearchResults))
       let rightCMSearchResults = rights cmSearchResults
       let cmSearchCandidatesWithSequences = zip rightCMSearchResults candidates
-      ---let (selectedCandidates',rejectedCandidates') = partition (\(cmSearchResult,_) -> any (\hitScore' -> ('!' == (hitSignificance hitScore'))) (hitScores cmSearchResult)) cmSearchCandidatesWithSequences
       let (trimmedSelectedCandidates,rejectedCandidates') = partitionTrimCMsearchHits cmSearchCandidatesWithSequences
       writeFile (iterationDirectory ++ "log" ++ "/11selectedCandidates'") (showlines trimmedSelectedCandidates)
       writeFile (iterationDirectory ++ "log" ++ "/12rejectedCandidates'") (showlines rejectedCandidates')                                               

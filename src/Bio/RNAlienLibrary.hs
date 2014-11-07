@@ -232,7 +232,7 @@ systemCMsearch covarianceModelPath sequenceFilePath outputPath = system ("cmsear
 
 -- | Run CMcalibrate and return exitcode
 systemCMcalibrate :: String -> String -> IO ExitCode 
-systemCMcalibrate covarianceModelPath outputPath = system ("cmcalibrate " ++ covarianceModelPath ++ "> " ++ outputPath)
+systemCMcalibrate covarianceModelPath outputPath = system ("cmcalibrate -L 0.8 --beta 1E-10" ++ covarianceModelPath ++ "> " ++ outputPath)
                                                                  
 readInt :: String -> Int
 readInt = read
@@ -776,7 +776,7 @@ retrieveBlastHitTaxIdEntrez blastHits = do
        let geneIds = map extractGeneId blastHits
        let idList = intercalate "," geneIds
        let query' = "id=" ++ idList
-       print query'
+       --print query'
        let entrezQuery = EntrezHTTPQuery (Just "esummary") (Just "nucleotide") query'
        threadDelay 10000000                  
        result <- entrezHTTP entrezQuery
