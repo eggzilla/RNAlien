@@ -264,6 +264,7 @@ main = do
    -- Generate SessionID
   randomNumber <- randomIO :: IO Int16
   let sessionId = randomid randomNumber
+  putStrLn ("Session-Id: " ++ show sessionId)
   let iterationNumber = 0
   let taxNodesFile = "/home/egg/current/Data/Taxonomy/taxdump/nodes.dmp"
   let temporaryDirectoryPath = outputPath ++ sessionId ++ "/"                     
