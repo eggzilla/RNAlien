@@ -15,8 +15,6 @@ import Bio.Sequence.Fasta
 import Bio.BlastXML
 import Bio.ViennaRNAParser
 import Bio.ClustalParser
-import System.Random
-import Data.Int (Int16)
 import Bio.BlastHTTP 
 import Bio.RNAlienData
 import Bio.Taxonomy  
@@ -24,18 +22,19 @@ import Data.Either.Unwrap
 import qualified Data.Vector as V
 import Bio.RNAlienLibrary
 import Bio.PhylogenyParser
-import Bio.PhylogenyTools
+import Bio.PhylogenyTools    
 import Data.Either  
 
 data Options = Options            
   { inputFastaFilePath :: String,
-    inputTaxId :: Maybe Int,
+    inputTaxId :: Maybe Int,                  
     outputPath :: String,
     fullSequenceOffset :: String,
     lengthFilter :: Bool,
     singleHitperTax :: Bool,
     useGenbankAnnotation :: Bool,
-    threads :: Int
+    threads :: Int,
+    sessionIdentificator :: Maybe String
   } deriving (Show,Data,Typeable)
 
 options :: Options
@@ -47,7 +46,8 @@ options = Options
     lengthFilter = True &= name "l" &= help "Filter blast hits per genomic length",
     singleHitperTax = True &= name "s" &= help "Only the best blast hit per taxonomic entry is considered",
     useGenbankAnnotation = False &= name "g" &= help "Include genbank features overlapping with blasthits into alignment construction",
-    threads = 1 &= name "c" &= help "Number of available cpu slots/cores, default 1"
+    threads = 1 &= name "c" &= help "Number of available cpu slots/cores, default 1",
+    sessionIdentificator = Nothing &= name "s" &= help "Optional session id that is used instead of automatically generated one"
   } &= summary "RNAlien devel version" &= help "Florian Eggenhofer - >2013" &= verbosity       
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
@@ -262,9 +262,7 @@ main :: IO ()
 main = do
   Options{..} <- cmdArgs options       
    -- Generate SessionID
-  randomNumber <- randomIO :: IO Int16
-  let sessionId = randomid randomNumber
-  putStrLn ("Session-Id: " ++ show sessionId)
+  sessionId <- createSessionID sessionIdentificator
   let iterationNumber = 0
   let taxNodesFile = "/home/egg/current/Data/Taxonomy/taxdump/nodes.dmp"
   let temporaryDirectoryPath = outputPath ++ sessionId ++ "/"                     

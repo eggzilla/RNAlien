@@ -32,7 +32,8 @@ import Data.Either (lefts)
 import qualified Text.EditDistance as ED   
 import qualified Data.Vector as V
 import Control.Concurrent 
-
+import System.Random
+    
 -- | Filter a list of similar extended blast hits   
 filterIdenticalSequencesWithOrigin :: [(Sequence,Int,String,Char)] -> Double -> [(Sequence,Int,String,Char)]                            
 filterIdenticalSequencesWithOrigin (headSequence:rest) identitycutoff = result
@@ -190,6 +191,17 @@ encodedTaxIDQuery taxID = "txid" ++ (show taxID) ++ "%20%5BORGN%5D&EQ_OP"
 randomid :: Int16 -> String
 randomid number = "cm" ++ (show number)
 
+createSessionID :: Maybe String -> IO String
+createSessionID sessionIdentificator = do
+  if (isJust sessionIdentificator)
+    then do
+      return (fromJust sessionIdentificator)
+    else do
+      randomNumber <- randomIO :: IO Int16
+      let sessionId = randomid randomNumber
+      putStrLn ("Session-Id: " ++ show sessionId)
+      return sessionId
+                  
 -- | Run external blast command and read the output into the corresponding datatype
 systemBlast :: String -> Int -> IO BlastResult
 systemBlast filePath inputIterationNumber = do
