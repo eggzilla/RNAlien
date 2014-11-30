@@ -280,7 +280,8 @@ main = do
   let initialization = ModelConstruction iterationNumber (head inputFasta) [] (maybe Nothing Just inputTaxId) []
   logMessage (show initialization) temporaryDirectoryPath
   alignmentConstructionResult <- alignmentConstruction staticOptions initialization
-  print alignmentConstructionResult                
+  print alignmentConstructionResult
+  writeFile (temporaryDirectoryPath ++ "done") ""
   putStrLn "Done"
 
            
