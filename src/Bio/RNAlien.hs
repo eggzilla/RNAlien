@@ -47,7 +47,7 @@ options = Options
     singleHitperTax = True &= name "s" &= help "Only the best blast hit per taxonomic entry is considered",
     useGenbankAnnotation = False &= name "g" &= help "Include genbank features overlapping with blasthits into alignment construction",
     threads = 1 &= name "c" &= help "Number of available cpu slots/cores, default 1",
-    sessionIdentificator = Nothing &= name "s" &= help "Optional session id that is used instead of automatically generated one"
+    sessionIdentificator = Nothing &= name "d" &= help "Optional session id that is used instead of automatically generated one"
   } &= summary "RNAlien devel version" &= help "Florian Eggenhofer - >2013" &= verbosity       
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
