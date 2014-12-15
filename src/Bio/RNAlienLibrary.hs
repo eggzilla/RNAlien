@@ -244,7 +244,7 @@ systemCMsearch covarianceModelPath sequenceFilePath outputPath = system ("cmsear
 
 -- | Run CMcalibrate and return exitcode
 systemCMcalibrate :: String -> String -> IO ExitCode 
-systemCMcalibrate covarianceModelPath outputPath = system ("cmcalibrate -L 0.8 --beta 1E-10" ++ covarianceModelPath ++ "> " ++ outputPath)
+systemCMcalibrate covarianceModelPath outputPath = system ("cmcalibrate " ++ covarianceModelPath ++ "> " ++ outputPath)
                                                                  
 readInt :: String -> Int
 readInt = read
