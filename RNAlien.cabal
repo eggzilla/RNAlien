@@ -24,7 +24,7 @@ executable RNAlienStatistics
   Hs-Source-Dirs:      ./src/Bio/
   main-is:             RNAlienStatistics.hs
   ghc-options:         -Wall -O2
-  build-depends:       base >=4.5, cmdargs, ViennaRNAParser, process, directory, blastxml>=0.3.2, biofasta, parsec, random, BlastHTTP, biocore, bytestring, Taxonomy, either-unwrap, containers, RNAlien, ClustalParser, rosezipper, EntrezHTTP, split, Genbank, vector, Phylogeny, fgl
+  build-depends:       base >=4.5, cmdargs, cassava, vector, process, bytestring, either-unwrap
 
 Library
   Hs-Source-Dirs:      ./src/
