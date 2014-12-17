@@ -89,9 +89,20 @@ alignmentConstruction staticOptions modelconstruction = do
             return nextModelConstruction
           else do
             print ("Empty Blast resultlist - iteration number: " ++ (show currentIterationNumber))
-            return modelconstruction         
-     else return modelconstruction
-
+            if (currentIterationNumber > 0)
+              then do
+                 let resultCMPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.cm"        
+                 copyFile resultCMPath ((tempDirPath staticOptions) ++ "result.cm")
+                 return modelconstruction 
+              else return modelconstruction          
+     else do 
+       if (currentIterationNumber > 0)
+         then do
+           let resultCMPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.cm"
+           copyFile resultCMPath ((tempDirPath staticOptions) ++ "result.cm")
+           return modelconstruction 
+         else return modelconstruction 
+ 
 searchCandidates :: StaticOptions -> Int -> Maybe Int -> Maybe Int -> (Int,Sequence) -> IO ([(Sequence,Int,String,Char)], Maybe Int)
 searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit (queryIndex,query) = do
   let fastaSeqData = seqdata query
