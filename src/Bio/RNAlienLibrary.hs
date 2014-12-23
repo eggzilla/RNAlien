@@ -719,16 +719,24 @@ convertClustaltoStockholm :: StructuralClustalAlignment -> String
 convertClustaltoStockholm parsedMlocarnaAlignment = stockholmOutput
   where header = "# STOCKHOLM 1.0\n\n"
         clustalAlignment = structuralAlignmentEntries parsedMlocarnaAlignment
+        uniqueIds = nub (map entrySequenceIdentifier clustalAlignment)
+        mergedEntries = map (mergeEntry clustalAlignment) uniqueIds
         maxIdentifierLenght = maximum (map length (map entrySequenceIdentifier clustalAlignment))
         spacerLength' = maxIdentifierLenght + 2
-        stockholmEntries = concatMap (buildStockholmAlignmentEntries spacerLength') clustalAlignment
+        stockholmEntries = concatMap (buildStockholmAlignmentEntries spacerLength') mergedEntries
         structureString = "#=GC SS_cons" ++ (replicate (spacerLength' - 12) ' ') ++ (secondaryStructureTrack parsedMlocarnaAlignment) ++ "\n"
         bottom = "//"
         stockholmOutput = header ++ stockholmEntries ++ structureString ++ bottom
 
+mergeEntry :: [ClustalAlignmentEntry] -> String -> ClustalAlignmentEntry
+mergeEntry clustalAlignment uniqueId = mergedEntry
+  where idEntries = filter (\entry -> entrySequenceIdentifier entry==uniqueId) clustalAlignment
+        mergedSeq = foldr (++) "" (map entryAlignedSequence idEntries)
+        mergedEntry = ClustalAlignmentEntry uniqueId mergedSeq
+
 buildStockholmAlignmentEntries :: Int -> ClustalAlignmentEntry -> String
 buildStockholmAlignmentEntries inputSpacerLength entry = entrystring
-  where idLength = length (entrySequenceIdentifier entry)
+  where idLength = length (filter (/= '\n') (entrySequenceIdentifier entry))
         spacer = replicate (inputSpacerLength - idLength) ' '
         entrystring = (entrySequenceIdentifier entry) ++ spacer ++ (entryAlignedSequence entry) ++ "\n"
 

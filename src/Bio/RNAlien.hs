@@ -252,7 +252,7 @@ constructModel modelConstruction staticOptions = do
   let cmFilepath = outputDirectory ++ "model" ++ ".cm"
   let cmCalibrateFilepath = outputDirectory ++ "model" ++ ".cmcalibrate"           
   --let locarnainClustalw2FormatFilepath = outputDirectory ++ "model" ++ "." ++ "out" ++ "/results/result.aln" 
-  alignSequences "mlocarna" ("--iterate --local-progressive --threads=" ++ (show (cpuThreads staticOptions)) ++ " ") [fastaFilepath] [locarnaFilepath] []
+  alignSequences "mlocarna" ("--local-progressive --threads=" ++ (show (cpuThreads staticOptions)) ++ " ") [fastaFilepath] [locarnaFilepath] []
   --compute SCI
   --let locarnaRNAzFilePath = outputDirectory ++ "result" ++ ".rnazmlocarna"
   --computeAlignmentSCIs [locarnainClustalw2FormatFilepath] [locarnaRNAzFilePath]
