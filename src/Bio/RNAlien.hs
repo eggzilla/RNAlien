@@ -222,7 +222,6 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
   let clustalw2Filepath = iterationDirectory ++ "query" ++ ".clustalw2"
   let clustalw2SummaryFilepath = iterationDirectory ++ "query" ++ ".alnsum" 
   let clustalw2NewickFilepath = iterationDirectory ++ "query" ++ ".dnd" 
-  alignSequences "mlocarna" ("--iterate --local-progressive --threads=" ++ (show (cpuThreads staticOptions)) ++ " ") [fastaFilepath] [locarnaFilepath] []
   alignSequences "clustalw2" "" [fastaFilepath] [clustalw2Filepath] [clustalw2SummaryFilepath]
   parsedNewickGraph <- readGraphNewick clustalw2NewickFilepath
   let rightNewick = fromRight parsedNewickGraph 
