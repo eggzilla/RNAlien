@@ -74,8 +74,8 @@ alignmentConstruction staticOptions modelconstruction = do
           then do
             let usedUpperTaxonomyLimit = (snd (head candidates)) 
             --refilter for similarity for multiple queries
-            let filteredCandidates = filterIdenticalSequencesWithOrigin (concat (map fst candidates)) 95
-            --align search results - candidates > SCI 0.59 
+            let filteredCandidates = filterIdenticalSequencesWithOrigin (concat (map fst candidates)) 99
+            --align search result
             alignmentResults <- alignCandidates staticOptions currentModelConstruction filteredCandidates
             --select queries
             selectedQueries <- selectQueries staticOptions currentModelConstruction alignmentResults
@@ -155,7 +155,7 @@ searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit (quer
        --fullSequencesWithSimilars <- mapM retrieveFullSequence requestedSequenceElements
        fullSequencesWithSimilars <- retrieveFullSequences requestedSequenceElements
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10afullSequencesWithSimilars") (showlines fullSequencesWithSimilars)
-       let fullSequences = filterIdenticalSequences fullSequencesWithSimilars 95
+       let fullSequences = filterIdenticalSequences fullSequencesWithSimilars 99
        let fullSequencesWithOrigin = map (\(parsedFasta,taxid,subject) -> (parsedFasta,taxid,subject,'B')) fullSequences
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10fullSequences") (showlines fullSequences)
        return (((concat annotatedSequences) ++ fullSequencesWithOrigin),(Just usedUpperTaxLimit))
@@ -184,7 +184,7 @@ alignCandidates staticOptions modelConstruction candidates = do
       mlocarnaRNAzOutput <- mapM readRNAz pairwiseLocarnaRNAzFilePaths
       let locarnaSCI = map (\x -> show (structureConservationIndex (fromRight x))) mlocarnaRNAzOutput
       let alignedCandidates = zip locarnaSCI candidates
-      let (selectedCandidates,rejectedCandidates) = partition (\(sci,_) -> (read sci ::Double) > 0.7 ) alignedCandidates
+      let (selectedCandidates,rejectedCandidates) = partition (\(sci,_) -> (read sci ::Double) > 0.85 ) alignedCandidates
       writeFile (iterationDirectory ++ "log" ++ "/11selectedCandidates") (showlines selectedCandidates)
       writeFile (iterationDirectory ++ "log" ++ "/12rejectedCandidates") (showlines rejectedCandidates)
       return (map snd selectedCandidates)
