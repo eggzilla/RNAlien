@@ -16,9 +16,14 @@ import System.Exit
 import Control.Exception
 import qualified Data.ByteString.Lazy.Char8 as L
 import Data.Char
+import Bio.RNAlienLibrary
+import Bio.RNAlienData
+import System.Directory
+import Control.Monad
 
 data Options = Options            
   { inputDirectoryPath :: String,
+    genomesDirectoryPath :: String,
     rfamCovarianceModelPath :: String,
     outputDirectoryPath :: String
   } deriving (Show,Data,Typeable)
@@ -26,6 +31,7 @@ data Options = Options
 options :: Options
 options = Options
   { inputDirectoryPath = def &= name "i" &= help "Path to input Alien result folder",
+    genomesDirectoryPath = def &= name "g" &= help "Path to genomes directory",
     rfamCovarianceModelPath = def &= name "r" &= help "Path to input Alien result folder",
     outputDirectoryPath = def &= name "o" &= help "Path to output directory"
   } &= summary "RNAlienStatistics devel version" &= help "Florian Eggenhofer - >2013" &= verbosity       
@@ -47,10 +53,29 @@ compareRfamCMAlienCM rfamCovarianceModelPath inputDirectoryPath outputDirectory 
   let minmax = minimum [bitscore1,bitscore2]
   return minmax
 
--- | Run CMCompare and read the output into the corresponding datatype
-systemCMcompare ::  String -> String -> String -> IO ExitCode
-systemCMcompare model1path model2path outputFilePath = system ("CMCompare " ++ model1path ++ " " ++ model2path ++ " >" ++ outputFilePath)
+cmSearchGenomeDirectories :: String -> String -> String -> IO [(String,CMsearch)]
+cmSearchGenomeDirectories covarianceModelPath outputDirectory genomesDirPath = do
+  genomeDirectories <- getDirectoryContents genomesDirPath
+  let genomeDirPaths = map (\dir -> genomesDirPath ++ dir) genomeDirectories
+  results <- mapM (cmSearchGenomeDirectory covarianceModelPath outputDirectory) genomeDirPaths
+  return (concat results)
 
+cmSearchGenomeDirectory :: String -> String -> String -> IO [(String,CMsearch)]
+cmSearchGenomeDirectory covarianceModelPath outputDirectory genomeDirectoryPath = do
+  fastaFiles <- getDirectoryContents genomeDirectoryPath
+  mapM_ (\fastafile -> systemCMsearch covarianceModelPath (genomeDirectoryPath ++ "/" ++ fastafile) (outputDirectory ++ "/" ++ fastafile ++ ".cmsearch")) fastaFiles
+  results <-  mapM (\fastafile -> readCMSearch (outputDirectory ++ "/" ++ fastafile ++ ".cmsearch")) fastaFiles
+  let rightResults = map fromRight results
+  let fastaIDWithRightResults = zip fastaFiles rightResults
+  return fastaIDWithRightResults
+
+--retrieveFalsePostitiveStatistics
+--retrieveFalsePostitiveStatistics genomesDirectory inputDirectoryPath outputDirectory
+  --Create alienhits
+  --genomeSubDirectories <- getDirectoryContents genomesDirectory
+  
+  --Run cmsearch against alienhits ()
+                                 
 main :: IO ()
 main = do
   Options{..} <- cmdArgs options   
@@ -58,10 +83,14 @@ main = do
   linkscore <- compareRfamCMAlienCM rfamCovarianceModelPath inputDirectoryPath outputDirectoryPath
   putStrLn ("Linkscore: " ++ (show linkscore))
 
-  --compare taxonomic overlap
+  --Rfam.cm on AlienHits (false postives)
+  
+  --Alien.cm on FullAlignments (false negatives)
 
-  --compare detailed hit overlaps
+  --compare detailed hit overlaps (alienhits vs full aln hits)
     
+
+
   putStrLn "Done"
 
            
