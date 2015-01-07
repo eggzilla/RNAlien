@@ -69,12 +69,51 @@ cmSearchGenomeDirectory covarianceModelPath outputDirectory genomeDirectoryPath 
   let fastaIDWithRightResults = zip fastaFiles rightResults
   return fastaIDWithRightResults
 
---retrieveFalsePostitiveStatistics
---retrieveFalsePostitiveStatistics genomesDirectory inputDirectoryPath outputDirectory
+overlapCMsearch :: CMSearch -> CMSearch -> Bool
+overlapCMsearch cmsearch1 cmsearch2 = overlap
+  where overlap = overlapHitscores (hitscores cmsearch1) (hitscores cmsearch2)
+
+overlapHitscores :: [CMsearchHitScore] -> [CMsearchHitScore] -> Bool
+overlapHitscores [] [] = False
+overlapHitscores hitscore1 [] = False
+overlapHitscores [] hitscore2 = False
+overlapHitscores hitscores1 hitscores2 = overlap
+  where hitscore1 = head hitscores1 
+        hitscore2 = head hitscores2
+        start1 = hitStart hitscore1
+        end1 = hitEnd hitscore1
+        strand1 = hitStrand hitscore1
+        start2 = hitStart hitscore2
+        end2 = hitEnd hitscore2
+        strand2 = hitStrand hitscore2
+        overlap = (strand1 == strand2) && start1 < end2 && start1 >= start2
+        
+
+--overlap of alien and rfam hit         
+computeTruePostitives
+computeTruePostitives genomesDirectory inputDirectoryPath outputDirectory
   --Create alienhits
   --genomeSubDirectories <- getDirectoryContents genomesDirectory
   
-  --Run cmsearch against alienhits ()
+-- no hits in alien and rfam
+computeTrueNegatives
+computeTrueNegatives genomesDirectory inputDirectoryPath outputDirectory
+  --Create alienhits
+  --genomeSubDirectories <- getDirectoryContents genomesDirectory
+
+                  
+--hit in alien no hit in rfam or no overlap between hits
+computeFalsePostitives
+computeFalsePostitives genomesDirectory inputDirectoryPath outputDirectory
+  --Create alienhits
+  --genomeSubDirectories <- getDirectoryContents genomesDirectory
+  
+-- hit in Rfam and no hit in alien, or no overlap
+computeFalseNegatives
+computeFalseNegatives genomesDirectory inputDirectoryPath outputDirectory
+  --Create alienhits
+  --genomeSubDirectories <- getDirectoryContents genomesDirectory
+                       
                                  
 main :: IO ()
 main = do
