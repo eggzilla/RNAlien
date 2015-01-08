@@ -292,11 +292,31 @@ genParserCMsearch = do
   string "Query:"
   many1 (noneOf "\n")       
   newline
+  optional (try (genParserCMsearchHeaderField "Accession"))
+  optional (try (genParserCMsearchHeaderField "Description"))
   string "Hit scores:"
   newline
-  string " rank     E-value  score  bias  sequence"
-  many1 space   
-  string "start    end   mdl trunc   gc  description"
+  string " rank"
+  many1 space 
+  string "E-value"
+  many1 space        
+  string "score"
+  many1 space 
+  string "bias"
+  many1 space 
+  string "sequence"
+  many1 space  
+  string "start"
+  many1 space 
+  string "end"
+  many1 space 
+  string "mdl"
+  many1 space 
+  string "trunc"
+  many1 space 
+  string "gc"
+  many1 space 
+  string "description"
   newline
   string " -"
   many1 (try (oneOf " -"))
@@ -309,6 +329,14 @@ genParserCMsearch = do
   many anyChar
   eof
   return $ CMsearch queryCMfile' targetSequenceDatabase' (readInt numberOfWorkerThreads') hitScores'
+
+genParserCMsearchHeaderField :: String -> GenParser Char st String
+genParserCMsearchHeaderField fieldname = do
+  string (fieldname ++ ":")
+  many1 space
+  many1 (noneOf "\n")
+  newline
+  return []
 
 genParserCMsearchEmptyHitScore :: GenParser Char st [CMsearchHitScore]
 genParserCMsearchEmptyHitScore = do
