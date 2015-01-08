@@ -2,7 +2,7 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 
 -- | Statistics for RNAlien Results
-
+-- dist/build/RNAlienStatistics/RNAlienStatistics -i /scratch/egg/temp/cm13676/1/model.cm -r /home/mescalin/egg/current/Data/AlienTest/cms/BsrG.cm -g /scratch/egg/temp/AlienSearch/genomes/ -o /scratch/egg/temp/AlienStatistics
 module Main where
     
 import System.Console.CmdArgs      
@@ -20,9 +20,12 @@ import Bio.RNAlienLibrary
 import Bio.RNAlienData
 import System.Directory
 import Control.Monad
+import Bio.Core.Sequence 
+import Bio.Sequence.Fasta
+import Data.List
 
 data Options = Options            
-  { inputDirectoryPath :: String,
+  { alienCovarianceModelPath  :: String,
     genomesDirectoryPath :: String,
     rfamCovarianceModelPath :: String,
     outputDirectoryPath :: String
@@ -30,18 +33,17 @@ data Options = Options
 
 options :: Options
 options = Options
-  { inputDirectoryPath = def &= name "i" &= help "Path to input Alien result folder",
+  { alienCovarianceModelPath = def &= name "i" &= help "Path to input Alien result folder",
     genomesDirectoryPath = def &= name "g" &= help "Path to genomes directory",
     rfamCovarianceModelPath = def &= name "r" &= help "Path to input Alien result folder",
     outputDirectoryPath = def &= name "o" &= help "Path to output directory"
   } &= summary "RNAlienStatistics devel version" &= help "Florian Eggenhofer - >2013" &= verbosity       
 
 compareRfamCMAlienCM :: String -> String -> String -> IO Double
-compareRfamCMAlienCM rfamCovarianceModelPath inputDirectoryPath outputDirectory = do
+compareRfamCMAlienCM rfamCovarianceModelPath resultCMpath outputDirectory = do
   let myOptions = defaultDecodeOptions {
       decDelimiter = fromIntegral (ord ' ')
   }
-  let resultCMpath = inputDirectoryPath ++ "result.cm"
   let cmcompareResultPath = outputDirectory ++ "result.cmcompare"
   _ <- systemCMcompare rfamCovarianceModelPath resultCMpath cmcompareResultPath
   inputCMcompare <- readFile cmcompareResultPath
@@ -53,30 +55,59 @@ compareRfamCMAlienCM rfamCovarianceModelPath inputDirectoryPath outputDirectory 
   let minmax = minimum [bitscore1,bitscore2]
   return minmax
 
-cmSearchGenomeDirectories :: String -> String -> String -> IO [(String,CMsearch)]
-cmSearchGenomeDirectories covarianceModelPath outputDirectory genomesDirPath = do
-  genomeDirectories <- getDirectoryContents genomesDirPath
-  let genomeDirPaths = map (\dir -> genomesDirPath ++ dir) genomeDirectories
-  results <- mapM (cmSearchGenomeDirectory covarianceModelPath outputDirectory) genomeDirPaths
+cmSearchGenomeDirectories :: String -> String -> String -> String -> IO [(String,CMsearch)]
+cmSearchGenomeDirectories covarianceModelPath outputDirectory genomesDirPath modelType = do
+  genomeDirectories <- getDirectoryContents genomesDirPath >>=  
+           filterM (fmap not . doesDirectoryExist)
+  let genomeDirPaths = map (\dir -> genomesDirPath ++ dir ++ "/") genomeDirectories
+  --print genomeDirPaths
+  createDirectory (outputDirectory ++ "/" ++ modelType)
+  results <- mapM (cmSearchGenomeDirectory covarianceModelPath outputDirectory modelType) genomeDirPaths
   return (concat results)
 
-cmSearchGenomeDirectory :: String -> String -> String -> IO [(String,CMsearch)]
-cmSearchGenomeDirectory covarianceModelPath outputDirectory genomeDirectoryPath = do
+cmSearchGenomeDirectory :: String -> String -> String -> String -> IO [(String,CMsearch)]
+cmSearchGenomeDirectory covarianceModelPath outputDirectory modelType genomeDirectoryPath = do
   fastaFiles <- getDirectoryContents genomeDirectoryPath
-  mapM_ (\fastafile -> systemCMsearch covarianceModelPath (genomeDirectoryPath ++ "/" ++ fastafile) (outputDirectory ++ "/" ++ fastafile ++ ".cmsearch")) fastaFiles
-  results <-  mapM (\fastafile -> readCMSearch (outputDirectory ++ "/" ++ fastafile ++ ".cmsearch")) fastaFiles
+  let filteredFastaFiles = filter (\file -> (head file) /= '.') fastaFiles
+  -- print filteredFastaFiles
+  mapM_ (\fastafile -> systemCMsearch covarianceModelPath (genomeDirectoryPath ++ "/" ++ fastafile) (outputDirectory ++ "/" ++ modelType ++ "/" ++ fastafile ++ ".cmsearch")) filteredFastaFiles
+  results <-  mapM (\fastafile -> readCMSearch (outputDirectory ++ "/" ++ modelType ++ "/" ++ fastafile ++ ".cmsearch")) filteredFastaFiles
+  --let leftresults = lefts results
+  --print leftresults
   let rightResults = map fromRight results
-  let fastaIDWithRightResults = zip fastaFiles rightResults
+  let fastaIDWithRightResults = zip filteredFastaFiles rightResults
+  let (significantHits,rejectedHits) = partitionCMsearchHits fastaIDWithRightResults
+  mapM_ (\(fastaFileName,cmsearch) -> trimCMsearchFastaFile genomeDirectoryPath outputDirectory modelType cmsearch fastaFileName) significantHits
   return fastaIDWithRightResults
 
-overlapCMsearch :: CMSearch -> CMSearch -> Bool
+partitionCMsearchHits :: [(String,CMsearch)] -> ([(String,CMsearch)],[(String,CMsearch)])
+partitionCMsearchHits cmSearchCandidatesWithSequences = (selectedCandidates,rejectedCandidates)
+  where (selectedCandidates,rejectedCandidates) = partition (\(_,cmSearchResult) -> any (\hitScore' -> ('!' == (hitSignificance hitScore'))) (hitScores cmSearchResult)) cmSearchCandidatesWithSequences
+
+trimCMsearchFastaFile :: String -> String -> String -> CMsearch -> String -> IO ()
+trimCMsearchFastaFile genomesDirectory outputFolder modelType cmsearch fastafile  = do
+  let fastaInputPath = genomesDirectory ++ "/" ++ fastafile
+  let fastaOutputPath = outputFolder ++ "/" ++ modelType ++ "/" ++ fastafile
+  fastaSequences <- readFasta fastaInputPath
+  let trimmedSequence = trimCMsearchSequence cmsearch (head fastaSequences)
+  writeFasta fastaOutputPath [trimmedSequence]
+
+trimCMsearchSequence :: CMsearch -> Sequence -> Sequence
+trimCMsearchSequence cmSearchResult inputSequence = subSequence
+  where hitScoreEntry = head (hitScores cmSearchResult)
+        sequenceString = L.unpack (unSD (seqdata inputSequence))
+        sequenceSubstring = cmSearchsubString (hitStart hitScoreEntry) (hitEnd hitScoreEntry) sequenceString
+        newSequenceHeader =  L.pack ((L.unpack (unSL (seqheader inputSequence))) ++ "cmS_" ++ (show (hitStart hitScoreEntry)) ++ "_" ++ (show (hitEnd hitScoreEntry)) ++ "_" ++ (show (hitStrand hitScoreEntry)))
+        subSequence = Seq (SeqLabel newSequenceHeader) (SeqData (L.pack sequenceSubstring)) Nothing     
+
+overlapCMsearch :: CMsearch -> CMsearch -> Bool
 overlapCMsearch cmsearch1 cmsearch2 = overlap
-  where overlap = overlapHitscores (hitscores cmsearch1) (hitscores cmsearch2)
+  where overlap = overlapHitscores (hitScores cmsearch1) (hitScores cmsearch2)
 
 overlapHitscores :: [CMsearchHitScore] -> [CMsearchHitScore] -> Bool
 overlapHitscores [] [] = False
-overlapHitscores hitscore1 [] = False
-overlapHitscores [] hitscore2 = False
+overlapHitscores hitscores1 [] = False
+overlapHitscores [] hitscores2 = False
 overlapHitscores hitscores1 hitscores2 = overlap
   where hitscore1 = head hitscores1 
         hitscore2 = head hitscores2
@@ -88,29 +119,27 @@ overlapHitscores hitscores1 hitscores2 = overlap
         strand2 = hitStrand hitscore2
         overlap = (strand1 == strand2) && start1 < end2 && start1 >= start2
         
-
 --overlap of alien and rfam hit         
-computeTruePostitives
-computeTruePostitives genomesDirectory inputDirectoryPath outputDirectory
+--computeTruePostitives
+--computeTruePostitives genomesDirectory inputDirectoryPath outputDirectory
   --Create alienhits
   --genomeSubDirectories <- getDirectoryContents genomesDirectory
   
 -- no hits in alien and rfam
-computeTrueNegatives
-computeTrueNegatives genomesDirectory inputDirectoryPath outputDirectory
+--computeTrueNegatives
+--computeTrueNegatives genomesDirectory inputDirectoryPath outputDirectory
   --Create alienhits
   --genomeSubDirectories <- getDirectoryContents genomesDirectory
-
-                  
+          
 --hit in alien no hit in rfam or no overlap between hits
-computeFalsePostitives
-computeFalsePostitives genomesDirectory inputDirectoryPath outputDirectory
+--computeFalsePostitives
+--computeFalsePostitives genomesDirectory inputDirectoryPath outputDirectory
   --Create alienhits
   --genomeSubDirectories <- getDirectoryContents genomesDirectory
   
 -- hit in Rfam and no hit in alien, or no overlap
-computeFalseNegatives
-computeFalseNegatives genomesDirectory inputDirectoryPath outputDirectory
+--computeFalseNegatives
+--computeFalseNegatives genomesDirectory inputDirectoryPath outputDirectory
   --Create alienhits
   --genomeSubDirectories <- getDirectoryContents genomesDirectory
                        
@@ -119,9 +148,13 @@ main :: IO ()
 main = do
   Options{..} <- cmdArgs options   
   --compute linkscore
-  linkscore <- compareRfamCMAlienCM rfamCovarianceModelPath inputDirectoryPath outputDirectoryPath
-  putStrLn ("Linkscore: " ++ (show linkscore))
-
+  --linkscore <- compareRfamCMAlienCM rfamCovarianceModelPath alienCovarianceModelPath outputDirectoryPath
+  --putStrLn ("Linkscore: " ++ (show linkscore))
+  --generate Rfam cmsearch results
+  rfamResults <- cmSearchGenomeDirectories rfamCovarianceModelPath outputDirectoryPath genomesDirectoryPath "Rfam"
+  --writeFile (outputDirectoryPath ++ "/" ++ rfamResults) (show (fst rfamResults) ++ show (snd rfamResults))
+  --generate Alien cmsearch results
+  --alienResults <- cmSearchGenomeDirectories alienCovarianceModelPath outputDirectoryPath genomesDirectoryPath "Alien"
   --Rfam.cm on AlienHits (false postives)
   
   --Alien.cm on FullAlignments (false negatives)
@@ -132,7 +165,7 @@ main = do
 
   putStrLn "Done"
 
-           
+
 
 
                          
