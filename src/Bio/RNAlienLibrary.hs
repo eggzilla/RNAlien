@@ -240,7 +240,7 @@ systemCMcompare model1path model2path outputFilePath = system ("CMCompare " ++ m
 
 -- | Run CMsearch and read the output into the corresponding datatype
 systemCMsearch :: String -> String -> String -> IO ExitCode
-systemCMsearch covarianceModelPath sequenceFilePath outputPath = system ("cmsearch " ++ covarianceModelPath ++ " " ++ sequenceFilePath ++ "> " ++ outputPath)
+systemCMsearch covarianceModelPath sequenceFilePath outputPath = system ("cmsearch --notrunc -g" ++ covarianceModelPath ++ " " ++ sequenceFilePath ++ "> " ++ outputPath)
 
 -- | Run CMcalibrate and return exitcode
 systemCMcalibrate :: String -> String -> IO ExitCode 
