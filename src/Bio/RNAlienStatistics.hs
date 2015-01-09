@@ -152,9 +152,18 @@ main = do
   --putStrLn ("Linkscore: " ++ (show linkscore))
   --generate Rfam cmsearch results
   rfamResults <- cmSearchGenomeDirectories rfamCovarianceModelPath outputDirectoryPath genomesDirectoryPath "Rfam"
+  let rfamPositives = length fst rfamResults
+  let rfamNegatives = length snd rfamResults
+  putStrLn ("rfamPositives" ++ rfamPositives)
+  putStrLn ("rfamNegatives" ++ rfamNegatives)
+
   --writeFile (outputDirectoryPath ++ "/" ++ rfamResults) (show (fst rfamResults) ++ show (snd rfamResults))
   --generate Alien cmsearch results
-  --alienResults <- cmSearchGenomeDirectories alienCovarianceModelPath outputDirectoryPath genomesDirectoryPath "Alien"
+  alienResults <- cmSearchGenomeDirectories alienCovarianceModelPath outputDirectoryPath genomesDirectoryPath "Alien"
+  let alienPositives = length fst alienResults
+  let alienNegatives = length snd alienResults
+  putStrLn ("rfamPositives" ++ rfamPositives)
+  putStrLn ("rfamNegatives" ++ rfamNegatives)
   --Rfam.cm on AlienHits (false postives)
   
   --Alien.cm on FullAlignments (false negatives)
