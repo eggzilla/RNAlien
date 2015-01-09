@@ -55,7 +55,7 @@ compareRfamCMAlienCM rfamCovarianceModelPath resultCMpath outputDirectory = do
   let minmax = minimum [bitscore1,bitscore2]
   return minmax
 
-cmSearchGenomeDirectories :: String -> String -> String -> Bool -> String -> IO [(String,CMsearch)]
+cmSearchGenomeDirectories :: String -> String -> Bool -> String -> String -> IO ([(String,CMsearch)],[(String,CMsearch)])
 cmSearchGenomeDirectories covarianceModelPath outputDirectory writeFasta genomesDirPath modelType = do
   genomeDirectories <- getDirectoryContents genomesDirPath >>=  
            filterM (fmap not . doesDirectoryExist)
@@ -63,9 +63,11 @@ cmSearchGenomeDirectories covarianceModelPath outputDirectory writeFasta genomes
   --print genomeDirPaths
   createDirectory (outputDirectory ++ "/" ++ modelType)
   results <- mapM (cmSearchGenomeDirectory covarianceModelPath outputDirectory modelType writeFasta) genomeDirPaths
-  return (concat results)
+  let positives = concat (map fst results)
+  let negatives = concat (map snd results)
+  return (positives,negatives)
 
-cmSearchGenomeDirectory :: String -> String -> String -> Bool -> String -> IO [(String,CMsearch)]
+cmSearchGenomeDirectory :: String -> String -> String -> Bool -> String -> IO ([(String,CMsearch)],[(String,CMsearch)])
 cmSearchGenomeDirectory covarianceModelPath outputDirectory modelType writeFasta genomeDirectoryPath = do
   fastaFiles <- getDirectoryContents genomeDirectoryPath
   let filteredFastaFiles = filter (\file -> isSuffixOf ".fna" file) fastaFiles
@@ -78,8 +80,10 @@ cmSearchGenomeDirectory covarianceModelPath outputDirectory modelType writeFasta
   let fastaIDWithRightResults = zip filteredFastaFiles rightResults
   let (significantHits,rejectedHits) = partitionCMsearchHits fastaIDWithRightResults
   if writeFasta
-     then mapM_ (\(fastaFileName,cmsearch) -> trimCMsearchFastaFile genomeDirectoryPath outputDirectory modelType cmsearch fastaFileName) significantHits
-  return fastaIDWithRightResults
+     then do 
+       mapM_ (\(fastaFileName,cmsearch) -> trimCMsearchFastaFile genomeDirectoryPath outputDirectory modelType cmsearch fastaFileName) significantHits
+       return (significantHits,rejectedHits)
+     else return (significantHits,rejectedHits)
 
 partitionCMsearchHits :: [(String,CMsearch)] -> ([(String,CMsearch)],[(String,CMsearch)])
 partitionCMsearchHits cmSearchCandidatesWithSequences = (selectedCandidates,rejectedCandidates)
@@ -153,28 +157,28 @@ main = do
   --putStrLn ("Linkscore: " ++ (show linkscore))
   --generate Rfam cmsearch results
   rfamResults <- cmSearchGenomeDirectories rfamCovarianceModelPath outputDirectoryPath True genomesDirectoryPath "Rfam"
-  let rfamPositives = length fst rfamResults
-  let rfamNegatives = length snd rfamResults
-  putStrLn ("rfamPositives" ++ rfamPositives)
-  putStrLn ("rfamNegatives" ++ rfamNegatives)
+  let rfamPositives = length (fst rfamResults)
+  let rfamNegatives = length (snd rfamResults)
+  putStrLn ("rfamPositives" ++ (show rfamPositives))
+  putStrLn ("rfamNegatives" ++ (show rfamNegatives))
 
   alienOnRfamResults <- cmSearchGenomeDirectories alienCovarianceModelPath outputDirectoryPath False (outputDirectoryPath ++ "/Rfam/") "AlienOnRfam"
-  let alienOnRfamPositives = length fst alienOnRfamResults
-  let alienOnRfamNegatives = length snd alienOnRfamResults
-  putStrLn ("rfamPositives" ++ alienOnRfamPositives)
-  putStrLn ("rfamNegatives" ++ alienOnRfamNegatives)
+  let alienOnRfamPositives = length (fst alienOnRfamResults)
+  let alienOnRfamNegatives = length (snd alienOnRfamResults)
+  putStrLn ("rfamPositives" ++ (show alienOnRfamPositives))
+  putStrLn ("rfamNegatives" ++ (show alienOnRfamNegatives))
 
   alienResults <- cmSearchGenomeDirectories alienCovarianceModelPath outputDirectoryPath True genomesDirectoryPath "Alien"
-  let alienPositives = length fst alienResults
-  let alienNegatives = length snd alienResults
-  putStrLn ("alienPositives" ++ alienPositives)
-  putStrLn ("alienNegatives" ++ alienNegatives)
+  let alienPositives = length (fst alienResults)
+  let alienNegatives = length (snd alienResults)
+  putStrLn ("alienPositives" ++ (show alienPositives))
+  putStrLn ("alienNegatives" ++ (show alienNegatives))
 
   rfamOnAlienResults <- cmSearchGenomeDirectories rfamCovarianceModelPath outputDirectoryPath False (outputDirectoryPath ++ "/Alien/") "RfamOnAlien"
-  let alienOnRfamPositives = length fst alienOnRfamResults
-  let alienOnRfamNegatives = length snd alienOnRfamResults
-  putStrLn ("rfamPositives" ++ alienOnRfamPositives)
-  putStrLn ("rfamNegatives" ++ alienOnRfamNegatives)
+  let alienOnRfamPositives = length (fst alienOnRfamResults)
+  let alienOnRfamNegatives = length (snd alienOnRfamResults)
+  putStrLn ("rfamPositives" ++ (show alienOnRfamPositives))
+  putStrLn ("rfamNegatives" ++ (show alienOnRfamNegatives))
 
   --Rfam.cm on AlienHits (false postives)
   
