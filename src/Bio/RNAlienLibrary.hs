@@ -33,6 +33,7 @@ import qualified Text.EditDistance as ED
 import qualified Data.Vector as V
 import Control.Concurrent 
 import System.Random
+import Data.Csv
     
 -- | Filter a list of similar extended blast hits   
 filterIdenticalSequencesWithOrigin :: [(Sequence,Int,String,Char)] -> Double -> [(Sequence,Int,String,Char)]                            
@@ -245,6 +246,22 @@ systemCMsearch covarianceModelPath sequenceFilePath outputPath = system ("cmsear
 -- | Run CMcalibrate and return exitcode
 systemCMcalibrate :: String -> String -> IO ExitCode 
 systemCMcalibrate covarianceModelPath outputPath = system ("cmcalibrate " ++ covarianceModelPath ++ "> " ++ outputPath)
+
+compareCM :: String -> String -> String -> IO Double
+compareCM rfamCovarianceModelPath resultCMpath outputDirectory = do
+  let myOptions = defaultDecodeOptions {
+      decDelimiter = fromIntegral (ord ' ')
+  }
+  let cmcompareResultPath = outputDirectory ++ "result.cmcompare"
+  _ <- systemCMcompare rfamCovarianceModelPath resultCMpath cmcompareResultPath
+  inputCMcompare <- readFile cmcompareResultPath
+  let singlespaceCMcompare = (unwords(words inputCMcompare))
+  let decodedCmCompareOutput = head (V.toList (fromRight (decodeWith myOptions NoHeader (L.pack singlespaceCMcompare) :: Either String (V.Vector [String]))))
+  --two.cm   three.cm     27.996     19.500 CCCAAAGGGCCCAAAGGG (((...)))(((...))) (((...)))(((...))) [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17] [11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27]
+  let bitscore1 = read (head (drop 2 decodedCmCompareOutput)) :: Double
+  let bitscore2 = read (head (drop 3 decodedCmCompareOutput)) :: Double
+  let minmax = minimum [bitscore1,bitscore2]
+  return minmax
                                                                  
 readInt :: String -> Int
 readInt = read
@@ -282,6 +299,8 @@ genParserCMsearch = do
   many1 space      
   targetSequenceDatabase' <- many1 (noneOf "\n")
   newline
+  optional (try (genParserCMsearchHeaderField "# CM configuration"))
+  optional (try (genParserCMsearchHeaderField "# truncated sequence detection"))
   string "# number of worker threads:"
   many1 space
   numberOfWorkerThreads' <- many1 (noneOf "\n")
