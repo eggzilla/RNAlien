@@ -199,9 +199,10 @@ alignCandidates staticOptions modelConstruction candidates = do
       mapM_ (\(fastaPath,resultPath) -> systemCMsearch covarianceModelPath fastaPath resultPath) zippedFastaCMSearchResultPaths
       cmSearchResults <- mapM readCMSearch cmSearchFilePaths 
       writeFile (iterationDirectory ++ "log"  ++ "/" ++ "cm_error") (concatMap show (lefts cmSearchResults))
+      maxLinkScore <- compareCM covarianceModelPath covarianceModelPath iterationDirectory 
       let rightCMSearchResults = rights cmSearchResults
       let cmSearchCandidatesWithSequences = zip rightCMSearchResults candidates
-      let (trimmedSelectedCandidates,rejectedCandidates') = partitionTrimCMsearchHits cmSearchCandidatesWithSequences
+      let (trimmedSelectedCandidates,rejectedCandidates') = partitionTrimCMsearchHits maxLinkScore  cmSearchCandidatesWithSequences
       writeFile (iterationDirectory ++ "log" ++ "/11selectedCandidates'") (showlines trimmedSelectedCandidates)
       writeFile (iterationDirectory ++ "log" ++ "/12rejectedCandidates'") (showlines rejectedCandidates')                                               
       return (map snd trimmedSelectedCandidates)

@@ -126,9 +126,10 @@ buildSeqRecord :: Int -> (Sequence,Int,String,Char) -> SequenceRecord
 buildSeqRecord currentIterationNumber (parsedFasta,_,seqSubject,seqOrigin) = SequenceRecord parsedFasta currentIterationNumber seqSubject seqOrigin   
 
 -- | Partitions sequences by containing a cmsearch hit and extracts the hit region as new sequence
-partitionTrimCMsearchHits :: [(CMsearch,(Sequence, Int, String, Char))] -> ([(CMsearch,(Sequence, Int, String, Char))],[(CMsearch,(Sequence, Int, String, Char))])
-partitionTrimCMsearchHits cmSearchCandidatesWithSequences = (trimmedSelectedCandidates,rejectedCandidates')
-  where (selectedCandidates',rejectedCandidates') = partition (\(cmSearchResult,_) -> any (\hitScore' -> ('!' == (hitSignificance hitScore'))) (hitScores cmSearchResult)) cmSearchCandidatesWithSequences
+partitionTrimCMsearchHits :: Double -> [(CMsearch,(Sequence, Int, String, Char))] -> ([(CMsearch,(Sequence, Int, String, Char))],[(CMsearch,(Sequence, Int, String, Char))])
+partitionTrimCMsearchHits modelMaxSelfLink cmSearchCandidatesWithSequences = (trimmedSelectedCandidates,rejectedCandidates')
+  where bitScoreCutoff = 0.66 * modelMaxSelfLink
+        (selectedCandidates',rejectedCandidates') = partition (\(cmSearchResult,_) -> any (\hitScore' -> (bitScoreCutoff < (hitScore hitScore'))) (hitScores cmSearchResult)) cmSearchCandidatesWithSequences
         trimmedSelectedCandidates = map (\(cmSearchResult,inputSequence) -> (cmSearchResult,(trimCMsearchHit cmSearchResult inputSequence))) selectedCandidates'
         
 trimCMsearchHit :: CMsearch -> (Sequence, Int, String, Char) -> (Sequence, Int, String, Char)
