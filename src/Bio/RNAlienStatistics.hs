@@ -39,22 +39,6 @@ options = Options
     outputDirectoryPath = def &= name "o" &= help "Path to output directory"
   } &= summary "RNAlienStatistics devel version" &= help "Florian Eggenhofer - >2013" &= verbosity       
 
-compareRfamCMAlienCM :: String -> String -> String -> IO Double
-compareRfamCMAlienCM rfamCovarianceModelPath resultCMpath outputDirectory = do
-  let myOptions = defaultDecodeOptions {
-      decDelimiter = fromIntegral (ord ' ')
-  }
-  let cmcompareResultPath = outputDirectory ++ "result.cmcompare"
-  _ <- systemCMcompare rfamCovarianceModelPath resultCMpath cmcompareResultPath
-  inputCMcompare <- readFile cmcompareResultPath
-  let singlespaceCMcompare = (unwords(words inputCMcompare))
-  let decodedCmCompareOutput = head (V.toList (fromRight (decodeWith myOptions NoHeader (L.pack singlespaceCMcompare) :: Either String (V.Vector [String]))))
-  --two.cm   three.cm     27.996     19.500 CCCAAAGGGCCCAAAGGG (((...)))(((...))) (((...)))(((...))) [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17] [11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27]
-  let bitscore1 = read (head (drop 2 decodedCmCompareOutput)) :: Double
-  let bitscore2 = read (head (drop 3 decodedCmCompareOutput)) :: Double
-  let minmax = minimum [bitscore1,bitscore2]
-  return minmax
-
 cmSearchGenomeDirectories :: String -> String -> Bool -> String -> String -> IO ([(String,CMsearch)],[(String,CMsearch)])
 cmSearchGenomeDirectories covarianceModelPath outputDirectory writeFasta genomesDirPath modelType = do
   genomeDirectories <- getDirectoryContents genomesDirPath >>=  
@@ -123,71 +107,56 @@ overlapHitscores hitscores1 hitscores2 = overlap
         end2 = hitEnd hitscore2
         strand2 = hitStrand hitscore2
         overlap = (strand1 == strand2) && start1 < end2 && start1 >= start2
-        
---overlap of alien and rfam hit         
---computeTruePostitives
---computeTruePostitives genomesDirectory inputDirectoryPath outputDirectory
-  --Create alienhits
-  --genomeSubDirectories <- getDirectoryContents genomesDirectory
-  
--- no hits in alien and rfam
---computeTrueNegatives
---computeTrueNegatives genomesDirectory inputDirectoryPath outputDirectory
-  --Create alienhits
-  --genomeSubDirectories <- getDirectoryContents genomesDirectory
-          
---hit in alien no hit in rfam or no overlap between hits
---computeFalsePostitives
---computeFalsePostitives genomesDirectory inputDirectoryPath outputDirectory
-  --Create alienhits
-  --genomeSubDirectories <- getDirectoryContents genomesDirectory
-  
--- hit in Rfam and no hit in alien, or no overlap
---computeFalseNegatives
---computeFalseNegatives genomesDirectory inputDirectoryPath outputDirectory
-  --Create alienhits
-  --genomeSubDirectories <- getDirectoryContents genomesDirectory
-                                                        
+                                                               
 main :: IO ()
 main = do
-  Options{..} <- cmdArgs options   
+  Options{..} <- cmdArgs options  
+  print "RNAlien Statistics:"
   --compute linkscore
-  --linkscore <- compareRfamCMAlienCM rfamCovarianceModelPath alienCovarianceModelPath outputDirectoryPath
-  --self
-  --putStrLn ("Linkscore: " ++ (show linkscore))
-  --generate Rfam cmsearch results
+  linkscore <- compareCM rfamCovarianceModelPath alienCovarianceModelPath outputDirectoryPath
+  rfamMaxLinkScore <- compareCM rfamCovarianceModelPath rfamCovarianceModelPath outputDirectoryPath
+  alienMaxLinkscore <- compareCM alienCovarianceModelPath alienCovarianceModelPath outputDirectoryPath
+  putStrLn ("Linkscore: " ++ (show linkscore))
+  putStrLn ("rfamMaxLinkScore: " ++ (show rfamMaxLinkScore))
+  putStrLn ("alienMaxLinkscore: " ++ (show alienMaxLinkscore))
+
+  --statistical measures
+  genomeDirectories <- getDirectoryContents genomesDirectoryPath >>=  
+           filterM (fmap not . doesDirectoryExist)
+  print ("Genome Number: " ++  show (length genomeDirectories))
+
   rfamResults <- cmSearchGenomeDirectories rfamCovarianceModelPath outputDirectoryPath True genomesDirectoryPath "Rfam"
   let rfamPositives = length (fst rfamResults)
   let rfamNegatives = length (snd rfamResults)
-  putStrLn ("rfamPositives" ++ (show rfamPositives))
-  putStrLn ("rfamNegatives" ++ (show rfamNegatives))
+  putStrLn ("Condition postitive (rfamPositives): " ++ (show rfamPositives))
+  putStrLn ("Condition negative (rfamNegatives): " ++ (show rfamNegatives))
+  putStrLn ("Population : " ++ (show (rfamPositives + rfamNegatives)))
 
+  --Alien.cm on Rfamhits (false negatives)
   alienOnRfamResults <- cmSearchGenomeDirectories alienCovarianceModelPath outputDirectoryPath False (outputDirectoryPath ++ "/Rfam/") "AlienOnRfam"
   let alienOnRfamPositives = length (fst alienOnRfamResults)
   let alienOnRfamNegatives = length (snd alienOnRfamResults)
-  putStrLn ("rfamPositives" ++ (show alienOnRfamPositives))
-  putStrLn ("rfamNegatives" ++ (show alienOnRfamNegatives))
+  putStrLn ("alienOnRfamPositives: " ++ (show alienOnRfamPositives))
+  putStrLn ("False negatives (alienOnRfamNegatives): " ++ (show alienOnRfamNegatives))
+
 
   alienResults <- cmSearchGenomeDirectories alienCovarianceModelPath outputDirectoryPath True genomesDirectoryPath "Alien"
   let alienPositives = length (fst alienResults)
   let alienNegatives = length (snd alienResults)
-  putStrLn ("alienPositives" ++ (show alienPositives))
-  putStrLn ("alienNegatives" ++ (show alienNegatives))
-
-  rfamOnAlienResults <- cmSearchGenomeDirectories rfamCovarianceModelPath outputDirectoryPath False (outputDirectoryPath ++ "/Alien/") "RfamOnAlien"
-  let alienOnRfamPositives = length (fst alienOnRfamResults)
-  let alienOnRfamNegatives = length (snd alienOnRfamResults)
-  putStrLn ("rfamPositives" ++ (show alienOnRfamPositives))
-  putStrLn ("rfamNegatives" ++ (show alienOnRfamNegatives))
+  putStrLn ("Test positive (alienPositives): " ++ (show alienPositives))
+  putStrLn ("Test negative (alienNegatives): " ++ (show alienNegatives))
 
   --Rfam.cm on AlienHits (false postives)
-  
-  --Alien.cm on FullAlignments (false negatives)
+  rfamOnAlienResults <- cmSearchGenomeDirectories rfamCovarianceModelPath outputDirectoryPath False (outputDirectoryPath ++ "/Alien/") "RfamOnAlien"
+  let rfamOnAlienPositives = length (fst rfamOnAlienResults)
+  let rfamOnAlienNegatives = length (snd rfamOnAlienResults)
+  putStrLn ("True positive (rfamOnAlienPositives): " ++ (show rfamOnAlienPositives))
+  putStrLn ("False positives (rfamOnAlienNegatives): " ++ (show rfamOnAlienNegatives))
 
-  --compare detailed hit overlaps (alienhits vs full aln hits)
-    
-
-
+  --Sensitivity = TP / (TP + FN)
+  --Specificity = TN / (FP + TN)
+  --False positive rate (α) = type I error = 1 − specificity = FP / (FP + TN) 
+  --False negative rate (β) = type II error = 1 − sensitivity = FN / (TP + FN)
   putStrLn "Done"
 
 
