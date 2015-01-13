@@ -145,7 +145,7 @@ trimCMsearchHit cmSearchResult (inputSequence,b,c,d) = (subSequence,b,c,d)
 cmSearchsubString :: Int -> Int -> String -> String
 cmSearchsubString startSubString endSubString inputString 
   | startSubString < endSubString = take (endSubString - (startSubString -1))(drop (startSubString - 1) inputString)
-  | startSubString < endSubString = take (reverseEnd - (reverseStart - 1))(drop (reverseStart - 1 ) (reverse inputString))
+  | startSubString > endSubString = take (reverseEnd - (reverseStart - 1))(drop (reverseStart - 1 ) (reverse inputString))
   | otherwise = take (endSubString - (startSubString -1))(drop (startSubString - 1) inputString)
   where stringLength = length inputString
         reverseStart = stringLength - (startSubString + 1)
