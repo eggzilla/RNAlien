@@ -155,7 +155,7 @@ searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit (quer
        --fullSequencesWithSimilars <- mapM retrieveFullSequence requestedSequenceElements
        fullSequencesWithSimilars <- retrieveFullSequences requestedSequenceElements
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10afullSequencesWithSimilars") (showlines fullSequencesWithSimilars)
-       let fullSequences = filterIdenticalSequences fullSequencesWithSimilars 99
+       let fullSequences = filterIdenticalSequences fullSequencesWithSimilars 100
        let fullSequencesWithOrigin = map (\(parsedFasta,taxid,subject) -> (parsedFasta,taxid,subject,'B')) fullSequences
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10fullSequences") (showlines fullSequences)
        return (((concat annotatedSequences) ++ fullSequencesWithOrigin),(Just usedUpperTaxLimit))
@@ -184,7 +184,7 @@ alignCandidates staticOptions modelConstruction candidates = do
       mlocarnaRNAzOutput <- mapM readRNAz pairwiseLocarnaRNAzFilePaths
       let locarnaSCI = map (\x -> show (structureConservationIndex (fromRight x))) mlocarnaRNAzOutput
       let alignedCandidates = zip locarnaSCI candidates
-      let (selectedCandidates,rejectedCandidates) = partition (\(sci,_) -> (read sci ::Double) > 0.85 ) alignedCandidates
+      let (selectedCandidates,rejectedCandidates) = partition (\(sci,_) -> (read sci ::Double) > 0.8 ) alignedCandidates
       writeFile (iterationDirectory ++ "log" ++ "/11selectedCandidates") (showlines selectedCandidates)
       writeFile (iterationDirectory ++ "log" ++ "/12rejectedCandidates") (showlines rejectedCandidates)
       return (map snd selectedCandidates)
@@ -202,7 +202,7 @@ alignCandidates staticOptions modelConstruction candidates = do
       maxLinkScore <- compareCM covarianceModelPath covarianceModelPath iterationDirectory 
       let rightCMSearchResults = rights cmSearchResults
       let cmSearchCandidatesWithSequences = zip rightCMSearchResults candidates
-      let (trimmedSelectedCandidates,rejectedCandidates') = partitionTrimCMsearchHits maxLinkScore  cmSearchCandidatesWithSequences
+      let (trimmedSelectedCandidates,rejectedCandidates') = partitionTrimCMsearchHits maxLinkScore cmSearchCandidatesWithSequences
       writeFile (iterationDirectory ++ "log" ++ "/11selectedCandidates'") (showlines trimmedSelectedCandidates)
       writeFile (iterationDirectory ++ "log" ++ "/12rejectedCandidates'") (showlines rejectedCandidates')                                               
       return (map snd trimmedSelectedCandidates)

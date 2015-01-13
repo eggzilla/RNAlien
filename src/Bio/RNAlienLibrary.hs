@@ -128,7 +128,7 @@ buildSeqRecord currentIterationNumber (parsedFasta,_,seqSubject,seqOrigin) = Seq
 -- | Partitions sequences by containing a cmsearch hit and extracts the hit region as new sequence
 partitionTrimCMsearchHits :: Double -> [(CMsearch,(Sequence, Int, String, Char))] -> ([(CMsearch,(Sequence, Int, String, Char))],[(CMsearch,(Sequence, Int, String, Char))])
 partitionTrimCMsearchHits modelMaxSelfLink cmSearchCandidatesWithSequences = (trimmedSelectedCandidates,rejectedCandidates')
-  where bitScoreCutoff = 0.66 * modelMaxSelfLink
+  where bitScoreCutoff = 0.125 * modelMaxSelfLink
         (selectedCandidates',rejectedCandidates') = partition (\(cmSearchResult,_) -> any (\hitScore' -> (bitScoreCutoff < (hitScore hitScore'))) (hitScores cmSearchResult)) cmSearchCandidatesWithSequences
         trimmedSelectedCandidates = map (\(cmSearchResult,inputSequence) -> (cmSearchResult,(trimCMsearchHit cmSearchResult inputSequence))) selectedCandidates'
         
