@@ -56,6 +56,7 @@ cmSearchGenomeDirectory covarianceModelPath outputDirectory modelType writeFasta
   fastaFiles <- getDirectoryContents genomeDirectoryPath
   let filteredFastaFiles = filter (\file -> isSuffixOf ".fna" file) fastaFiles
   --print filteredFastaFiles
+  createDirectoryIfMissing False (outputDirectory ++ "/" ++ modelType)
   mapM_ (\fastafile -> systemCMsearch covarianceModelPath (genomeDirectoryPath ++ "/" ++ fastafile) (outputDirectory ++ "/" ++ modelType ++ "/" ++ fastafile ++ ".cmsearch")) filteredFastaFiles
   results <-  mapM (\fastafile -> readCMSearch (outputDirectory ++ "/" ++ modelType ++ "/" ++ fastafile ++ ".cmsearch")) filteredFastaFiles
   --let leftresults = lefts results
