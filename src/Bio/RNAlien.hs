@@ -24,6 +24,7 @@ import Bio.RNAlienLibrary
 import Bio.PhylogenyParser
 import Bio.PhylogenyTools    
 import Data.Either  
+import Data.Maybe
 
 data Options = Options            
   { inputFastaFilePath :: String,
@@ -54,6 +55,7 @@ options = Options
 alignmentConstruction :: StaticOptions -> ModelConstruction -> IO ModelConstruction
 alignmentConstruction staticOptions modelconstruction = do
   putStrLn ("Iteration " ++ show (iterationNumber modelconstruction))
+  putStrLn ("Bitscore threshold:" ++ (maybe "not set" show (bitScoreThreshold modelconstruction)))
   let currentModelConstruction = modelconstruction
   let currentIterationNumber = (iterationNumber currentModelConstruction)
   --extract queries
@@ -83,9 +85,10 @@ alignmentConstruction staticOptions modelconstruction = do
             let nextModelConstructionInput = constructNext currentIterationNumber currentModelConstruction alignmentResults usedUpperTaxonomyLimit selectedQueries
             appendFile ((tempDirPath staticOptions) ++ "Log") (show nextModelConstructionInput)
             print ("upperTaxTreeLimit:" ++ show usedUpperTaxonomyLimit)
-            cmFilepath <- constructModel nextModelConstructionInput staticOptions
-            print cmFilepath                 
-            nextModelConstruction <- alignmentConstruction staticOptions nextModelConstructionInput               
+            cmFilepath <- constructModel nextModelConstructionInput staticOptions               
+            print cmFilepath
+            nextModelConstructionInputWithThreshold <- setInclusionThreshold nextModelConstructionInput staticOptions cmFilepath       
+            nextModelConstruction <- alignmentConstruction staticOptions nextModelConstructionInputWithThreshold           
             return nextModelConstruction
           else do
             print ("Empty Blast resultlist - iteration number: " ++ (show currentIterationNumber))
@@ -102,6 +105,18 @@ alignmentConstruction staticOptions modelconstruction = do
            copyFile resultCMPath ((tempDirPath staticOptions) ++ "result.cm")
            return modelconstruction 
          else return modelconstruction 
+
+setInclusionThreshold :: ModelConstruction -> StaticOptions -> String -> IO ModelConstruction 
+setInclusionThreshold nextModelConstruction staticOptions cmFilepath = do 
+  if (isNothing (bitScoreThreshold nextModelConstruction))
+    then do 
+      let iterationDirectory = (tempDirPath staticOptions) ++ (show ((iterationNumber nextModelConstruction) - 1)) ++ "/"
+      maxLinkScore <- compareCM cmFilepath cmFilepath iterationDirectory
+      let inclusionThreshold = 0.25 * maxLinkScore
+      let nextModelConstructionWithThreshold = nextModelConstruction{bitScoreThreshold = (Just inclusionThreshold)}
+      return nextModelConstructionWithThreshold
+    else return nextModelConstruction
+
  
 searchCandidates :: StaticOptions -> Int -> Maybe Int -> Maybe Int -> (Int,Sequence) -> IO ([(Sequence,Int,String,Char)], Maybe Int)
 searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit (queryIndex,query) = do
@@ -199,10 +214,10 @@ alignCandidates staticOptions modelConstruction candidates = do
       mapM_ (\(fastaPath,resultPath) -> systemCMsearch covarianceModelPath fastaPath resultPath) zippedFastaCMSearchResultPaths
       cmSearchResults <- mapM readCMSearch cmSearchFilePaths 
       writeFile (iterationDirectory ++ "log"  ++ "/" ++ "cm_error") (concatMap show (lefts cmSearchResults))
-      maxLinkScore <- compareCM covarianceModelPath covarianceModelPath iterationDirectory 
+      --maxLinkScore <- compareCM covarianceModelPath covarianceModelPath iterationDirectory 
       let rightCMSearchResults = rights cmSearchResults
       let cmSearchCandidatesWithSequences = zip rightCMSearchResults candidates
-      let (trimmedSelectedCandidates,rejectedCandidates') = partitionTrimCMsearchHits maxLinkScore cmSearchCandidatesWithSequences
+      let (trimmedSelectedCandidates,rejectedCandidates') = partitionTrimCMsearchHits (fromJust (bitScoreThreshold modelConstruction)) cmSearchCandidatesWithSequences
       writeFile (iterationDirectory ++ "log" ++ "/11selectedCandidates'") (showlines trimmedSelectedCandidates)
       writeFile (iterationDirectory ++ "log" ++ "/12rejectedCandidates'") (showlines rejectedCandidates')                                               
       return (map snd trimmedSelectedCandidates)
@@ -288,7 +303,7 @@ main = do
   let rightNodes = fromRight nodes
   let fullSequenceOffsetLength = readInt fullSequenceOffset
   let staticOptions = StaticOptions temporaryDirectoryPath sessionId  rightNodes inputTaxId singleHitperTax useGenbankAnnotation lengthFilter fullSequenceOffsetLength threads
-  let initialization = ModelConstruction iterationNumber (head inputFasta) [] (maybe Nothing Just inputTaxId) []
+  let initialization = ModelConstruction iterationNumber (head inputFasta) [] (maybe Nothing Just inputTaxId) Nothing []
   logMessage (show initialization) temporaryDirectoryPath
   alignmentConstructionResult <- alignmentConstruction staticOptions initialization
   print alignmentConstructionResult

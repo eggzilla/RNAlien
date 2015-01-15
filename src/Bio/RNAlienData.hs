@@ -26,6 +26,7 @@ data ModelConstruction = ModelConstruction
     taxRecords :: [TaxonomyRecord],
     --Taxonomy ID of the highest node in taxonomic subtree used in search
     upperTaxonomyLimit :: Maybe Int,
+    bitScoreThreshold :: Maybe Double,
     selectedQueries :: [String]
   } deriving (Show) 
 

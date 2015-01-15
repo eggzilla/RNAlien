@@ -106,7 +106,7 @@ constructNext :: Int -> ModelConstruction -> [(Sequence,Int,String,Char)] -> May
 constructNext currentIterationNumber modelconstruction alignmentResults upperTaxLimit inputSelectedQueries = nextModelConstruction
   where newIterationNumber = currentIterationNumber + 1
         taxEntries = (taxRecords modelconstruction) ++ (buildTaxRecords alignmentResults currentIterationNumber) 
-        nextModelConstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) taxEntries upperTaxLimit inputSelectedQueries 
+        nextModelConstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) taxEntries upperTaxLimit (bitScoreThreshold modelconstruction) inputSelectedQueries 
 
 buildTaxRecords :: [(Sequence,Int,String,Char)] -> Int -> [TaxonomyRecord]
 buildTaxRecords alignmentResults currentIterationNumber = taxonomyRecords
@@ -127,9 +127,8 @@ buildSeqRecord currentIterationNumber (parsedFasta,_,seqSubject,seqOrigin) = Seq
 
 -- | Partitions sequences by containing a cmsearch hit and extracts the hit region as new sequence
 partitionTrimCMsearchHits :: Double -> [(CMsearch,(Sequence, Int, String, Char))] -> ([(CMsearch,(Sequence, Int, String, Char))],[(CMsearch,(Sequence, Int, String, Char))])
-partitionTrimCMsearchHits modelMaxSelfLink cmSearchCandidatesWithSequences = (trimmedSelectedCandidates,rejectedCandidates')
-  where bitScoreCutoff = 0.125 * modelMaxSelfLink
-        (selectedCandidates',rejectedCandidates') = partition (\(cmSearchResult,_) -> any (\hitScore' -> (bitScoreCutoff < (hitScore hitScore'))) (hitScores cmSearchResult)) cmSearchCandidatesWithSequences
+partitionTrimCMsearchHits bitScoreCutoff cmSearchCandidatesWithSequences = (trimmedSelectedCandidates,rejectedCandidates')
+  where (selectedCandidates',rejectedCandidates') = partition (\(cmSearchResult,_) -> any (\hitScore' -> (bitScoreCutoff < (hitScore hitScore'))) (hitScores cmSearchResult)) cmSearchCandidatesWithSequences
         trimmedSelectedCandidates = map (\(cmSearchResult,inputSequence) -> (cmSearchResult,(trimCMsearchHit cmSearchResult inputSequence))) selectedCandidates'
         
 trimCMsearchHit :: CMsearch -> (Sequence, Int, String, Char) -> (Sequence, Int, String, Char)
@@ -246,7 +245,7 @@ systemCMsearch covarianceModelPath sequenceFilePath outputPath = system ("cmsear
 
 -- | Run CMcalibrate and return exitcode
 systemCMcalibrate :: String -> String -> IO ExitCode 
-systemCMcalibrate covarianceModelPath outputPath = system ("cmcalibrate " ++ covarianceModelPath ++ "> " ++ outputPath)
+systemCMcalibrate covarianceModelPath outputPath = system ("cmcalibrate --beta 1E-4 " ++ covarianceModelPath ++ "> " ++ outputPath)
 
 compareCM :: String -> String -> String -> IO Double
 compareCM rfamCovarianceModelPath resultCMpath outputDirectory = do
