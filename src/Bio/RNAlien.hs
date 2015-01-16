@@ -262,16 +262,25 @@ constructModel modelConstruction staticOptions = do
   let locarnaFilepath = outputDirectory ++ "model" ++ ".mlocarna"
   let stockholmFilepath = outputDirectory ++ "model" ++ ".stockholm"
   let cmFilepath = outputDirectory ++ "model" ++ ".cm"
-  let cmCalibrateFilepath = outputDirectory ++ "model" ++ ".cmcalibrate"           
-  alignSequences "mlocarna" ("--local-progressive --threads=" ++ (show (cpuThreads staticOptions)) ++ " ") [fastaFilepath] [locarnaFilepath] []
-  mlocarnaAlignment <- readStructuralClustalAlignment locarnaFilepath
-  let stockholAlignment = convertClustaltoStockholm (fromRight mlocarnaAlignment)
-  writeFile stockholmFilepath stockholAlignment
-  buildLog <- systemCMbuild stockholmFilepath cmFilepath
-  calibrateLog <- systemCMcalibrate cmFilepath cmCalibrateFilepath
-  logMessage (show buildLog) (tempDirPath staticOptions)
-  logMessage (show calibrateLog) (tempDirPath staticOptions)
-  return (cmFilepath)
+  let cmCalibrateFilepath = outputDirectory ++ "model" ++ ".cmcalibrate"
+  if (iterationNumber modelConstruction == 0)
+     then do 
+       alignSequences "mlocarna" ("--local-progressive --threads=" ++ (show (cpuThreads staticOptions)) ++ " ") [fastaFilepath] [locarnaFilepath] []
+       mlocarnaAlignment <- readStructuralClustalAlignment locarnaFilepath
+       let stockholAlignment = convertClustaltoStockholm (fromRight mlocarnaAlignment)
+       writeFile stockholmFilepath stockholAlignment
+       buildLog <- systemCMbuild stockholmFilepath cmFilepath
+       calibrateLog <- systemCMcalibrate cmFilepath cmCalibrateFilepath
+       logMessage (show buildLog) (tempDirPath staticOptions)
+       logMessage (show calibrateLog) (tempDirPath staticOptions)
+       return (cmFilepath)
+     else do
+       systemCMalign cmFilepath fastaFilepath stockholmFilepath
+       buildLog <- systemCMbuild stockholmFilepath cmFilepath
+       calibrateLog <- systemCMcalibrate cmFilepath cmCalibrateFilepath
+       logMessage (show buildLog) (tempDirPath staticOptions)
+       logMessage (show calibrateLog) (tempDirPath staticOptions)
+       return (cmFilepath)
 
 main :: IO ()
 main = do

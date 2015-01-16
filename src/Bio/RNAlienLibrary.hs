@@ -247,6 +247,10 @@ systemCMsearch covarianceModelPath sequenceFilePath outputPath = system ("cmsear
 systemCMcalibrate :: String -> String -> IO ExitCode 
 systemCMcalibrate covarianceModelPath outputPath = system ("cmcalibrate --beta 1E-4 " ++ covarianceModelPath ++ "> " ++ outputPath)
 
+-- | Run CMcalibrate and return exitcode
+systemCMalign :: String -> String -> String -> IO ExitCode 
+systemCMalign filePathCovarianceModel filePathSequence filePathAlignment = system ("cmalign " ++ filePathCovarianceModel ++ " " ++ filePathSequence ++ "> " ++ filePathAlignment)
+
 compareCM :: String -> String -> String -> IO Double
 compareCM rfamCovarianceModelPath resultCMpath outputDirectory = do
   let myOptions = defaultDecodeOptions {
