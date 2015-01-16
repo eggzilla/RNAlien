@@ -167,7 +167,6 @@ searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit (quer
        -- Retrieval of genbank features in the hit region (if enabled by commandline toggle)
        annotatedSequences <- buildGenbankCoordinatesAndRetrieveFeatures staticOptions iterationnumber queryLength queryIndexString filteredBlastResults
        -- Retrieval of full sequences from entrez
-       --fullSequencesWithSimilars <- mapM retrieveFullSequence requestedSequenceElements
        fullSequencesWithSimilars <- retrieveFullSequences requestedSequenceElements
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10afullSequencesWithSimilars") (showlines fullSequencesWithSimilars)
        let fullSequences = filterIdenticalSequences fullSequencesWithSimilars 100
@@ -214,7 +213,6 @@ alignCandidates staticOptions modelConstruction candidates = do
       mapM_ (\(fastaPath,resultPath) -> systemCMsearch covarianceModelPath fastaPath resultPath) zippedFastaCMSearchResultPaths
       cmSearchResults <- mapM readCMSearch cmSearchFilePaths 
       writeFile (iterationDirectory ++ "log"  ++ "/" ++ "cm_error") (concatMap show (lefts cmSearchResults))
-      --maxLinkScore <- compareCM covarianceModelPath covarianceModelPath iterationDirectory 
       let rightCMSearchResults = rights cmSearchResults
       let cmSearchCandidatesWithSequences = zip rightCMSearchResults candidates
       let (trimmedSelectedCandidates,rejectedCandidates') = partitionTrimCMsearchHits (fromJust (bitScoreThreshold modelConstruction)) cmSearchCandidatesWithSequences
@@ -234,7 +232,6 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
   writeFasta (iterationDirectory ++ "query" ++ ".fa") alignmentSequences
   let fastaFilepath = iterationDirectory ++ "query" ++ ".fa"
   let locarnaFilepath = iterationDirectory ++ "query" ++ ".mlocarna"
-  --let locarnainClustalw2FormatFilepath = iterationDirectory ++ "query" ++ "." ++ "out" ++ "/results/result.aln"
   let clustalw2Filepath = iterationDirectory ++ "query" ++ ".clustalw2"
   let clustalw2SummaryFilepath = iterationDirectory ++ "query" ++ ".alnsum" 
   let clustalw2NewickFilepath = iterationDirectory ++ "query" ++ ".dnd" 
@@ -266,15 +263,7 @@ constructModel modelConstruction staticOptions = do
   let stockholmFilepath = outputDirectory ++ "model" ++ ".stockholm"
   let cmFilepath = outputDirectory ++ "model" ++ ".cm"
   let cmCalibrateFilepath = outputDirectory ++ "model" ++ ".cmcalibrate"           
-  --let locarnainClustalw2FormatFilepath = outputDirectory ++ "model" ++ "." ++ "out" ++ "/results/result.aln" 
   alignSequences "mlocarna" ("--local-progressive --threads=" ++ (show (cpuThreads staticOptions)) ++ " ") [fastaFilepath] [locarnaFilepath] []
-  --compute SCI
-  --let locarnaRNAzFilePath = outputDirectory ++ "result" ++ ".rnazmlocarna"
-  --computeAlignmentSCIs [locarnainClustalw2FormatFilepath] [locarnaRNAzFilePath]
-  --retrieveAlignmentSCIs
-  --mlocarnaRNAzOutput <- readRNAz locarnaRNAzFilePath  
-  --let locarnaSCI = structureConservationIndex (fromRight mlocarnaRNAzOutput)
-  --logMessage (show locarnaSCI) (tempDirPath staticOptions)
   mlocarnaAlignment <- readStructuralClustalAlignment locarnaFilepath
   let stockholAlignment = convertClustaltoStockholm (fromRight mlocarnaAlignment)
   writeFile stockholmFilepath stockholAlignment
