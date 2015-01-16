@@ -261,9 +261,10 @@ constructModel modelConstruction staticOptions = do
   let fastaFilepath = outputDirectory ++ "model" ++ ".fa"
   let locarnaFilepath = outputDirectory ++ "model" ++ ".mlocarna"
   let stockholmFilepath = outputDirectory ++ "model" ++ ".stockholm"
+  let cmalignCMFilepath = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction - 2)) ++ "/" ++ "model" ++ ".cm"
   let cmFilepath = outputDirectory ++ "model" ++ ".cm"
   let cmCalibrateFilepath = outputDirectory ++ "model" ++ ".cmcalibrate"
-  if (iterationNumber modelConstruction == 0)
+  if (iterationNumber modelConstruction < 2)
      then do 
        alignSequences "mlocarna" ("--local-progressive --threads=" ++ (show (cpuThreads staticOptions)) ++ " ") [fastaFilepath] [locarnaFilepath] []
        mlocarnaAlignment <- readStructuralClustalAlignment locarnaFilepath
@@ -275,7 +276,7 @@ constructModel modelConstruction staticOptions = do
        logMessage (show calibrateLog) (tempDirPath staticOptions)
        return (cmFilepath)
      else do
-       systemCMalign cmFilepath fastaFilepath stockholmFilepath
+       systemCMalign cmalignCMFilepath fastaFilepath stockholmFilepath
        buildLog <- systemCMbuild stockholmFilepath cmFilepath
        calibrateLog <- systemCMcalibrate cmFilepath cmCalibrateFilepath
        logMessage (show buildLog) (tempDirPath staticOptions)
