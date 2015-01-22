@@ -56,6 +56,7 @@ alignmentConstruction :: StaticOptions -> ModelConstruction -> IO ModelConstruct
 alignmentConstruction staticOptions modelconstruction = do
   putStrLn ("Iteration " ++ show (iterationNumber modelconstruction))
   putStrLn ("Bitscore threshold:" ++ (maybe "not set" show (bitScoreThreshold modelconstruction)))
+  iterationSummary staticOptions modelconstruction
   let currentModelConstruction = modelconstruction
   let currentIterationNumber = (iterationNumber currentModelConstruction)
   --extract queries
@@ -87,7 +88,7 @@ alignmentConstruction staticOptions modelconstruction = do
             print ("upperTaxTreeLimit:" ++ show usedUpperTaxonomyLimit)
             cmFilepath <- constructModel nextModelConstructionInput staticOptions               
             print cmFilepath
-            nextModelConstructionInputWithThreshold <- setInclusionThreshold nextModelConstructionInput staticOptions cmFilepath       
+            nextModelConstructionInputWithThreshold <- setInclusionThreshold nextModelConstructionInput staticOptions cmFilepath
             nextModelConstruction <- alignmentConstruction staticOptions nextModelConstructionInputWithThreshold           
             return nextModelConstruction
           else do
@@ -282,7 +283,13 @@ constructModel modelConstruction staticOptions = do
        logMessage (show buildLog) (tempDirPath staticOptions)
        logMessage (show calibrateLog) (tempDirPath staticOptions)
        return (cmFilepath)
-
+              
+iterationSummary :: ModelConstruction -> StaticOptions -> IO()
+iterationSummary mC sO = do
+  --iteration -- tax limit -- bitscore cutoff -- blastresult -- aligned seqs --queries --fa link --aln link --cm link
+  let output = show (iterationNumber mC) ++ "," ++ show (upperTaxonomyLimit mC) ++ "," ++ show (bitScoreThreshold mC) ++ "," ++ show (length (concatMap sequenceRecords (taxRecords mC)))
+  writeFile ((tempDirPath sO) ++ show (iterationNumber mC) ++ ".log") output            
+                
 main :: IO ()
 main = do
   Options{..} <- cmdArgs options       
