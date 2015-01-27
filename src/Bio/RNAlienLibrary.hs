@@ -219,9 +219,13 @@ systemLocarna options (inputFilePath, outputFilePath) = system ("mlocarna " ++ o
 systemLocarnaWithTimeout :: String -> String -> (String,String) -> IO ExitCode
 systemLocarnaWithTimeout timeout options (inputFilePath, outputFilePath) = system ("timeout " ++ timeout ++"s "++ "mlocarna " ++ options ++ " " ++ inputFilePath ++ " > " ++ outputFilePath)
        
--- | Run external clustalw2 command and read the output into the corresponding datatype
+-- | Run external clustalo command and return the Exitcode
 systemClustalw2 :: String -> (String,String,String) -> IO ExitCode
 systemClustalw2 options (inputFilePath, outputFilePath, summaryFilePath) = system ("clustalw2 " ++ options ++ "-INFILE=" ++ inputFilePath ++ " -OUTFILE=" ++ outputFilePath ++ ">" ++ summaryFilePath)
+
+-- | Run external clustalo command and return the Exitcode
+systemClustalo :: String -> (String,String) -> IO ExitCode
+systemClustalo options (inputFilePath, outputFilePath) = system ("clustalo " ++ options ++ "-i=" ++ inputFilePath ++ " >" ++ outputFilePath)
 
 -- | Run external RNAalifold command and read the output into the corresponding datatype
 systemRNAalifold :: String -> String -> IO ExitCode
