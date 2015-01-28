@@ -34,7 +34,40 @@ import qualified Data.Vector as V
 import Control.Concurrent 
 import System.Random
 import Data.Csv
-    
+import Data.Matrix
+
+                        
+readClustaloDistMatrix :: String -> IO (Either ParseError ([String],Matrix Double))             
+readClustaloDistMatrix filePath = parseFromFile genParserClustaloDistMatrix filePath
+                      
+genParserClustaloDistMatrix :: GenParser Char st ([String],Matrix Double)
+genParserClustaloDistMatrix = do
+  _ <- many1 digit
+  newline
+  clustaloDistRow <- many1 (try genParserClustaloDistRow) 
+  eof
+  return $ ((map fst clustaloDistRow),(fromLists (map snd clustaloDistRow)))
+
+genParserClustaloDistRow :: GenParser Char st (String,[Double])
+genParserClustaloDistRow = do
+  entryId <- many1 (noneOf " ")
+  many1 space
+  distances <- many1 (try genParserClustaloDistance)
+  return (entryId,distances)
+
+genParserClustaloDistance :: GenParser Char st Double
+genParserClustaloDistance = do
+  distance <- many1 (oneOf "1234567890.")
+  many1 space
+  newline
+  return (readDouble distance)
+
+getDistanceMatrixElements :: [String] -> Matrix Double -> String -> String -> Double
+getDistanceMatrixElements ids distMatrix id1 id2 = distance
+  where indexid1 = fromJust (elemIndex id1 ids)
+        indexid2 = fromJust (elemIndex id2 ids)
+        distance = getElem indexid1 indexid2 distMatrix
+
 -- | Filter a list of similar extended blast hits   
 filterIdenticalSequencesWithOrigin :: [(Sequence,Int,String,Char)] -> Double -> [(Sequence,Int,String,Char)]                            
 filterIdenticalSequencesWithOrigin (headSequence:rest) identitycutoff = result
@@ -636,6 +669,7 @@ alignSequences program' options fastaFilepaths alignmentFilepaths summaryFilepat
   case program' of
     "mlocarna" -> mapM_ (systemLocarna options) zippedFilepaths
     "mlocarnatimeout" -> mapM_ (systemLocarnaWithTimeout timeout options) zippedFilepaths
+    "clustalo" -> mapM_ (systemClustalo options) zippedFilepaths
     _ -> mapM_ (systemClustalw2 options) zipped3Filepaths
 
 replacePipeChars :: Char -> Char

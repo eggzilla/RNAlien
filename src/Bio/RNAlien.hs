@@ -21,10 +21,9 @@ import Bio.Taxonomy
 import Data.Either.Unwrap
 import qualified Data.Vector as V
 import Bio.RNAlienLibrary
-import Bio.PhylogenyParser
-import Bio.PhylogenyTools    
 import Data.Either  
 import Data.Maybe
+import Data.Clustering.Hierarchical
 
 data Options = Options            
   { inputFastaFilePath :: String,
@@ -56,7 +55,7 @@ alignmentConstruction :: StaticOptions -> ModelConstruction -> IO ModelConstruct
 alignmentConstruction staticOptions modelconstruction = do
   putStrLn ("Iteration " ++ show (iterationNumber modelconstruction))
   putStrLn ("Bitscore threshold:" ++ (maybe "not set" show (bitScoreThreshold modelconstruction)))
-  iterationSummary staticOptions modelconstruction
+  iterationSummary modelconstruction staticOptions
   let currentModelConstruction = modelconstruction
   let currentIterationNumber = (iterationNumber currentModelConstruction)
   --extract queries
@@ -232,22 +231,28 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
   --write Fasta sequences
   writeFasta (iterationDirectory ++ "query" ++ ".fa") alignmentSequences
   let fastaFilepath = iterationDirectory ++ "query" ++ ".fa"
-  let locarnaFilepath = iterationDirectory ++ "query" ++ ".mlocarna"
-  let clustalw2Filepath = iterationDirectory ++ "query" ++ ".clustalw2"
-  let clustalw2SummaryFilepath = iterationDirectory ++ "query" ++ ".alnsum" 
-  let clustalw2NewickFilepath = iterationDirectory ++ "query" ++ ".dnd" 
-  alignSequences "clustalw2" "" [fastaFilepath] [clustalw2Filepath] [clustalw2SummaryFilepath]
-  parsedNewickGraph <- readGraphNewick clustalw2NewickFilepath
-  let rightNewick = fromRight parsedNewickGraph 
-  let indexedPathLengths = pathLengthsIndexed rightNewick
-  let averagePathLengths = averagePathLengthperNodes indexedPathLengths
-  let minPathLengthNode = minimumAveragePathLength averagePathLengths
-  let maxPathLengthNode = maximumAveragePathLength averagePathLengths
-  let minPathLengthNodeLabel = getLabel rightNewick minPathLengthNode
-  let maxPathLengthNodeLabel = getLabel rightNewick maxPathLengthNode
-  let selectedQueries = [minPathLengthNodeLabel,maxPathLengthNodeLabel]
+  let clustaloFilepath = iterationDirectory ++ "query" ++ ".clustalo"
+  let clustaloDistMatrixPath = iterationDirectory ++ "query" ++ ".matrix" 
+  alignSequences "clustalo" ("--full --distmat-out=" ++ clustaloDistMatrixPath ++ " ") [fastaFilepath] [clustaloFilepath] []
+  idsDistancematrix <- readClustaloDistMatrix clustaloDistMatrixPath
+  let (clustaloIds,clustaloDistMatrix) = fromRight idsDistancematrix
+  putStrLn "Clustalid"
+  print clustaloIds
+  print clustaloDistMatrix
+  let clustaloDendrogram = dendrogram UPGMA clustaloIds (getDistanceMatrixElements clustaloIds clustaloDistMatrix)
+  let cutDendrogram = cutAt clustaloDendrogram 0.15
+  let selectedQueries = map head (map elements cutDendrogram)
+  --let indexedPathLengths = pathLengthsIndexed rightNewick
+  --let averagePathLengths = averagePathLengthperNodes indexedPathLengths
+  --let minPathLengthNode = minimumAveragePathLength averagePathLengths
+  --let maxPathLengthNode = maximumAveragePathLength averagePathLengths
+  --let minPathLengthNodeLabel = getLabel rightNewick minPathLengthNode
+  --let maxPathLengthNodeLabel = getLabel rightNewick maxPathLengthNode
+  --let selectedQueries = [minPathLengthNodeLabel,maxPathLengthNodeLabel]
   writeFile ((tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/log" ++ "/13selectedQueries") (showlines selectedQueries)
   return (selectedQueries)
+
+
 
 constructModel :: ModelConstruction -> StaticOptions -> IO String
 constructModel modelConstruction staticOptions = do
