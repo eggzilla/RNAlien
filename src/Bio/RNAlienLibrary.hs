@@ -258,7 +258,7 @@ systemClustalw2 options (inputFilePath, outputFilePath, summaryFilePath) = syste
 
 -- | Run external clustalo command and return the Exitcode
 systemClustalo :: String -> (String,String) -> IO ExitCode
-systemClustalo options (inputFilePath, outputFilePath) = system ("clustalo " ++ options ++ "-i=" ++ inputFilePath ++ " >" ++ outputFilePath)
+systemClustalo options (inputFilePath, outputFilePath) = system ("clustalo " ++ options ++ "--infile=" ++ inputFilePath ++ " >" ++ outputFilePath)
 
 -- | Run external RNAalifold command and read the output into the corresponding datatype
 systemRNAalifold :: String -> String -> IO ExitCode
