@@ -210,7 +210,7 @@ alignCandidates staticOptions modelConstruction candidates = do
       mapM_ (\(number,nucleotideSequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") [nucleotideSequence]) indexedCandidateSequenceList
       let zippedFastaCMSearchResultPaths = zip cmSearchFastaFilePaths cmSearchFilePaths       
       --check with cmSearch
-      mapM_ (\(fastaPath,resultPath) -> systemCMsearch covarianceModelPath fastaPath resultPath) zippedFastaCMSearchResultPaths
+      mapM_ (\(fastaPath,resultPath) -> systemCMsearch (cpuThreads staticOptions) covarianceModelPath fastaPath resultPath) zippedFastaCMSearchResultPaths
       cmSearchResults <- mapM readCMSearch cmSearchFilePaths 
       writeFile (iterationDirectory ++ "log"  ++ "/" ++ "cm_error") (concatMap show (lefts cmSearchResults))
       let rightCMSearchResults = rights cmSearchResults
@@ -274,14 +274,14 @@ constructModel modelConstruction staticOptions = do
        let stockholAlignment = convertClustaltoStockholm (fromRight mlocarnaAlignment)
        writeFile stockholmFilepath stockholAlignment
        buildLog <- systemCMbuild stockholmFilepath cmFilepath
-       calibrateLog <- systemCMcalibrate cmFilepath cmCalibrateFilepath
+       calibrateLog <- systemCMcalibrate (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
        logMessage (show buildLog) (tempDirPath staticOptions)
        logMessage (show calibrateLog) (tempDirPath staticOptions)
        return (cmFilepath)
      else do
-       _ <- systemCMalign cmalignCMFilepath fastaFilepath stockholmFilepath
+       _ <- systemCMalign (cpuThreads staticOptions) cmalignCMFilepath fastaFilepath stockholmFilepath
        buildLog <- systemCMbuild stockholmFilepath cmFilepath
-       calibrateLog <- systemCMcalibrate cmFilepath cmCalibrateFilepath
+       calibrateLog <- systemCMcalibrate (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
        logMessage (show buildLog) (tempDirPath staticOptions)
        logMessage (show calibrateLog) (tempDirPath staticOptions)
        return (cmFilepath)

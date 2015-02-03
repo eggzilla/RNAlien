@@ -268,16 +268,16 @@ systemCMcompare ::  String -> String -> String -> IO ExitCode
 systemCMcompare model1path model2path outputFilePath = system ("CMCompare " ++ model1path ++ " " ++ model2path ++ " >" ++ outputFilePath)
 
 -- | Run CMsearch and read the output into the corresponding datatype
-systemCMsearch :: String -> String -> String -> IO ExitCode
-systemCMsearch covarianceModelPath sequenceFilePath outputPath = system ("cmsearch --notrunc -g " ++ covarianceModelPath ++ " " ++ sequenceFilePath ++ "> " ++ outputPath)
+systemCMsearch :: Int -> String -> String -> String -> IO ExitCode
+systemCMsearch cpus covarianceModelPath sequenceFilePath outputPath = system ("cmsearch --notrunc cpu " ++ (show cpus) ++ " -g " ++ covarianceModelPath ++ " " ++ sequenceFilePath ++ "> " ++ outputPath)
 
 -- | Run CMcalibrate and return exitcode
-systemCMcalibrate :: String -> String -> IO ExitCode 
-systemCMcalibrate covarianceModelPath outputPath = system ("cmcalibrate --beta 1E-4 " ++ covarianceModelPath ++ "> " ++ outputPath)
+systemCMcalibrate :: Int -> String -> String -> IO ExitCode 
+systemCMcalibrate cpus covarianceModelPath outputPath = system ("cmcalibrate --beta 1E-4 --cpu " ++ (show cpus) ++ " " ++ covarianceModelPath ++ "> " ++ outputPath)
 
 -- | Run CMcalibrate and return exitcode
-systemCMalign :: String -> String -> String -> IO ExitCode 
-systemCMalign filePathCovarianceModel filePathSequence filePathAlignment = system ("cmalign " ++ filePathCovarianceModel ++ " " ++ filePathSequence ++ "> " ++ filePathAlignment)
+systemCMalign :: Int -> String -> String -> String -> IO ExitCode 
+systemCMalign cpus filePathCovarianceModel filePathSequence filePathAlignment = system ("cmalign --cpu " ++ (show cpus) ++ " " ++ filePathCovarianceModel ++ " " ++ filePathSequence ++ "> " ++ filePathAlignment)
 
 compareCM :: String -> String -> String -> IO Double
 compareCM rfamCovarianceModelPath resultCMpath outputDirectory = do
