@@ -53,19 +53,20 @@ genParserClustaloDistRow = do
   entryId <- many1 (noneOf " ")
   many1 space
   distances <- many1 (try genParserClustaloDistance)
+  newline
   return (entryId,distances)
 
 genParserClustaloDistance :: GenParser Char st Double
 genParserClustaloDistance = do
   distance <- many1 (oneOf "1234567890.")
-  many1 space
-  newline
+  optional (try (char ' ' ))
   return (readDouble distance)
 
 getDistanceMatrixElements :: [String] -> Matrix Double -> String -> String -> Double
 getDistanceMatrixElements ids distMatrix id1 id2 = distance
-  where indexid1 = fromJust (elemIndex id1 ids)
-        indexid2 = fromJust (elemIndex id2 ids)
+  -- Data.Matrix is indexed starting with 1
+  where indexid1 = (fromJust (elemIndex id1 ids)) + 1
+        indexid2 = (fromJust (elemIndex id2 ids)) + 1
         distance = getElem indexid1 indexid2 distMatrix
 
 -- | Filter a list of similar extended blast hits   
