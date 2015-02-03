@@ -191,18 +191,8 @@ extractQueries iterationnumber modelconstruction
   where fastaSeqData = inputFasta modelconstruction
         querySeqIds = selectedQueries modelconstruction
         alignedSequences = map nucleotideSequence (concatMap sequenceRecords (taxRecords modelconstruction))
-        querySequences = concatMap (\querySeqId -> filter (\alignedSeq -> (convertToClustalw2SequenceId (L.unpack (unSL (seqid alignedSeq)))) == querySeqId) alignedSequences) querySeqIds
+        querySequences = concatMap (\querySeqId -> filter (\alignedSeq -> ((L.unpack (unSL (seqid alignedSeq)))) == querySeqId) alignedSequences) querySeqIds
         
--- |  Performs the same character conversions in sequenceIds of phylogenetic tree files as clustal   
-convertToClustalw2SequenceId :: String -> String 
-convertToClustalw2SequenceId = map clustalReplaceChar
-
---  ; and : characters converted to _ 
-clustalReplaceChar :: Char -> Char
-clustalReplaceChar ':' = '_'
-clustalReplaceChar ';' = '_'
-clustalReplaceChar c = c
-
 extractQueryCandidates :: [(Sequence,Int,String,Char)] -> V.Vector (Int,Sequence)
 extractQueryCandidates candidates = indexedSeqences
   where sequences = map (\(candidateSequence,_,_,_) -> candidateSequence) candidates

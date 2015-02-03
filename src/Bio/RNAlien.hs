@@ -235,24 +235,21 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
   let clustaloDistMatrixPath = iterationDirectory ++ "query" ++ ".matrix" 
   alignSequences "clustalo" ("--full --distmat-out=" ++ clustaloDistMatrixPath ++ " ") [fastaFilepath] [clustaloFilepath] []
   idsDistancematrix <- readClustaloDistMatrix clustaloDistMatrixPath
+  print (lefts [idsDistancematrix])
   let (clustaloIds,clustaloDistMatrix) = fromRight idsDistancematrix
   putStrLn "Clustalid"
   print clustaloIds
+  putStrLn "Distmatrix"
   print clustaloDistMatrix
   let clustaloDendrogram = dendrogram UPGMA clustaloIds (getDistanceMatrixElements clustaloIds clustaloDistMatrix)
-  let cutDendrogram = cutAt clustaloDendrogram 0.15
+  putStrLn "clustaloDendrogram"
+  print clustaloDendrogram
+  let cutDendrogram = cutAt clustaloDendrogram 0.9
   let selectedQueries = map head (map elements cutDendrogram)
-  --let indexedPathLengths = pathLengthsIndexed rightNewick
-  --let averagePathLengths = averagePathLengthperNodes indexedPathLengths
-  --let minPathLengthNode = minimumAveragePathLength averagePathLengths
-  --let maxPathLengthNode = maximumAveragePathLength averagePathLengths
-  --let minPathLengthNodeLabel = getLabel rightNewick minPathLengthNode
-  --let maxPathLengthNodeLabel = getLabel rightNewick maxPathLengthNode
-  --let selectedQueries = [minPathLengthNodeLabel,maxPathLengthNodeLabel]
+  putStrLn "selectedQueries"
+  print selectedQueries
   writeFile ((tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/log" ++ "/13selectedQueries") (showlines selectedQueries)
   return (selectedQueries)
-
-
 
 constructModel :: ModelConstruction -> StaticOptions -> IO String
 constructModel modelConstruction staticOptions = do
@@ -282,7 +279,7 @@ constructModel modelConstruction staticOptions = do
        logMessage (show calibrateLog) (tempDirPath staticOptions)
        return (cmFilepath)
      else do
-       systemCMalign cmalignCMFilepath fastaFilepath stockholmFilepath
+       _ <- systemCMalign cmalignCMFilepath fastaFilepath stockholmFilepath
        buildLog <- systemCMbuild stockholmFilepath cmFilepath
        calibrateLog <- systemCMcalibrate cmFilepath cmCalibrateFilepath
        logMessage (show buildLog) (tempDirPath staticOptions)
@@ -303,7 +300,7 @@ main = do
   let iterationNumber = 0
   let taxNodesFile = "/home/egg/current/Data/Taxonomy/taxdump/nodes.dmp"
   let temporaryDirectoryPath = outputPath ++ sessionId ++ "/"                     
-  createDirectory (temporaryDirectoryPath)
+  createDirectoryIfMissing False temporaryDirectoryPath
   putStrLn "Created Temp-Dir:"
   putStrLn temporaryDirectoryPath
   -- create Log file
