@@ -94,15 +94,21 @@ alignmentConstruction staticOptions modelconstruction = do
             print ("Empty Blast resultlist - iteration number: " ++ (show currentIterationNumber))
             if (currentIterationNumber > 0)
               then do
-                 let resultCMPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.cm"        
-                 copyFile resultCMPath ((tempDirPath staticOptions) ++ "result.cm")
+                 let finalIterationCMPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.cm"
+                 let resultCMPath = (tempDirPath staticOptions) ++ "result.cm"
+                 let resultCMLogPath = (tempDirPath staticOptions) ++ "result.cm.log"                 
+                 copyFile finalIterationCMPath resultCMPath
+                 _ <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath    
                  return modelconstruction 
               else return modelconstruction          
      else do 
        if (currentIterationNumber > 0)
          then do
-           let resultCMPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.cm"
-           copyFile resultCMPath ((tempDirPath staticOptions) ++ "result.cm")
+           let finalIterationCMPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.cm"
+           let resultCMPath = (tempDirPath staticOptions) ++ "result.cm"
+           let resultCMLogPath = (tempDirPath staticOptions) ++ "result.cm.log"
+           copyFile resultCMPath resultCMPath
+           _ <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath      
            return modelconstruction 
          else return modelconstruction 
 
@@ -274,14 +280,14 @@ constructModel modelConstruction staticOptions = do
        let stockholAlignment = convertClustaltoStockholm (fromRight mlocarnaAlignment)
        writeFile stockholmFilepath stockholAlignment
        buildLog <- systemCMbuild stockholmFilepath cmFilepath
-       calibrateLog <- systemCMcalibrate (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
+       calibrateLog <- systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
        logMessage (show buildLog) (tempDirPath staticOptions)
        logMessage (show calibrateLog) (tempDirPath staticOptions)
        return (cmFilepath)
      else do
        _ <- systemCMalign (cpuThreads staticOptions) cmalignCMFilepath fastaFilepath stockholmFilepath
        buildLog <- systemCMbuild stockholmFilepath cmFilepath
-       calibrateLog <- systemCMcalibrate (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
+       calibrateLog <- systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
        logMessage (show buildLog) (tempDirPath staticOptions)
        logMessage (show calibrateLog) (tempDirPath staticOptions)
        return (cmFilepath)

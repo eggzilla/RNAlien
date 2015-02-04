@@ -272,8 +272,11 @@ systemCMsearch :: Int -> String -> String -> String -> IO ExitCode
 systemCMsearch cpus covarianceModelPath sequenceFilePath outputPath = system ("cmsearch --notrunc cpu " ++ (show cpus) ++ " -g " ++ covarianceModelPath ++ " " ++ sequenceFilePath ++ "> " ++ outputPath)
 
 -- | Run CMcalibrate and return exitcode
-systemCMcalibrate :: Int -> String -> String -> IO ExitCode 
-systemCMcalibrate cpus covarianceModelPath outputPath = system ("cmcalibrate --beta 1E-4 --cpu " ++ (show cpus) ++ " " ++ covarianceModelPath ++ "> " ++ outputPath)
+systemCMcalibrate :: String -> Int -> String -> String -> IO ExitCode 
+systemCMcalibrate mode cpus covarianceModelPath outputPath 
+  | mode == "fast" = system ("cmcalibrate --beta 1E-4 --cpu " ++ (show cpus) ++ " " ++ covarianceModelPath ++ "> " ++ outputPath)
+  | otherwise = system ("cmcalibrate --cpu " ++ (show cpus) ++ " " ++ covarianceModelPath ++ "> " ++ outputPath)
+
 
 -- | Run CMcalibrate and return exitcode
 systemCMalign :: Int -> String -> String -> String -> IO ExitCode 
