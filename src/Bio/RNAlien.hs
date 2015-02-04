@@ -91,7 +91,7 @@ alignmentConstruction staticOptions modelconstruction = do
             nextModelConstruction <- alignmentConstruction staticOptions nextModelConstructionInputWithThreshold           
             return nextModelConstruction
           else do
-            print ("Empty Blast resultlist - iteration number: " ++ (show currentIterationNumber))
+            appendFile ((tempDirPath staticOptions) ++ "Log") ("Modelconstruction complete: Out of candidates\n")
             if (currentIterationNumber > 0)
               then do
                  let finalIterationCMPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.cm"
@@ -101,7 +101,8 @@ alignmentConstruction staticOptions modelconstruction = do
                  _ <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath    
                  return modelconstruction 
               else return modelconstruction          
-     else do 
+     else do
+       appendFile ((tempDirPath staticOptions) ++ "Log") ("Modelconstruction complete: Out of queries\n")
        if (currentIterationNumber > 0)
          then do
            let finalIterationCMPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.cm"
