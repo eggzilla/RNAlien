@@ -112,7 +112,7 @@ setInclusionThreshold nextModelConstruction staticOptions cmFilepath = do
     then do 
       let iterationDirectory = (tempDirPath staticOptions) ++ (show ((iterationNumber nextModelConstruction) - 1)) ++ "/"
       maxLinkScore <- compareCM cmFilepath cmFilepath iterationDirectory
-      let inclusionThreshold = 0.25 * maxLinkScore
+      let inclusionThreshold = 0.3 * maxLinkScore
       let nextModelConstructionWithThreshold = nextModelConstruction{bitScoreThreshold = (Just inclusionThreshold)}
       return nextModelConstructionWithThreshold
     else return nextModelConstruction
@@ -244,7 +244,7 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
   let clustaloDendrogram = dendrogram UPGMA clustaloIds (getDistanceMatrixElements clustaloIds clustaloDistMatrix)
   putStrLn "clustaloDendrogram"
   print clustaloDendrogram
-  let cutDendrogram = cutAt clustaloDendrogram 0.9
+  let cutDendrogram = cutAt clustaloDendrogram 0.75
   let selectedQueries = map head (map elements cutDendrogram)
   putStrLn "selectedQueries"
   print selectedQueries
@@ -289,7 +289,9 @@ constructModel modelConstruction staticOptions = do
 iterationSummary :: ModelConstruction -> StaticOptions -> IO()
 iterationSummary mC sO = do
   --iteration -- tax limit -- bitscore cutoff -- blastresult -- aligned seqs --queries --fa link --aln link --cm link
-  let output = show (iterationNumber mC) ++ "," ++ show (upperTaxonomyLimit mC) ++ "," ++ show (bitScoreThreshold mC) ++ "," ++ show (length (concatMap sequenceRecords (taxRecords mC)))
+  let upperTaxonomyLimitOutput = maybe "not set" show (upperTaxonomyLimit mC)
+  let bitScoreThresholdOutput = maybe "not set" show (bitScoreThreshold mC)
+  let output = show (iterationNumber mC) ++ "," ++ upperTaxonomyLimitOutput ++ "," ++ bitScoreThresholdOutput ++ "," ++ show (length (concatMap sequenceRecords (taxRecords mC)))
   writeFile ((tempDirPath sO) ++ show (iterationNumber mC) ++ ".log") output            
                 
 main :: IO ()
