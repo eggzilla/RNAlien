@@ -985,6 +985,9 @@ showlines input = concatMap (\x -> show x ++ "\n") input
 
 logMessage :: String -> String -> IO ()
 logMessage logoutput temporaryDirectoryPath = appendFile (temporaryDirectoryPath ++ "Log") (show logoutput)
+
+infernalLogMessage :: String -> String -> IO ()
+infernalLogMessage logoutput temporaryDirectoryPath = appendFile (temporaryDirectoryPath ++ "InfernalLog") (show logoutput)
                   
 logEither :: (Show a) => Either a b -> String -> IO ()
 logEither (Left logoutput) temporaryDirectoryPath = appendFile (temporaryDirectoryPath ++ "Log") (show logoutput)

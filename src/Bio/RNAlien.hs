@@ -83,7 +83,7 @@ alignmentConstruction staticOptions modelconstruction = do
             selectedQueries <- selectQueries staticOptions currentModelConstruction alignmentResults
             --prepare next iteration 
             let nextModelConstructionInput = constructNext currentIterationNumber currentModelConstruction alignmentResults usedUpperTaxonomyLimit selectedQueries
-            appendFile ((tempDirPath staticOptions) ++ "Log") (show nextModelConstructionInput)
+            logMessage (show nextModelConstructionInput) (tempDirPath staticOptions)           
             print ("upperTaxTreeLimit:" ++ show usedUpperTaxonomyLimit)
             cmFilepath <- constructModel nextModelConstructionInput staticOptions               
             print cmFilepath
@@ -91,25 +91,27 @@ alignmentConstruction staticOptions modelconstruction = do
             nextModelConstruction <- alignmentConstruction staticOptions nextModelConstructionInputWithThreshold           
             return nextModelConstruction
           else do
-            appendFile ((tempDirPath staticOptions) ++ "Log") ("Modelconstruction complete: Out of candidates\n")
+            logMessage ("Modelconstruction complete: Out of candidates\n") (tempDirPath staticOptions)
             if (currentIterationNumber > 0)
               then do
                  let finalIterationCMPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.cm"
                  let resultCMPath = (tempDirPath staticOptions) ++ "result.cm"
                  let resultCMLogPath = (tempDirPath staticOptions) ++ "result.cm.log"                 
                  copyFile finalIterationCMPath resultCMPath
-                 _ <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath    
+                 calibrationLog <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath  
+                 infernalLogMessage (show calibrationLog) (tempDirPath staticOptions)
                  return modelconstruction 
               else return modelconstruction          
      else do
-       appendFile ((tempDirPath staticOptions) ++ "Log") ("Modelconstruction complete: Out of queries\n")
+       logMessage ("Modelconstruction complete: Out of queries\n") (tempDirPath staticOptions)
        if (currentIterationNumber > 0)
          then do
            let finalIterationCMPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.cm"
            let resultCMPath = (tempDirPath staticOptions) ++ "result.cm"
            let resultCMLogPath = (tempDirPath staticOptions) ++ "result.cm.log"
            copyFile resultCMPath resultCMPath
-           _ <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath      
+           calibrationLog <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath     
+           infernalLogMessage (show calibrationLog) (tempDirPath staticOptions)
            return modelconstruction 
          else return modelconstruction 
 
@@ -282,15 +284,15 @@ constructModel modelConstruction staticOptions = do
        writeFile stockholmFilepath stockholAlignment
        buildLog <- systemCMbuild stockholmFilepath cmFilepath
        calibrateLog <- systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
-       logMessage (show buildLog) (tempDirPath staticOptions)
-       logMessage (show calibrateLog) (tempDirPath staticOptions)
+       infernalLogMessage (show buildLog) (tempDirPath staticOptions)
+       infernalLogMessage (show calibrateLog) (tempDirPath staticOptions)
        return (cmFilepath)
      else do
        _ <- systemCMalign (cpuThreads staticOptions) cmalignCMFilepath fastaFilepath stockholmFilepath
        buildLog <- systemCMbuild stockholmFilepath cmFilepath
        calibrateLog <- systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
-       logMessage (show buildLog) (tempDirPath staticOptions)
-       logMessage (show calibrateLog) (tempDirPath staticOptions)
+       infernalLogMessage (show buildLog) (tempDirPath staticOptions)
+       infernalLogMessage (show calibrateLog) (tempDirPath staticOptions)
        return (cmFilepath)
               
 iterationSummary :: ModelConstruction -> StaticOptions -> IO()
@@ -314,6 +316,7 @@ main = do
   putStrLn temporaryDirectoryPath
   -- create Log file
   writeFile (temporaryDirectoryPath ++ "Log") ("")
+  writeFile (temporaryDirectoryPath ++ "InfernalLog") ("")
   inputFasta <- readFasta inputFastaFilePath
   nodes <- readNCBISimpleTaxDumpNodes taxNodesFile 
   logEither nodes temporaryDirectoryPath
