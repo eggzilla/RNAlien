@@ -109,7 +109,7 @@ alignmentConstruction staticOptions modelconstruction = do
            let finalIterationCMPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.cm"
            let resultCMPath = (tempDirPath staticOptions) ++ "result.cm"
            let resultCMLogPath = (tempDirPath staticOptions) ++ "result.cm.log"
-           copyFile resultCMPath resultCMPath
+           copyFile finalIterationCMPath resultCMPath
            calibrationLog <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath     
            infernalLogMessage (show calibrationLog) (tempDirPath staticOptions)
            return modelconstruction 
