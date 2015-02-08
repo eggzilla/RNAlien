@@ -26,9 +26,10 @@ import Data.Maybe
 import Data.Clustering.Hierarchical
 
 data Options = Options            
-  { inputFastaFilePath :: String,
-    inputTaxId :: Maybe Int,                  
+  { inputFastaFilePath :: String,     
     outputPath :: String,
+    taxNodesFilePath :: String,
+    inputTaxId :: Maybe Int,     
     fullSequenceOffset :: String,
     lengthFilter :: Bool,
     singleHitperTax :: Bool,
@@ -39,8 +40,9 @@ data Options = Options
 
 options :: Options
 options = Options
-  { inputFastaFilePath = def &= name "i" &= help "Path to input fasta file",
+  { inputFastaFilePath = def &= name "i" &= help "Path to input fasta file",                       
     outputPath = def &= name "o" &= help "Path to output directory",
+    taxNodesFilePath =  def &= name "n" &= help "Path to ncbi taxonomy dump file taxNodes.dmp",
     inputTaxId = Nothing &= name "t" &= help "NCBI taxonomy ID number of input RNA organism",
     fullSequenceOffset = "0" &= name "f" &= help "Overhangs of retrieved fasta sequences compared to query sequence",
     lengthFilter = True &= name "l" &= help "Filter blast hits per genomic length",
@@ -309,7 +311,6 @@ main = do
    -- Generate SessionID
   sessionId <- createSessionID sessionIdentificator
   let iterationNumber = 0
-  let taxNodesFile = "/home/egg/current/Data/Taxonomy/taxdump/nodes.dmp"
   let temporaryDirectoryPath = outputPath ++ sessionId ++ "/"                     
   createDirectoryIfMissing False temporaryDirectoryPath
   putStrLn "Created Temp-Dir:"
@@ -318,7 +319,7 @@ main = do
   writeFile (temporaryDirectoryPath ++ "Log") ("")
   writeFile (temporaryDirectoryPath ++ "InfernalLog") ("")
   inputFasta <- readFasta inputFastaFilePath
-  nodes <- readNCBISimpleTaxDumpNodes taxNodesFile 
+  nodes <- readNCBISimpleTaxDumpNodes taxNodesFilePath
   logEither nodes temporaryDirectoryPath
   let rightNodes = fromRight nodes
   let fullSequenceOffsetLength = readInt fullSequenceOffset
