@@ -269,7 +269,7 @@ systemCMcompare model1path model2path outputFilePath = system ("CMCompare " ++ m
 
 -- | Run CMsearch and read the output into the corresponding datatype
 systemCMsearch :: Int -> String -> String -> String -> IO ExitCode
-systemCMsearch cpus covarianceModelPath sequenceFilePath outputPath = system ("cmsearch --notrunc cpu " ++ (show cpus) ++ " -g " ++ covarianceModelPath ++ " " ++ sequenceFilePath ++ "> " ++ outputPath)
+systemCMsearch cpus covarianceModelPath sequenceFilePath outputPath = system ("cmsearch --notrunc --cpu " ++ (show cpus) ++ " -g " ++ covarianceModelPath ++ " " ++ sequenceFilePath ++ "> " ++ outputPath)
 
 -- | Run CMcalibrate and return exitcode
 systemCMcalibrate :: String -> Int -> String -> String -> IO ExitCode 
