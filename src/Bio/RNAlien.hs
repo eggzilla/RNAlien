@@ -64,9 +64,9 @@ alignmentConstruction staticOptions modelconstruction = do
   let queries = extractQueries currentIterationNumber currentModelConstruction
   putStrLn "Queries"
   print queries
+  let iterationDirectory = (tempDirPath staticOptions) ++ (show currentIterationNumber) ++ "/"
   if ((not (null queries)) && (maybe True (\x -> x > 1) (upperTaxonomyLimit currentModelConstruction)))
      then do
-       let iterationDirectory = (tempDirPath staticOptions) ++ (show currentIterationNumber) ++ "/"
        createDirectory (iterationDirectory) 
        --taxonomic context
        let (upperTaxLimit,lowerTaxLimit) = getTaxonomicContext currentIterationNumber staticOptions (upperTaxonomyLimit currentModelConstruction)
@@ -86,22 +86,30 @@ alignmentConstruction staticOptions modelconstruction = do
             --prepare next iteration 
             let nextModelConstructionInput = constructNext currentIterationNumber currentModelConstruction alignmentResults usedUpperTaxonomyLimit selectedQueries
             logMessage (show nextModelConstructionInput) (tempDirPath staticOptions)           
-            print ("upperTaxTreeLimit:" ++ show usedUpperTaxonomyLimit)
+            --print ("upperTaxTreeLimit:" ++ show usedUpperTaxonomyLimit)
             cmFilepath <- constructModel nextModelConstructionInput staticOptions               
-            print cmFilepath
+            --print cmFilepath
             nextModelConstructionInputWithThreshold <- setInclusionThreshold nextModelConstructionInput staticOptions cmFilepath
+            writeFile (iterationDirectory ++ "done") ""
             nextModelConstruction <- alignmentConstruction staticOptions nextModelConstructionInputWithThreshold           
             return nextModelConstruction
           else do
             logMessage ("Modelconstruction complete: Out of candidates\n") (tempDirPath staticOptions)
             if (currentIterationNumber > 0)
               then do
+                 let finalIterationFastaPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.fa"
+                 let finalIterationAlignmentPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.stockholm"
                  let finalIterationCMPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.cm"
+                 let resultFastaPath = (tempDirPath staticOptions) ++ "result.fasta"
+                 let resultAlignmentPath = (tempDirPath staticOptions) ++ "result.stockholm"
                  let resultCMPath = (tempDirPath staticOptions) ++ "result.cm"
-                 let resultCMLogPath = (tempDirPath staticOptions) ++ "result.cm.log"                 
+                 let resultCMLogPath = (tempDirPath staticOptions) ++ "result.cm.log"
+                 copyFile finalIterationFastaPath resultFastaPath            
+                 copyFile finalIterationAlignmentPath resultAlignmentPath
                  copyFile finalIterationCMPath resultCMPath
                  calibrationLog <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath  
                  infernalLogMessage (show calibrationLog) (tempDirPath staticOptions)
+                 writeFile (iterationDirectory ++ "done") ""                   
                  return modelconstruction 
               else return modelconstruction          
      else do
@@ -114,6 +122,7 @@ alignmentConstruction staticOptions modelconstruction = do
            copyFile finalIterationCMPath resultCMPath
            calibrationLog <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath     
            infernalLogMessage (show calibrationLog) (tempDirPath staticOptions)
+           writeFile (iterationDirectory ++ "done") ""                     
            return modelconstruction 
          else return modelconstruction 
 
@@ -278,20 +287,21 @@ constructModel modelConstruction staticOptions = do
   let cmalignCMFilepath = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction - 2)) ++ "/" ++ "model" ++ ".cm"
   let cmFilepath = outputDirectory ++ "model" ++ ".cm"
   let cmCalibrateFilepath = outputDirectory ++ "model" ++ ".cmcalibrate"
+  let cmBuildFilepath = outputDirectory ++ "model" ++ ".cmbuild"
   if (iterationNumber modelConstruction < 2)
      then do 
        alignSequences "mlocarna" ("--local-progressive --threads=" ++ (show (cpuThreads staticOptions)) ++ " ") [fastaFilepath] [locarnaFilepath] []
        mlocarnaAlignment <- readStructuralClustalAlignment locarnaFilepath
        let stockholAlignment = convertClustaltoStockholm (fromRight mlocarnaAlignment)
        writeFile stockholmFilepath stockholAlignment
-       buildLog <- systemCMbuild stockholmFilepath cmFilepath
+       buildLog <- systemCMbuild stockholmFilepath cmFilepath cmBuildFilepath
        calibrateLog <- systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
        infernalLogMessage (show buildLog) (tempDirPath staticOptions)
        infernalLogMessage (show calibrateLog) (tempDirPath staticOptions)
        return (cmFilepath)
      else do
        _ <- systemCMalign (cpuThreads staticOptions) cmalignCMFilepath fastaFilepath stockholmFilepath
-       buildLog <- systemCMbuild stockholmFilepath cmFilepath
+       buildLog <- systemCMbuild stockholmFilepath cmFilepath cmBuildFilepath
        calibrateLog <- systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
        infernalLogMessage (show buildLog) (tempDirPath staticOptions)
        infernalLogMessage (show calibrateLog) (tempDirPath staticOptions)
@@ -327,7 +337,8 @@ main = do
   let initialization = ModelConstruction iterationNumber (head inputFasta) [] (maybe Nothing Just inputTaxId) Nothing []
   logMessage (show initialization) temporaryDirectoryPath
   alignmentConstructionResult <- alignmentConstruction staticOptions initialization
-  print alignmentConstructionResult
+  let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable alignmentConstructionResult
+  writeFile (temporaryDirectoryPath ++ "result.csv") resultTaxonomyRecordsCSVTable
   writeFile (temporaryDirectoryPath ++ "done") ""
   putStrLn "Done"
 

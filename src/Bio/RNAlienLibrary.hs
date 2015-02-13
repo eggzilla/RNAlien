@@ -260,8 +260,8 @@ systemRNAz :: (String,String) -> IO ExitCode
 systemRNAz (inputFilePath, outputFilePath) = system ("RNAz " ++ inputFilePath ++ " >" ++ outputFilePath)
 
 -- | Run external CMbuild command and read the output into the corresponding datatype 
-systemCMbuild ::  String -> String -> IO ExitCode
-systemCMbuild alignmentFilepath modelFilepath = system ("cmbuild " ++ modelFilepath ++ " " ++ alignmentFilepath)  
+systemCMbuild ::  String -> String -> String -> IO ExitCode
+systemCMbuild alignmentFilepath modelFilepath outputFilePath = system ("cmbuild " ++ modelFilepath ++ " " ++ alignmentFilepath  ++ " " ++ outputFilePath)  
                                        
 -- | Run CMCompare and read the output into the corresponding datatype
 systemCMcompare ::  String -> String -> String -> IO ExitCode
@@ -997,9 +997,19 @@ buildCMfromLocarnaFilePath :: String -> IO ExitCode
 buildCMfromLocarnaFilePath outputDirectory = do
   let locarnaFilepath = outputDirectory ++ "result" ++ ".mlocarna"
   let stockholmFilepath = outputDirectory ++ "result" ++ ".stockholm"
+  let cmBuildFilepath = outputDirectory ++ "result" ++ ".cmbuild"
   let cmFilepath = outputDirectory ++ "result" ++ ".cm"
   mlocarnaAlignment <- readStructuralClustalAlignment locarnaFilepath
   let stockholAlignment = convertClustaltoStockholm (fromRight mlocarnaAlignment)
   writeFile stockholmFilepath stockholAlignment
-  buildLog <- systemCMbuild stockholmFilepath cmFilepath
+  buildLog <- systemCMbuild stockholmFilepath cmFilepath cmBuildFilepath
   return buildLog
+
+constructTaxonomyRecordsCSVTable :: ModelConstruction -> String
+constructTaxonomyRecordsCSVTable modelconstruction = csvtable
+  where tableheader = "Taxonomy Id;Added in Iteration Step;Entry Header"
+        tablebody = concatMap constructTaxonomyRecordCSVEntries (taxRecords modelconstruction)
+        csvtable = tableheader ++ tablebody
+
+constructTaxonomyRecordCSVEntries :: TaxonomyRecord -> String
+constructTaxonomyRecordCSVEntries taxRecord = concatMap (\seqrec -> show (recordTaxonomyId taxRecord) ++ ";" ++ show (aligned seqrec) ++ ";" ++ (L.unpack (unSL (seqheader (nucleotideSequence seqrec))))) (sequenceRecords taxRecord)
