@@ -308,7 +308,7 @@ iterationSummary mC sO = do
 main :: IO ()
 main = do
   Options{..} <- cmdArgs options       
-   -- Generate SessionID
+  -- Generate SessionID
   sessionId <- createSessionID sessionIdentificator
   let iterationNumber = 0
   let temporaryDirectoryPath = outputPath ++ sessionId ++ "/"                     

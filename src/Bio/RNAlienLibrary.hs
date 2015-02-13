@@ -382,7 +382,7 @@ genParserCMsearch = do
   -- this is followed by hit alignments and internal cmsearch statistics which are not parsed
   many anyChar
   eof
-  return $ CMsearch queryCMfile' targetSequenceDatabase' (readInt numberOfWorkerThreads') hitScores'
+  return $ CMsearch queryCMfile' targetSequenceDatabase' numberOfWorkerThreads' hitScores'
 
 genParserCMsearchHeaderField :: String -> GenParser Char st String
 genParserCMsearchHeaderField fieldname = do

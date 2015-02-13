@@ -49,7 +49,7 @@ data SequenceRecord = SequenceRecord
 data CMsearch = CMsearch
   { queryCMfile :: String,
     targetSequenceDatabase :: String,
-    numberOfWorkerThreads :: Int,
+    numberOfWorkerThreads :: String,
     hitScores :: [CMsearchHitScore]
 --    hitAlignments :: [CMsearchHitAlignment]
 --    internalCMPipelineStatisticsSummary                 
