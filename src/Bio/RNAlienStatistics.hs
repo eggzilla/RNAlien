@@ -132,16 +132,16 @@ main = do
   let rfamNegatives = snd rfamResults
   let rfamPositivesNumber = length rfamPositives
   let rfamNegativesNumber = length rfamNegatives
-  let population = rfamPositives + rfamNegatives
+  let population = rfamPositivesNumber + rfamNegativesNumber
   putStrLn ("Condition postitive (rfamPositives): " ++ (show rfamPositivesNumber))
   putStrLn ("Condition negative (rfamNegatives): " ++ (show rfamNegativesNumber))
   putStrLn ("Population : " ++ show population)
 
   alienResults <- cmSearchGenomeDirectories threads alienCovarianceModelPath outputDirectoryPath "Alien" False genomesDirectoryPath 
-  let alienPositivesNumber = fst alienResults
-  let alienNegativesNumber = snd alienResults
-  let alienPositivesNumber = length alienPositivesNumber
-  let alienNegativesNumber = length alienNegativesNumber
+  let alienPositives = fst alienResults
+  let alienNegatives = snd alienResults
+  let alienPositivesNumber = length alienPositives
+  let alienNegativesNumber = length alienNegatives
   putStrLn ("Test positive (alienPositives): " ++ (show alienPositivesNumber))
   putStrLn ("Test negative (alienNegatives): " ++ (show alienNegativesNumber))
 
