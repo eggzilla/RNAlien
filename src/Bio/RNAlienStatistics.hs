@@ -127,32 +127,46 @@ main = do
            filterM (fmap not . doesDirectoryExist)
   print ("Genome Number: " ++  show (length genomeDirectories))
 
-  rfamResults <- cmSearchGenomeDirectories threads rfamCovarianceModelPath outputDirectoryPath "Rfam" True genomesDirectoryPath
-  let rfamPositives = length (fst rfamResults)
-  let rfamNegatives = length (snd rfamResults)
-  putStrLn ("Condition postitive (rfamPositives): " ++ (show rfamPositives))
-  putStrLn ("Condition negative (rfamNegatives): " ++ (show rfamNegatives))
-  putStrLn ("Population : " ++ (show (rfamPositives + rfamNegatives)))
+  rfamResults <- cmSearchGenomeDirectories threads rfamCovarianceModelPath outputDirectoryPath "Rfam" False genomesDirectoryPath
+  let rfamPositives = fst rfamResults
+  let rfamNegatives = snd rfamResults
+  let rfamPositivesNumber = length rfamPositives
+  let rfamNegativesNumber = length rfamNegatives
+  let population = rfamPositives + rfamNegatives
+  putStrLn ("Condition postitive (rfamPositives): " ++ (show rfamPositivesNumber))
+  putStrLn ("Condition negative (rfamNegatives): " ++ (show rfamNegativesNumber))
+  putStrLn ("Population : " ++ show population)
 
+  alienResults <- cmSearchGenomeDirectories threads alienCovarianceModelPath outputDirectoryPath "Alien" False genomesDirectoryPath 
+  let alienPositivesNumber = fst alienResults
+  let alienNegativesNumber = snd alienResults
+  let alienPositivesNumber = length alienPositivesNumber
+  let alienNegativesNumber = length alienNegativesNumber
+  putStrLn ("Test positive (alienPositives): " ++ (show alienPositivesNumber))
+  putStrLn ("Test negative (alienNegatives): " ++ (show alienNegativesNumber))
+
+  --true positive alienhit overlaps > 50% with rfamhit   
+  --false negative no alien hit or <50% overlap in organism with rfam hit
+  --false positive alienhit in organism without rfam hit + non 50% overlap alienHits
+  --true negative both rfam and alien negative
+
+
+
+  --rfamResults <- cmSearchGenomeDirectories threads rfamCovarianceModelPath outputDirectoryPath "Rfam" True genomesDirectoryPath
+  --alienResults <- cmSearchGenomeDirectories threads alienCovarianceModelPath outputDirectoryPath "Alien" True genomesDirectoryPath
   --Alien.cm on Rfamhits (false negatives)
-  alienOnRfamResults <- cmSearchGenomeDirectory threads alienCovarianceModelPath outputDirectoryPath "AlienOnRfam" False (outputDirectoryPath ++ "/Rfam/") 
-  let alienOnRfamPositives = length (fst alienOnRfamResults)
-  let alienOnRfamNegatives = length (snd alienOnRfamResults)
-  putStrLn ("alienOnRfamPositives: " ++ (show alienOnRfamPositives))
-  putStrLn ("False negatives (alienOnRfamNegatives): " ++ (show alienOnRfamNegatives))
-
-  alienResults <- cmSearchGenomeDirectories threads alienCovarianceModelPath outputDirectoryPath "Alien" True genomesDirectoryPath 
-  let alienPositives = length (fst alienResults)
-  let alienNegatives = length (snd alienResults)
-  putStrLn ("Test positive (alienPositives): " ++ (show alienPositives))
-  putStrLn ("Test negative (alienNegatives): " ++ (show alienNegatives))
-
+  --alienOnRfamResults <- cmSearchGenomeDirectory threads alienCovarianceModelPath outputDirectoryPath "AlienOnRfam" False (outputDirectoryPath ++ "/Rfam/") 
+  --let alienOnRfamPositives = length (fst alienOnRfamResults)
+  --let alienOnRfamNegatives = length (snd alienOnRfamResults)
+  --putStrLn ("alienOnRfamPositives: " ++ (show alienOnRfamPositives))
+  --putStrLn ("False negatives (alienOnRfamNegatives): " ++ (show alienOnRfamNegatives))
+ 
   --Rfam.cm on AlienHits (false postives)
-  rfamOnAlienResults <- cmSearchGenomeDirectory threads rfamCovarianceModelPath outputDirectoryPath "RfamOnAlien" False (outputDirectoryPath ++ "/Alien/")
-  let rfamOnAlienPositives = length (fst rfamOnAlienResults)
-  let rfamOnAlienNegatives = length (snd rfamOnAlienResults)
-  putStrLn ("True positive (rfamOnAlienPositives): " ++ (show rfamOnAlienPositives))
-  putStrLn ("False positives (rfamOnAlienNegatives): " ++ (show rfamOnAlienNegatives))
+  --rfamOnAlienResults <- cmSearchGenomeDirectory threads rfamCovarianceModelPath outputDirectoryPath "RfamOnAlien" False (outputDirectoryPath ++ "/Alien/")
+  --let rfamOnAlienPositives = length (fst rfamOnAlienResults)
+  --let rfamOnAlienNegatives = length (snd rfamOnAlienResults)
+  --putStrLn ("True positive (rfamOnAlienPositives): " ++ (show rfamOnAlienPositives))
+  --putStrLn ("False positives (rfamOnAlienNegatives): " ++ (show rfamOnAlienNegatives))
 
   --Sensitivity = TP / (TP + FN)
   --Specificity = TN / (FP + TN)
