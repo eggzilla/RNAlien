@@ -1012,4 +1012,4 @@ constructTaxonomyRecordsCSVTable modelconstruction = csvtable
         csvtable = tableheader ++ tablebody
 
 constructTaxonomyRecordCSVEntries :: TaxonomyRecord -> String
-constructTaxonomyRecordCSVEntries taxRecord = concatMap (\seqrec -> show (recordTaxonomyId taxRecord) ++ ";" ++ show (aligned seqrec) ++ ";" ++ (L.unpack (unSL (seqheader (nucleotideSequence seqrec))))) (sequenceRecords taxRecord)
+constructTaxonomyRecordCSVEntries taxRecord = concatMap (\seqrec -> show (recordTaxonomyId taxRecord) ++ ";" ++ show (aligned seqrec) ++ ";" ++ (L.unpack (unSL (seqheader (nucleotideSequence seqrec)))) ++ "\n") (sequenceRecords taxRecord)
