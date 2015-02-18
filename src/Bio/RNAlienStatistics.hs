@@ -41,7 +41,7 @@ options = Options
     threads = 1 &= name "c" &= help "Number of available cpu slots/cores, default 1"
   } &= summary "RNAlienStatistics devel version" &= help "Florian Eggenhofer - >2013" &= verbosity       
 
-cmSearchGenomeDirectories :: Int -> String -> String -> String -> Bool -> String -> IO ([(String,CMsearch)],[(String,CMsearch)])
+cmSearchGenomeDirectories :: Int -> String -> String -> String -> Bool -> String -> IO ([(L.ByteString,CMsearch)],[(L.ByteString,CMsearch)])
 cmSearchGenomeDirectories cpuThreads covarianceModelPath outputDirectory modelType writeFasta genomesDirPath = do
   genomeDirectories <- getDirectoryContents genomesDirPath >>=  
            filterM (fmap not . doesDirectoryExist)
@@ -52,7 +52,7 @@ cmSearchGenomeDirectories cpuThreads covarianceModelPath outputDirectory modelTy
   let negatives = concat (map snd results)
   return (positives,negatives)
 
-cmSearchGenomeDirectory :: Int -> String -> String -> String -> Bool -> String -> IO ([(String,CMsearch)],[(String,CMsearch)])
+cmSearchGenomeDirectory :: Int -> String -> String -> String -> Bool -> String -> IO ([(L.ByteString,CMsearch)],[(L.ByteString,CMsearch)])
 cmSearchGenomeDirectory cpuThreads covarianceModelPath outputDirectory modelType writeFasta genomeDirectoryPath = do
   fastaFiles <- getDirectoryContents genomeDirectoryPath
   let filteredFastaFiles = filter (\file -> isSuffixOf ".fna" file) fastaFiles
@@ -63,15 +63,15 @@ cmSearchGenomeDirectory cpuThreads covarianceModelPath outputDirectory modelType
   --let leftresults = lefts results
   --print leftresults
   let rightResults = map fromRight results
-  let fastaIDWithRightResults = zip filteredFastaFiles rightResults
+  let fastaIDWithRightResults = zip (map L.pack filteredFastaFiles) rightResults
   let (significantHits,rejectedHits) = partitionCMsearchHits fastaIDWithRightResults
   if writeFasta
      then do 
-       mapM_ (\(fastaFileName,cmsearch) -> trimCMsearchFastaFile genomeDirectoryPath outputDirectory modelType cmsearch fastaFileName) significantHits
+       mapM_ (\(fastaFileName,cmsearch) -> trimCMsearchFastaFile genomeDirectoryPath outputDirectory modelType cmsearch (L.unpack fastaFileName)) significantHits
        return (significantHits,rejectedHits)
      else return (significantHits,rejectedHits)
 
-partitionCMsearchHits :: [(String,CMsearch)] -> ([(String,CMsearch)],[(String,CMsearch)])
+partitionCMsearchHits :: [(L.ByteString,CMsearch)] -> ([(L.ByteString,CMsearch)],[(L.ByteString,CMsearch)])
 partitionCMsearchHits cmSearchCandidatesWithSequences = (selectedCandidates,rejectedCandidates)
   where (selectedCandidates,rejectedCandidates) = partition (\(_,cmSearchResult) -> any (\hitScore' -> ('!' == (hitSignificance hitScore'))) (hitScores cmSearchResult)) cmSearchCandidatesWithSequences
 
@@ -82,7 +82,7 @@ trimCMsearchFastaFile genomesDirectory outputFolder modelType cmsearch fastafile
   fastaSequences <- readFasta fastaInputPath
   let trimmedSequence = trimCMsearchSequence cmsearch (head fastaSequences)
   writeFasta fastaOutputPath [trimmedSequence]
-
+   
 trimCMsearchSequence :: CMsearch -> Sequence -> Sequence
 trimCMsearchSequence cmSearchResult inputSequence = subSequence
   where hitScoreEntry = head (hitScores cmSearchResult)
@@ -91,15 +91,24 @@ trimCMsearchSequence cmSearchResult inputSequence = subSequence
         newSequenceHeader =  L.pack ((L.unpack (unSL (seqheader inputSequence))) ++ "cmS_" ++ (show (hitStart hitScoreEntry)) ++ "_" ++ (show (hitEnd hitScoreEntry)) ++ "_" ++ (show (hitStrand hitScoreEntry)))
         subSequence = Seq (SeqLabel newSequenceHeader) (SeqData (L.pack sequenceSubstring)) Nothing     
 
+-- AlienCMs that have over 50% overlap with the corresponding Rfam model hit are scored as true positives                      
+getPositives :: [(L.ByteString,CMsearch)] -> [(L.ByteString,CMsearch)] -> (Int,Int)
+getPositives alienpositives rfampositives = (truePositiveNumber,falsePositiveNumber)
+  where rfamFastaPaths = map fst rfampositives
+        filteredbyFastaName = filter (\(path,_) -> elem path rfamFastaPaths) alienpositives
+        --alienrfampair = map (\(alienPath,_) -> fromJust (find (\(rfampath,_) -> alienPath==rfamPath) rfampositives)) alienpositives                     
+        overlapList = map (\(alienPath,alienCMSearch) -> overlapBestHitscores (maybe [] (\(a,b) -> hitScores b) (find (\(rfamPath,rfamCMsearch) -> alienPath==rfamPath) rfampositives)) (hitScores alienCMSearch)) filteredbyFastaName
+        (numberOverlapping,nonOverlapping) = partition (==True) overlapList
+        truePositiveNumber = length numberOverlapping
+        falsePositiveNumber = (length alienpositives) - (length filteredbyFastaName) + (length nonOverlapping)
+                      
 overlapCMsearch :: CMsearch -> CMsearch -> Bool
 overlapCMsearch cmsearch1 cmsearch2 = overlap
-  where overlap = overlapHitscores (hitScores cmsearch1) (hitScores cmsearch2)
+  where overlap = overlapBestHitscores (hitScores cmsearch1) (hitScores cmsearch2)
 
-overlapHitscores :: [CMsearchHitScore] -> [CMsearchHitScore] -> Bool
-overlapHitscores [] [] = False
-overlapHitscores hitscores1 [] = False
-overlapHitscores [] hitscores2 = False
-overlapHitscores hitscores1 hitscores2 = overlap
+--hand over gold standard (rfam) first
+overlapBestHitscores :: [CMsearchHitScore] -> [CMsearchHitScore] -> Bool
+overlapBestHitscores hitscores1 hitscores2 = overlap
   where hitscore1 = head hitscores1 
         hitscore2 = head hitscores2
         start1 = hitStart hitscore1
@@ -108,8 +117,25 @@ overlapHitscores hitscores1 hitscores2 = overlap
         start2 = hitStart hitscore2
         end2 = hitEnd hitscore2
         strand2 = hitStrand hitscore2
-        overlap = (strand1 == strand2) && start1 < end2 && start1 >= start2
-                                                               
+        overlap = overlapCoordinates strand1 strand2 start1 end1 start2 end2                                            
+--overlapBestHitscores [] hitscores2 = False
+--overlapBestHitscores hitscores1 [] = False
+overlapBestHitscores [] [] = False                                 
+ 
+
+overlapCoordinates :: Char -> Char -> Int -> Int -> Int -> Int -> Bool 
+overlapCoordinates strand1 strand2 start1 end1 start2 end2
+  | (strand1 == '-') && (strand2 == '+') = False
+  | (strand2 == '-') && (strand1 == '+') = False
+  | (strand1 == '+') && (strand2 == '+') = ((fromIntegral overlapLengthplusStrand) / (fromIntegral totalLengthplusStrand)) >= 0.5
+  | otherwise = ((fromIntegral overlapLengthminusStrand) / (fromIntegral totalLengthminusStrand)) >= 0.5
+      where totalLengthminusStrand = start1 - end1
+            totalLengthplusStrand = end1 - start1
+            overlapLengthminusStrand = length minusOverlapList
+            overlapLengthplusStrand = length plusOverlapList
+            minusOverlapList = intersect [end1..start1] [end2..start2]
+            plusOverlapList = intersect [start1..end1] [start2..end2]
+            
 main :: IO ()
 main = do
   Options{..} <- cmdArgs options  
@@ -145,11 +171,15 @@ main = do
   putStrLn ("Test positive (alienPositives): " ++ (show alienPositivesNumber))
   putStrLn ("Test negative (alienNegatives): " ++ (show alienNegativesNumber))
 
-  --true positive alienhit overlaps > 50% with rfamhit   
+  --true positive alienhit overlaps > 50% with rfamhit
+
+           
   --false negative no alien hit or <50% overlap in organism with rfam hit
   --false positive alienhit in organism without rfam hit + non 50% overlap alienHits
   --true negative both rfam and alien negative
 
+
+           
 
 
   --rfamResults <- cmSearchGenomeDirectories threads rfamCovarianceModelPath outputDirectoryPath "Rfam" True genomesDirectoryPath
