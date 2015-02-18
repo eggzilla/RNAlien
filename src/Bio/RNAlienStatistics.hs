@@ -92,15 +92,18 @@ trimCMsearchSequence cmSearchResult inputSequence = subSequence
         subSequence = Seq (SeqLabel newSequenceHeader) (SeqData (L.pack sequenceSubstring)) Nothing     
 
 -- AlienCMs that have over 50% overlap with the corresponding Rfam model hit are scored as true positives                      
-getPositives :: [(L.ByteString,CMsearch)] -> [(L.ByteString,CMsearch)] -> (Int,Int)
-getPositives alienpositives rfampositives = (truePositiveNumber,falsePositiveNumber)
-  where rfamFastaPaths = map fst rfampositives
-        filteredbyFastaName = filter (\(path,_) -> elem path rfamFastaPaths) alienpositives
+getPositivesNegatives :: [(L.ByteString,CMsearch)] -> [(L.ByteString,CMsearch)] -> [(L.ByteString,CMsearch)] -> [(L.ByteString,CMsearch)] -> (Int,Int,Int,Int)
+getPositivesNegatives alienpositives rfampositives aliennegatives rfamnegatives = (truePositiveNumber,falsePositiveNumber,trueNegativeNumber,falseNegativeNumber)
+  where rfamPositiveFastaPaths = map fst rfampositives
+        filteredbyFastaName = filter (\(path,_) -> elem path rfamPositiveFastaPaths) alienpositives
         --alienrfampair = map (\(alienPath,_) -> fromJust (find (\(rfampath,_) -> alienPath==rfamPath) rfampositives)) alienpositives                     
-        overlapList = map (\(alienPath,alienCMSearch) -> overlapBestHitscores (maybe [] (\(a,b) -> hitScores b) (find (\(rfamPath,rfamCMsearch) -> alienPath==rfamPath) rfampositives)) (hitScores alienCMSearch)) filteredbyFastaName
+        overlapList = map (\(alienPath,alienCMSearch) -> overlapBestHitscores (maybe [] (\(_,b) -> hitScores b) (find (\(rfamPath,_) -> alienPath==rfamPath) rfampositives)) (hitScores alienCMSearch)) filteredbyFastaName
         (numberOverlapping,nonOverlapping) = partition (==True) overlapList
         truePositiveNumber = length numberOverlapping
-        falsePositiveNumber = (length alienpositives) - (length filteredbyFastaName) + (length nonOverlapping)
+        falsePositiveNumber = (length alienpositives) - (length filteredbyFastaName) + (length nonOverlapping)           
+        falseNegativeNumber = length (filter (\(path,_) -> elem path rfamPositiveFastaPaths) aliennegatives)
+        rfamNegativeFastaPaths = map fst rfamnegatives                
+        trueNegativeNumber = length (filter (\(path,_) -> elem path rfamNegativeFastaPaths) aliennegatives)
                       
 overlapCMsearch :: CMsearch -> CMsearch -> Bool
 overlapCMsearch cmsearch1 cmsearch2 = overlap
@@ -172,16 +175,26 @@ main = do
   putStrLn ("Test negative (alienNegatives): " ++ (show alienNegativesNumber))
 
   --true positive alienhit overlaps > 50% with rfamhit
-
-           
-  --false negative no alien hit or <50% overlap in organism with rfam hit
   --false positive alienhit in organism without rfam hit + non 50% overlap alienHits
-  --true negative both rfam and alien negative
+  --false negative no alien hit in rfam postive
+  --true negative both rfam and alien negative           
+  let (truePositiveNumber,falsePositiveNumber,trueNegativeNumber,falseNegativeNumber) = getPositivesNegatives alienPositives rfamPositives alienNegatives rfamNegatives
 
+  let sensitivity = (fromIntegral truePositiveNumber) / fromIntegral (truePositiveNumber + falseNegativeNumber)
+  let specificity = (fromIntegral trueNegativeNumber) / fromIntegral (falsePositiveNumber + trueNegativeNumber)
+  let falsePositiveRate = 1 - specificity  
+  let falseNegativeRate  = 1 - sensitivity
+                                                                           
+  putStrLn ("truePositiveNumber: " ++ (show truePositiveNumber))
+  putStrLn ("falsePostitiveNumber: " ++ (show falsePositiveNumber))         
+  putStrLn ("falseNegativeNumber: " ++ (show falseNegativeNumber))
+  putStrLn ("falsePositiveNumber: " ++ (show falsePositiveNumber))
 
+  putStrLn ("sensitivity: " ++ (show sensitivity))
+  putStrLn ("specificity: " ++ (show specificity))       
+  putStrLn ("falsePositiveRate: " ++ (show falsePositiveRate))
+  putStrLn ("falseNegativeRate: " ++ (show falseNegativeRate))
            
-
-
   --rfamResults <- cmSearchGenomeDirectories threads rfamCovarianceModelPath outputDirectoryPath "Rfam" True genomesDirectoryPath
   --alienResults <- cmSearchGenomeDirectories threads alienCovarianceModelPath outputDirectoryPath "Alien" True genomesDirectoryPath
   --Alien.cm on Rfamhits (false negatives)
@@ -198,10 +211,6 @@ main = do
   --putStrLn ("True positive (rfamOnAlienPositives): " ++ (show rfamOnAlienPositives))
   --putStrLn ("False positives (rfamOnAlienNegatives): " ++ (show rfamOnAlienNegatives))
 
-  --Sensitivity = TP / (TP + FN)
-  --Specificity = TN / (FP + TN)
-  --False positive rate (α) = type I error = 1 − specificity = FP / (FP + TN) 
-  --False negative rate (β) = type II error = 1 − sensitivity = FN / (TP + FN)
   putStrLn "Done"
 
 
