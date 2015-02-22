@@ -29,7 +29,10 @@ data Options = Options
   { inputFastaFilePath :: String,     
     outputPath :: String,
     taxNodesFilePath :: String,
-    inputTaxId :: Maybe Int,     
+    inputTaxId :: Maybe Int,
+    inputZScoreCutoff :: Maybe Double,
+    inputInclusionThresholdRatio :: Maybe Double,
+    inputDendrogramCutDistance :: Maybe Double,                               
     fullSequenceOffset :: String,
     lengthFilter :: Bool,
     singleHitperTax :: Bool,
@@ -44,6 +47,9 @@ options = Options
     outputPath = def &= name "o" &= help "Path to output directory",
     taxNodesFilePath =  def &= name "n" &= help "Path to ncbi taxonomy dump file taxNodes.dmp",
     inputTaxId = Nothing &= name "t" &= help "NCBI taxonomy ID number of input RNA organism",
+    inputZScoreCutoff = (Just (0.8 :: Double)) &= name "z" &= help "RNAz score cutoff used in building first alignment",
+    inputInclusionThresholdRatio = (Just (0.3 :: Double)) &= name "r" &= help "Inclusion threshold ratio",
+    inputDendrogramCutDistance = (Just (0.7 :: Double)) &= name "d" &= help "Dendrogram cluster cut distance",                          
     fullSequenceOffset = "0" &= name "f" &= help "Overhangs of retrieved fasta sequences compared to query sequence",
     lengthFilter = True &= name "l" &= help "Filter blast hits per genomic length",
     singleHitperTax = True &= name "s" &= help "Only the best blast hit per taxonomic entry is considered",
@@ -131,7 +137,7 @@ setInclusionThreshold nextModelConstruction staticOptions cmFilepath = do
     then do 
       let iterationDirectory = (tempDirPath staticOptions) ++ (show ((iterationNumber nextModelConstruction) - 1)) ++ "/"
       maxLinkScore <- compareCM cmFilepath cmFilepath iterationDirectory
-      let inclusionThreshold = 0.3 * maxLinkScore
+      let inclusionThreshold = (inclusionThresholdRatio staticOptions) * maxLinkScore
       let nextModelConstructionWithThreshold = nextModelConstruction{bitScoreThreshold = (Just inclusionThreshold)}
       return nextModelConstructionWithThreshold
     else return nextModelConstruction
@@ -217,7 +223,7 @@ alignCandidates staticOptions modelConstruction candidates = do
       mlocarnaRNAzOutput <- mapM readRNAz pairwiseLocarnaRNAzFilePaths
       let locarnaSCI = map (\x -> show (structureConservationIndex (fromRight x))) mlocarnaRNAzOutput
       let alignedCandidates = zip locarnaSCI candidates
-      let (selectedCandidates,rejectedCandidates) = partition (\(sci,_) -> (read sci ::Double) > 0.8 ) alignedCandidates
+      let (selectedCandidates,rejectedCandidates) = partition (\(sci,_) -> (read sci ::Double) > (zScoreCutoff staticOptions)) alignedCandidates
       writeFile (iterationDirectory ++ "log" ++ "/11selectedCandidates") (showlines selectedCandidates)
       writeFile (iterationDirectory ++ "log" ++ "/12rejectedCandidates") (showlines rejectedCandidates)
       return (map snd selectedCandidates)
@@ -263,7 +269,7 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
   let clustaloDendrogram = dendrogram UPGMA clustaloIds (getDistanceMatrixElements clustaloIds clustaloDistMatrix)
   putStrLn "clustaloDendrogram"
   print clustaloDendrogram
-  let cutDendrogram = cutAt clustaloDendrogram 0.75
+  let cutDendrogram = cutAt clustaloDendrogram (dendrogramCutDistance staticOptions)
   let selectedQueries = map head (map elements cutDendrogram)
   putStrLn "selectedQueries"
   print selectedQueries
@@ -332,7 +338,7 @@ main = do
   logEither nodes temporaryDirectoryPath
   let rightNodes = fromRight nodes
   let fullSequenceOffsetLength = readInt fullSequenceOffset
-  let staticOptions = StaticOptions temporaryDirectoryPath sessionId  rightNodes inputTaxId singleHitperTax useGenbankAnnotation lengthFilter fullSequenceOffsetLength threads
+  let staticOptions = StaticOptions temporaryDirectoryPath sessionId rightNodes (fromJust inputZScoreCutoff) (fromJust inputInclusionThresholdRatio) (fromJust inputDendrogramCutDistance) inputTaxId singleHitperTax useGenbankAnnotation lengthFilter fullSequenceOffsetLength threads
   let initialization = ModelConstruction iterationNumber (head inputFasta) [] (maybe Nothing Just inputTaxId) Nothing []
   logMessage (show initialization) temporaryDirectoryPath
   alignmentConstructionResult <- alignmentConstruction staticOptions initialization
