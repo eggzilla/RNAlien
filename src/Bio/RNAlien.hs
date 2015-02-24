@@ -49,7 +49,7 @@ options = Options
     inputTaxId = Nothing &= name "t" &= help "NCBI taxonomy ID number of input RNA organism",
     inputZScoreCutoff = (Just (0.8 :: Double)) &= name "z" &= help "RNAz score cutoff used in building first alignment",
     inputInclusionThresholdRatio = (Just (0.3 :: Double)) &= name "r" &= help "Inclusion threshold ratio",
-    inputDendrogramCutDistance = (Just (0.7 :: Double)) &= name "d" &= help "Dendrogram cluster cut distance",                          
+    inputDendrogramCutDistance = (Just (0.7 :: Double)) &= name "w" &= help "Dendrogram cluster cut distance",                          
     fullSequenceOffset = "0" &= name "f" &= help "Overhangs of retrieved fasta sequences compared to query sequence",
     lengthFilter = True &= name "l" &= help "Filter blast hits per genomic length",
     singleHitperTax = True &= name "s" &= help "Only the best blast hit per taxonomic entry is considered",
