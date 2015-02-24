@@ -122,10 +122,16 @@ alignmentConstruction staticOptions modelconstruction = do
        logMessage ("Modelconstruction complete: Out of queries\n") (tempDirPath staticOptions)
        if (currentIterationNumber > 0)
          then do
+           let finalIterationFastaPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.fa"
+           let finalIterationAlignmentPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.stockholm"
            let finalIterationCMPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.cm"
-           let resultCMPath = (tempDirPath staticOptions) ++ "result.cm"
-           let resultCMLogPath = (tempDirPath staticOptions) ++ "result.cm.log"
+           let resultFastaPath = (tempDirPath staticOptions) ++ "result.fasta"    
+           let resultAlignmentPath = (tempDirPath staticOptions) ++ "result.stockholm"                         
+           let resultCMPath = (tempDirPath staticOptions) ++ "result.cm"        
+           let resultCMLogPath = (tempDirPath staticOptions) ++ "result.cm.log"   
            copyFile finalIterationCMPath resultCMPath
+           copyFile finalIterationFastaPath resultFastaPath            
+           copyFile finalIterationAlignmentPath resultAlignmentPath         
            calibrationLog <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath     
            infernalLogMessage (show calibrationLog) (tempDirPath staticOptions)                     
            return modelconstruction 
