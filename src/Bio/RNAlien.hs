@@ -48,8 +48,8 @@ options = Options
     taxNodesFilePath =  def &= name "n" &= help "Path to ncbi taxonomy dump file taxNodes.dmp",
     inputTaxId = Nothing &= name "t" &= help "NCBI taxonomy ID number of input RNA organism",
     inputZScoreCutoff = (Just (0.8 :: Double)) &= name "z" &= help "RNAz score cutoff used in building first alignment",
-    inputInclusionThresholdRatio = (Just (0.3 :: Double)) &= name "r" &= help "Inclusion threshold ratio",
-    inputDendrogramCutDistance = (Just (0.7 :: Double)) &= name "w" &= help "Dendrogram cluster cut distance",                          
+    inputInclusionThresholdRatio = (Just (0.25 :: Double)) &= name "r" &= help "Inclusion threshold ratio",
+    inputDendrogramCutDistance = (Just (0.65 :: Double)) &= name "w" &= help "Dendrogram cluster cut distance",                          
     fullSequenceOffset = "0" &= name "f" &= help "Overhangs of retrieved fasta sequences compared to query sequence",
     lengthFilter = True &= name "l" &= help "Filter blast hits per genomic length",
     singleHitperTax = True &= name "s" &= help "Only the best blast hit per taxonomic entry is considered",
@@ -100,26 +100,24 @@ alignmentConstruction staticOptions modelconstruction = do
             nextModelConstruction <- alignmentConstruction staticOptions nextModelConstructionInputWithThreshold           
             return nextModelConstruction
           else do
-            logMessage ("Modelconstruction complete: Out of candidates\n") (tempDirPath staticOptions)
-            if (currentIterationNumber > 0)
-              then do
-                 let finalIterationFastaPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.fa"
-                 let finalIterationAlignmentPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.stockholm"
-                 let finalIterationCMPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.cm"
-                 let resultFastaPath = (tempDirPath staticOptions) ++ "result.fasta"
-                 let resultAlignmentPath = (tempDirPath staticOptions) ++ "result.stockholm"
-                 let resultCMPath = (tempDirPath staticOptions) ++ "result.cm"
-                 let resultCMLogPath = (tempDirPath staticOptions) ++ "result.cm.log"
-                 copyFile finalIterationFastaPath resultFastaPath            
-                 copyFile finalIterationAlignmentPath resultAlignmentPath
-                 copyFile finalIterationCMPath resultCMPath
-                 calibrationLog <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath  
-                 infernalLogMessage (show calibrationLog) (tempDirPath staticOptions)
-                 writeFile (iterationDirectory ++ "done") ""                   
-                 return modelconstruction 
-              else return modelconstruction          
+            --Found no new candidates in this iteration, reusing previous modelconstruction with increased upperTaxonomyLimit
+            let nextModelConstructionInputWithThreshold = currentModelConstruction  {iterationNumber = (currentIterationNumber + 1),upperTaxonomyLimit = upperTaxLimit} 
+            --copy model and alignment from last iteration in place
+            let previousIterationFastaPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.fa"
+            let previousIterationAlignmentPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.stockholm"
+            let previousIterationCMPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.cm"  
+            let thisIterationFastaPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber)) ++ "/model.fa"
+            let thisIterationAlignmentPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber)) ++ "/model.stockholm"
+            let thisIterationCMPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber)) ++ "/model.cm"                                              
+            copyFile previousIterationFastaPath thisIterationFastaPath
+            copyFile previousIterationAlignmentPath thisIterationAlignmentPath
+            copyFile previousIterationCMPath thisIterationCMPath
+            logMessage (show nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)           
+            writeFile (iterationDirectory ++ "done") ""
+            nextModelConstruction <- alignmentConstruction staticOptions nextModelConstructionInputWithThreshold           
+            return nextModelConstruction
      else do
-       logMessage ("Modelconstruction complete: Out of queries\n") (tempDirPath staticOptions)
+       logMessage ("Modelconstruction complete: Out of queries or taxonomic tree exhausted\n") (tempDirPath staticOptions)
        if (currentIterationNumber > 0)
          then do
            let finalIterationFastaPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.fa"
