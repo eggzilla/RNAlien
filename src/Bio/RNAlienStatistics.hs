@@ -23,57 +23,43 @@ import Control.Monad
 import Bio.Core.Sequence 
 import Bio.Sequence.Fasta
 import Data.List
+import Data.List.Split
 
 data Options = Options            
   { alienCovarianceModelPath  :: String,
-    genomesDirectoryPath :: String,
     rfamCovarianceModelPath :: String,
+    rfamFastaFilePath :: String,
+    alienFastaFilePath :: String,
+    rfamThreshold :: Int,
+    alienThreshold :: Int,
     outputDirectoryPath :: String,
     threads :: Int
   } deriving (Show,Data,Typeable)
 
 options :: Options
 options = Options
-  { alienCovarianceModelPath = def &= name "i" &= help "Path to input Alien result folder",
-    genomesDirectoryPath = def &= name "g" &= help "Path to genomes directory",
-    rfamCovarianceModelPath = def &= name "r" &= help "Path to input Alien result folder",
+  { alienCovarianceModelPath = def &= name "i" &= help "Path to alienCovarianceModelPath",
+    rfamCovarianceModelPath = def &= name "r" &= help "Path to rfamCovarianceModelPath",
+    rfamFastaFilePath = def &= name "g" &= help "Path to rfamFastaFile",
+    alienFastaFilePath = def &= name "a" &= help "Path to alienFastaFile",
     outputDirectoryPath = def &= name "o" &= help "Path to output directory",
     threads = 1 &= name "c" &= help "Number of available cpu slots/cores, default 1"
   } &= summary "RNAlienStatistics devel version" &= help "Florian Eggenhofer - >2013" &= verbosity       
 
-cmSearchGenomeDirectories :: Int -> String -> String -> String -> Bool -> String -> IO ([(L.ByteString,CMsearch)],[(L.ByteString,CMsearch)])
-cmSearchGenomeDirectories cpuThreads covarianceModelPath outputDirectory modelType writeFasta genomesDirPath = do
-  genomeDirectories <- getDirectoryContents genomesDirPath >>=  
-           filterM (fmap not . doesDirectoryExist)
-  let genomeDirPaths = map (\dir -> genomesDirPath ++ dir ++ "/") genomeDirectories
-  createDirectory (outputDirectory ++ "/" ++ modelType)
-  results <- mapM (cmSearchGenomeDirectory cpuThreads covarianceModelPath outputDirectory modelType writeFasta) genomeDirPaths
-  let positives = concat (map fst results)
-  let negatives = concat (map snd results)
-  return (positives,negatives)
-
-cmSearchGenomeDirectory :: Int -> String -> String -> String -> Bool -> String -> IO ([(L.ByteString,CMsearch)],[(L.ByteString,CMsearch)])
-cmSearchGenomeDirectory cpuThreads covarianceModelPath outputDirectory modelType writeFasta genomeDirectoryPath = do
-  fastaFiles <- getDirectoryContents genomeDirectoryPath
-  let filteredFastaFiles = filter (\file -> isSuffixOf ".fna" file) fastaFiles
-  --print filteredFastaFiles
+--cmSearchFasta threads rfamCovarianceModelPath outputDirectoryPath "Rfam" False genomesDirectoryPath
+cmSearchFasta :: Int -> Int -> String -> String -> String -> String -> IO ([CMsearchHitScore],[CMsearchHitScore])
+cmSearchFasta thresholdScore cpuThreads covarianceModelPath outputDirectory modelType fastapath = do
   createDirectoryIfMissing False (outputDirectory ++ "/" ++ modelType)
-  mapM_ (\fastafile -> systemCMsearch cpuThreads covarianceModelPath (genomeDirectoryPath ++ "/" ++ fastafile) (outputDirectory ++ "/" ++ modelType ++ "/" ++ fastafile ++ ".cmsearch")) filteredFastaFiles
-  results <-  mapM (\fastafile -> readCMSearch (outputDirectory ++ "/" ++ modelType ++ "/" ++ fastafile ++ ".cmsearch")) filteredFastaFiles
-  --let leftresults = lefts results
-  --print leftresults
-  let rightResults = map fromRight results
-  let fastaIDWithRightResults = zip (map L.pack filteredFastaFiles) rightResults
-  let (significantHits,rejectedHits) = partitionCMsearchHits fastaIDWithRightResults
-  if writeFasta
-     then do 
-       mapM_ (\(fastaFileName,cmsearch) -> trimCMsearchFastaFile genomeDirectoryPath outputDirectory modelType cmsearch (L.unpack fastaFileName)) significantHits
-       return (significantHits,rejectedHits)
-     else return (significantHits,rejectedHits)
+  let fastaFileName = last (splitOn "/" fastapath)
+  systemCMsearch cpuThreads covarianceModelPath fastapath (outputDirectory ++ "/" ++ modelType ++ "/" ++ fastaFileName ++ ".cmsearch")
+  result <- readCMSearch (outputDirectory ++ "/" ++ modelType ++ "/" ++ fastaFileName ++ ".cmsearch")
+  let rightResults = fromRight result
+  let (significantHits,rejectedHits) = partitionCMsearchHitsByScore thresholdScore rightResults
+  return (significantHits,rejectedHits)
 
-partitionCMsearchHits :: [(L.ByteString,CMsearch)] -> ([(L.ByteString,CMsearch)],[(L.ByteString,CMsearch)])
-partitionCMsearchHits cmSearchCandidatesWithSequences = (selectedCandidates,rejectedCandidates)
-  where (selectedCandidates,rejectedCandidates) = partition (\(_,cmSearchResult) -> any (\hitScore' -> ('!' == (hitSignificance hitScore'))) (hitScores cmSearchResult)) cmSearchCandidatesWithSequences
+partitionCMsearchHitsByScore :: Int -> CMsearch -> ([CMsearchHitScore],[CMsearchHitScore])
+partitionCMsearchHitsByScore thresholdScore cmSearchResult = (selected,rejected)
+  where (selected,rejected) = partition (\hit -> hitScore hit >= fromIntegral thresholdScore) (hitScores cmSearchResult)
 
 trimCMsearchFastaFile :: String -> String -> String -> CMsearch -> String -> IO ()
 trimCMsearchFastaFile genomesDirectory outputFolder modelType cmsearch fastafile  = do
@@ -151,69 +137,25 @@ main = do
   putStrLn ("rfamMaxLinkScore: " ++ (show rfamMaxLinkScore))
   putStrLn ("alienMaxLinkscore: " ++ (show alienMaxLinkscore))
 
-  --statistical measures
-  genomeDirectories <- getDirectoryContents genomesDirectoryPath >>=  
-           filterM (fmap not . doesDirectoryExist)
-  print ("Genome Number: " ++  show (length genomeDirectories))
-
-  rfamResults <- cmSearchGenomeDirectories threads rfamCovarianceModelPath outputDirectoryPath "Rfam" False genomesDirectoryPath
-  let rfamPositives = fst rfamResults
-  let rfamNegatives = snd rfamResults
-  let rfamPositivesNumber = length rfamPositives
-  let rfamNegativesNumber = length rfamNegatives
-  let population = rfamPositivesNumber + rfamNegativesNumber
-  putStrLn ("Condition postitive (rfamPositives): " ++ (show rfamPositivesNumber))
-  putStrLn ("Condition negative (rfamNegatives): " ++ (show rfamNegativesNumber))
-  putStrLn ("Population : " ++ show population)
-
-  alienResults <- cmSearchGenomeDirectories threads alienCovarianceModelPath outputDirectoryPath "Alien" False genomesDirectoryPath 
-  let alienPositives = fst alienResults
-  let alienNegatives = snd alienResults
-  let alienPositivesNumber = length alienPositives
-  let alienNegativesNumber = length alienNegatives
-  putStrLn ("Test positive (alienPositives): " ++ (show alienPositivesNumber))
-  putStrLn ("Test negative (alienNegatives): " ++ (show alienNegativesNumber))
-
-  --true positive alienhit overlaps > 50% with rfamhit
-  --false positive alienhit in organism without rfam hit + non 50% overlap alienHits
-  --false negative no alien hit in rfam postive
-  --true negative both rfam and alien negative           
-  let (truePositiveNumber,falsePositiveNumber,trueNegativeNumber,falseNegativeNumber) = getPositivesNegatives alienPositives rfamPositives alienNegatives rfamNegatives
-
-  let sensitivity = (fromIntegral truePositiveNumber) / fromIntegral (truePositiveNumber + falseNegativeNumber)
-  let specificity = (fromIntegral trueNegativeNumber) / fromIntegral (falsePositiveNumber + trueNegativeNumber)
-  let falsePositiveRate = 1 - specificity  
-  let falseNegativeRate  = 1 - sensitivity
-                                                                           
-  putStrLn ("truePositiveNumber: " ++ (show truePositiveNumber))
-  putStrLn ("falsePostitiveNumber: " ++ (show falsePositiveNumber))         
-  putStrLn ("falseNegativeNumber: " ++ (show falseNegativeNumber))
-  putStrLn ("falsePositiveNumber: " ++ (show falsePositiveNumber))
-
-  putStrLn ("sensitivity: " ++ (show sensitivity))
-  putStrLn ("specificity: " ++ (show specificity))       
-  putStrLn ("falsePositiveRate: " ++ (show falsePositiveRate))
-  putStrLn ("falseNegativeRate: " ++ (show falseNegativeRate))
-           
-  --rfamResults <- cmSearchGenomeDirectories threads rfamCovarianceModelPath outputDirectoryPath "Rfam" True genomesDirectoryPath
-  --alienResults <- cmSearchGenomeDirectories threads alienCovarianceModelPath outputDirectoryPath "Alien" True genomesDirectoryPath
-  --Alien.cm on Rfamhits (false negatives)
-  --alienOnRfamResults <- cmSearchGenomeDirectory threads alienCovarianceModelPath outputDirectoryPath "AlienOnRfam" False (outputDirectoryPath ++ "/Rfam/") 
-  --let alienOnRfamPositives = length (fst alienOnRfamResults)
-  --let alienOnRfamNegatives = length (snd alienOnRfamResults)
-  --putStrLn ("alienOnRfamPositives: " ++ (show alienOnRfamPositives))
-  --putStrLn ("False negatives (alienOnRfamNegatives): " ++ (show alienOnRfamNegatives))
+  --other measures
+  rfamFastaEntries <- system ("cat " ++ rfamFastaFilePath ++ " | grep '>' | wc -l")
+  alienFastaEntries <- system ("cat " ++ alienFastaFilePath ++ " | grep '>' | wc -l")
+  let rfamFastaEntriesNumber = read rfamFastaEntries :: Double
+  let alienFastaEntriesNumber = read alienFastaEntries :: Double
+    
+  (rfamonAlienResults,rfamonAlienRejected) <- cmSearchFasta rfamThreshold threads rfamCovarianceModelPath outputDirectoryPath "rfamOnAlien" alienFastaFilePath 
+  (alienonRfamResults,alienonRfamRejected) <- cmSearchFasta alienThreshold threads alienCovarianceModelPath outputDirectoryPath "alienOnRfam" rfamFastaFilePath  
+  let rfamonAlienResultsNumber = fromIntegral (length rfamonAlienResults)
+  let alienonRfamResultsNumber = fromIntegral (length alienonRfamResults)
+  let rfamonAlienRecovery = rfamonAlienResultsNumber / alienFastaEntriesNumber
+  let alienonRfamRecovery = alienonRfamResultsNumber / rfamFastaEntriesNumber
  
-  --Rfam.cm on AlienHits (false postives)
-  --rfamOnAlienResults <- cmSearchGenomeDirectory threads rfamCovarianceModelPath outputDirectoryPath "RfamOnAlien" False (outputDirectoryPath ++ "/Alien/")
-  --let rfamOnAlienPositives = length (fst rfamOnAlienResults)
-  --let rfamOnAlienNegatives = length (snd rfamOnAlienResults)
-  --putStrLn ("True positive (rfamOnAlienPositives): " ++ (show rfamOnAlienPositives))
-  --putStrLn ("False positives (rfamOnAlienNegatives): " ++ (show rfamOnAlienNegatives))
+  putStrLn ("rfamFastaEntriesNumber: " ++ (show rfamFastaEntriesNumber))
+  putStrLn ("alienFastaEntriesNumber: " ++ (show alienFastaEntriesNumber))  
+  putStrLn ("rfamonAlienResultsNumber: " ++ (show rfamonAlienResultsNumber))
+  putStrLn ("alienonRfamResultsNumber: " ++ (show alienonRfamResultsNumber))                         
+  putStrLn ("AlienonRfamRecovery: " ++ (show alienonRfamRecovery))
+  putStrLn ("RfamonAlienRecovery: " ++ (show rfamonAlienRecovery))         
 
   putStrLn "Done"
 
-
-
-
-                         
