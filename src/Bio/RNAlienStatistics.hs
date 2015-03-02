@@ -76,54 +76,8 @@ trimCMsearchSequence cmSearchResult inputSequence = subSequence
         sequenceSubstring = cmSearchsubString (hitStart hitScoreEntry) (hitEnd hitScoreEntry) sequenceString
         newSequenceHeader =  L.pack ((L.unpack (unSL (seqheader inputSequence))) ++ "cmS_" ++ (show (hitStart hitScoreEntry)) ++ "_" ++ (show (hitEnd hitScoreEntry)) ++ "_" ++ (show (hitStrand hitScoreEntry)))
         subSequence = Seq (SeqLabel newSequenceHeader) (SeqData (L.pack sequenceSubstring)) Nothing     
-
--- AlienCMs that have over 50% overlap with the corresponding Rfam model hit are scored as true positives                      
-getPositivesNegatives :: [(L.ByteString,CMsearch)] -> [(L.ByteString,CMsearch)] -> [(L.ByteString,CMsearch)] -> [(L.ByteString,CMsearch)] -> (Int,Int,Int,Int)
-getPositivesNegatives alienpositives rfampositives aliennegatives rfamnegatives = (truePositiveNumber,falsePositiveNumber,trueNegativeNumber,falseNegativeNumber)
-  where rfamPositiveFastaPaths = map fst rfampositives
-        filteredbyFastaName = filter (\(path,_) -> elem path rfamPositiveFastaPaths) alienpositives
-        --alienrfampair = map (\(alienPath,_) -> fromJust (find (\(rfampath,_) -> alienPath==rfamPath) rfampositives)) alienpositives                     
-        overlapList = map (\(alienPath,alienCMSearch) -> overlapBestHitscores (maybe [] (\(_,b) -> hitScores b) (find (\(rfamPath,_) -> alienPath==rfamPath) rfampositives)) (hitScores alienCMSearch)) filteredbyFastaName
-        (numberOverlapping,nonOverlapping) = partition (==True) overlapList
-        truePositiveNumber = length numberOverlapping
-        falsePositiveNumber = (length alienpositives) - (length filteredbyFastaName) + (length nonOverlapping)           
-        falseNegativeNumber = length (filter (\(path,_) -> elem path rfamPositiveFastaPaths) aliennegatives)
-        rfamNegativeFastaPaths = map fst rfamnegatives                
-        trueNegativeNumber = length (filter (\(path,_) -> elem path rfamNegativeFastaPaths) aliennegatives)
                       
-overlapCMsearch :: CMsearch -> CMsearch -> Bool
-overlapCMsearch cmsearch1 cmsearch2 = overlap
-  where overlap = overlapBestHitscores (hitScores cmsearch1) (hitScores cmsearch2)
 
---hand over gold standard (rfam) first
-overlapBestHitscores :: [CMsearchHitScore] -> [CMsearchHitScore] -> Bool
-overlapBestHitscores hitscores1 hitscores2 = overlap
-  where hitscore1 = head hitscores1 
-        hitscore2 = head hitscores2
-        start1 = hitStart hitscore1
-        end1 = hitEnd hitscore1
-        strand1 = hitStrand hitscore1
-        start2 = hitStart hitscore2
-        end2 = hitEnd hitscore2
-        strand2 = hitStrand hitscore2
-        overlap = overlapCoordinates strand1 strand2 start1 end1 start2 end2                                            
---overlapBestHitscores [] hitscores2 = False
---overlapBestHitscores hitscores1 [] = False
-overlapBestHitscores [] [] = False                                 
- 
-
-overlapCoordinates :: Char -> Char -> Int -> Int -> Int -> Int -> Bool 
-overlapCoordinates strand1 strand2 start1 end1 start2 end2
-  | (strand1 == '-') && (strand2 == '+') = False
-  | (strand2 == '-') && (strand1 == '+') = False
-  | (strand1 == '+') && (strand2 == '+') = ((fromIntegral overlapLengthplusStrand) / (fromIntegral totalLengthplusStrand)) >= 0.5
-  | otherwise = ((fromIntegral overlapLengthminusStrand) / (fromIntegral totalLengthminusStrand)) >= 0.5
-      where totalLengthminusStrand = start1 - end1
-            totalLengthplusStrand = end1 - start1
-            overlapLengthminusStrand = length minusOverlapList
-            overlapLengthplusStrand = length plusOverlapList
-            minusOverlapList = intersect [end1..start1] [end2..start2]
-            plusOverlapList = intersect [start1..end1] [start2..end2]
             
 main :: IO ()
 main = do
@@ -138,8 +92,10 @@ main = do
   putStrLn ("alienMaxLinkscore: " ++ (show alienMaxLinkscore))
 
   --other measures
-  rfamFastaEntries <- system ("cat " ++ rfamFastaFilePath ++ " | grep '>' | wc -l")
-  alienFastaEntries <- system ("cat " ++ alienFastaFilePath ++ " | grep '>' | wc -l")
+  _ <- system ("cat " ++ rfamFastaFilePath ++ " | grep '>' | wc -l >" ++ outputDirectoryPath ++ last (splitOn "/" rfamFastaFilePath) ++ ".entries")
+  _ <- system ("cat " ++ alienFastaFilePath ++ " | grep '>' | wc -l >" ++ outputDirectoryPath ++ last (splitOn "/" alienFastaFilePath) ++ ".entries")
+  rfamFastaEntries <- readFile (outputDirectoryPath ++ last (splitOn "/" rfamFastaFilePath) ++ ".entries")
+  alienFastaEntries <- readFile (outputDirectoryPath ++ last (splitOn "/" alienFastaFilePath) ++ ".entries")                    
   let rfamFastaEntriesNumber = read rfamFastaEntries :: Double
   let alienFastaEntriesNumber = read alienFastaEntries :: Double
     
