@@ -61,11 +61,11 @@ modelConstructer staticOptions modelConstruction = do
        print ((show upperTaxLimit) ++ " " ++ show lowerTaxLimit)
        --search queries
        candidates <- mapM (searchCandidates staticOptions currentIterationNumber upperTaxLimit lowerTaxLimit) (zip [1..(length queries)] queries)
-       if (not (null (concat (map fst candidates))))
+       if null (concat (map fst candidates))
          then do
-            alignmentConstructionWithCandidates candidates staticOptions modelConstruction
+            alignmentConstructionWithoutCandidates upperTaxLimit staticOptions modelConstruction
          else do
-            alignmentConstructionWithoutCandidates upperTaxLimit candidates staticOptions modelConstruction
+            alignmentConstructionWithCandidates candidates staticOptions modelConstruction
      else do
        logMessage ("Modelconstruction complete: Out of queries or taxonomic tree exhausted\n") (tempDirPath staticOptions)
        alignmentConstructionResult staticOptions modelConstruction
@@ -105,19 +105,17 @@ alignmentConstructionWithCandidates candidates staticOptions modelConstruction =
         --too few sequences for alignment. because of lack in sequences no cm was constructed before
         --reusing previous modelconstruction with increased upperTaxonomyLimit but include found sequence
         --prepare next iteration
-        let currentIterationNumber = (iterationNumber modelConstruction)
-        let iterationDirectory = (tempDirPath staticOptions) ++ (show currentIterationNumber) ++ "/"
-        newTaxEntries = (taxRecords modelconstruction) ++ (buildTaxRecords alignmentResults currentIterationNumber)
-        let nextModelConstructionInputWithThreshold = modelConstruction  {iterationNumber = (currentIterationNumber + 1),upperTaxonomyLimit = upperTaxLimit, taxRecords = newTaxEntries}
+        let newTaxEntries = (taxRecords modelConstruction) ++ (buildTaxRecords alignmentResults currentIterationNumber)
+        let nextModelConstructionInputWithThreshold = modelConstruction  {iterationNumber = (currentIterationNumber + 1),upperTaxonomyLimit = usedUpperTaxonomyLimit, taxRecords = newTaxEntries}
         logMessage (show nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)           
         writeFile (iterationDirectory ++ "done") ""
         nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInputWithThreshold           
         return nextModelConstruction 
       else do
         --select queries
-        selectedQueries <- selectQueries staticOptions modelConstruction alignmentResults
+        currentSelectedQueries <- selectQueries staticOptions modelConstruction alignmentResults
         --prepare next iteration 
-        let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults usedUpperTaxonomyLimit True selectedQueries
+        let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults usedUpperTaxonomyLimit currentSelectedQueries True
         logMessage (show nextModelConstructionInput) (tempDirPath staticOptions)           
         --print ("upperTaxTreeLimit:" ++ show usedUpperTaxonomyLimit)
         cmFilepath <- constructModel nextModelConstructionInput staticOptions               
@@ -127,19 +125,19 @@ alignmentConstructionWithCandidates candidates staticOptions modelConstruction =
         nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInputWithThreshold           
         return nextModelConstruction
                
-alignmentConstructionWithoutCandidates :: Maybe Int -> [([(Sequence, Int, String, Char)], Maybe Int)] -> StaticOptions -> ModelConstruction -> IO ModelConstruction
-alignmentConstructionWithoutCandidates upperTaxLimit candidates staticOptions modelConstruction = do
+alignmentConstructionWithoutCandidates :: Maybe Int ->  StaticOptions -> ModelConstruction -> IO ModelConstruction
+alignmentConstructionWithoutCandidates upperTaxLimit staticOptions modelConstruction = do
     let currentIterationNumber = (iterationNumber modelConstruction)
     let iterationDirectory = (tempDirPath staticOptions) ++ (show currentIterationNumber) ++ "/"   
     --Found no new candidates in this iteration, reusing previous modelconstruction with increased upperTaxonomyLimit
     let nextModelConstructionInputWithThreshold = modelConstruction  {iterationNumber = (currentIterationNumber + 1),upperTaxonomyLimit = upperTaxLimit}
     --copy model and alignment from last iteration in place if present
+    let previousIterationCMPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.cm"
     previousIterationCMexists <- doesFileExist previousIterationCMPath
     if previousIterationCMexists
       then do
         let previousIterationFastaPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.fa"
         let previousIterationAlignmentPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.stockholm"
-        let previousIterationCMPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.cm"  
         let thisIterationFastaPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber)) ++ "/model.fa"
         let thisIterationAlignmentPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber)) ++ "/model.stockholm"
         let thisIterationCMPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber)) ++ "/model.cm"                                              
@@ -168,9 +166,9 @@ setInclusionThreshold nextModelConstruction staticOptions cmFilepath = do
     else return nextModelConstruction
 
 searchCandidates :: StaticOptions -> Int -> Maybe Int -> Maybe Int -> (Int,Sequence) -> IO ([(Sequence,Int,String,Char)], Maybe Int)
-searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit (queryIndex,query) = do
-  let fastaSeqData = seqdata query
-  let queryLength = fromIntegral (seqlength (query))
+searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit (queryIndex,_querySequence) = do
+  let fastaSeqData = seqdata _querySequence
+  let queryLength = fromIntegral (seqlength (_querySequence))
   let queryIndexString = show queryIndex           
   let entrezTaxFilter = buildTaxFilterQuery upperTaxLimit lowerTaxLimit 
   print entrezTaxFilter
@@ -219,7 +217,7 @@ searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit (quer
        fullSequencesWithSimilars <- retrieveFullSequences requestedSequenceElements
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10afullSequencesWithSimilars") (showlines fullSequencesWithSimilars)
        let fullSequences = filterIdenticalSequences fullSequencesWithSimilars 100
-       let fullSequencesWithOrigin = map (\(parsedFasta,taxid,subject) -> (parsedFasta,taxid,subject,'B')) fullSequences
+       let fullSequencesWithOrigin = map (\(parsedFasta,taxid,seqSubject) -> (parsedFasta,taxid,seqSubject,'B')) fullSequences
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10fullSequences") (showlines fullSequences)
        return (((concat annotatedSequences) ++ fullSequencesWithOrigin),(Just usedUpperTaxLimit))
      else return ([],upperTaxLimit) 
@@ -237,7 +235,7 @@ alignCandidates staticOptions modelConstruction candidates = do
       let cmSearchFastaFilePaths = map (constructFastaFilePaths iterationDirectory) indexedCandidateSequenceList
       let cmSearchFilePaths = map (constructCMsearchFilePaths iterationDirectory) indexedCandidateSequenceList
       let covarianceModelPath = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction - 1)) ++ "/" ++ "model.cm"
-      mapM_ (\(number,nucleotideSequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") [nucleotideSequence]) indexedCandidateSequenceList
+      mapM_ (\(number,_nucleotideSequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") [_nucleotideSequence]) indexedCandidateSequenceList
       let zippedFastaCMSearchResultPaths = zip cmSearchFastaFilePaths cmSearchFilePaths       
       --check with cmSearch
       mapM_ (\(fastaPath,resultPath) -> systemCMsearch (cpuThreads staticOptions) covarianceModelPath fastaPath resultPath) zippedFastaCMSearchResultPaths
@@ -253,7 +251,7 @@ alignCandidates staticOptions modelConstruction candidates = do
       --Extract sequences from modelconstruction
       let currentAlignmentSequences = V.concat (map (constructPairwiseAlignmentSequences candidateSequences) (V.toList previouslyAlignedSequences))
       --write Fasta sequences
-      V.mapM_ (\(number,nucleotideSequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") nucleotideSequence) currentAlignmentSequences
+      V.mapM_ (\(number,_nucleotideSequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") _nucleotideSequence) currentAlignmentSequences
       let pairwiseFastaFilepath = constructPairwiseFastaFilePaths iterationDirectory currentAlignmentSequences
       let pairwiseLocarnaFilepath = constructPairwiseAlignmentFilePaths "mlocarna" iterationDirectory currentAlignmentSequences
       let pairwiseLocarnainClustalw2FormatFilepath = constructPairwiseAlignmentFilePaths "mlocarnainclustalw2format" iterationDirectory currentAlignmentSequences
@@ -269,8 +267,6 @@ alignCandidates staticOptions modelConstruction candidates = do
       writeFile (iterationDirectory ++ "log" ++ "/12rejectedCandidates") (showlines rejectedCandidates)
       return (map snd selectedCandidates)       
 
-
-             
 selectQueries :: StaticOptions -> ModelConstruction -> [(Sequence,Int,String,Char)] -> IO [String]
 selectQueries staticOptions modelConstruction selectedCandidates = do
   putStrLn "SelectQueries"
@@ -296,11 +292,11 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
   putStrLn "clustaloDendrogram"
   print clustaloDendrogram
   let cutDendrogram = cutAt clustaloDendrogram (dendrogramCutDistance staticOptions)
-  let selectedQueries = map head (map elements cutDendrogram)
+  let currentSelectedQueries = map head (map elements cutDendrogram)
   putStrLn "selectedQueries"
-  print selectedQueries
-  writeFile ((tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/log" ++ "/13selectedQueries") (showlines selectedQueries)
-  return (selectedQueries)
+  print currentSelectedQueries
+  writeFile ((tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/log" ++ "/13selectedQueries") (showlines currentSelectedQueries)
+  return (currentSelectedQueries)
 
 constructModel :: ModelConstruction -> StaticOptions -> IO String
 constructModel modelConstruction staticOptions = do
@@ -448,7 +444,7 @@ constructNext :: Int -> ModelConstruction -> [(Sequence,Int,String,Char)] -> May
 constructNext currentIterationNumber modelconstruction alignmentResults upperTaxLimit inputSelectedQueries toggleInfernalAlignmentModeTrue = nextModelConstruction
   where newIterationNumber = currentIterationNumber + 1
         taxEntries = (taxRecords modelconstruction) ++ (buildTaxRecords alignmentResults currentIterationNumber)
-        currentAlignmentMode = case setInfernalAlignmentMode of
+        currentAlignmentMode = case toggleInfernalAlignmentModeTrue of
                                  True -> True
                                  False -> alignmentModeInfernal modelconstruction
         nextModelConstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) taxEntries upperTaxLimit (bitScoreThreshold modelconstruction) currentAlignmentMode inputSelectedQueries 
@@ -1000,15 +996,15 @@ constructCMsearchFilePaths currentDirectory (fastaIdentifier, _) = currentDirect
                                                                           
 constructSeedFromBlast :: BlastHit -> String
 constructSeedFromBlast blasthit = fastaString
-  where header = (filter (\char' -> char' /= '|') (L.unpack (hitId blasthit)))
+  where blastHeader = (filter (\char' -> char' /= '|') (L.unpack (hitId blasthit)))
         sequence' = L.unpack (hseq (head (matches blasthit)))
-        fastaString = (">" ++ header ++ "\n" ++ sequence' ++ "\n")
+        fastaString = (">" ++ blastHeader ++ "\n" ++ sequence' ++ "\n")
 
 constructCandidateFromBlast :: String -> BlastHit -> (String,String)
 constructCandidateFromBlast seed blasthit = fastaString
-  where header = (filter (\char' -> char' /= '|') (L.unpack (hitId blasthit)))
+  where blastHeader = (filter (\char' -> char' /= '|') (L.unpack (hitId blasthit)))
         sequence' = L.unpack (hseq (head (matches blasthit)))
-        fastaString = (header, ">" ++ header ++ "\n" ++ sequence' ++ "\n" ++ seed)
+        fastaString = (blastHeader, ">" ++ blastHeader ++ "\n" ++ sequence' ++ "\n" ++ seed)
 
 writeFastaFiles :: String -> Int -> [(String,String)] -> IO ()
 writeFastaFiles currentDir iterationNumber' candidateFastaStrings  = do
@@ -1113,7 +1109,7 @@ nextParentRank bestHitTaxId rank' nodes direction = nextRank
 
 convertClustaltoStockholm :: StructuralClustalAlignment -> String
 convertClustaltoStockholm parsedMlocarnaAlignment = stockholmOutput
-  where header = "# STOCKHOLM 1.0\n\n"
+  where alnHeader = "# STOCKHOLM 1.0\n\n"
         clustalAlignment = structuralAlignmentEntries parsedMlocarnaAlignment
         uniqueIds = nub (map entrySequenceIdentifier clustalAlignment)
         mergedEntries = map (mergeEntry clustalAlignment) uniqueIds
@@ -1122,7 +1118,7 @@ convertClustaltoStockholm parsedMlocarnaAlignment = stockholmOutput
         stockholmEntries = concatMap (buildStockholmAlignmentEntries spacerLength') mergedEntries
         structureString = "#=GC SS_cons" ++ (replicate (spacerLength' - 12) ' ') ++ (secondaryStructureTrack parsedMlocarnaAlignment) ++ "\n"
         bottom = "//"
-        stockholmOutput = header ++ stockholmEntries ++ structureString ++ bottom
+        stockholmOutput = alnHeader ++ stockholmEntries ++ structureString ++ bottom
 
 mergeEntry :: [ClustalAlignmentEntry] -> String -> ClustalAlignmentEntry
 mergeEntry clustalAlignment uniqueId = mergedEntry
