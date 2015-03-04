@@ -8,18 +8,12 @@
 module Main where
     
 import System.Console.CmdArgs    
-import System.Directory
---import Bio.Core.Sequence 
+import System.Directory 
 import Bio.Sequence.Fasta 
---import Bio.BlastXML
---import Bio.ClustalParser
---import Bio.BlastHTTP 
 import Bio.RNAlienData
 import Bio.Taxonomy  
 import Data.Either.Unwrap
---import qualified Data.Vector as V
 import Bio.RNAlienLibrary
---import Data.Either  
 import Data.Maybe
 
 data Options = Options            
@@ -74,7 +68,7 @@ main = do
   let rightNodes = fromRight nodes
   let fullSequenceOffsetLength = readInt fullSequenceOffset
   let staticOptions = StaticOptions temporaryDirectoryPath sessionId rightNodes (fromJust inputZScoreCutoff) (fromJust inputInclusionThresholdRatio) (fromJust inputDendrogramCutDistance) inputTaxId singleHitperTax useGenbankAnnotation lengthFilter fullSequenceOffsetLength threads
-  let initialization = ModelConstruction iterationNumber (head inputFasta) [] (maybe Nothing Just inputTaxId) Nothing []
+  let initialization = ModelConstruction iterationNumber (head inputFasta) [] (maybe Nothing Just inputTaxId) Nothing False []
   logMessage (show initialization) temporaryDirectoryPath
   modelConstructionResults <- modelConstructer staticOptions initialization
   let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults
