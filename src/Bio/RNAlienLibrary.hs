@@ -100,7 +100,7 @@ alignmentConstructionWithCandidates candidates staticOptions modelConstruction =
     let filteredCandidates = filterIdenticalSequencesWithOrigin (concat (map fst candidates)) 99
     --align search result
     alignmentResults <- alignCandidates staticOptions modelConstruction filteredCandidates
-    if (length alignmentResults == 1)
+    if (length alignmentResults == 1) && (not (alignmentModeInfernal modelConstruction))
       then do
         --too few sequences for alignment. because of lack in sequences no cm was constructed before
         --reusing previous modelconstruction with increased upperTaxonomyLimit but include found sequence
