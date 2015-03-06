@@ -73,22 +73,40 @@ modelConstructer staticOptions modelConstruction = do
 alignmentConstructionResult :: StaticOptions -> ModelConstruction -> IO ModelConstruction
 alignmentConstructionResult staticOptions modelConstruction = do
   let currentIterationNumber = (iterationNumber modelConstruction)
-  if (currentIterationNumber > 0)
+  let outputDirectory = (tempDirPath staticOptions)                             
+  if (alignmentModeInfernal modelConstruction)
     then do
-      let finalIterationFastaPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.fa"
-      let finalIterationAlignmentPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.stockholm"
-      let finalIterationCMPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.cm"
-      let resultFastaPath = (tempDirPath staticOptions) ++ "result.fasta"    
-      let resultAlignmentPath = (tempDirPath staticOptions) ++ "result.stockholm"                         
-      let resultCMPath = (tempDirPath staticOptions) ++ "result.cm"        
-      let resultCMLogPath = (tempDirPath staticOptions) ++ "result.cm.log"   
+      let finalIterationFastaPath = outputDirectory ++ (show (currentIterationNumber - 1)) ++ "/model.fa"
+      let finalIterationAlignmentPath = outputDirectory ++ (show (currentIterationNumber - 1)) ++ "/model.stockholm"
+      let finalIterationCMPath = outputDirectory ++ (show (currentIterationNumber - 1)) ++ "/model.cm"
+      let resultFastaPath = outputDirectory ++ "result.fasta"    
+      let resultAlignmentPath = outputDirectory ++ "result.stockholm"                         
+      let resultCMPath = outputDirectory ++ "result.cm"        
+      let resultCMLogPath = outputDirectory ++ "result.cm.log"   
       copyFile finalIterationCMPath resultCMPath
       copyFile finalIterationFastaPath resultFastaPath            
       copyFile finalIterationAlignmentPath resultAlignmentPath         
       calibrationLog <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath     
       infernalLogMessage (show calibrationLog) (tempDirPath staticOptions)                     
       return modelConstruction 
-    else do           
+    else do
+      -- taxtree exhausted try to build model from possibly collected sequences
+      -- print low sequence number warning message
+      let alignedSequences = extractAlignedSequences (iterationNumber modelConstruction) modelConstruction
+      let alignmentSequences = map snd (V.toList (V.concat [alignedSequences]))
+      writeFasta (outputDirectory ++ "result" ++ ".fa") alignmentSequences
+      let fastaFilepath = outputDirectory ++ "result" ++ ".fa"
+      let locarnaFilepath = outputDirectory ++ "result" ++ ".mlocarna"
+      let stockholmFilepath = outputDirectory ++ "result" ++ ".stockholm"
+      let cmalignCMFilepath = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction - 2)) ++ "/" ++ "model" ++ ".cm"
+      let cmFilepath = outputDirectory ++ "result" ++ ".cm"
+      let cmCalibrateFilepath = outputDirectory ++ "result" ++ ".cmcalibrate"
+      let cmBuildFilepath = outputDirectory ++ "result" ++ ".cmbuild"
+      _ <- systemCMalign (cpuThreads staticOptions) cmalignCMFilepath fastaFilepath stockholmFilepath
+      buildLog <- systemCMbuild stockholmFilepath cmFilepath cmBuildFilepath
+      calibrateLog <- systemCMcalibrate "standard" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
+      infernalLogMessage (show buildLog) (tempDirPath staticOptions)
+      infernalLogMessage (show calibrateLog) (tempDirPath staticOptions)                      
       return modelConstruction 
                   
 alignmentConstructionWithCandidates :: [([(Sequence, Int, String, Char)], Maybe Int)] -> StaticOptions -> ModelConstruction -> IO ModelConstruction
@@ -315,8 +333,15 @@ constructModel modelConstruction staticOptions = do
   let cmFilepath = outputDirectory ++ "model" ++ ".cm"
   let cmCalibrateFilepath = outputDirectory ++ "model" ++ ".cmcalibrate"
   let cmBuildFilepath = outputDirectory ++ "model" ++ ".cmbuild"
-  if (iterationNumber modelConstruction < 2)
-     then do 
+  if (alignmentModeInfernal modelConstruction)
+     then do
+       _ <- systemCMalign (cpuThreads staticOptions) cmalignCMFilepath fastaFilepath stockholmFilepath
+       buildLog <- systemCMbuild stockholmFilepath cmFilepath cmBuildFilepath
+       calibrateLog <- systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
+       infernalLogMessage (show buildLog) (tempDirPath staticOptions)
+       infernalLogMessage (show calibrateLog) (tempDirPath staticOptions)
+       return cmFilepath
+     else do
        alignSequences "mlocarna" ("--local-progressive --threads=" ++ (show (cpuThreads staticOptions)) ++ " ") [fastaFilepath] [locarnaFilepath] []
        mlocarnaAlignment <- readStructuralClustalAlignment locarnaFilepath
        let stockholAlignment = convertClustaltoStockholm (fromRight mlocarnaAlignment)
@@ -325,14 +350,7 @@ constructModel modelConstruction staticOptions = do
        calibrateLog <- systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
        infernalLogMessage (show buildLog) (tempDirPath staticOptions)
        infernalLogMessage (show calibrateLog) (tempDirPath staticOptions)
-       return (cmFilepath)
-     else do
-       _ <- systemCMalign (cpuThreads staticOptions) cmalignCMFilepath fastaFilepath stockholmFilepath
-       buildLog <- systemCMbuild stockholmFilepath cmFilepath cmBuildFilepath
-       calibrateLog <- systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
-       infernalLogMessage (show buildLog) (tempDirPath staticOptions)
-       infernalLogMessage (show calibrateLog) (tempDirPath staticOptions)
-       return (cmFilepath)
+       return cmFilepath
               
 iterationSummary :: ModelConstruction -> StaticOptions -> IO()
 iterationSummary mC sO = do
@@ -574,7 +592,7 @@ systemCMbuild alignmentFilepath modelFilepath outputFilePath = system ("cmbuild 
                                        
 -- | Run CMCompare and read the output into the corresponding datatype
 systemCMcompare ::  String -> String -> String -> IO ExitCode
-systemCMcompare model1path model2path outputFilePath = system ("CMCompare " ++ model1path ++ " " ++ model2path ++ " >" ++ outputFilePath)
+systemCMcompare model1path model2path outputFilePath = system ("CMCompare -q" ++ model1path ++ " " ++ model2path ++ " >" ++ outputFilePath)
 
 -- | Run CMsearch and read the output into the corresponding datatype
 systemCMsearch :: Int -> String -> String -> String -> IO ExitCode
