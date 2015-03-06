@@ -91,7 +91,7 @@ alignmentConstructionResult staticOptions modelConstruction = do
       return modelConstruction 
     else do
       -- taxtree exhausted try to build model from possibly collected sequences
-      -- print low sequence number warning message
+      logMessage ("Only one additional sequence found that statisfies filters. Reconstruct model with less strict cutoff parameters.") outputDirectory
       let alignedSequences = extractAlignedSequences (iterationNumber modelConstruction) modelConstruction
       let alignmentSequences = map snd (V.toList (V.concat [alignedSequences]))
       writeFasta (outputDirectory ++ "result" ++ ".fa") alignmentSequences
