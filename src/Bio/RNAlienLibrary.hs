@@ -592,7 +592,7 @@ systemCMbuild alignmentFilepath modelFilepath outputFilePath = system ("cmbuild 
                                        
 -- | Run CMCompare and read the output into the corresponding datatype
 systemCMcompare ::  String -> String -> String -> IO ExitCode
-systemCMcompare model1path model2path outputFilePath = system ("CMCompare -q" ++ model1path ++ " " ++ model2path ++ " >" ++ outputFilePath)
+systemCMcompare model1path model2path outputFilePath = system ("CMCompare -q " ++ model1path ++ " " ++ model2path ++ " >" ++ outputFilePath)
 
 -- | Run CMsearch and read the output into the corresponding datatype
 systemCMsearch :: Int -> String -> String -> String -> IO ExitCode
