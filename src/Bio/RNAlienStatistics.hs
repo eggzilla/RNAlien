@@ -43,6 +43,8 @@ options = Options
     rfamFastaFilePath = def &= name "g" &= help "Path to rfamFastaFile",
     alienFastaFilePath = def &= name "a" &= help "Path to alienFastaFile",
     outputDirectoryPath = def &= name "o" &= help "Path to output directory",
+    alienThreshold = 20 &= name "t" &= help "Bitscore threshold for RNAlien model hits on Rfam fasta, default 20",
+    rfamThreshold = 20 &= name "x" &= help "Bitscore threshold for Rfam model hits on Alien fasta, default 20",
     threads = 1 &= name "c" &= help "Number of available cpu slots/cores, default 1"
   } &= summary "RNAlienStatistics devel version" &= help "Florian Eggenhofer - >2013" &= verbosity       
 
@@ -76,9 +78,7 @@ trimCMsearchSequence cmSearchResult inputSequence = subSequence
         sequenceSubstring = cmSearchsubString (hitStart hitScoreEntry) (hitEnd hitScoreEntry) sequenceString
         newSequenceHeader =  L.pack ((L.unpack (unSL (seqheader inputSequence))) ++ "cmS_" ++ (show (hitStart hitScoreEntry)) ++ "_" ++ (show (hitEnd hitScoreEntry)) ++ "_" ++ (show (hitStrand hitScoreEntry)))
         subSequence = Seq (SeqLabel newSequenceHeader) (SeqData (L.pack sequenceSubstring)) Nothing     
-                      
-
-            
+                                  
 main :: IO ()
 main = do
   Options{..} <- cmdArgs options  
@@ -90,7 +90,10 @@ main = do
   putStrLn ("Linkscore: " ++ (show linkscore))
   putStrLn ("rfamMaxLinkScore: " ++ (show rfamMaxLinkScore))
   putStrLn ("alienMaxLinkscore: " ++ (show alienMaxLinkscore))
-
+  
+  --alien vs Rfam max linkscore
+  --rfam vs Rfam max linkscore
+           
   --other measures
   _ <- system ("cat " ++ rfamFastaFilePath ++ " | grep '>' | wc -l >" ++ outputDirectoryPath ++ last (splitOn "/" rfamFastaFilePath) ++ ".entries")
   _ <- system ("cat " ++ alienFastaFilePath ++ " | grep '>' | wc -l >" ++ outputDirectoryPath ++ last (splitOn "/" alienFastaFilePath) ++ ".entries")
