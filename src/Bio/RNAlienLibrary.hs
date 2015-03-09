@@ -132,16 +132,31 @@ alignmentConstructionWithCandidates candidates staticOptions modelConstruction =
       else do
         --select queries
         currentSelectedQueries <- selectQueries staticOptions modelConstruction alignmentResults
-        --prepare next iteration 
-        let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults usedUpperTaxonomyLimit currentSelectedQueries True
-        logMessage (show nextModelConstructionInput) (tempDirPath staticOptions)           
-        --print ("upperTaxTreeLimit:" ++ show usedUpperTaxonomyLimit)
-        cmFilepath <- constructModel nextModelConstructionInput staticOptions               
-        --print cmFilepath
-        nextModelConstructionInputWithThreshold <- setInclusionThreshold nextModelConstructionInput staticOptions cmFilepath
-        writeFile (iterationDirectory ++ "done") ""
-        nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInputWithThreshold           
-        return nextModelConstruction
+        if (alignmentModeInfernal modelConstruction)
+          then do
+            --prepare next iteration
+            let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults usedUpperTaxonomyLimit currentSelectedQueries True        
+            --print ("upperTaxTreeLimit:" ++ show usedUpperTaxonomyLimit)
+            cmFilepath <- constructModel nextModelConstructionInput staticOptions               
+            --print cmFilepath
+            nextModelConstructionInputWithThreshold <- setInclusionThreshold nextModelConstructionInput staticOptions cmFilepath
+            writeFile (iterationDirectory ++ "done") ""
+            logMessage (show nextModelConstructionInput) (tempDirPath staticOptions)  
+            nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInputWithThreshold           
+            return nextModelConstruction
+          else do
+            --First round enough candidates are avialable for modelconstruction, alignmentModeInfernal is set to true after this iteration
+            --prepare next iteration
+            let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults usedUpperTaxonomyLimit currentSelectedQueries False       
+            --print ("upperTaxTreeLimit:" ++ show usedUpperTaxonomyLimit)
+            cmFilepath <- constructModel nextModelConstructionInput staticOptions               
+            --print cmFilepath
+            nextModelConstructionInputWithThreshold <- setInclusionThreshold nextModelConstructionInput staticOptions cmFilepath
+            let nextModelConstructionInputWithThresholdInfernalMode = nextModelConstructionInputWithThreshold {alignmentModeInfernal = True}
+            logMessage (show nextModelConstructionInputWithThresholdInfernalMode) (tempDirPath staticOptions)
+            writeFile (iterationDirectory ++ "done") ""
+            nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInputWithThresholdInfernalMode        
+            return nextModelConstruction
                
 alignmentConstructionWithoutCandidates :: Maybe Int ->  StaticOptions -> ModelConstruction -> IO ModelConstruction
 alignmentConstructionWithoutCandidates upperTaxLimit staticOptions modelConstruction = do
@@ -358,7 +373,8 @@ iterationSummary mC sO = do
   let upperTaxonomyLimitOutput = maybe "not set" show (upperTaxonomyLimit mC)
   let bitScoreThresholdOutput = maybe "not set" show (bitScoreThreshold mC)
   let output = show (iterationNumber mC) ++ "," ++ upperTaxonomyLimitOutput ++ "," ++ bitScoreThresholdOutput ++ "," ++ show (length (concatMap sequenceRecords (taxRecords mC)))
-  writeFile ((tempDirPath sO) ++ show (iterationNumber mC) ++ ".log") output                               
+  writeFile ((tempDirPath sO) ++ show (iterationNumber mC) ++ ".log") output        
+                       
 readClustaloDistMatrix :: String -> IO (Either ParseError ([String],Matrix Double))             
 readClustaloDistMatrix filePath = parseFromFile genParserClustaloDistMatrix filePath
                       
