@@ -24,6 +24,7 @@ import Bio.Core.Sequence
 import Bio.Sequence.Fasta
 import Data.List
 import Data.List.Split
+import qualified System.FilePath as FP
 
 data Options = Options            
   { alienCovarianceModelPath  :: String,
@@ -52,7 +53,7 @@ options = Options
 cmSearchFasta :: Int -> Int -> String -> String -> String -> String -> IO ([CMsearchHitScore],[CMsearchHitScore])
 cmSearchFasta thresholdScore cpuThreads covarianceModelPath outputDirectory modelType fastapath = do
   createDirectoryIfMissing False (outputDirectory ++ "/" ++ modelType)
-  let fastaFileName = last (splitOn "/" fastapath)
+  let fastaFileName = FP.takeFileName fastapath
   systemCMsearch cpuThreads covarianceModelPath fastapath (outputDirectory ++ "/" ++ modelType ++ "/" ++ fastaFileName ++ ".cmsearch")
   result <- readCMSearch (outputDirectory ++ "/" ++ modelType ++ "/" ++ fastaFileName ++ ".cmsearch")
   let rightResults = fromRight result
@@ -95,10 +96,10 @@ main = do
   --rfam vs Rfam max linkscore
            
   --other measures
-  _ <- system ("cat " ++ rfamFastaFilePath ++ " | grep '>' | wc -l >" ++ outputDirectoryPath ++ last (splitOn "/" rfamFastaFilePath) ++ ".entries")
-  _ <- system ("cat " ++ alienFastaFilePath ++ " | grep '>' | wc -l >" ++ outputDirectoryPath ++ last (splitOn "/" alienFastaFilePath) ++ ".entries")
-  rfamFastaEntries <- readFile (outputDirectoryPath ++ last (splitOn "/" rfamFastaFilePath) ++ ".entries")
-  alienFastaEntries <- readFile (outputDirectoryPath ++ last (splitOn "/" alienFastaFilePath) ++ ".entries")                    
+  _ <- system ("cat " ++ rfamFastaFilePath ++ " | grep '>' | wc -l >" ++ outputDirectoryPath ++ FP.takeFileName rfamFastaFilePath ++ ".entries")
+  _ <- system ("cat " ++ alienFastaFilePath ++ " | grep '>' | wc -l >" ++ outputDirectoryPath ++ FP.takeFileName alienFastaFilePath ++ ".entries")
+  rfamFastaEntries <- readFile (outputDirectoryPath ++ FP.takeFileName rfamFastaFilePath ++ ".entries")
+  alienFastaEntries <- readFile (outputDirectoryPath ++ FP.takeFileName alienFastaFilePath ++ ".entries")                    
   let rfamFastaEntriesNumber = read rfamFastaEntries :: Double
   let alienFastaEntriesNumber = read alienFastaEntries :: Double
     
