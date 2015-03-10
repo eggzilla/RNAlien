@@ -3,6 +3,7 @@
 module Bio.RNAlienLibrary where
    
 import System.Process 
+import qualified System.FilePath as FP
 import Text.ParserCombinators.Parsec 
 import Data.List
 import Data.Char
@@ -626,12 +627,14 @@ systemCMalign :: Int -> String -> String -> String -> IO ExitCode
 systemCMalign cpus filePathCovarianceModel filePathSequence filePathAlignment = system ("cmalign --cpu " ++ (show cpus) ++ " " ++ filePathCovarianceModel ++ " " ++ filePathSequence ++ "> " ++ filePathAlignment)
 
 compareCM :: String -> String -> String -> IO Double
-compareCM rfamCovarianceModelPath resultCMpath outputDirectory = do
+compareCM rfamCMPath resultCMpath outputDirectory = do
   let myOptions = defaultDecodeOptions {
       decDelimiter = fromIntegral (ord ' ')
   }
-  let cmcompareResultPath = outputDirectory ++ "result.cmcompare"
-  _ <- systemCMcompare rfamCovarianceModelPath resultCMpath cmcompareResultPath
+  let rfamCMFileName = FP.takeBaseName rfamCMPath
+  let resultCMFileName = FP.takeBaseName resultCMpath
+  let cmcompareResultPath = outputDirectory ++ rfamCMFileName ++ resultCMFileName ++ ".cmcompare"
+  _ <- systemCMcompare rfamCMPath resultCMpath cmcompareResultPath
   inputCMcompare <- readFile cmcompareResultPath
   let singlespaceCMcompare = (unwords(words inputCMcompare))
   let decodedCmCompareOutput = head (V.toList (fromRight (decodeWith myOptions NoHeader (L.pack singlespaceCMcompare) :: Either String (V.Vector [String]))))
