@@ -696,7 +696,7 @@ genParserCMsearch = do
   optional (try (genParserCMsearchHeaderField "Description"))
   string "Hit scores:"
   newline
-  choice  [try (string " rank"), try (string "  rank") ]
+  choice  [try (string " rank"), try (string "  rank") , try (string "   rank"), try (string "   rank")]
   many1 space 
   string "E-value"
   many1 space        
