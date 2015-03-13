@@ -16,6 +16,7 @@ import Bio.Core.Sequence
 import Bio.Sequence.Fasta
 import Data.List
 import qualified System.FilePath as FP
+import qualified Data.List.Split as DS
 import Text.Printf
 
 data Options = Options            
@@ -48,7 +49,7 @@ options = Options
   } &= summary "RNAlienStatistics devel version" &= help "Florian Eggenhofer - >2013" &= verbosity       
 
 --cmSearchFasta threads rfamCovarianceModelPath outputDirectoryPath "Rfam" False genomesDirectoryPath
-cmSearchFasta :: Int -> Double -> Int -> String -> String -> String -> String -> IO ([CMsearchHitScore],[CMsearchHitScore])
+cmSearchFasta :: Int -> Double -> Int -> String -> String -> String -> String -> IO [CMsearchHitScore]
 cmSearchFasta benchmarkIndex thresholdScore cpuThreads covarianceModelPath outputDirectory modelType fastapath = do
   createDirectoryIfMissing False (outputDirectory ++ "/" ++ modelType)
   _ <- systemCMsearch cpuThreads covarianceModelPath fastapath (outputDirectory ++ "/" ++ modelType ++ "/" ++ (show benchmarkIndex) ++ ".cmsearch")
@@ -56,11 +57,12 @@ cmSearchFasta benchmarkIndex thresholdScore cpuThreads covarianceModelPath outpu
   if (isLeft result)
      then do
        print (fromLeft result)
-       return ([],[])
+       return []
      else do
        let rightResults = fromRight result
        let (significantHits,rejectedHits) = partitionCMsearchHitsByScore thresholdScore rightResults
-       return (significantHits,rejectedHits)
+       let organismUniquesignificantHits = nubBy cmSearchSameOrganism significantHits
+       return organismUniquesignificantHits
 
 partitionCMsearchHitsByScore :: Double -> CMsearch -> ([CMsearchHitScore],[CMsearchHitScore])
 partitionCMsearchHitsByScore thresholdScore cmSearchResult = (selected,rejected)
@@ -81,7 +83,23 @@ trimCMsearchSequence cmSearchResult inputSequence = subSequence
         sequenceSubstring = cmSearchsubString (hitStart hitScoreEntry) (hitEnd hitScoreEntry) sequenceString
         newSequenceHeader =  L.pack ((L.unpack (unSL (seqheader inputSequence))) ++ "cmS_" ++ (show (hitStart hitScoreEntry)) ++ "_" ++ (show (hitEnd hitScoreEntry)) ++ "_" ++ (show (hitStrand hitScoreEntry)))
         subSequence = Seq (SeqLabel newSequenceHeader) (SeqData (L.pack sequenceSubstring)) Nothing     
-                                  
+
+cmSearchSameOrganism :: CMsearchHitScore -> CMsearchHitScore -> Bool
+cmSearchSameOrganism hitscore1 hitscore2
+  | hitOrganism1 == hitOrganism2 = True
+  | otherwise = False
+  where unpackedSeqHeader1 = (L.unpack (hitSequenceHeader hitscore1))
+        unpackedSeqHeader2 = (L.unpack (hitSequenceHeader hitscore2))
+        separationcharacter1 = selectSeparationChar unpackedSeqHeader1
+        separationcharacter2 = selectSeparationChar unpackedSeqHeader2
+        hitOrganism1 = (DS.splitOn separationcharacter1 unpackedSeqHeader1) !! 0
+        hitOrganism2 = (DS.splitOn separationcharacter2 unpackedSeqHeader2) !! 0
+
+selectSeparationChar :: String -> String
+selectSeparationChar inputString
+  | any (\a -> a == ':') inputString = ":"
+  | otherwise = "/"
+
 main :: IO ()
 main = do
   Options{..} <- cmdArgs options  
@@ -95,8 +113,8 @@ main = do
   alienFastaEntries <- readFile (outputDirectoryPath ++ FP.takeFileName alienFastaFilePath ++ ".entries")                    
   let rfamFastaEntriesNumber = read rfamFastaEntries :: Int
   let alienFastaEntriesNumber = read alienFastaEntries :: Int
-  (rfamonAlienResults,_) <- cmSearchFasta benchmarkIndex rfamThreshold threads rfamCovarianceModelPath outputDirectoryPath "rfamOnAlien" alienFastaFilePath 
-  (alienonRfamResults,_) <- cmSearchFasta benchmarkIndex alienThreshold threads alienCovarianceModelPath outputDirectoryPath "alienOnRfam" rfamFastaFilePath  
+  rfamonAlienResults <- cmSearchFasta benchmarkIndex rfamThreshold threads rfamCovarianceModelPath outputDirectoryPath "rfamOnAlien" alienFastaFilePath 
+  alienonRfamResults <- cmSearchFasta benchmarkIndex alienThreshold threads alienCovarianceModelPath outputDirectoryPath "alienOnRfam" rfamFastaFilePath  
   let rfamonAlienResultsNumber = length rfamonAlienResults
   let alienonRfamResultsNumber = length alienonRfamResults
   let rfamonAlienRecovery = (fromIntegral rfamonAlienResultsNumber :: Double) / (fromIntegral alienFastaEntriesNumber :: Double)
