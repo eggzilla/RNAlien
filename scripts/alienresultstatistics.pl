@@ -8,7 +8,6 @@ use Data::Dumper;
 use Cwd;
 $|=1;
 
-my $counter = 1;
 #contains all RNAlien result folders for sRNA tagged families
 my $alienresult_basename="/scratch/egg/AlienResultsCollected/";
 #contains all Rfam Families names by family name with extension .cm
@@ -25,12 +24,15 @@ while(<$sRNAfamilyfh>) {
 }
 close $sRNAfamilyfh;
 
-for(1..374){
+for(my $counter=0; $counter <= 374; $counter++){
 	my $current_alienresult_folder= $alienresult_basename.$counter."/";
 	if(-e $alienresult_basename.$counter."/done"){
 		my $alienModelPath = $current_alienresult_folder."result.cm";
 		my $alienFastaPath = $current_alienresult_folder."result.fasta";
                 my $alienThresholdLogFile = $current_alienresult_folder."1.log";
+		if(! -e  $alienThresholdLogFile){
+                        print "Does not exist: $alienThresholdLogFile ";
+                }
                 my @alienThresholdLog;
                 open(my $alienThresholdLogfh, "<", $alienThresholdLogFile)
                     or die "Failed to open file: $!\n";
@@ -46,9 +48,22 @@ for(1..374){
                 my $rfamModelId = $rfamModelNameId[0];
 		my $rfamModelPath = $rfammodel_basename . $rfamModelId . ".cm";
                 my $rfamFastaPath =$rfamfasta_basename . $rfamModelId . ".fa";
+		if(! -e  $rfamModelPath){
+			print "Does not exist: $rfamModelPath ";
+		}
+		if(! -e  $rfamFastaPath){
+                        print "Does not exist: $rfamFastaPath ";
+                }
+
+		if(! -e  $alienModelPath){
+                        print "Does not exist: $alienModelPath ";
+                }
+		if(! -e  $alienFastaPath){
+                        print "Does not exist: $alienFastaPath";
+                }
+
                 my $rfamThreshold = $rfamModelNameId[2];
                 #print "RNAlienStatistics -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -o /scratch/egg/temp/AlienResultStatistics/";
 		print `RNAlienStatistics -n $rfamModelName -d $rfamModelId -b $counter -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -t $alienThreshold -x $rfamThreshold -o /scratch/egg/temp/AlienResultStatistics`;
 	}
-	$counter++;
 }

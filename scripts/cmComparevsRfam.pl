@@ -28,7 +28,7 @@ my $current_alienresult_folder= $alienresult_basename.$counter."/";
 if(-e $alienresult_basename.$counter."/done"){
 	my $alienModelPath = $current_alienresult_folder."result.cm";
 	my @rfamModelNameId = split(/\s+/,$sRNAfamilies[($counter - 1)]);
-        my $rfamModelId = $rfamModelNameId[1];
+        my $rfamModelId = $rfamModelNameId[0];
 	my $rfamModelPath = $rfammodel_basename . $rfamModelId . ".cm";
         my $alienOutputFile = $outputDir . $counter . ".alienresult";
 	my $rfamOutputFile = $outputDir . $counter . ".rfamresult";
