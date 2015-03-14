@@ -207,7 +207,8 @@ searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit (quer
   let entrezTaxFilter = buildTaxFilterQuery upperTaxLimit lowerTaxLimit 
   print entrezTaxFilter
   let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=1000" 
-  let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (Just "refseq_genomic") (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter))
+  let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
+  let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (Just "refseq_genomic") (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter ++ registrationInfo))
   putStrLn ("Sending blast query " ++ (show iterationnumber))
   blastOutput <- blastHTTP blastQuery
   let logFileDirectoryPath = (tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log"
@@ -552,6 +553,9 @@ buildHitNumberQuery :: String -> String
 buildHitNumberQuery hitNumber
   | hitNumber == "" = ""
   | otherwise = "&ALIGNMENTS=" ++ hitNumber
+
+buildRegistration :: String -> String -> String
+buildRegistration toolname developeremail = "&tool=" ++ toolname ++ "&email=" ++ developeremail
 
 encodedTaxIDQuery :: Int -> String
 encodedTaxIDQuery taxID = "txid" ++ (show taxID) ++ "%20%5BORGN%5D&EQ_OP"
@@ -919,7 +923,8 @@ retrieveGenbankFeatures :: (String,Int,Int,String,String,Int,String) -> IO (Stri
 retrieveGenbankFeatures (_,seqStart,seqStop,_,accession',taxid,subject') = do
   let program' = Just "efetch"
   let database' = Just "nucleotide"
-  let queryString = "id=" ++ accession' ++ "&seq_start=" ++ (show seqStart) ++ "&seq_stop=" ++ (show seqStop) ++ "&rettype=gb" 
+  let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
+  let queryString = "id=" ++ accession' ++ "&seq_start=" ++ (show seqStart) ++ "&seq_stop=" ++ (show seqStop) ++ "&rettype=gb" ++ registrationInfo
   let entrezQuery = EntrezHTTPQuery program' database' queryString 
   queryResult <- entrezHTTP entrezQuery
   return (queryResult,taxid,subject')
@@ -942,8 +947,9 @@ retrieveFullSequences requestedSequences = do
 retrieveFullSequence :: (String,Int,Int,String,String,Int,String) -> IO (Sequence,Int,String)
 retrieveFullSequence (geneId,seqStart,seqStop,strand,_,taxid,subject') = do
   let program' = Just "efetch"
-  let database' = Just "nucleotide" 
-  let queryString = "id=" ++ geneId ++ "&seq_start=" ++ (show seqStart) ++ "&seq_stop=" ++ (show seqStop) ++ "&rettype=fasta" ++ "&strand=" ++ strand
+  let database' = Just "nucleotide"
+  let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
+  let queryString = "id=" ++ geneId ++ "&seq_start=" ++ (show seqStart) ++ "&seq_stop=" ++ (show seqStop) ++ "&rettype=fasta" ++ "&strand=" ++ strand ++ registrationInfo
   let entrezQuery = EntrezHTTPQuery program' database' queryString 
   result <- entrezHTTP entrezQuery
   let parsedFasta = head ((mkSeqs . L.lines) (L.pack result))
@@ -1195,7 +1201,8 @@ retrieveParentTaxIdEntrez taxIds = do
        let database' = Just "taxonomy"
        let taxIdStrings = map show taxIds
        let taxIdQuery = intercalate "," taxIdStrings
-       let queryString = "id=" ++ taxIdQuery
+       let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
+       let queryString = "id=" ++ taxIdQuery ++ registrationInfo
        let entrezQuery = EntrezHTTPQuery program' database' queryString 
        result <- entrezHTTP entrezQuery
        let parentTaxIds = readEntrezParentIds result
@@ -1224,8 +1231,8 @@ retrieveBlastHitTaxIdEntrez blastHits = do
      then do
        let geneIds = map extractGeneId blastHits
        let idList = intercalate "," geneIds
-       let query' = "id=" ++ idList
-       --print query'
+       let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
+       let query' = "id=" ++ idList ++ registrationInfo
        let entrezQuery = EntrezHTTPQuery (Just "esummary") (Just "nucleotide") query'
        threadDelay 10000000                  
        result <- entrezHTTP entrezQuery
