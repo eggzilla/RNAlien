@@ -60,7 +60,7 @@ cmSearchFasta benchmarkIndex thresholdScore cpuThreads covarianceModelPath outpu
        return []
      else do
        let rightResults = fromRight result
-       let (significantHits,rejectedHits) = partitionCMsearchHitsByScore thresholdScore rightResults
+       let (significantHits,_) = partitionCMsearchHitsByScore thresholdScore rightResults
        let organismUniquesignificantHits = nubBy cmSearchSameOrganism significantHits
        return organismUniquesignificantHits
 
