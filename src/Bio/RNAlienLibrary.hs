@@ -102,15 +102,17 @@ alignmentConstructionResult staticOptions modelConstruction = do
       let fastaFilepath = outputDirectory ++ "result" ++ ".fa"
       let locarnaFilepath = outputDirectory ++ "result" ++ ".mlocarna"
       let stockholmFilepath = outputDirectory ++ "result" ++ ".stockholm"
-      let cmalignCMFilepath = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction - 2)) ++ "/" ++ "model" ++ ".cm"
       let cmFilepath = outputDirectory ++ "result" ++ ".cm"
       let cmCalibrateFilepath = outputDirectory ++ "result" ++ ".cmcalibrate"
       let cmBuildFilepath = outputDirectory ++ "result" ++ ".cmbuild"
-      _ <- systemCMalign (cpuThreads staticOptions) cmalignCMFilepath fastaFilepath stockholmFilepath
+      alignSequences "mlocarna" ("--local-progressive --threads=" ++ (show (cpuThreads staticOptions)) ++ " ") [fastaFilepath] [locarnaFilepath] []
+      mlocarnaAlignment <- readStructuralClustalAlignment locarnaFilepath
+      let stockholAlignment = convertClustaltoStockholm (fromRight mlocarnaAlignment)
+      writeFile stockholmFilepath stockholAlignment
       buildLog <- systemCMbuild stockholmFilepath cmFilepath cmBuildFilepath
-      calibrateLog <- systemCMcalibrate "standard" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
+      calibrateLog <- systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
       infernalLogMessage (show buildLog) (tempDirPath staticOptions)
-      infernalLogMessage (show calibrateLog) (tempDirPath staticOptions)                      
+      infernalLogMessage (show calibrateLog) (tempDirPath staticOptions)                 
       return modelConstruction 
                   
 alignmentConstructionWithCandidates :: [([(Sequence, Int, String, Char)], Maybe Int)] -> StaticOptions -> ModelConstruction -> IO ModelConstruction
