@@ -40,6 +40,7 @@ import Bio.BlastHTTP
 import Data.Clustering.Hierarchical
 import System.Directory
 import Bio.ViennaRNAParser
+import System.Console.CmdArgs
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 modelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
@@ -77,6 +78,7 @@ alignmentConstructionResult staticOptions modelConstruction = do
   let outputDirectory = (tempDirPath staticOptions)                             
   if (alignmentModeInfernal modelConstruction)
     then do
+      putStrLn "Alignment result infernal mode"
       let finalIterationFastaPath = outputDirectory ++ (show (currentIterationNumber - 1)) ++ "/model.fa"
       let finalIterationAlignmentPath = outputDirectory ++ (show (currentIterationNumber - 1)) ++ "/model.stockholm"
       let finalIterationCMPath = outputDirectory ++ (show (currentIterationNumber - 1)) ++ "/model.cm"
@@ -91,6 +93,7 @@ alignmentConstructionResult staticOptions modelConstruction = do
       infernalLogMessage (show calibrationLog) (tempDirPath staticOptions)                     
       return modelConstruction 
     else do
+      putStrLn "Alignment result initial mode"
       -- taxtree exhausted try to build model from possibly collected sequences
       logMessage ("Only one additional sequence found that statisfies filters. Reconstruct model with less strict cutoff parameters.") outputDirectory
       let alignedSequences = extractAlignedSequences (iterationNumber modelConstruction) modelConstruction
@@ -121,6 +124,7 @@ alignmentConstructionWithCandidates candidates staticOptions modelConstruction =
     alignmentResults <- alignCandidates staticOptions modelConstruction filteredCandidates
     if (length alignmentResults == 1) && (not (alignmentModeInfernal modelConstruction))
       then do
+        putStrLn "Alignment construction with candidates - length 1 - inital mode"
         --too few sequences for alignment. because of lack in sequences no cm was constructed before
         --reusing previous modelconstruction with increased upperTaxonomyLimit but include found sequence
         --prepare next iteration
@@ -135,6 +139,7 @@ alignmentConstructionWithCandidates candidates staticOptions modelConstruction =
         currentSelectedQueries <- selectQueries staticOptions modelConstruction alignmentResults
         if (alignmentModeInfernal modelConstruction)
           then do
+            putStrLn "Alignment construction with candidates - infernal mode"
             --prepare next iteration
             let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults usedUpperTaxonomyLimit currentSelectedQueries True        
             --print ("upperTaxTreeLimit:" ++ show usedUpperTaxonomyLimit)
@@ -146,6 +151,7 @@ alignmentConstructionWithCandidates candidates staticOptions modelConstruction =
             nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInputWithThreshold           
             return nextModelConstruction
           else do
+            putStrLn "Alignment construction with candidates - initial mode"
             --First round enough candidates are avialable for modelconstruction, alignmentModeInfernal is set to true after this iteration
             --prepare next iteration
             let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults usedUpperTaxonomyLimit currentSelectedQueries False       
@@ -170,6 +176,7 @@ alignmentConstructionWithoutCandidates upperTaxLimit staticOptions modelConstruc
     previousIterationCMexists <- doesFileExist previousIterationCMPath
     if previousIterationCMexists
       then do
+        putStrLn "Alignment construction no candidates - previous cm"
         let previousIterationFastaPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.fa"
         let previousIterationAlignmentPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.stockholm"
         let thisIterationFastaPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber)) ++ "/model.fa"
@@ -183,6 +190,7 @@ alignmentConstructionWithoutCandidates upperTaxLimit staticOptions modelConstruc
         nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInputWithThreshold           
         return nextModelConstruction
       else do
+        putStrLn "Alignment construction no candidates - no previous iteration cm"
         logMessage (show nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)           
         writeFile (iterationDirectory ++ "done") ""
         nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInputWithThreshold           
@@ -259,13 +267,13 @@ searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit (quer
 
 alignCandidates :: StaticOptions -> ModelConstruction -> [(Sequence,Int,String,Char)] -> IO [(Sequence,Int,String,Char)]
 alignCandidates staticOptions modelConstruction candidates = do
-  putStrLn "Aligning Candidates"
   let iterationDirectory = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/"
   let candidateSequences = extractCandidateSequences candidates
   --Extract sequences from modelconstruction
   let previouslyAlignedSequences = extractAlignedSequences (iterationNumber modelConstruction) modelConstruction                  
   if(alignmentModeInfernal modelConstruction)
     then do
+      putStrLn "Alignment Mode Infernal"
       let indexedCandidateSequenceList = (V.toList candidateSequences)
       let cmSearchFastaFilePaths = map (constructFastaFilePaths iterationDirectory) indexedCandidateSequenceList
       let cmSearchFilePaths = map (constructCMsearchFilePaths iterationDirectory) indexedCandidateSequenceList
@@ -284,6 +292,7 @@ alignCandidates staticOptions modelConstruction candidates = do
       return (map snd trimmedSelectedCandidates)
     else do
       --Extract sequences from modelconstruction
+      putStrLn "Alignment Mode Normal"
       let currentAlignmentSequences = V.concat (map (constructPairwiseAlignmentSequences candidateSequences) (V.toList previouslyAlignedSequences))
       --write Fasta sequences
       V.mapM_ (\(number,_nucleotideSequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") _nucleotideSequence) currentAlignmentSequences
@@ -484,9 +493,7 @@ constructNext currentIterationNumber modelconstruction alignmentResults upperTax
                                  True -> True
                                  False -> alignmentModeInfernal modelconstruction
         nextModelConstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) taxEntries upperTaxLimit (bitScoreThreshold modelconstruction) currentAlignmentMode inputSelectedQueries 
-
-
-                                
+         
 buildTaxRecords :: [(Sequence,Int,String,Char)] -> Int -> [TaxonomyRecord]
 buildTaxRecords alignmentResults currentIterationNumber = taxonomyRecords
   where taxIdGroups = groupBy sameTaxIdAlignmentResult alignmentResults
@@ -939,7 +946,7 @@ retrieveFullSequences requestedSequences = do
       let (failedRetrievals, successfulRetrievals) = partition (\x -> L.null (unSD (seqdata (firstOfTriple (fst x))))) fullSequencesWithRequestedSequences
       --we try to reretrieve failed entries once
       missingSequences <- mapM retrieveFullSequence (map snd failedRetrievals)
-      let (reRetrievedSequences,stillMissingSequences) = partition (\fullSequence -> L.null (unSD (seqdata (firstOfTriple fullSequence)))) missingSequences
+      let (stillMissingSequences,reRetrievedSequences) = partition (\fullSequence -> L.null (unSD (seqdata (firstOfTriple fullSequence)))) missingSequences
       print stillMissingSequences                            
       return ((map fst successfulRetrievals) ++ reRetrievedSequences) 
     else return fullSequences 
@@ -1366,3 +1373,8 @@ constructTaxonomyRecordsCSVTable modelconstruction = csvtable
 
 constructTaxonomyRecordCSVEntries :: TaxonomyRecord -> String
 constructTaxonomyRecordCSVEntries taxRecord = concatMap (\seqrec -> show (recordTaxonomyId taxRecord) ++ ";" ++ show (aligned seqrec) ++ ";" ++ (L.unpack (unSL (seqheader (nucleotideSequence seqrec)))) ++ "\n") (sequenceRecords taxRecord)
+
+setVerbose :: Verbosity -> Bool
+setVerbose verbosityLevel
+  | verbosityLevel == Loud = True
+  | otherwise = False

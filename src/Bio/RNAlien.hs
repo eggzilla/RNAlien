@@ -51,7 +51,8 @@ options = Options
                 
 main :: IO ()
 main = do
-  Options{..} <- cmdArgs options       
+  Options{..} <- cmdArgs options
+  verboseLevel <- getVerbosity
   -- Generate SessionID
   sessionId <- createSessionID sessionIdentificator
   let iterationNumber = 0
@@ -67,7 +68,7 @@ main = do
   logEither nodes temporaryDirectoryPath
   let rightNodes = fromRight nodes
   let fullSequenceOffsetLength = readInt fullSequenceOffset
-  let staticOptions = StaticOptions temporaryDirectoryPath sessionId rightNodes (fromJust inputZScoreCutoff) (fromJust inputInclusionThresholdRatio) (fromJust inputDendrogramCutDistance) inputTaxId singleHitperTax useGenbankAnnotation lengthFilter fullSequenceOffsetLength threads
+  let staticOptions = StaticOptions temporaryDirectoryPath sessionId rightNodes (fromJust inputZScoreCutoff) (fromJust inputInclusionThresholdRatio) (fromJust inputDendrogramCutDistance) inputTaxId singleHitperTax useGenbankAnnotation lengthFilter fullSequenceOffsetLength threads (setVerbose verboseLevel)
   let initialization = ModelConstruction iterationNumber (head inputFasta) [] (maybe Nothing Just inputTaxId) Nothing False []
   logMessage (show initialization) temporaryDirectoryPath
   modelConstructionResults <- modelConstructer staticOptions initialization

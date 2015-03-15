@@ -19,7 +19,8 @@ data StaticOptions = StaticOptions
     useGenbankAnnotationToogle :: Bool,
     lengthFilterToggle :: Bool,
     fullSequenceOffsetLength :: Int,
-    cpuThreads :: Int
+    cpuThreads :: Int,
+    verbositySwitch :: Bool
   } deriving (Show)  
 
 -- | Keeps track of model construction 
