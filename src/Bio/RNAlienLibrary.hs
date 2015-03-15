@@ -86,7 +86,7 @@ alignmentConstructionResult staticOptions modelConstruction = do
       let resultFastaPath = outputDirectory ++ "result.fasta"    
       let resultAlignmentPath = outputDirectory ++ "result.stockholm"                         
       let resultCMPath = outputDirectory ++ "result.cm"        
-      let resultCMLogPath = outputDirectory ++ "result.cm.log"   
+      let resultCMLogPath = outputDirectory ++ "result.cm.log"
       copyFile finalIterationCMPath resultCMPath
       copyFile finalIterationFastaPath resultFastaPath            
       copyFile finalIterationAlignmentPath resultAlignmentPath         
@@ -96,22 +96,23 @@ alignmentConstructionResult staticOptions modelConstruction = do
     else do
       putStrLn "Alignment result initial mode"
       -- taxtree exhausted try to build model from possibly collected sequences
-      logMessage ("Only one additional sequence found that statisfies filters. Reconstruct model with less strict cutoff parameters.") outputDirectory
+      logMessage ("No sequences found that statisfy filters. Reconstruct model with less strict cutoff parameters.") outputDirectory
       let alignedSequences = extractAlignedSequences (iterationNumber modelConstruction) modelConstruction
       let alignmentSequences = map snd (V.toList (V.concat [alignedSequences]))
       writeFasta (outputDirectory ++ "result" ++ ".fa") alignmentSequences
       let fastaFilepath = outputDirectory ++ "result" ++ ".fa"
-      let locarnaFilepath = outputDirectory ++ "result" ++ ".mlocarna"
       let stockholmFilepath = outputDirectory ++ "result" ++ ".stockholm"
       let cmFilepath = outputDirectory ++ "result" ++ ".cm"
       let cmCalibrateFilepath = outputDirectory ++ "result" ++ ".cmcalibrate"
       let cmBuildFilepath = outputDirectory ++ "result" ++ ".cmbuild"
-      alignSequences "mlocarna" ("--local-progressive --threads=" ++ (show (cpuThreads staticOptions)) ++ " ") [fastaFilepath] [locarnaFilepath] []
-      mlocarnaAlignment <- readStructuralClustalAlignment locarnaFilepath
-      let stockholAlignment = convertClustaltoStockholm (fromRight mlocarnaAlignment)
+      let foldFilepath = outputDirectory ++ "result" ++ ".fold"
+      _ <- systemRNAfold fastaFilepath foldFilepath
+      foldoutput <- readRNAfold foldFilepath
+      let seqStructure = foldSecondaryStructure (fromRight foldoutput)
+      let stockholAlignment = convertFastaFoldStockholm (head alignmentSequences) seqStructure
       writeFile stockholmFilepath stockholAlignment
       buildLog <- systemCMbuild stockholmFilepath cmFilepath cmBuildFilepath
-      calibrateLog <- systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
+      calibrateLog <- systemCMcalibrate "standard" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
       infernalLogMessage (show buildLog) (tempDirPath staticOptions)
       infernalLogMessage (show calibrateLog) (tempDirPath staticOptions)                 
       return modelConstruction 
@@ -125,7 +126,7 @@ alignmentConstructionWithCandidates candidates staticOptions modelConstruction =
     let filteredCandidates = filterIdenticalSequencesWithOrigin (concat (map fst candidates)) 99
     --align search result
     alignmentResults <- alignCandidates staticOptions modelConstruction filteredCandidates
-    if (length alignmentResults == 1) && (not (alignmentModeInfernal modelConstruction))
+    if (length alignmentResults == 0) && (not (alignmentModeInfernal modelConstruction))
       then do
         putStrLn "Alignment construction with candidates - length 1 - inital mode"
         --too few sequences for alignment. because of lack in sequences no cm was constructed before
@@ -597,6 +598,10 @@ systemBlast filePath inputIterationNumber = do
   outputBlast <- readXML outputName
   return outputBlast
 
+-- | Run external RNAalifold command and read the output into the corresponding datatype
+systemRNAfold :: String -> String -> IO ExitCode
+systemRNAfold inputFilePath outputFilePath = system ("RNAfold " ++ inputFilePath  ++ " >" ++ outputFilePath)
+         
 -- | Run external mlocarna command and read the output into the corresponding datatype, there is also a folder created at the location of the input fasta file
 systemLocarna :: String -> (String,String) -> IO ExitCode
 systemLocarna options (inputFilePath, outputFilePath) = system ("mlocarna " ++ options ++ " " ++ inputFilePath ++ " > " ++ outputFilePath)
@@ -1164,6 +1169,20 @@ nextParentRank bestHitTaxId rank' nodes direction = nextRank
         currentParent = parentNodeWithRank hitNode rank' nodes
         nextRank = isPopulated currentParent (parentNodeWithRank hitNode rank' nodes) bestHitTaxId rank' nodes direction
 
+convertFastaFoldStockholm :: Sequence -> String -> String
+convertFastaFoldStockholm fastasequence foldedStructure = stockholmOutput
+  where alnHeader = "# STOCKHOLM 1.0\n\n"
+        --(L.unpack (unSL (seqheader inputFasta')))) ++ "\n" ++ (map toUpper (L.unpack (unSD (seqdata inputFasta')))) ++ "\n"
+        seqIdentifier = L.unpack (unSL (seqheader fastasequence))
+        seqSequence = L.unpack (unSD (seqdata fastasequence))
+        identifierLength = length seqIdentifier
+        spacerLength' = identifierLength + 2
+        spacer = replicate (spacerLength' - identifierLength) ' '
+        entrystring = seqIdentifier ++ spacer ++ seqSequence ++ "\n"
+        structureString = "#=GC SS_cons" ++ (replicate (spacerLength' - 12) ' ') ++ foldedStructure ++ "\n"
+        bottom = "//"
+        stockholmOutput = alnHeader ++ entrystring ++ structureString ++ bottom
+                   
 convertClustaltoStockholm :: StructuralClustalAlignment -> String
 convertClustaltoStockholm parsedMlocarnaAlignment = stockholmOutput
   where alnHeader = "# STOCKHOLM 1.0\n\n"
