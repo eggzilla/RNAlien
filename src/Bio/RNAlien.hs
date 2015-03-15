@@ -76,8 +76,3 @@ main = do
   writeFile (temporaryDirectoryPath ++ "result.csv") resultTaxonomyRecordsCSVTable
   writeFile (temporaryDirectoryPath ++ "done") ""
   putStrLn "Done"
-
-           
-
-
-                         

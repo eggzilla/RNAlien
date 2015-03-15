@@ -49,8 +49,9 @@ modelConstructer staticOptions modelConstruction = do
   putStrLn ("Bitscore threshold:" ++ (maybe "not set" show (bitScoreThreshold modelConstruction)))
   iterationSummary modelConstruction staticOptions
   let currentIterationNumber = (iterationNumber modelConstruction)
+  let foundSequenceNumber = length (concatMap sequenceRecords (taxRecords modelConstruction))
   --extract queries
-  let queries = extractQueries currentIterationNumber modelConstruction
+  let queries = extractQueries foundSequenceNumber modelConstruction
   putStrLn "Queries"
   print queries
   let iterationDirectory = (tempDirPath staticOptions) ++ (show currentIterationNumber) ++ "/"
@@ -321,28 +322,32 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
   let candidateSequences = extractQueryCandidates selectedCandidates
   let iterationDirectory = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/"
   let alignmentSequences = map snd (V.toList (V.concat [candidateSequences,alignedSequences]))
-  --write Fasta sequences
-  writeFasta (iterationDirectory ++ "query" ++ ".fa") alignmentSequences
-  let fastaFilepath = iterationDirectory ++ "query" ++ ".fa"
-  let clustaloFilepath = iterationDirectory ++ "query" ++ ".clustalo"
-  let clustaloDistMatrixPath = iterationDirectory ++ "query" ++ ".matrix" 
-  alignSequences "clustalo" ("--full --distmat-out=" ++ clustaloDistMatrixPath ++ " ") [fastaFilepath] [clustaloFilepath] []
-  idsDistancematrix <- readClustaloDistMatrix clustaloDistMatrixPath
-  print (lefts [idsDistancematrix])
-  let (clustaloIds,clustaloDistMatrix) = fromRight idsDistancematrix
-  putStrLn "Clustalid"
-  print clustaloIds
-  putStrLn "Distmatrix"
-  print clustaloDistMatrix
-  let clustaloDendrogram = dendrogram UPGMA clustaloIds (getDistanceMatrixElements clustaloIds clustaloDistMatrix)
-  putStrLn "clustaloDendrogram"
-  print clustaloDendrogram
-  let cutDendrogram = cutAt clustaloDendrogram (dendrogramCutDistance staticOptions)
-  let currentSelectedQueries = map head (map elements cutDendrogram)
-  putStrLn "selectedQueries"
-  print currentSelectedQueries
-  writeFile ((tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/log" ++ "/13selectedQueries") (showlines currentSelectedQueries)
-  return (currentSelectedQueries)
+  if(length alignmentSequences > 3)
+    then do
+      --write Fasta sequences
+      writeFasta (iterationDirectory ++ "query" ++ ".fa") alignmentSequences
+      let fastaFilepath = iterationDirectory ++ "query" ++ ".fa"
+      let clustaloFilepath = iterationDirectory ++ "query" ++ ".clustalo"
+      let clustaloDistMatrixPath = iterationDirectory ++ "query" ++ ".matrix" 
+      alignSequences "clustalo" ("--full --distmat-out=" ++ clustaloDistMatrixPath ++ " ") [fastaFilepath] [clustaloFilepath] []
+      idsDistancematrix <- readClustaloDistMatrix clustaloDistMatrixPath
+      print (lefts [idsDistancematrix])
+      let (clustaloIds,clustaloDistMatrix) = fromRight idsDistancematrix
+      putStrLn "Clustalid"
+      print clustaloIds
+      putStrLn "Distmatrix"
+      print clustaloDistMatrix
+      let clustaloDendrogram = dendrogram UPGMA clustaloIds (getDistanceMatrixElements clustaloIds clustaloDistMatrix)
+      putStrLn "clustaloDendrogram"
+      print clustaloDendrogram
+      let cutDendrogram = cutAt clustaloDendrogram (dendrogramCutDistance staticOptions)
+      let currentSelectedQueries = map head (map elements cutDendrogram)
+      putStrLn "selectedQueries"
+      print currentSelectedQueries
+      writeFile ((tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/log" ++ "/13selectedQueries") (showlines currentSelectedQueries)
+      return (currentSelectedQueries)
+    else do
+      return []
 
 constructModel :: ModelConstruction -> StaticOptions -> IO String
 constructModel modelConstruction staticOptions = do
@@ -539,8 +544,8 @@ cmSearchsubString startSubString endSubString inputString
         reverseEnd = stringLength - (endSubString - 1)
                      
 extractQueries :: Int -> ModelConstruction -> [Sequence] 
-extractQueries iterationnumber modelconstruction
-  | iterationnumber == 0 = [fastaSeqData] 
+extractQueries foundSequenceNumber modelconstruction
+  | foundSequenceNumber < 3 = [fastaSeqData] 
   | otherwise = querySequences 
   where fastaSeqData = inputFasta modelconstruction
         querySeqIds = selectedQueries modelconstruction
