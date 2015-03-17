@@ -20,6 +20,7 @@ data StaticOptions = StaticOptions
     lengthFilterToggle :: Bool,
     fullSequenceOffsetLength :: Int,
     cpuThreads :: Int,
+    blastDatabase :: Maybe String,
     verbositySwitch :: Bool
   } deriving (Show)  
 

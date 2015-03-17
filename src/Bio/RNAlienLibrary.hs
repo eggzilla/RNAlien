@@ -220,7 +220,7 @@ searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit (quer
   print entrezTaxFilter
   let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=1000" 
   let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
-  let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (Just "refseq_genomic") (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter ++ registrationInfo))
+  let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter ++ registrationInfo))
   putStrLn ("Sending blast query " ++ (show iterationnumber))
   blastOutput <- blastHTTP blastQuery
   let logFileDirectoryPath = (tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log"

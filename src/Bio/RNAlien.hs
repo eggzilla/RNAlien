@@ -23,7 +23,8 @@ data Options = Options
     inputTaxId :: Maybe Int,
     inputZScoreCutoff :: Maybe Double,
     inputInclusionThresholdRatio :: Maybe Double,
-    inputDendrogramCutDistance :: Maybe Double,                               
+    inputDendrogramCutDistance :: Maybe Double,
+    inputBlastDatabase :: Maybe String,
     fullSequenceOffset :: String,
     lengthFilter :: Bool,
     singleHitperTax :: Bool,
@@ -40,7 +41,8 @@ options = Options
     inputTaxId = Nothing &= name "t" &= help "NCBI taxonomy ID number of input RNA organism",
     inputZScoreCutoff = (Just (0.8 :: Double)) &= name "z" &= help "RNAz score cutoff used in building first alignment",
     inputInclusionThresholdRatio = (Just (0.25 :: Double)) &= name "r" &= help "Inclusion threshold ratio",
-    inputDendrogramCutDistance = (Just (0.65 :: Double)) &= name "w" &= help "Dendrogram cluster cut distance",                          
+    inputDendrogramCutDistance = (Just (0.65 :: Double)) &= name "w" &= help "Dendrogram cluster cut distance",
+    inputBlastDatabase = Just "refseq_genomic" &= name "b" &= help "Specify name of blast database to use",                    
     fullSequenceOffset = "0" &= name "f" &= help "Overhangs of retrieved fasta sequences compared to query sequence",
     lengthFilter = True &= name "l" &= help "Filter blast hits per genomic length",
     singleHitperTax = True &= name "s" &= help "Only the best blast hit per taxonomic entry is considered",
@@ -68,7 +70,7 @@ main = do
   logEither nodes temporaryDirectoryPath
   let rightNodes = fromRight nodes
   let fullSequenceOffsetLength = readInt fullSequenceOffset
-  let staticOptions = StaticOptions temporaryDirectoryPath sessionId rightNodes (fromJust inputZScoreCutoff) (fromJust inputInclusionThresholdRatio) (fromJust inputDendrogramCutDistance) inputTaxId singleHitperTax useGenbankAnnotation lengthFilter fullSequenceOffsetLength threads (setVerbose verboseLevel)
+  let staticOptions = StaticOptions temporaryDirectoryPath sessionId rightNodes (fromJust inputZScoreCutoff) (fromJust inputInclusionThresholdRatio) (fromJust inputDendrogramCutDistance) inputTaxId singleHitperTax useGenbankAnnotation lengthFilter fullSequenceOffsetLength threads  inputBlastDatabase (setVerbose verboseLevel)
   let initialization = ModelConstruction iterationNumber (head inputFasta) [] (maybe Nothing Just inputTaxId) Nothing False []
   logMessage (show initialization) temporaryDirectoryPath
   modelConstructionResults <- modelConstructer staticOptions initialization
