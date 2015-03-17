@@ -600,7 +600,7 @@ systemBlast filePath inputIterationNumber = do
 
 -- | Run external RNAalifold command and read the output into the corresponding datatype
 systemRNAfold :: String -> String -> IO ExitCode
-systemRNAfold inputFilePath outputFilePath = system ("RNAfold " ++ inputFilePath  ++ " >" ++ outputFilePath)
+systemRNAfold inputFilePath outputFilePath = system ("RNAfold <" ++ inputFilePath  ++ " >" ++ outputFilePath)
          
 -- | Run external mlocarna command and read the output into the corresponding datatype, there is also a folder created at the location of the input fasta file
 systemLocarna :: String -> (String,String) -> IO ExitCode
@@ -719,7 +719,7 @@ genParserCMsearch = do
   optional (try (genParserCMsearchHeaderField "Description"))
   string "Hit scores:"
   newline
-  choice  [try (string " rank"), try (string "  rank") , try (string "   rank"), try (string "   rank")]
+  choice  [try (string " rank"), try (string "  rank") , try (string "   rank"), try (string "    rank"),try (string "     rank")]
   many1 space 
   string "E-value"
   many1 space        
