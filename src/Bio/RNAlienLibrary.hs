@@ -303,12 +303,13 @@ alignCandidates staticOptions modelConstruction candidates = do
       let pairwiseFastaFilepath = constructPairwiseFastaFilePaths iterationDirectory currentAlignmentSequences
       let pairwiseLocarnaFilepath = constructPairwiseAlignmentFilePaths "mlocarna" iterationDirectory currentAlignmentSequences
       let pairwiseLocarnainClustalw2FormatFilepath = constructPairwiseAlignmentFilePaths "mlocarnainclustalw2format" iterationDirectory currentAlignmentSequences
-      alignSequences "mlocarna" ("--iterate --local-progressive --threads=" ++ (show (cpuThreads staticOptions)) ++ " ") pairwiseFastaFilepath pairwiseLocarnaFilepath []
+      alignSequences "mlocarna" ("--local-progressive --threads=" ++ (show (cpuThreads staticOptions)) ++ " ") pairwiseFastaFilepath pairwiseLocarnaFilepath []
       --compute SCI
       let pairwiseLocarnaRNAzFilePaths = constructPairwiseRNAzFilePaths "mlocarna" iterationDirectory currentAlignmentSequences
       computeAlignmentSCIs pairwiseLocarnainClustalw2FormatFilepath pairwiseLocarnaRNAzFilePaths
       mlocarnaRNAzOutput <- mapM readRNAz pairwiseLocarnaRNAzFilePaths
-      let locarnaSCI = map (\x -> show (structureConservationIndex (fromRight x))) mlocarnaRNAzOutput
+      print (lefts mlocarnaRNAzOutput)
+      let locarnaSCI = map (\x -> show (structureConservationIndex x)) (rights mlocarnaRNAzOutput)
       let alignedCandidates = zip locarnaSCI candidates
       let (selectedCandidates,rejectedCandidates) = partition (\(sci,_) -> (read sci ::Double) > (zScoreCutoff staticOptions)) alignedCandidates
       writeFile (iterationDirectory ++ "log" ++ "/11selectedCandidates") (showlines selectedCandidates)
