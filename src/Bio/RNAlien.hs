@@ -15,6 +15,7 @@ import Bio.Taxonomy
 import Data.Either.Unwrap
 import Bio.RNAlienLibrary
 import Data.Maybe
+import Data.Time
 
 data Options = Options            
   { inputFastaFilePath :: String,     
@@ -57,14 +58,15 @@ main = do
   verboseLevel <- getVerbosity
   -- Generate SessionID
   sessionId <- createSessionID sessionIdentificator
+  timestamp <- getCurrentTime
   let iterationNumber = 0
-  let temporaryDirectoryPath = outputPath ++ sessionId ++ "/"                     
+  let temporaryDirectoryPath = outputPath ++ sessionId ++ "/"                   
   createDirectoryIfMissing False temporaryDirectoryPath
-  putStrLn "Created Temp-Dir:"
-  putStrLn temporaryDirectoryPath
   -- create Log file
-  writeFile (temporaryDirectoryPath ++ "Log") ("")
-  writeFile (temporaryDirectoryPath ++ "InfernalLog") ("")
+  writeFile (temporaryDirectoryPath ++ "Log") ("RNAlien 1.0.0" ++ "\n")
+  logMessage ("Timestamp: " ++ (show timestamp) ++ "\n") temporaryDirectoryPath
+  logMessage ("Temporary Directory: " ++ temporaryDirectoryPath ++ "\n") temporaryDirectoryPath
+  logToolVersions temporaryDirectoryPath
   inputFasta <- readFasta inputFastaFilePath
   nodes <- readNCBISimpleTaxDumpNodes taxNodesFilePath
   logEither nodes temporaryDirectoryPath
@@ -76,5 +78,5 @@ main = do
   modelConstructionResults <- modelConstructer staticOptions initialization
   let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults
   writeFile (temporaryDirectoryPath ++ "result.csv") resultTaxonomyRecordsCSVTable
+  resultSummary modelConstructionResults staticOptions
   writeFile (temporaryDirectoryPath ++ "done") ""
-  putStrLn "Done"
