@@ -34,12 +34,26 @@ data ModelConstruction = ModelConstruction
     bitScoreThreshold :: Maybe Double,
     alignmentModeInfernal :: Bool,
     selectedQueries :: [String]
-  } deriving (Show) 
+  } 
+
+instance Show ModelConstruction where
+  show (ModelConstruction _iterationNumber _inputFasta _taxRecords _upperTaxonomyLimit _bitScoreThreshold _alignmentModeInfernal _selectedQueries) = a ++ b ++ c ++ d ++ e ++ f
+    where a = "Modelconstruction iteration: " ++ show _iterationNumber ++ "\n" 
+          b = "Input fasta:\n" ++ show _inputFasta ++ "\n" 
+          c = show _taxRecords
+          d = "Upper taxonomy limit: " ++ maybe "not set" show _upperTaxonomyLimit ++ "\n"
+          e = "Inclusion Threshold [bit]: " ++ maybe "not set" show _bitScoreThreshold ++ "\n"
+          f = show _selectedQueries
 
 data TaxonomyRecord = TaxonomyRecord
   { recordTaxonomyId :: Int,
     sequenceRecords :: [SequenceRecord]
-  } deriving (Show) 
+  }
+
+instance Show TaxonomyRecord where
+  show (TaxonomyRecord _recordTaxonomyId _sequenceRecords) = a ++ b
+    where a = "TaxonomyRecord TaxonomyId: " ++ show _recordTaxonomyId ++ "\n" 
+          b = show _sequenceRecords
 
 data SequenceRecord = SequenceRecord
   { --Sequence consisting of SeqLabel, and SeqData
@@ -49,8 +63,14 @@ data SequenceRecord = SequenceRecord
     recordDescription :: String,
     -- Is the sequence derived from the blast hit coordinates (B) or from a corresponding genbank feature (G)
     sequenceOrigin :: Char    
-  } deriving (Show)  
+  } 
 
+instance Show SequenceRecord where
+  show (SequenceRecord _nucleotideSequence _aligned _recordDescription _sequenceOrigin) = a ++ b ++ c ++ d 
+    where a = "SequenceRecord TaxonomyId: " ++ show _recordDescription ++ "\n" 
+          b = "Sequence Origin: " ++ _recordDescription ++ "\n" 
+          c = "Aligned in iteration: " ++ show _aligned ++ "\n" 
+          d = "Sequence Origin: " ++ show _nucleotideSequence ++ "\n"
 -- |  
 data CMsearch = CMsearch
   { queryCMfile :: String,
