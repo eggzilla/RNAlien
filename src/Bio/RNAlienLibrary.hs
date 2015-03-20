@@ -1362,7 +1362,7 @@ showlines :: Show a => [a] -> [Char]
 showlines input = concatMap (\x -> show x ++ "\n") input
 
 logMessage :: String -> String -> IO ()
-logMessage logoutput temporaryDirectoryPath = appendFile (temporaryDirectoryPath ++ "Log") (show logoutput)
+logMessage logoutput temporaryDirectoryPath = appendFile (temporaryDirectoryPath ++ "Log") (logoutput)
 
 logVerboseMessage :: Bool -> String -> String -> IO ()
 logVerboseMessage verboseTrue logoutput temporaryDirectoryPath 
