@@ -51,7 +51,7 @@ for(my $counter=1; $counter <= $familyNumber; $counter++){
 	if(-e $alienresult_basename.$counter."/done"){
 		my $alienModelPath = $current_alienresult_folder."result.cm";
 		my $alienFastaPath = $current_alienresult_folder."result.fa";
-                my $alienThresholdLogFile = $current_alienresult_folder."1.log";
+                my $alienThresholdLogFile = $current_alienresult_folder."result.log";
 		if(! -e  $alienThresholdLogFile){
                         print "Does not exist: $alienThresholdLogFile ";
                 }
