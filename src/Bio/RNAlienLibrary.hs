@@ -26,8 +26,6 @@ import Text.Parsec.Error
 import Text.ParserCombinators.Parsec.Pos
 import Bio.EntrezHTTP
 import qualified Data.List.Split as DS
-import Bio.GenbankParser 
-import Bio.GenbankTools
 import System.Exit
 import Data.Either (lefts,rights)
 import qualified Text.EditDistance as ED   
@@ -247,17 +245,15 @@ searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit (quer
        let (usedUpperTaxLimit, filteredBlastResults) = filterByNeighborhoodTreeConditional iterationnumber upperTaxLimit blastHitsWithTaxId (inputTaxNodes staticOptions) rightBestTaxIdResult (singleHitperTaxToggle staticOptions)
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_5filteredBlastResults") (showlines filteredBlastResults)
        -- Coordinate generation
-       let requestedSequenceElements = map (getRequestedSequenceElement (fullSequenceOffsetLength staticOptions) queryLength) filteredBlastResults
+       let requestedSequenceElements = map getRequestedSequenceElement filteredBlastResults
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++  "_6requestedSequenceElements") (showlines requestedSequenceElements)
-       -- Retrieval of genbank features in the hit region (if enabled by commandline toggle)
-       annotatedSequences <- buildGenbankCoordinatesAndRetrieveFeatures staticOptions iterationnumber queryLength queryIndexString filteredBlastResults
        -- Retrieval of full sequences from entrez
        fullSequencesWithSimilars <- retrieveFullSequences requestedSequenceElements
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10afullSequencesWithSimilars") (showlines fullSequencesWithSimilars)
        let fullSequences = filterIdenticalSequences fullSequencesWithSimilars 100
        let fullSequencesWithOrigin = map (\(parsedFasta,taxid,seqSubject) -> (parsedFasta,taxid,seqSubject,'B')) fullSequences
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10fullSequences") (showlines fullSequences)
-       return (((concat annotatedSequences) ++ fullSequencesWithOrigin),(Just usedUpperTaxLimit))
+       return (fullSequencesWithOrigin,(Just usedUpperTaxLimit))
      else return ([],upperTaxLimit) 
 
 alignCandidates :: StaticOptions -> ModelConstruction -> [(Sequence,Int,String,Char)] -> IO [(Sequence,Int,String,Char)]
@@ -967,10 +963,10 @@ retrieveFullSequence (geneId,seqStart,seqStop,strand,_,taxid,subject') = do
   let parsedFasta = head ((mkSeqs . L.lines) (L.pack result))
   return (parsedFasta,taxid,subject')
  
-getRequestedSequenceElement :: Int -> Int -> (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
-getRequestedSequenceElement retrievalOffset queryLength (blastHit,taxid) 
-  | blastHitIsReverseComplement (blastHit,taxid) = getReverseRequestedSequenceElement retrievalOffset queryLength (blastHit,taxid)
-  | otherwise = getForwardRequestedSequenceElement retrievalOffset queryLength (blastHit,taxid)
+getRequestedSequenceElement :: (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
+getRequestedSequenceElement (blastHit,taxid) 
+  | blastHitIsReverseComplement (blastHit,taxid) = getReverseRequestedSequenceElement (blastHit,taxid)
+  | otherwise = getForwardRequestedSequenceElement (blastHit,taxid)
 
 blastHitIsReverseComplement :: (BlastHit,Int) -> Bool
 blastHitIsReverseComplement (blastHit,_) = isReverse
@@ -979,36 +975,28 @@ blastHitIsReverseComplement (blastHit,_) = isReverse
         firstHSPto = h_to (head blastMatches)
         isReverse = firstHSPfrom > firstHSPto
 
-getForwardRequestedSequenceElement :: Int -> Int -> (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
-getForwardRequestedSequenceElement retrievalOffset queryLength (blastHit,taxid) = (geneIdentifier',startcoordinate,endcoordinate,strand,accession',taxid,subjectBlast)
+getForwardRequestedSequenceElement :: (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
+getForwardRequestedSequenceElement (blastHit,taxid) = (geneIdentifier',startcoordinate,endcoordinate,strand,accession',taxid,subjectBlast)
   where    accession' = L.unpack (extractAccession blastHit)
            subjectBlast = L.unpack (unSL (subject blastHit))
            geneIdentifier' = extractGeneId blastHit
            blastMatches = matches blastHit
            minHfrom = minimum (map h_from blastMatches)
-           minHfromHSP = fromJust (find (\hsp -> minHfrom == (h_from hsp)) blastMatches)
            maxHto = maximum (map h_to blastMatches)
-           maxHtoHSP = fromJust (find (\hsp -> maxHto == (h_to hsp)) blastMatches)
-           minHonQuery = q_from minHfromHSP
-           maxHonQuery = q_to maxHtoHSP
-           startcoordinate = minHfrom - minHonQuery - retrievalOffset
-           endcoordinate = maxHto + (queryLength - maxHonQuery) + retrievalOffset
+           startcoordinate = minHfrom
+           endcoordinate = maxHto 
            strand = "1"
 
-getReverseRequestedSequenceElement :: Int -> Int -> (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
-getReverseRequestedSequenceElement retrievalOffset queryLength (blastHit,taxid) = (geneIdentifier',startcoordinate,endcoordinate,strand,accession',taxid,subjectBlast)
+getReverseRequestedSequenceElement :: (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
+getReverseRequestedSequenceElement (blastHit,taxid) = (geneIdentifier',startcoordinate,endcoordinate,strand,accession',taxid,subjectBlast)
   where   accession' = L.unpack (extractAccession blastHit)
           subjectBlast = L.unpack (unSL (subject blastHit))           
           geneIdentifier' = extractGeneId blastHit
           blastMatches = matches blastHit
-          maxHfrom = maximum (map h_from blastMatches)
-          maxHfromHSP = fromJust (find (\hsp -> maxHfrom == (h_from hsp)) blastMatches)
+          maxHfrom = maximum (map h_from blastMatches)       
           minHto = minimum (map h_to blastMatches)
-          minHtoHSP = fromJust (find (\hsp -> minHto == (h_to hsp)) blastMatches)
-          minHonQuery = q_from maxHfromHSP
-          maxHonQuery = q_to minHtoHSP
-          startcoordinate = maxHfrom + minHonQuery + retrievalOffset
-          endcoordinate = minHto - (queryLength - maxHonQuery) - retrievalOffset
+          startcoordinate = maxHfrom
+          endcoordinate = minHto
           strand = "2"
 
 constructCandidateFromFasta :: Sequence -> String
@@ -1342,21 +1330,6 @@ retrieveAllDescendents nodes parentNode
   | otherwise = [parentNode]
   where
   childNodes = retrieveChildren nodes parentNode
-
-buildGenbankCoordinatesAndRetrieveFeatures :: StaticOptions -> Int -> Int -> String -> [(BlastHit,Int)] -> IO [[(Sequence, Int, String, Char)]]
-buildGenbankCoordinatesAndRetrieveFeatures staticOptions iterationnumber queryLength queryIndexString filteredBlastResults = do
-  if useGenbankAnnotationToogle staticOptions == True
-     then do
-       let requestedGenbankFeatures = map (getRequestedSequenceElement queryLength queryLength) filteredBlastResults  
-       writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/" ++ queryIndexString ++ "_7requestedGenbankFeatures") (showlines requestedGenbankFeatures)
-       genbankFeaturesOutput <- mapM retrieveGenbankFeatures requestedGenbankFeatures
-       let genbankFeatures = map (\(genbankfeatureOutput,taxid,subject') -> (parseGenbank genbankfeatureOutput,taxid,subject')) genbankFeaturesOutput
-       writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log"  ++ "/" ++ queryIndexString ++ "_error") (concatMap show (lefts (map (\(a,_,_) -> a) genbankFeatures)))
-       let rightGenbankFeatures = map (\(genbankfeature,taxid,subject') -> (fromRight genbankfeature,taxid,subject')) genbankFeatures
-       let annotatedSequences = map (\(rightgenbankfeature,taxid,subject') -> (map (\singleseq -> (singleseq,taxid,subject','G')) (extractSpecificFeatureSequence (Just "gene") rightgenbankfeature))) rightGenbankFeatures
-       writeFile ((tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log" ++ "/" ++ queryIndexString ++ "_9annotatedSequences") (showlines annotatedSequences)
-       return annotatedSequences
-     else return []
 
 showlines :: Show a => [a] -> [Char]
 showlines input = concatMap (\x -> show x ++ "\n") input
