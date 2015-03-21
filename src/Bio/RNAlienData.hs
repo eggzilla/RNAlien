@@ -16,9 +16,7 @@ data StaticOptions = StaticOptions
     dendrogramCutDistance :: Double,
     userTaxId :: Maybe Int,
     singleHitperTaxToggle :: Bool,
-    useGenbankAnnotationToogle :: Bool,
     lengthFilterToggle :: Bool,
-    fullSequenceOffsetLength :: Int,
     cpuThreads :: Int,
     blastDatabase :: Maybe String,
     verbositySwitch :: Bool
@@ -43,7 +41,7 @@ instance Show ModelConstruction where
           c = show _taxRecords
           d = "Upper taxonomy limit: " ++ maybe "not set" show _upperTaxonomyLimit ++ "\n"
           e = "Inclusion Threshold [bit]: " ++ maybe "not set" show _bitScoreThreshold ++ "\n"
-          f = show _selectedQueries
+          f = "Selected queries: \n"  ++ concatMap (\x -> x ++ "\n") _selectedQueries
 
 data TaxonomyRecord = TaxonomyRecord
   { recordTaxonomyId :: Int,

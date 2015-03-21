@@ -1364,9 +1364,9 @@ logToolVersions temporaryDirectoryPath = do
   rnafoldversion <- readFile rnafoldversionpath 
   infernalversionOutput <- readFile infernalversionpath
   let infernalversion = (lines infernalversionOutput) !! 1
-  logMessage ("Clustalo version: " ++ clustaloversion  ++ "\n") temporaryDirectoryPath
-  logMessage ("mlocarna version: " ++ mlocarnaversion ++ "\n") temporaryDirectoryPath
-  logMessage ("rnafold version: " ++ rnafoldversion ++ "\n") temporaryDirectoryPath
+  logMessage ("Clustalo version: " ++ clustaloversion) temporaryDirectoryPath
+  logMessage ("mlocarna version: " ++ mlocarnaversion) temporaryDirectoryPath
+  logMessage ("rnafold version: " ++ rnafoldversion) temporaryDirectoryPath
   logMessage ("infernalversion: " ++ infernalversion ++ "\n") temporaryDirectoryPath
 
 buildCMfromLocarnaFilePath :: String -> IO ExitCode

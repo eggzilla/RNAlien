@@ -26,10 +26,8 @@ data Options = Options
     inputInclusionThresholdRatio :: Maybe Double,
     inputDendrogramCutDistance :: Maybe Double,
     inputBlastDatabase :: Maybe String,
-    fullSequenceOffset :: String,
     lengthFilter :: Bool,
     singleHitperTax :: Bool,
-    useGenbankAnnotation :: Bool,
     threads :: Int,
     sessionIdentificator :: Maybe String
   } deriving (Show,Data,Typeable)
@@ -43,11 +41,9 @@ options = Options
     inputZScoreCutoff = (Just (0.8 :: Double)) &= name "z" &= help "RNAz score cutoff used in building first alignment",
     inputInclusionThresholdRatio = (Just (0.25 :: Double)) &= name "r" &= help "Inclusion threshold ratio",
     inputDendrogramCutDistance = (Just (0.65 :: Double)) &= name "w" &= help "Dendrogram cluster cut distance",
-    inputBlastDatabase = Just "refseq_genomic" &= name "b" &= help "Specify name of blast database to use",                    
-    fullSequenceOffset = "0" &= name "f" &= help "Overhangs of retrieved fasta sequences compared to query sequence",
+    inputBlastDatabase = Just "nt" &= name "b" &= help "Specify name of blast database to use",                    
     lengthFilter = True &= name "l" &= help "Filter blast hits per genomic length",
     singleHitperTax = True &= name "s" &= help "Only the best blast hit per taxonomic entry is considered",
-    useGenbankAnnotation = False &= name "g" &= help "Include genbank features overlapping with blasthits into alignment construction",
     threads = 1 &= name "c" &= help "Number of available cpu slots/cores, default 1",
     sessionIdentificator = Nothing &= name "d" &= help "Optional session id that is used instead of automatically generated one"
   } &= summary "RNAlien devel version" &= help "Florian Eggenhofer - >2013" &= verbosity       
@@ -71,8 +67,7 @@ main = do
   nodes <- readNCBISimpleTaxDumpNodes taxNodesFilePath
   logEither nodes temporaryDirectoryPath
   let rightNodes = fromRight nodes
-  let fullSequenceOffsetLength = readInt fullSequenceOffset
-  let staticOptions = StaticOptions temporaryDirectoryPath sessionId rightNodes (fromJust inputZScoreCutoff) (fromJust inputInclusionThresholdRatio) (fromJust inputDendrogramCutDistance) inputTaxId singleHitperTax useGenbankAnnotation lengthFilter fullSequenceOffsetLength threads  inputBlastDatabase (setVerbose verboseLevel)
+  let staticOptions = StaticOptions temporaryDirectoryPath sessionId rightNodes (fromJust inputZScoreCutoff) (fromJust inputInclusionThresholdRatio) (fromJust inputDendrogramCutDistance) inputTaxId singleHitperTax lengthFilter threads  inputBlastDatabase (setVerbose verboseLevel)
   let initialization = ModelConstruction iterationNumber (head inputFasta) [] (maybe Nothing Just inputTaxId) Nothing False []
   logMessage (show initialization) temporaryDirectoryPath
   modelConstructionResults <- modelConstructer staticOptions initialization
