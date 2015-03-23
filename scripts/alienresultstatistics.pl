@@ -20,12 +20,13 @@ my $RNAFamilyIdFile;
 my $familyNumber;
 my $resulttempdir;
 if($type eq "structured"){
-	$alienresult_basename="/scr/kronos/egg/AlienStructuredResultsCollected2/";
+	$alienresult_basename="/scr/kronos/egg/AlienStructuredResultsCollected4/";
 	$rfammodel_basename = "/scr/kronos/egg/AlienTest/sRNAFamilies/all_models/";
 	$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyfasta/";
+	#$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyseedfasta/";
 	$RNAFamilyIdFile = "/scr/kronos/egg/structuredFamilyNameIdGatheringCutoffSorted";
-	$familyNumber = 59;
-	$resulttempdir = "/scr/kronos/egg/temp/AlienStructuredResultStatistics2";
+	$familyNumber = 56;
+	$resulttempdir = "/scr/kronos/egg/temp/AlienStructuredResultStatistics3";
 }else{
 	#sRNA
 	$alienresult_basename="/scr/kronos/egg/AlienResultsCollected/";
@@ -86,7 +87,7 @@ for(my $counter=1; $counter <= $familyNumber; $counter++){
 
                 my $rfamThreshold = $rfamModelNameId[2];
                 #print "RNAlienStatistics -n $rfamModelName -d $rfamModelId -b $counter -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -t $alienThreshold -x $rfamThreshold -o $resulttempdir\n";
-		print `RNAlienStatistics -c 7 -n $rfamModelName -d $rfamModelId -b $counter -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -t $alienThreshold -x $rfamThreshold -o $resulttempdir`;
+		print `RNAlienStatistics -c 10 -n $rfamModelName -d $rfamModelId -b $counter -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -t $alienThreshold -x $rfamThreshold -o $resulttempdir`;
 	}
 }
 
