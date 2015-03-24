@@ -47,7 +47,7 @@ while(<$RNAfamilyfh>) {
 }
 close $RNAfamilyfh;
 my $gathering_score_multiplier = 1.5;  # 1.5 1.4 1.3 1.2 1.1 1 0.9 0.8 0.7 0.6 0.5 0.4 0.3 0.2 0.1
-=pod
+
 for(1..15){
     my $output;
     for(my $counter=1; $counter <= $familyNumber; $counter++){
@@ -95,6 +95,9 @@ for(1..15){
         }
     }
     my $outputfilePath = "/scr/kronos/egg/structuredalienseedoutput4-" . $gathering_score_multiplier . ".csv";
+    if($gathering_score_multiplier == 1){
+	$outputfilePath = "/scr/kronos/egg/structuredalienseedoutput4-1.0.csv"
+    }
     open(my $outputfh, ">", $outputfilePath)
                 or die "Failed to open file: $!\n";
     print $outputfh $output;
@@ -102,7 +105,7 @@ for(1..15){
     #$gathering_score_multiplier = 1.0;  # 0.9 0.8 0.7 0.6 0.5 0.4 0.3 0.2 0.1
     $gathering_score_multiplier = $gathering_score_multiplier - 0.1;
 }
-=cut
+
 my $output;
 $gathering_score_multiplier = 0.5;
 for(my $counter=1; $counter <= $familyNumber; $counter++){
@@ -155,7 +158,7 @@ for(my $counter=1; $counter <= $familyNumber; $counter++){
         $output = $output . `RNAlienStatistics -c 10 -n $rfamModelName -d $rfamModelId -b $counter -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -t $alienThreshold -x $rfamThreshold -o $resulttempdir`;
     }
 }
-my $outputfilePath = "/scr/kronos/egg/structuredalienseedoutput4-0.5fixed40bit.csv";
+my $outputfilePath = "/scr/kronos/egg/structuredalienseedoutput4-fixed0.5or40bit.csv";
 open(my $outputfh, ">", $outputfilePath)
 	or die "Failed to open file: $!\n";
 print $outputfh $output;
