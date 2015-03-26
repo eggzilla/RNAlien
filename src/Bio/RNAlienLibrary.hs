@@ -39,6 +39,7 @@ import Data.Clustering.Hierarchical
 import System.Directory
 import Bio.ViennaRNAParser
 import System.Console.CmdArgs
+import qualified Control.Exception.Base as CE
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 modelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
@@ -59,7 +60,7 @@ modelConstructer staticOptions modelConstruction = do
        let (upperTaxLimit,lowerTaxLimit) = getTaxonomicContext currentIterationNumber staticOptions (upperTaxonomyLimit modelConstruction)
        logVerboseMessage (verbositySwitch staticOptions) ("Upper taxonomy limit: " ++ (show upperTaxLimit) ++ "\n " ++ "Lower taxonomy limit: "++ show lowerTaxLimit ++ "\n") (tempDirPath staticOptions)
        --search queries
-       candidates <- mapM (searchCandidates staticOptions currentIterationNumber upperTaxLimit lowerTaxLimit) (zip [1..(length queries)] queries)
+       candidates <- mapM (searchCandidates staticOptions Nothing currentIterationNumber upperTaxLimit lowerTaxLimit) (zip [1..(length queries)] queries)
        if null (concat (map fst candidates))
          then do
             alignmentConstructionWithoutCandidates upperTaxLimit staticOptions modelConstruction
@@ -72,23 +73,39 @@ modelConstructer staticOptions modelConstruction = do
 alignmentConstructionResult :: StaticOptions -> ModelConstruction -> IO ModelConstruction
 alignmentConstructionResult staticOptions modelConstruction = do
   let currentIterationNumber = (iterationNumber modelConstruction)
-  let outputDirectory = (tempDirPath staticOptions)                             
-  if (alignmentModeInfernal modelConstruction)
+  print "final iteration reblast kingdoms" ---
+  logMessage ("Final Iteration: " ++ show (iterationNumber modelConstruction) ++ "\n") (tempDirPath staticOptions)
+  logMessage ("Bitscore threshold: " ++ (maybe "not set" show (bitScoreThreshold modelConstruction)) ++ "\n") (tempDirPath staticOptions)
+  iterationSummary modelConstruction staticOptions
+  let foundSequenceNumber = length (concatMap sequenceRecords (taxRecords modelConstruction))
+  --extract queries
+  let querySeqIds = selectedQueries modelConstruction ---
+  let queries = extractQueries foundSequenceNumber modelConstruction ---
+  let alignedSequences' = map nucleotideSequence (concatMap sequenceRecords (taxRecords modelConstruction)) ---
+  print  ("queryids" ++  (concat querySeqIds) ++ "Queries:" ++ show  queries ++ "\n") ---
+  putStrLn  ("alignedSequences:") ---
+  mapM_ (\x -> print x) alignedSequences' --
+  logVerboseMessage (verbositySwitch staticOptions) ("Queries:" ++ show queries ++ "\n") (tempDirPath staticOptions)
+  let iterationDirectory = (tempDirPath staticOptions) ++ (show currentIterationNumber) ++ "/"
+  let outputDirectory = (tempDirPath staticOptions)
+  createDirectory (iterationDirectory)
+  let logFileDirectoryPath = iterationDirectory ++ "log"
+  logDirectoryPresent <- doesDirectoryExist logFileDirectoryPath                      
+  if (not logDirectoryPresent)
+    then createDirectory (logFileDirectoryPath) else return ()
+  --logVerboseMessage (verbositySwitch staticOptions) ("Upper taxonomy limit: " ++ (show upperTaxLimit) ++ "\n " ++ "Lower taxonomy limit: "++ show lowerTaxLimit ++ "\n") (tempDirPath staticOptions)
+  --taxonomic context archea
+  let (upperTaxLimit1,lowerTaxLimit1) = (Just (2157 :: Int), Nothing)
+  candidates1 <- mapM (searchCandidates staticOptions (Just "archea") currentIterationNumber upperTaxLimit1 lowerTaxLimit1) (zip [1..(length queries)] queries)
+  --taxonomic context bacteria
+  let (upperTaxLimit2,lowerTaxLimit2) = (Just (2 :: Int), Nothing)
+  candidates2 <- mapM (searchCandidates staticOptions (Just "bacteria") currentIterationNumber upperTaxLimit2 lowerTaxLimit2) (zip [1..(length queries)] queries)
+  --taxonomic context eukaryia
+  let (upperTaxLimit3,lowerTaxLimit3) = (Just (2759 :: Int), Nothing)
+  candidates3 <- mapM (searchCandidates staticOptions (Just "eukaryia") currentIterationNumber upperTaxLimit3 lowerTaxLimit3) (zip [1..(length queries)] queries)
+  let candidates = candidates1  ++ candidates2 ++ candidates3
+  if null (concat (map fst candidates))
     then do
-      logVerboseMessage (verbositySwitch staticOptions) ("Alignment result infernal mode" ++ "\n") outputDirectory
-      let finalIterationFastaPath = outputDirectory ++ (show (currentIterationNumber - 1)) ++ "/model.fa"
-      let finalIterationAlignmentPath = outputDirectory ++ (show (currentIterationNumber - 1)) ++ "/model.stockholm"
-      let finalIterationCMPath = outputDirectory ++ (show (currentIterationNumber - 1)) ++ "/model.cm"
-      let resultFastaPath = outputDirectory ++ "result.fa"    
-      let resultAlignmentPath = outputDirectory ++ "result.stockholm"                         
-      let resultCMPath = outputDirectory ++ "result.cm"        
-      let resultCMLogPath = outputDirectory ++ "result.cm.log"
-      copyFile finalIterationCMPath resultCMPath
-      copyFile finalIterationFastaPath resultFastaPath            
-      copyFile finalIterationAlignmentPath resultAlignmentPath         
-      _ <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath                        
-      return modelConstruction 
-    else do
       logVerboseMessage (verbositySwitch staticOptions) ("Alignment result initial mode\n") outputDirectory
       -- taxtree exhausted try to build model from possibly collected sequences
       logMessage ("Message: No sequences found that statisfy filters. Reconstruct model with less strict cutoff parameters.") outputDirectory
@@ -107,8 +124,81 @@ alignmentConstructionResult staticOptions modelConstruction = do
       let stockholAlignment = convertFastaFoldStockholm (head alignmentSequences) seqStructure
       writeFile stockholmFilepath stockholAlignment
       _ <- systemCMbuild stockholmFilepath cmFilepath cmBuildFilepath
-      _ <- systemCMcalibrate "standard" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath                 
-      return modelConstruction 
+      _ <- systemCMcalibrate "standard" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
+      return modelConstruction
+    else do
+      let filteredCandidates = filterIdenticalSequencesWithOrigin (concat (map fst candidates)) 99
+      --align search result
+      alignmentResults <- alignCandidates staticOptions modelConstruction filteredCandidates
+      if (length alignmentResults == 0) && (not (alignmentModeInfernal modelConstruction))
+       then do
+         logVerboseMessage (verbositySwitch staticOptions) ("Alignment result initial mode\n") outputDirectory
+         -- taxtree exhausted try to build model from possibly collected sequences
+         logMessage ("Message: No sequences found that statisfy filters. Reconstruct model with less strict cutoff parameters.") outputDirectory
+         let alignedSequences = extractAlignedSequences (iterationNumber modelConstruction) modelConstruction
+         let alignmentSequences = map snd (V.toList (V.concat [alignedSequences]))
+         writeFasta (outputDirectory ++ "result" ++ ".fa") alignmentSequences
+         let fastaFilepath = outputDirectory ++ "result" ++ ".fa"
+         let stockholmFilepath = outputDirectory ++ "result" ++ ".stockholm"
+         let cmFilepath = outputDirectory ++ "result" ++ ".cm"
+         let cmCalibrateFilepath = outputDirectory ++ "result" ++ ".cmcalibrate"
+         let cmBuildFilepath = outputDirectory ++ "result" ++ ".cmbuild"
+         let foldFilepath = outputDirectory ++ "result" ++ ".fold"
+         _ <- systemRNAfold fastaFilepath foldFilepath
+         foldoutput <- readRNAfold foldFilepath
+         let seqStructure = foldSecondaryStructure (fromRight foldoutput)
+         let stockholAlignment = convertFastaFoldStockholm (head alignmentSequences) seqStructure
+         writeFile stockholmFilepath stockholAlignment
+         _ <- systemCMbuild stockholmFilepath cmFilepath cmBuildFilepath
+         _ <- systemCMcalibrate "standard" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
+         return modelConstruction
+       else do
+         --select queries
+         currentSelectedQueries <- selectQueries staticOptions modelConstruction alignmentResults
+         if (alignmentModeInfernal modelConstruction)
+           then do
+             logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - infernal mode\n") (tempDirPath staticOptions)
+             --prepare next iteration
+             let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults Nothing currentSelectedQueries True
+             cmFilepath <- constructModel nextModelConstructionInput staticOptions
+             nextModelConstructionInputWithThreshold <- setInclusionThreshold nextModelConstructionInput staticOptions cmFilepath
+             writeFile (iterationDirectory ++ "done") ""
+             logMessage (show nextModelConstructionInput) (tempDirPath staticOptions)  ----
+             let finalIterationFastaPath = outputDirectory ++ (show (currentIterationNumber)) ++ "/model.fa"
+             let finalIterationAlignmentPath = outputDirectory ++ (show (currentIterationNumber )) ++ "/model.stockholm"
+             let finalIterationCMPath = outputDirectory ++ (show (currentIterationNumber)) ++ "/model.cm"
+             let resultFastaPath = outputDirectory ++ "result.fa"
+             let resultAlignmentPath = outputDirectory ++ "result.stockholm"
+             let resultCMPath = outputDirectory ++ "result.cm"
+             let resultCMLogPath = outputDirectory ++ "result.cm.log"
+             copyFile finalIterationCMPath resultCMPath
+             copyFile finalIterationFastaPath resultFastaPath
+             copyFile finalIterationAlignmentPath resultAlignmentPath
+             _ <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath
+             return nextModelConstructionInputWithThreshold
+           else do
+             logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - initial mode\n") (tempDirPath staticOptions)
+             --First round enough candidates are avialable for modelconstruction, alignmentModeInfernal is set to true after this iteration
+             --prepare next iteration
+             let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults Nothing currentSelectedQueries False
+             cmFilepath <- constructModel nextModelConstructionInput staticOptions
+             nextModelConstructionInputWithThreshold <- setInclusionThreshold nextModelConstructionInput staticOptions cmFilepath
+             let nextModelConstructionInputWithThresholdInfernalMode = nextModelConstructionInputWithThreshold {alignmentModeInfernal = True}
+             logMessage (show nextModelConstructionInputWithThresholdInfernalMode) (tempDirPath staticOptions) ----
+             writeFile (iterationDirectory ++ "done") ""
+             logMessage (show nextModelConstructionInput) (tempDirPath staticOptions)  ----
+             let finalIterationFastaPath = outputDirectory ++ (show (currentIterationNumber)) ++ "/model.fa"
+             let finalIterationAlignmentPath = outputDirectory ++ (show (currentIterationNumber)) ++ "/model.stockholm"
+             let finalIterationCMPath = outputDirectory ++ (show (currentIterationNumber)) ++ "/model.cm"
+             let resultFastaPath = outputDirectory ++ "result.fa"
+             let resultAlignmentPath = outputDirectory ++ "result.stockholm"
+             let resultCMPath = outputDirectory ++ "result.cm"
+             let resultCMLogPath = outputDirectory ++ "result.cm.log"
+             copyFile finalIterationCMPath resultCMPath
+             copyFile finalIterationFastaPath resultFastaPath
+             copyFile finalIterationAlignmentPath resultAlignmentPath
+             _ <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath
+             return nextModelConstructionInputWithThreshold
                   
 alignmentConstructionWithCandidates :: [([(Sequence, Int, String, Char)], Maybe Int)] -> StaticOptions -> ModelConstruction -> IO ModelConstruction
 alignmentConstructionWithCandidates candidates staticOptions modelConstruction = do
@@ -200,27 +290,32 @@ setInclusionThreshold nextModelConstruction staticOptions cmFilepath = do
       return nextModelConstructionWithThreshold
     else return nextModelConstruction
 
-searchCandidates :: StaticOptions -> Int -> Maybe Int -> Maybe Int -> (Int,Sequence) -> IO ([(Sequence,Int,String,Char)], Maybe Int)
-searchCandidates staticOptions iterationnumber upperTaxLimit lowerTaxLimit (queryIndex,_querySequence) = do
+searchCandidates :: StaticOptions -> Maybe String -> Int -> Maybe Int -> Maybe Int -> (Int,Sequence) -> IO ([(Sequence,Int,String,Char)], Maybe Int)
+searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimit lowerTaxLimit (queryIndex,_querySequence) = do
   let fastaSeqData = seqdata _querySequence
   let queryLength = fromIntegral (seqlength (_querySequence))
   let queryIndexString = show queryIndex           
   let entrezTaxFilter = buildTaxFilterQuery upperTaxLimit lowerTaxLimit 
   logVerboseMessage (verbositySwitch staticOptions) ("entrezTaxFilter" ++ show entrezTaxFilter ++ "\n") (tempDirPath staticOptions)
+  print ("entrezTaxFilter" ++ show entrezTaxFilter ++ "\n")
   let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=1000" 
   let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
   let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter ++ registrationInfo))
   logVerboseMessage (verbositySwitch staticOptions) ("Sending blast query " ++ (show iterationnumber) ++ "\n") (tempDirPath staticOptions)
-  blastOutput <- blastHTTP blastQuery
-  let logFileDirectoryPath = (tempDirPath staticOptions) ++ (show iterationnumber) ++ "/log"
+  blastOutput <- CE.catch (blastHTTP blastQuery)
+	               (\e -> do let err = show (e :: CE.IOException)
+                                 logMessage ("Warning: Blast attempt failed:" ++ " " ++ err) (tempDirPath staticOptions)
+                                 return (Left ""))
+  let logFileDirectoryPath = (tempDirPath staticOptions) ++ (show iterationnumber) ++ "/" ++ (fromMaybe "" finaliterationprefix) ++ "log"
   logDirectoryPresent <- doesDirectoryExist logFileDirectoryPath                      
   if (not logDirectoryPresent)
     then createDirectory (logFileDirectoryPath) else return ()
   writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_1blastOutput") (show blastOutput)
-  logEither blastOutput (tempDirPath staticOptions)
-  let rightBlast = fromRight blastOutput
-  if (blastHitsPresent rightBlast)
+  logEither blastOutput (tempDirPath staticOptions) 
+  let blastHitsArePresent = either (\_ -> False) blastHitsPresent blastOutput
+  if (blastHitsArePresent)
      then do
+       let rightBlast = fromRight blastOutput
        let bestHit = getBestHit rightBlast
        bestBlastHitTaxIdOutput <- retrieveBlastHitTaxIdEntrez [bestHit]
        let rightBestTaxIdResult = head (extractTaxIdFromEntrySummaries bestBlastHitTaxIdOutput)
@@ -274,7 +369,7 @@ alignCandidates staticOptions modelConstruction candidates = do
       --check with cmSearch
       mapM_ (\(fastaPath,resultPath) -> systemCMsearch (cpuThreads staticOptions) covarianceModelPath fastaPath resultPath) zippedFastaCMSearchResultPaths
       cmSearchResults <- mapM readCMSearch cmSearchFilePaths 
-      writeFile (iterationDirectory ++ "log"  ++ "/" ++ "cm_error") (concatMap show (lefts cmSearchResults))
+      writeFile (iterationDirectory ++ "cm_error") (concatMap show (lefts cmSearchResults))
       let rightCMSearchResults = rights cmSearchResults
       let cmSearchCandidatesWithSequences = zip rightCMSearchResults candidates
       let (trimmedSelectedCandidates,rejectedCandidates') = partitionTrimCMsearchHits (fromJust (bitScoreThreshold modelConstruction)) cmSearchCandidatesWithSequences
@@ -540,7 +635,7 @@ extractQueries foundSequenceNumber modelconstruction
   | otherwise = querySequences 
   where fastaSeqData = inputFasta modelconstruction
         querySeqIds = selectedQueries modelconstruction
-        alignedSequences = map nucleotideSequence (concatMap sequenceRecords (taxRecords modelconstruction))
+        alignedSequences = fastaSeqData:(map nucleotideSequence (concatMap sequenceRecords (taxRecords modelconstruction))) 
         querySequences = concatMap (\querySeqId -> filter (\alignedSeq -> ((L.unpack (unSL (seqid alignedSeq)))) == querySeqId) alignedSequences) querySeqIds
         
 extractQueryCandidates :: [(Sequence,Int,String,Char)] -> V.Vector (Int,Sequence)
@@ -661,7 +756,7 @@ readInt = read
 
 readDouble :: String -> Double
 readDouble = read
-
+ 
 -- | parse from input filePath              
 parseCMSearch :: String -> Either ParseError CMsearch
 parseCMSearch input = parse genParserCMsearch "parseCMsearch" input
