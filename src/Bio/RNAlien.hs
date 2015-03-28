@@ -40,7 +40,7 @@ options = Options
     inputTaxId = Nothing &= name "t" &= help "NCBI taxonomy ID number of input RNA organism",
     inputZScoreCutoff = (Just (0.8 :: Double)) &= name "z" &= help "RNAz score cutoff used in building first alignment",
     inputInclusionThresholdRatio = (Just (0.25 :: Double)) &= name "r" &= help "Inclusion threshold ratio",
-    inputDendrogramCutDistance = (Just (0.65 :: Double)) &= name "w" &= help "Dendrogram cluster cut distance",
+    inputDendrogramCutDistance = (Just (0.5 :: Double)) &= name "w" &= help "Dendrogram cluster cut distance",
     inputBlastDatabase = Just "nt" &= name "b" &= help "Specify name of blast database to use",                    
     lengthFilter = True &= name "l" &= help "Filter blast hits per genomic length",
     singleHitperTax = True &= name "s" &= help "Only the best blast hit per taxonomic entry is considered",

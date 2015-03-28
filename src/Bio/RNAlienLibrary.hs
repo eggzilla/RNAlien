@@ -420,9 +420,13 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
       logVerboseMessage (verbositySwitch staticOptions) ("Clustalid: " ++ (intercalate "," clustaloIds) ++ "\n") (tempDirPath staticOptions)
       logVerboseMessage (verbositySwitch staticOptions) ("Distmatrix: " ++ show clustaloDistMatrix ++ "\n") (tempDirPath staticOptions)
       let clustaloDendrogram = dendrogram UPGMA clustaloIds (getDistanceMatrixElements clustaloIds clustaloDistMatrix)
+      putStrLn "clustaloDendrogram: "
+      print clustaloDendrogram
       logVerboseMessage (verbositySwitch staticOptions) ("ClustaloDendrogram: " ++ show clustaloDistMatrix ++ "\n") (tempDirPath staticOptions)                    
       let cutDendrogram = cutAt clustaloDendrogram (dendrogramCutDistance staticOptions)
-      let currentSelectedQueries = map head (map elements cutDendrogram)
+      putStrLn "cutDendrogram: "
+      print cutDendrogram
+      let currentSelectedQueries = take 5 (map head (map elements cutDendrogram))
       logVerboseMessage (verbositySwitch staticOptions) ("SelectedQueries: " ++ show currentSelectedQueries ++ "\n") (tempDirPath staticOptions)                             
       writeFile ((tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/log" ++ "/13selectedQueries") (showlines currentSelectedQueries)
       return (currentSelectedQueries)
