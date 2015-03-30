@@ -340,7 +340,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
        let (usedUpperTaxLimit, filteredBlastResults) = filterByNeighborhoodTreeConditional iterationnumber upperTaxLimit blastHitsWithTaxId (inputTaxNodes staticOptions) rightBestTaxIdResult (singleHitperTaxToggle staticOptions)
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_5filteredBlastResults") (showlines filteredBlastResults)
        -- Coordinate generation
-       let requestedSequenceElements = map getRequestedSequenceElement filteredBlastResults
+       let requestedSequenceElements = map (getRequestedSequenceElement queryLength) filteredBlastResults
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++  "_6requestedSequenceElements") (showlines requestedSequenceElements)
        -- Retrieval of full sequences from entrez
        fullSequencesWithSimilars <- retrieveFullSequences requestedSequenceElements
@@ -1062,10 +1062,10 @@ retrieveFullSequence (geneId,seqStart,seqStop,strand,_,taxid,subject') = do
   let parsedFasta = head ((mkSeqs . L.lines) (L.pack result))
   return (parsedFasta,taxid,subject')
  
-getRequestedSequenceElement :: (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
-getRequestedSequenceElement (blastHit,taxid) 
-  | blastHitIsReverseComplement (blastHit,taxid) = getReverseRequestedSequenceElement (blastHit,taxid)
-  | otherwise = getForwardRequestedSequenceElement (blastHit,taxid)
+getRequestedSequenceElement :: Int -> (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
+getRequestedSequenceElement queryLength (blastHit,taxid) 
+  | blastHitIsReverseComplement (blastHit,taxid) = getReverseRequestedSequenceElement queryLength (blastHit,taxid)
+  | otherwise = getForwardRequestedSequenceElement queryLength (blastHit,taxid)
 
 blastHitIsReverseComplement :: (BlastHit,Int) -> Bool
 blastHitIsReverseComplement (blastHit,_) = isReverse
@@ -1074,29 +1074,55 @@ blastHitIsReverseComplement (blastHit,_) = isReverse
         firstHSPto = h_to (head blastMatches)
         isReverse = firstHSPfrom > firstHSPto
 
-getForwardRequestedSequenceElement :: (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
-getForwardRequestedSequenceElement (blastHit,taxid) = (geneIdentifier',startcoordinate,endcoordinate,strand,accession',taxid,subjectBlast)
-  where    accession' = L.unpack (extractAccession blastHit)
-           subjectBlast = L.unpack (unSL (subject blastHit))
+getForwardRequestedSequenceElement :: Int -> (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
+getForwardRequestedSequenceElement queryLength (blastHit,taxid) = (geneIdentifier',startcoordinate,endcoordinate,strand,accession',taxid,subjectBlast)
+   where    accession' = L.unpack (extractAccession blastHit)
+            subjectBlast = L.unpack (unSL (subject blastHit))
+            geneIdentifier' = extractGeneId blastHit
+            blastMatches = matches blastHit
+            blastHitOriginSequenceLength = slength blastHit
+            minHfrom = minimum (map h_from blastMatches)
+            minHfromHSP = fromJust (find (\hsp -> minHfrom == (h_from hsp)) blastMatches)
+            maxHto = maximum (map h_to blastMatches)
+            maxHtoHSP = fromJust (find (\hsp -> maxHto == (h_to hsp)) blastMatches)
+            minHonQuery = q_from minHfromHSP
+            maxHonQuery = q_to maxHtoHSP
+            --unsafe coordinates may exeed length of avialable sequence
+            unsafestartcoordinate = minHfrom - minHonQuery 
+            unsafeendcoordinate = maxHto + (queryLength - maxHonQuery) 
+            startcoordinate = lowerBoundryCoordinateSetter 0 unsafestartcoordinate
+            endcoordinate = upperBoundryCoordinateSetter blastHitOriginSequenceLength unsafeendcoordinate 
+            strand = "1"
+
+lowerBoundryCoordinateSetter :: Int -> Int -> Int
+lowerBoundryCoordinateSetter lowerBoundry currentValue
+  | currentValue < lowerBoundry = lowerBoundry
+  | otherwise = currentValue
+
+upperBoundryCoordinateSetter :: Int -> Int -> Int
+upperBoundryCoordinateSetter upperBoundry currentValue
+  | currentValue > upperBoundry = upperBoundry
+  | otherwise = currentValue
+
+getReverseRequestedSequenceElement :: Int -> (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
+getReverseRequestedSequenceElement queryLength (blastHit,taxid) = (geneIdentifier',startcoordinate,endcoordinate,strand,accession',taxid,subjectBlast)
+   where   accession' = L.unpack (extractAccession blastHit)
+           subjectBlast = L.unpack (unSL (subject blastHit))           
            geneIdentifier' = extractGeneId blastHit
            blastMatches = matches blastHit
-           minHfrom = minimum (map h_from blastMatches)
-           maxHto = maximum (map h_to blastMatches)
-           startcoordinate = minHfrom
-           endcoordinate = maxHto 
-           strand = "1"
-
-getReverseRequestedSequenceElement :: (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
-getReverseRequestedSequenceElement (blastHit,taxid) = (geneIdentifier',startcoordinate,endcoordinate,strand,accession',taxid,subjectBlast)
-  where   accession' = L.unpack (extractAccession blastHit)
-          subjectBlast = L.unpack (unSL (subject blastHit))           
-          geneIdentifier' = extractGeneId blastHit
-          blastMatches = matches blastHit
-          maxHfrom = maximum (map h_from blastMatches)       
-          minHto = minimum (map h_to blastMatches)
-          startcoordinate = maxHfrom
-          endcoordinate = minHto
-          strand = "2"
+           blastHitOriginSequenceLength = slength blastHit               
+           maxHfrom = maximum (map h_from blastMatches)
+           maxHfromHSP = fromJust (find (\hsp -> maxHfrom == (h_from hsp)) blastMatches)     
+           minHto = minimum (map h_to blastMatches)
+           minHtoHSP = fromJust (find (\hsp -> minHto == (h_to hsp)) blastMatches)
+           minHonQuery = q_from maxHfromHSP
+           maxHonQuery = q_to minHtoHSP
+           --unsafe coordinates may exeed length of avialable sequence
+           unsafestartcoordinate = maxHfrom + minHonQuery 
+           unsafeendcoordinate = minHto - (queryLength - maxHonQuery) 
+           startcoordinate = upperBoundryCoordinateSetter blastHitOriginSequenceLength unsafestartcoordinate
+           endcoordinate = lowerBoundryCoordinateSetter 0 unsafeendcoordinate 
+           strand = "2"
 
 constructCandidateFromFasta :: Sequence -> String
 constructCandidateFromFasta inputFasta' = ">" ++ (filter (\char' -> char' /= '|') (L.unpack (unSL (seqheader inputFasta')))) ++ "\n" ++ (map toUpper (L.unpack (unSD (seqdata inputFasta')))) ++ "\n"
