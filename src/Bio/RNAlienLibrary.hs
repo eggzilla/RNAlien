@@ -469,7 +469,7 @@ constructModel modelConstruction staticOptions = do
        return cmFilepath
      else do
        logVerboseMessage (verbositySwitch staticOptions) ("Construct Model - initial mode\n") (tempDirPath staticOptions)
-       alignSequences "mlocarna" ("--local-progressive --threads=" ++ (show (cpuThreads staticOptions)) ++ " ") [fastaFilepath] [] [locarnaFilepath] []
+       alignSequences "mlocarna" ("--threads=" ++ (show (cpuThreads staticOptions)) ++ " ") [fastaFilepath] [] [locarnaFilepath] []
        mlocarnaAlignment <- readStructuralClustalAlignment locarnaFilepath
        logEither mlocarnaAlignment (tempDirPath staticOptions)
        let stockholAlignment = convertClustaltoStockholm (fromRight mlocarnaAlignment)
