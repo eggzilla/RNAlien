@@ -378,17 +378,28 @@ alignCandidates staticOptions modelConstruction candidates = do
       return (map snd trimmedSelectedCandidates)
     else do
       --Extract sequences from modelconstruction
+      -- logVerboseMessage (verbositySwitch staticOptions) ("Alignment Mode Initial\n") (tempDirPath staticOptions)
+      -- let currentAlignmentSequences = V.concat (map (constructPairwiseAlignmentSequences candidateSequences) (V.toList previouslyAlignedSequences))
+      -- --write Fasta sequences
+      -- V.mapM_ (\(number,_nucleotideSequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") _nucleotideSequence) currentAlignmentSequences
+      -- let pairwiseFastaFilepath = constructPairwiseFastaFilePaths iterationDirectory currentAlignmentSequences
+      -- let pairwiseLocarnaFilepath = constructPairwiseAlignmentFilePaths "mlocarna" iterationDirectory currentAlignmentSequences
+      -- let pairwiseLocarnainClustalw2FormatFilepath = constructPairwiseAlignmentFilePaths "mlocarnainclustalw2format" iterationDirectory currentAlignmentSequences
+      --alignSequences "mlocarna" ("--local-progressive --threads=" ++ (show (cpuThreads staticOptions)) ++ " ") pairwiseFastaFilepath [] pairwiseLocarnaFilepath []
+      --Extract sequences from modelconstruction
       logVerboseMessage (verbositySwitch staticOptions) ("Alignment Mode Initial\n") (tempDirPath staticOptions)
       let currentAlignmentSequences = V.concat (map (constructPairwiseAlignmentSequences candidateSequences) (V.toList previouslyAlignedSequences))
       --write Fasta sequences
-      V.mapM_ (\(number,_nucleotideSequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") _nucleotideSequence) currentAlignmentSequences
-      let pairwiseFastaFilepath = constructPairwiseFastaFilePaths iterationDirectory currentAlignmentSequences
-      let pairwiseLocarnaFilepath = constructPairwiseAlignmentFilePaths "mlocarna" iterationDirectory currentAlignmentSequences
-      let pairwiseLocarnainClustalw2FormatFilepath = constructPairwiseAlignmentFilePaths "mlocarnainclustalw2format" iterationDirectory currentAlignmentSequences
-      alignSequences "mlocarna" ("--local-progressive --threads=" ++ (show (cpuThreads staticOptions)) ++ " ") pairwiseFastaFilepath pairwiseLocarnaFilepath []
+      writeFasta (iterationDirectory ++ "input.fa") ([inputFasta modelConstruction])
+      V.mapM_ (\(number,_nucleotideSequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") [_nucleotideSequence]) candidateSequences
+      let inputFastaFilepath = V.toList (V.map (\_ ->  iterationDirectory ++ "input.fa") candidateSequences)
+      let candidateFastaFilepath = V.toList (V.map (\(number,_) -> iterationDirectory ++ (show number) ++ "." ++ "fa") candidateSequences)
+      let locarnainClustalw2FormatFilepath =  V.toList (V.map (\(number,_) -> iterationDirectory ++ (show number) ++ "." ++ "clustalmlocarna") candidateSequences)
+      let locarnaFilepath =  V.toList (V.map (\(number,_) -> iterationDirectory ++ (show number) ++ "." ++ "mlocarna") candidateSequences)
+      alignSequences "locarna" (" --write-structure --free-endgaps=++-- ") inputFastaFilepath candidateFastaFilepath locarnainClustalw2FormatFilepath locarnaFilepath
       --compute SCI
-      let pairwiseLocarnaRNAzFilePaths = constructPairwiseRNAzFilePaths "mlocarna" iterationDirectory currentAlignmentSequences
-      computeAlignmentSCIs pairwiseLocarnainClustalw2FormatFilepath pairwiseLocarnaRNAzFilePaths
+      let pairwiseLocarnaRNAzFilePaths = V.toList (V.map (\(iterator,_) -> iterationDirectory ++ (show iterator) ++ ".rnaz") candidateSequences)
+      computeAlignmentSCIs locarnainClustalw2FormatFilepath pairwiseLocarnaRNAzFilePaths
       mlocarnaRNAzOutput <- mapM readRNAz pairwiseLocarnaRNAzFilePaths
       mapM (\out -> logEither out (tempDirPath staticOptions)) mlocarnaRNAzOutput
       let locarnaSCI = map (\x -> show (structureConservationIndex x)) (rights mlocarnaRNAzOutput)
@@ -413,7 +424,7 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
       let fastaFilepath = iterationDirectory ++ "query" ++ ".fa"
       let clustaloFilepath = iterationDirectory ++ "query" ++ ".clustalo"
       let clustaloDistMatrixPath = iterationDirectory ++ "query" ++ ".matrix" 
-      alignSequences "clustalo" ("--full --distmat-out=" ++ clustaloDistMatrixPath ++ " ") [fastaFilepath] [clustaloFilepath] []
+      alignSequences "clustalo" ("--full --distmat-out=" ++ clustaloDistMatrixPath ++ " ") [fastaFilepath] [] [clustaloFilepath] []
       idsDistancematrix <- readClustaloDistMatrix clustaloDistMatrixPath
       logEither idsDistancematrix (tempDirPath staticOptions)
       let (clustaloIds,clustaloDistMatrix) = fromRight idsDistancematrix
@@ -458,7 +469,7 @@ constructModel modelConstruction staticOptions = do
        return cmFilepath
      else do
        logVerboseMessage (verbositySwitch staticOptions) ("Construct Model - initial mode\n") (tempDirPath staticOptions)
-       alignSequences "mlocarna" ("--local-progressive --threads=" ++ (show (cpuThreads staticOptions)) ++ " ") [fastaFilepath] [locarnaFilepath] []
+       alignSequences "mlocarna" ("--local-progressive --threads=" ++ (show (cpuThreads staticOptions)) ++ " ") [fastaFilepath] [] [locarnaFilepath] []
        mlocarnaAlignment <- readStructuralClustalAlignment locarnaFilepath
        logEither mlocarnaAlignment (tempDirPath staticOptions)
        let stockholAlignment = convertClustaltoStockholm (fromRight mlocarnaAlignment)
@@ -690,13 +701,17 @@ systemBlast filePath inputIterationNumber = do
 systemRNAfold :: String -> String -> IO ExitCode
 systemRNAfold inputFilePath outputFilePath = system ("RNAfold <" ++ inputFilePath  ++ " >" ++ outputFilePath)
          
+-- | Run external locarna command and read the output into the corresponding datatype
+systemlocarna :: String -> (String,String,String,String) -> IO ExitCode
+systemlocarna options (inputFilePath1, inputFilePath2, clustalformatoutputFilePath, outputFilePath) = system ("locarna " ++ options ++ " --clustal=" ++ clustalformatoutputFilePath  ++ " " ++ inputFilePath1  ++ " " ++ inputFilePath2 ++ " > " ++ outputFilePath)
+
 -- | Run external mlocarna command and read the output into the corresponding datatype, there is also a folder created at the location of the input fasta file
-systemLocarna :: String -> (String,String) -> IO ExitCode
-systemLocarna options (inputFilePath, outputFilePath) = system ("mlocarna " ++ options ++ " " ++ inputFilePath ++ " > " ++ outputFilePath)
+systemMlocarna :: String -> (String,String) -> IO ExitCode
+systemMlocarna options (inputFilePath, outputFilePath) = system ("mlocarna " ++ options ++ " " ++ inputFilePath ++ " > " ++ outputFilePath)
  
 -- | Run external mlocarna command and read the output into the corresponding datatype, there is also a folder created at the location of the input fasta file, the job is terminated after the timeout provided in seconds
-systemLocarnaWithTimeout :: String -> String -> (String,String) -> IO ExitCode
-systemLocarnaWithTimeout timeout options (inputFilePath, outputFilePath) = system ("timeout " ++ timeout ++"s "++ "mlocarna " ++ options ++ " " ++ inputFilePath ++ " > " ++ outputFilePath)
+systemMlocarnaWithTimeout :: String -> String -> (String,String) -> IO ExitCode
+systemMlocarnaWithTimeout timeout options (inputFilePath, outputFilePath) = system ("timeout " ++ timeout ++"s "++ "mlocarna " ++ options ++ " " ++ inputFilePath ++ " > " ++ outputFilePath)
        
 -- | Run external clustalo command and return the Exitcode
 systemClustalw2 :: String -> (String,String,String) -> IO ExitCode
@@ -1132,14 +1147,16 @@ computeAlignmentSCIs alignmentFilepaths rnazOutputFilepaths = do
   let zippedFilepaths = zip alignmentFilepaths rnazOutputFilepaths
   mapM_ systemRNAz zippedFilepaths  
 
-alignSequences :: String -> String -> [String] -> [String] -> [String] -> IO ()
-alignSequences program' options fastaFilepaths alignmentFilepaths summaryFilepaths = do
+alignSequences :: String -> String -> [String] -> [String] -> [String] -> [String] -> IO ()
+alignSequences program' options fastaFilepaths fastaFilepaths2 alignmentFilepaths summaryFilepaths = do
+  let zipped4Filepaths = zip4 fastaFilepaths fastaFilepaths2 alignmentFilepaths summaryFilepaths
   let zipped3Filepaths = zip3 fastaFilepaths alignmentFilepaths summaryFilepaths 
   let zippedFilepaths = zip fastaFilepaths alignmentFilepaths
   let timeout = "3600"
   case program' of
-    "mlocarna" -> mapM_ (systemLocarna options) zippedFilepaths
-    "mlocarnatimeout" -> mapM_ (systemLocarnaWithTimeout timeout options) zippedFilepaths
+    "locarna" -> mapM_ (systemlocarna options) zipped4Filepaths
+    "mlocarna" -> mapM_ (systemMlocarna options) zippedFilepaths
+    "mlocarnatimeout" -> mapM_ (systemMlocarnaWithTimeout timeout options) zippedFilepaths
     "clustalo" -> mapM_ (systemClustalo options) zippedFilepaths
     _ -> mapM_ (systemClustalw2 options) zipped3Filepaths
 
