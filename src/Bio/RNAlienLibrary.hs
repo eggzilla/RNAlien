@@ -60,7 +60,7 @@ modelConstructer staticOptions modelConstruction = do
        let (upperTaxLimit,lowerTaxLimit) = getTaxonomicContext currentIterationNumber staticOptions (upperTaxonomyLimit modelConstruction)
        logVerboseMessage (verbositySwitch staticOptions) ("Upper taxonomy limit: " ++ (show upperTaxLimit) ++ "\n " ++ "Lower taxonomy limit: "++ show lowerTaxLimit ++ "\n") (tempDirPath staticOptions)
        --search queries
-       candidates <- mapM (searchCandidates staticOptions Nothing currentIterationNumber upperTaxLimit lowerTaxLimit) (zip [1..(length queries)] queries)
+       candidates <- searchCandidates staticOptions Nothing currentIterationNumber upperTaxLimit lowerTaxLimit) queries
        if null (concat (map fst candidates))
          then do
             alignmentConstructionWithoutCandidates upperTaxLimit staticOptions modelConstruction
@@ -290,17 +290,18 @@ setInclusionThreshold nextModelConstruction staticOptions cmFilepath = do
       return nextModelConstructionWithThreshold
     else return nextModelConstruction
 
-searchCandidates :: StaticOptions -> Maybe String -> Int -> Maybe Int -> Maybe Int -> (Int,Sequence) -> IO ([(Sequence,Int,String,Char)], Maybe Int)
-searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimit lowerTaxLimit (queryIndex,_querySequence) = do
-  let fastaSeqData = seqdata _querySequence
+searchCandidates :: StaticOptions -> Maybe String -> Int -> Maybe Int -> Maybe Int -> [Sequence] -> IO ([(Sequence,Int,String,Char)], Maybe Int)
+searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimit lowerTaxLimit (queryIndex,_querySequences) = do
+  --let fastaSeqData = seqdata _querySequence
   let queryLength = fromIntegral (seqlength (_querySequence))
-  let queryIndexString = show queryIndex           
+  let queryIndexString = "1"
   let entrezTaxFilter = buildTaxFilterQuery upperTaxLimit lowerTaxLimit 
   logVerboseMessage (verbositySwitch staticOptions) ("entrezTaxFilter" ++ show entrezTaxFilter ++ "\n") (tempDirPath staticOptions)
   print ("entrezTaxFilter" ++ show entrezTaxFilter ++ "\n")
-  let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=1000" 
+  let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=10000" 
   let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
-  let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter ++ registrationInfo))
+  --let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter ++ registrationInfo))
+  let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) _querySequences  (Just (hitNumberQuery ++ entrezTaxFilter ++ registrationInfo))
   logVerboseMessage (verbositySwitch staticOptions) ("Sending blast query " ++ (show iterationnumber) ++ "\n") (tempDirPath staticOptions)
   blastOutput <- CE.catch (blastHTTP blastQuery)
 	               (\e -> do let err = show (e :: CE.IOException)
