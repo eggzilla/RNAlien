@@ -60,12 +60,12 @@ modelConstructer staticOptions modelConstruction = do
        let (upperTaxLimit,lowerTaxLimit) = getTaxonomicContext currentIterationNumber staticOptions (upperTaxonomyLimit modelConstruction)
        logVerboseMessage (verbositySwitch staticOptions) ("Upper taxonomy limit: " ++ (show upperTaxLimit) ++ "\n " ++ "Lower taxonomy limit: "++ show lowerTaxLimit ++ "\n") (tempDirPath staticOptions)
        --search queries
-       candidates <- searchCandidates staticOptions Nothing currentIterationNumber upperTaxLimit lowerTaxLimit) queries
-       if null (concat (map fst candidates))
+       candidates <- searchCandidates staticOptions Nothing currentIterationNumber upperTaxLimit lowerTaxLimit queries
+       if null (fst candidates)
          then do
             alignmentConstructionWithoutCandidates upperTaxLimit staticOptions modelConstruction
          else do
-            alignmentConstructionWithCandidates candidates staticOptions modelConstruction
+            alignmentConstructionWithCandidates (fst candidates) (snd candidates) staticOptions modelConstruction
      else do
        logMessage ("Message: Modelconstruction complete: Out of queries or taxonomic tree exhausted\n") (tempDirPath staticOptions)
        alignmentConstructionResult staticOptions modelConstruction
@@ -96,15 +96,16 @@ alignmentConstructionResult staticOptions modelConstruction = do
   --logVerboseMessage (verbositySwitch staticOptions) ("Upper taxonomy limit: " ++ (show upperTaxLimit) ++ "\n " ++ "Lower taxonomy limit: "++ show lowerTaxLimit ++ "\n") (tempDirPath staticOptions)
   --taxonomic context archea
   let (upperTaxLimit1,lowerTaxLimit1) = (Just (2157 :: Int), Nothing)
-  candidates1 <- mapM (searchCandidates staticOptions (Just "archea") currentIterationNumber upperTaxLimit1 lowerTaxLimit1) (zip [1..(length queries)] queries)
+  candidates1 <- searchCandidates staticOptions (Just "archea") currentIterationNumber upperTaxLimit1 lowerTaxLimit1 queries
   --taxonomic context bacteria
   let (upperTaxLimit2,lowerTaxLimit2) = (Just (2 :: Int), Nothing)
-  candidates2 <- mapM (searchCandidates staticOptions (Just "bacteria") currentIterationNumber upperTaxLimit2 lowerTaxLimit2) (zip [1..(length queries)] queries)
+  candidates2 <- searchCandidates staticOptions (Just "bacteria") currentIterationNumber upperTaxLimit2 lowerTaxLimit2 queries
   --taxonomic context eukaryia
   let (upperTaxLimit3,lowerTaxLimit3) = (Just (2759 :: Int), Nothing)
-  candidates3 <- mapM (searchCandidates staticOptions (Just "eukaryia") currentIterationNumber upperTaxLimit3 lowerTaxLimit3) (zip [1..(length queries)] queries)
-  let candidates = candidates1  ++ candidates2 ++ candidates3
-  if null (concat (map fst candidates))
+  candidates3 <- searchCandidates staticOptions (Just "eukaryia") currentIterationNumber upperTaxLimit3 lowerTaxLimit3 queries
+  --the used taxids are preset
+  let candidates = (fst candidates1)  ++ (fst candidates2) ++ (fst candidates3)
+  if null candidates
     then do
       logVerboseMessage (verbositySwitch staticOptions) ("Alignment result initial mode\n") outputDirectory
       -- taxtree exhausted try to build model from possibly collected sequences
@@ -127,7 +128,7 @@ alignmentConstructionResult staticOptions modelConstruction = do
       _ <- systemCMcalibrate "standard" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
       return modelConstruction
     else do
-      let filteredCandidates = filterIdenticalSequencesWithOrigin (concat (map fst candidates)) 99
+      let filteredCandidates = filterIdenticalSequencesWithOrigin candidates 99
       --align search result
       alignmentResults <- alignCandidates staticOptions modelConstruction filteredCandidates
       if (length alignmentResults == 0) && (not (alignmentModeInfernal modelConstruction))
@@ -200,13 +201,13 @@ alignmentConstructionResult staticOptions modelConstruction = do
              _ <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath
              return nextModelConstructionInputWithThreshold
                   
-alignmentConstructionWithCandidates :: [([(Sequence, Int, String, Char)], Maybe Int)] -> StaticOptions -> ModelConstruction -> IO ModelConstruction
-alignmentConstructionWithCandidates candidates staticOptions modelConstruction = do
+alignmentConstructionWithCandidates :: [(Sequence, Int, String, Char)] -> Maybe Int -> StaticOptions -> ModelConstruction -> IO ModelConstruction
+alignmentConstructionWithCandidates candidates usedUpperTaxonomyLimit staticOptions modelConstruction = do
     let currentIterationNumber = (iterationNumber modelConstruction)
     let iterationDirectory = (tempDirPath staticOptions) ++ (show currentIterationNumber) ++ "/"                             
-    let usedUpperTaxonomyLimit = (snd (head candidates))                               
+    --let usedUpperTaxonomyLimit = (snd (head candidates))                               
     --refilter for similarity for multiple queries
-    let filteredCandidates = filterIdenticalSequencesWithOrigin (concat (map fst candidates)) 99
+    let filteredCandidates = filterIdenticalSequencesWithOrigin candidates 99
     --align search result
     alignmentResults <- alignCandidates staticOptions modelConstruction filteredCandidates
     if (length alignmentResults == 0) && (not (alignmentModeInfernal modelConstruction))
@@ -291,9 +292,9 @@ setInclusionThreshold nextModelConstruction staticOptions cmFilepath = do
     else return nextModelConstruction
 
 searchCandidates :: StaticOptions -> Maybe String -> Int -> Maybe Int -> Maybe Int -> [Sequence] -> IO ([(Sequence,Int,String,Char)], Maybe Int)
-searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimit lowerTaxLimit (queryIndex,_querySequences) = do
+searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimit lowerTaxLimit querySequences = do
   --let fastaSeqData = seqdata _querySequence
-  let queryLength = fromIntegral (seqlength (_querySequence))
+  let queryLength = fromIntegral (seqlength (head querySequences))
   let queryIndexString = "1"
   let entrezTaxFilter = buildTaxFilterQuery upperTaxLimit lowerTaxLimit 
   logVerboseMessage (verbositySwitch staticOptions) ("entrezTaxFilter" ++ show entrezTaxFilter ++ "\n") (tempDirPath staticOptions)
@@ -301,7 +302,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
   let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=10000" 
   let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
   --let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter ++ registrationInfo))
-  let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) _querySequences  (Just (hitNumberQuery ++ entrezTaxFilter ++ registrationInfo))
+  let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) querySequences  (Just (hitNumberQuery ++ entrezTaxFilter ++ registrationInfo))
   logVerboseMessage (verbositySwitch staticOptions) ("Sending blast query " ++ (show iterationnumber) ++ "\n") (tempDirPath staticOptions)
   blastOutput <- CE.catch (blastHTTP blastQuery)
 	               (\e -> do let err = show (e :: CE.IOException)
