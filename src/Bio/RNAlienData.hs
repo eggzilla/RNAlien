@@ -30,12 +30,13 @@ data ModelConstruction = ModelConstruction
     --Taxonomy ID of the highest node in taxonomic subtree used in search
     upperTaxonomyLimit :: Maybe Int,
     bitScoreThreshold :: Maybe Double,
+    evalueThreshold :: Double,                     
     alignmentModeInfernal :: Bool,
     selectedQueries :: [String]
   } 
 
 instance Show ModelConstruction where
-  show (ModelConstruction _iterationNumber _inputFasta _taxRecords _upperTaxonomyLimit _bitScoreThreshold _alignmentModeInfernal _selectedQueries) = a ++ b ++ c ++ d ++ e ++ f
+  show (ModelConstruction _iterationNumber _inputFasta _taxRecords _upperTaxonomyLimit _bitScoreThreshold _evalueThreshold _alignmentModeInfernal _selectedQueries) = a ++ b ++ c ++ d ++ e ++ f
     where a = "Modelconstruction iteration: " ++ show _iterationNumber ++ "\n" 
           b = "Input fasta:\n" ++ show _inputFasta ++ "\n" 
           c = show _taxRecords

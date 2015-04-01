@@ -292,9 +292,9 @@ setInclusionThreshold nextModelConstruction staticOptions cmFilepath = do
     else return nextModelConstruction
 
 searchCandidates :: StaticOptions -> Maybe String -> Int -> Maybe Int -> Maybe Int -> [Sequence] -> IO ([(Sequence,Int,String,Char)], Maybe Int)
-searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimit lowerTaxLimit querySequences = do
+searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimit lowerTaxLimit querySequences' = do
   --let fastaSeqData = seqdata _querySequence
-  let queryLength = fromIntegral (seqlength (head querySequences))
+  let queryLength = fromIntegral (seqlength (head querySequences'))
   let queryIndexString = "1"
   let entrezTaxFilter = buildTaxFilterQuery upperTaxLimit lowerTaxLimit 
   logVerboseMessage (verbositySwitch staticOptions) ("entrezTaxFilter" ++ show entrezTaxFilter ++ "\n") (tempDirPath staticOptions)
@@ -302,7 +302,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
   let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=10000" 
   let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
   --let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter ++ registrationInfo))
-  let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) querySequences  (Just (hitNumberQuery ++ entrezTaxFilter ++ registrationInfo))
+  let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) querySequences'  (Just (hitNumberQuery ++ entrezTaxFilter ++ registrationInfo))
   logVerboseMessage (verbositySwitch staticOptions) ("Sending blast query " ++ (show iterationnumber) ++ "\n") (tempDirPath staticOptions)
   blastOutput <- CE.catch (blastHTTP blastQuery)
 	               (\e -> do let err = show (e :: CE.IOException)
@@ -616,7 +616,7 @@ constructNext currentIterationNumber modelconstruction alignmentResults upperTax
         currentAlignmentMode = case toggleInfernalAlignmentModeTrue of
                                  True -> True
                                  False -> alignmentModeInfernal modelconstruction
-        nextModelConstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) taxEntries upperTaxLimit (bitScoreThreshold modelconstruction) currentAlignmentMode inputSelectedQueries 
+        nextModelConstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) taxEntries upperTaxLimit (bitScoreThreshold modelconstruction) (evalueThreshold modelconstruction) currentAlignmentMode inputSelectedQueries 
          
 buildTaxRecords :: [(Sequence,Int,String,Char)] -> Int -> [TaxonomyRecord]
 buildTaxRecords alignmentResults currentIterationNumber = taxonomyRecords
@@ -663,11 +663,11 @@ cmSearchsubString startSubString endSubString inputString
 extractQueries :: Int -> ModelConstruction -> [Sequence] 
 extractQueries foundSequenceNumber modelconstruction
   | foundSequenceNumber < 3 = [fastaSeqData] 
-  | otherwise = querySequences 
+  | otherwise = querySequences' 
   where fastaSeqData = inputFasta modelconstruction
         querySeqIds = selectedQueries modelconstruction
         alignedSequences = fastaSeqData:(map nucleotideSequence (concatMap sequenceRecords (taxRecords modelconstruction))) 
-        querySequences = concatMap (\querySeqId -> filter (\alignedSeq -> ((L.unpack (unSL (seqid alignedSeq)))) == querySeqId) alignedSequences) querySeqIds
+        querySequences' = concatMap (\querySeqId -> filter (\alignedSeq -> ((L.unpack (unSL (seqid alignedSeq)))) == querySeqId) alignedSequences) querySeqIds
         
 extractQueryCandidates :: [(Sequence,Int,String,Char)] -> V.Vector (Int,Sequence)
 extractQueryCandidates candidates = indexedSeqences

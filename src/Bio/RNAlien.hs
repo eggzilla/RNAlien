@@ -24,6 +24,7 @@ data Options = Options
     inputTaxId :: Maybe Int,
     inputZScoreCutoff :: Maybe Double,
     inputInclusionThresholdRatio :: Maybe Double,
+    inputEvalueCutoff :: Maybe Double,
     inputDendrogramCutDistance :: Maybe Double,
     inputBlastDatabase :: Maybe String,
     lengthFilter :: Bool,
@@ -40,6 +41,7 @@ options = Options
     inputTaxId = Nothing &= name "t" &= help "NCBI taxonomy ID number of input RNA organism",
     inputZScoreCutoff = (Just (0.8 :: Double)) &= name "z" &= help "RNAz score cutoff used in building first alignment",
     inputInclusionThresholdRatio = (Just (0.25 :: Double)) &= name "r" &= help "Inclusion threshold ratio",
+    inputEvalueCutoff = (Just (0.001 :: Double)) &= name "r" &= help "Evalue cutoff for cmsearch filtering",                               
     inputDendrogramCutDistance = (Just (0.5 :: Double)) &= name "w" &= help "Dendrogram cluster cut distance",
     inputBlastDatabase = Just "nt" &= name "b" &= help "Specify name of blast database to use",                    
     lengthFilter = True &= name "l" &= help "Filter blast hits per genomic length",
@@ -67,8 +69,8 @@ main = do
   nodes <- readNCBISimpleTaxDumpNodes taxNodesFilePath
   logEither nodes temporaryDirectoryPath
   let rightNodes = fromRight nodes
-  let staticOptions = StaticOptions temporaryDirectoryPath sessionId rightNodes (fromJust inputZScoreCutoff) (fromJust inputInclusionThresholdRatio) (fromJust inputDendrogramCutDistance) inputTaxId singleHitperTax lengthFilter threads  inputBlastDatabase (setVerbose verboseLevel)
-  let initialization = ModelConstruction iterationNumber (head inputFasta) [] (maybe Nothing Just inputTaxId) Nothing False []
+  let staticOptions = StaticOptions temporaryDirectoryPath sessionId rightNodes (fromJust inputZScoreCutoff) (fromJust inputInclusionThresholdRatio) (fromJust inputDendrogramCutDistance) inputTaxId singleHitperTax lengthFilter threads inputBlastDatabase (setVerbose verboseLevel)
+  let initialization = ModelConstruction iterationNumber (head inputFasta) [] (maybe Nothing Just inputTaxId) Nothing (fromJust inputEvalueCutoff) False []
   logMessage (show initialization) temporaryDirectoryPath
   modelConstructionResults <- modelConstructer staticOptions initialization
   let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults
