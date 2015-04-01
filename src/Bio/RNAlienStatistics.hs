@@ -52,7 +52,7 @@ options = Options
 cmSearchFasta :: Int -> Double -> Int -> String -> String -> String -> String -> IO [CMsearchHitScore]
 cmSearchFasta benchmarkIndex thresholdScore cpuThreads covarianceModelPath outputDirectory modelType fastapath = do
   createDirectoryIfMissing False (outputDirectory ++ "/" ++ modelType)
-  _ <- systemCMsearch cpuThreads covarianceModelPath fastapath (outputDirectory ++ "/" ++ modelType ++ "/" ++ (show benchmarkIndex) ++ ".cmsearch")
+  _ <- systemCMsearch cpuThreads "" covarianceModelPath fastapath (outputDirectory ++ "/" ++ modelType ++ "/" ++ (show benchmarkIndex) ++ ".cmsearch")
   result <- readCMSearch (outputDirectory ++ "/" ++ modelType ++ "/" ++ (show benchmarkIndex) ++ ".cmsearch")
   if (isLeft result)
      then do

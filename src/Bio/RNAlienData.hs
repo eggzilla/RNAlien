@@ -42,7 +42,7 @@ instance Show ModelConstruction where
           c = show _taxRecords
           d = "Upper taxonomy limit: " ++ maybe "not set" show _upperTaxonomyLimit ++ "\n"
           e = "Inclusion Threshold [bit]: " ++ maybe "not set" show _bitScoreThreshold ++ "\n"
-          f = "Evalue cutoff: " ++ maybe "not set" show _evalueThreshold ++ "\n"
+          f = "Evalue cutoff: " ++ show _evalueThreshold ++ "\n"
           g = "Selected queries: \n"  ++ concatMap (\x -> x ++ "\n") _selectedQueries
 
 data TaxonomyRecord = TaxonomyRecord
@@ -122,3 +122,9 @@ data Gene2Accession = Gene2Accession
     maturePeptideAccessionVersion :: String,
     maturePeptideGi :: String
   } deriving (Show, Eq, Read) 
+
+data SearchResult = SearchResult
+  { candidates :: [(Sequence,Int,String,Char)],
+    usedTaxonomyIdentifier :: Maybe Int,
+    blastDatabaseSize :: Maybe Double
+  }
