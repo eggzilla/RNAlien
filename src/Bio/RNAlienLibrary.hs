@@ -409,8 +409,19 @@ alignCandidates staticOptions modelConstruction candidates = do
       let (selectedCandidates,rejectedCandidates) = partition (\(sci,_) -> (read sci ::Double) > (zScoreCutoff staticOptions)) alignedCandidates
       writeFile (iterationDirectory ++ "log" ++ "/11selectedCandidates") (showlines selectedCandidates)
       writeFile (iterationDirectory ++ "log" ++ "/12rejectedCandidates") (showlines rejectedCandidates)
-      return (map snd selectedCandidates)       
+      return (map snd selectedCandidates)
 
+setClusterNumber :: Int -> Int
+setClusterNumber x
+  | x <= 5 = x 
+  | otherwise = 5 
+
+findCutoffforClusterNumber :: Dendrogram a -> Int -> Distance -> Distance                
+findCutoffforClusterNumber clustaloDendrogram numberOfClusters currentCutoff
+  | currentClusterNumber >= numberOfClusters = currentCutoff
+  | otherwise = findCutoffforClusterNumber clustaloDendrogram numberOfClusters (currentCutoff + 0.01)
+    where currentClusterNumber = length (cutAt clustaloDendrogram currentCutoff)
+                
 selectQueries :: StaticOptions -> ModelConstruction -> [(Sequence,Int,String,Char)] -> IO [String]
 selectQueries staticOptions modelConstruction selectedCandidates = do
   logVerboseMessage (verbositySwitch staticOptions) ("SelectQueries\n") (tempDirPath staticOptions)
@@ -435,12 +446,15 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
       let clustaloDendrogram = dendrogram UPGMA clustaloIds (getDistanceMatrixElements clustaloIds clustaloDistMatrix)
       putStrLn "clustaloDendrogram: "
       print clustaloDendrogram
-      logVerboseMessage (verbositySwitch staticOptions) ("ClustaloDendrogram: " ++ show clustaloDistMatrix ++ "\n") (tempDirPath staticOptions)                    
-      let cutDendrogram = cutAt clustaloDendrogram (dendrogramCutDistance staticOptions)
+      logVerboseMessage (verbositySwitch staticOptions) ("ClustaloDendrogram: " ++ show clustaloDistMatrix ++ "\n") (tempDirPath staticOptions)
+      let numberOfClusters = setClusterNumber (length alignmentSequences)
+      let dendrogramStartCutDistance = 0.2 :: Double
+      let dendrogramCutDistance' = findCutoffforClusterNumber clustaloDendrogram numberOfClusters dendrogramStartCutDistance
+      let cutDendrogram = cutAt clustaloDendrogram dendrogramCutDistance'
       putStrLn "cutDendrogram: "
       print cutDendrogram
       let currentSelectedQueries = take 5 (map head (map elements cutDendrogram))
-      logVerboseMessage (verbositySwitch staticOptions) ("SelectedQueries: " ++ show currentSelectedQueries ++ "\n") (tempDirPath staticOptions)                             
+      logVerboseMessage (verbositySwitch staticOptions) ("SelectedQueries: " ++ show currentSelectedQueries ++ "\n") (tempDirPath staticOptions)                       
       writeFile ((tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/log" ++ "/13selectedQueries") (showlines currentSelectedQueries)
       return (currentSelectedQueries)
     else do
