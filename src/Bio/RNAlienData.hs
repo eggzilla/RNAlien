@@ -36,13 +36,14 @@ data ModelConstruction = ModelConstruction
   } 
 
 instance Show ModelConstruction where
-  show (ModelConstruction _iterationNumber _inputFasta _taxRecords _upperTaxonomyLimit _bitScoreThreshold _evalueThreshold _alignmentModeInfernal _selectedQueries) = a ++ b ++ c ++ d ++ e ++ f
+  show (ModelConstruction _iterationNumber _inputFasta _taxRecords _upperTaxonomyLimit _bitScoreThreshold _evalueThreshold _alignmentModeInfernal _selectedQueries) = a ++ b ++ c ++ d ++ e ++ f ++ g
     where a = "Modelconstruction iteration: " ++ show _iterationNumber ++ "\n" 
           b = "Input fasta:\n" ++ show _inputFasta ++ "\n" 
           c = show _taxRecords
           d = "Upper taxonomy limit: " ++ maybe "not set" show _upperTaxonomyLimit ++ "\n"
           e = "Inclusion Threshold [bit]: " ++ maybe "not set" show _bitScoreThreshold ++ "\n"
-          f = "Selected queries: \n"  ++ concatMap (\x -> x ++ "\n") _selectedQueries
+          f = "Evalue cutoff: " ++ maybe "not set" show _evalueThreshold ++ "\n"
+          g = "Selected queries: \n"  ++ concatMap (\x -> x ++ "\n") _selectedQueries
 
 data TaxonomyRecord = TaxonomyRecord
   { recordTaxonomyId :: Int,
