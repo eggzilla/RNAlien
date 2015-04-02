@@ -41,7 +41,7 @@ options = Options
     inputTaxId = Nothing &= name "t" &= help "NCBI taxonomy ID number of input RNA organism",
     inputZScoreCutoff = (Just (0.8 :: Double)) &= name "z" &= help "RNAz score cutoff used in building first alignment",
     inputInclusionThresholdRatio = (Just (0.25 :: Double)) &= name "r" &= help "Inclusion threshold ratio",
-    inputEvalueCutoff = (Just (0.001 :: Double)) &= name "r" &= help "Evalue cutoff for cmsearch filtering",                               
+    inputEvalueCutoff = (Just (0.001 :: Double)) &= name "e" &= help "Evalue cutoff for cmsearch filtering",                               
     inputDendrogramCutDistance = (Just (0.5 :: Double)) &= name "w" &= help "Dendrogram cluster cut distance",
     inputBlastDatabase = Just "nt" &= name "b" &= help "Specify name of blast database to use",                    
     lengthFilter = True &= name "l" &= help "Filter blast hits per genomic length",
