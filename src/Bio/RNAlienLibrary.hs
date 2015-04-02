@@ -818,6 +818,7 @@ genParserCMsearch = do
   newline
   optional (try (genParserCMsearchHeaderField "# CM configuration"))
   optional (try (genParserCMsearchHeaderField "# truncated sequence detection"))
+  optional (try (genParserCMsearchHeaderField "# database size is set to"))
   string "# number of worker threads:"
   many1 space
   numberOfWorkerThreads' <- many1 (noneOf "\n")
