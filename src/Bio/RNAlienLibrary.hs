@@ -436,7 +436,7 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
       print clustaloDendrogram
       logVerboseMessage (verbositySwitch staticOptions) ("ClustaloDendrogram: " ++ show clustaloDistMatrix ++ "\n") (tempDirPath staticOptions)
       let numberOfClusters = setClusterNumber (length alignmentSequences)
-      let dendrogramStartCutDistance = 0.2 :: Double
+      let dendrogramStartCutDistance = 0 :: Double
       let dendrogramCutDistance' = findCutoffforClusterNumber clustaloDendrogram numberOfClusters dendrogramStartCutDistance
       let cutDendrogram = cutAt clustaloDendrogram dendrogramCutDistance'
       putStrLn "cutDendrogram: "
@@ -817,8 +817,8 @@ genParserCMsearch = do
   targetSequenceDatabase' <- many1 (noneOf "\n")
   newline
   optional (try (genParserCMsearchHeaderField "# CM configuration"))
-  optional (try (genParserCMsearchHeaderField "# truncated sequence detection"))
   optional (try (genParserCMsearchHeaderField "# database size is set to"))
+  optional (try (genParserCMsearchHeaderField "# truncated sequence detection"))
   string "# number of worker threads:"
   many1 space
   numberOfWorkerThreads' <- many1 (noneOf "\n")
