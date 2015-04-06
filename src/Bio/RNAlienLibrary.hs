@@ -306,7 +306,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
        --tag BlastHits with TaxId
        blastHitTaxIdOutput <- retrieveBlastHitsTaxIdEntrez blastHitsFilteredByLength
        let blastHittaxIdList = concat (map extractTaxIdFromEntrySummaries blastHitTaxIdOutput)
-       blastHitsParentTaxIdOutput <- retrieveParentTaxIdEntrez blastHittaxIdList 
+       blastHitsParentTaxIdOutput <- retrieveParentTaxIdsEntrez blastHittaxIdList 
        -- filter by taxid
        let blastHitsWithParentTaxId = zip blastHitsFilteredByLength blastHitsParentTaxIdOutput
        -- filter by ParentTaxId (only one hit per TaxId)
@@ -1396,12 +1396,26 @@ retrieveParentTaxIdEntrez taxIds = do
        return parentTaxIds
     else return []
 
--- | Wrapper functions that ensures that only 10 queries are sent per request
+-- | Wrapper functions that ensures that only 20 queries are sent per request
+retrieveParentTaxIdsEntrez :: [Int] -> IO [Int]
+retrieveParentTaxIdsEntrez taxids = do
+  let splits = partitionTaxIds taxids 20
+  taxIdsOutput <- mapM retrieveParentTaxIdEntrez splits
+  return (concat taxIdsOutput)
+
+-- | Wrapper functions that ensures that only 20 queries are sent per request
 retrieveBlastHitsTaxIdEntrez :: [BlastHit] -> IO [String]
 retrieveBlastHitsTaxIdEntrez blastHits = do
   let splits = partitionBlastHits blastHits 20
-  blastHitTaxIdOutput <- mapM retrieveBlastHitTaxIdEntrez splits
-  return blastHitTaxIdOutput
+  taxIdsOutput <- mapM retrieveBlastHitTaxIdEntrez splits
+  return taxIdsOutput
+
+partitionTaxIds :: [Int] -> Int -> [[Int]]
+partitionTaxIds blastHits hitsperSplit
+  | not (null blastHits) = filter (\e ->not (null e)) result
+  | otherwise = []
+  where (heads,xs) = splitAt hitsperSplit blastHits
+        result = (heads:(partitionTaxIds xs hitsperSplit))
 
 partitionBlastHits :: [BlastHit] -> Int -> [[BlastHit]]
 partitionBlastHits blastHits hitsperSplit
