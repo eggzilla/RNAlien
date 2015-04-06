@@ -97,15 +97,15 @@ alignmentConstructionResult staticOptions modelConstruction = do
   --taxonomic context archea
   let (upperTaxLimit1,lowerTaxLimit1) = (Just (2157 :: Int), Nothing)
   candidates1 <- searchCandidates staticOptions (Just "archea") currentIterationNumber upperTaxLimit1 lowerTaxLimit1 queries
-  alignmentResults1 <- alignCandidates staticOptions modelConstruction "archea_" candidates1
+  alignmentResults1 <- alignCandidates staticOptions modelConstruction "archea" candidates1
   --taxonomic context bacteria
   let (upperTaxLimit2,lowerTaxLimit2) = (Just (2 :: Int), Nothing)
   candidates2 <- searchCandidates staticOptions (Just "bacteria") currentIterationNumber upperTaxLimit2 lowerTaxLimit2 queries
-  alignmentResults2 <- alignCandidates staticOptions modelConstruction "bacteria_" candidates2
+  alignmentResults2 <- alignCandidates staticOptions modelConstruction "bacteria" candidates2
   --taxonomic context eukaryia
   let (upperTaxLimit3,lowerTaxLimit3) = (Just (2759 :: Int), Nothing)
   candidates3 <- searchCandidates staticOptions (Just "eukaryia") currentIterationNumber upperTaxLimit3 lowerTaxLimit3 queries
-  alignmentResults3 <- alignCandidates staticOptions modelConstruction "eukaryia_" candidates3
+  alignmentResults3 <- alignCandidates staticOptions modelConstruction "eukaryia" candidates3
   --the used taxids are preset
   let alignmentResults = alignmentResults1  ++ alignmentResults2 ++ alignmentResults3
   if (length alignmentResults == 0) && (not (alignmentModeInfernal modelConstruction))
@@ -321,14 +321,20 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
        let requestedSequenceElements = map (getRequestedSequenceElement queryLength) filteredBlastResults
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++  "_6requestedSequenceElements") (showlines requestedSequenceElements)
        -- Retrieval of full sequences from entrez
-       fullSequencesWithSimilars <- retrieveFullSequences requestedSequenceElements
-       writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10afullSequencesWithSimilars") (showlines fullSequencesWithSimilars)
-       let fullSequences = filterIdenticalSequences fullSequencesWithSimilars 100
-       let fullSequencesWithOrigin = map (\(parsedFasta,taxid,seqSubject) -> (parsedFasta,taxid,seqSubject,'B')) fullSequences
-       writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10fullSequences") (showlines fullSequences)
-       let bestMatch = head (matches bestHit)
-       let dbSize = computeDataBaseSize (e_val bestMatch) (bits bestMatch) (fromIntegral queryLength ::Double)
-       return (SearchResult fullSequencesWithOrigin (Just usedUpperTaxLimit) (Just dbSize))
+       --fullSequencesWithSimilars <- retrieveFullSequences requestedSequenceElements
+       fullSequencesWithSimilars <- retrieveFullSequences staticOptions requestedSequenceElements
+       if (null fullSequencesWithSimilars)
+         then do
+           writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10afullSequencesWithSimilars") ("No sequences retrieved")
+           return (SearchResult [] upperTaxLimit Nothing)
+         else do
+           writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10afullSequencesWithSimilars") (showlines fullSequencesWithSimilars)
+           let fullSequences = filterIdenticalSequences fullSequencesWithSimilars 100
+           let fullSequencesWithOrigin = map (\(parsedFasta,taxid,seqSubject) -> (parsedFasta,taxid,seqSubject,'B')) fullSequences
+           writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10fullSequences") (showlines fullSequences)
+           let bestMatch = head (matches bestHit)
+           let dbSize = computeDataBaseSize (e_val bestMatch) (bits bestMatch) (fromIntegral queryLength ::Double)
+           return (SearchResult fullSequencesWithOrigin (Just usedUpperTaxLimit) (Just dbSize))
      else return (SearchResult [] upperTaxLimit Nothing)  
 
 -- |Computes size of blast db in Mb 
@@ -407,7 +413,7 @@ setClusterNumber x
 findCutoffforClusterNumber :: Dendrogram a -> Int -> Distance -> Distance                
 findCutoffforClusterNumber clustaloDendrogram numberOfClusters currentCutoff
   | currentClusterNumber >= numberOfClusters = currentCutoff
-  | otherwise = findCutoffforClusterNumber clustaloDendrogram numberOfClusters (currentCutoff + 0.01)
+  | otherwise = findCutoffforClusterNumber clustaloDendrogram numberOfClusters (currentCutoff-0.01)
     where currentClusterNumber = length (cutAt clustaloDendrogram currentCutoff)
                 
 selectQueries :: StaticOptions -> ModelConstruction -> [(Sequence,Int,String,Char)] -> IO [String]
@@ -432,12 +438,13 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
       logVerboseMessage (verbositySwitch staticOptions) ("Clustalid: " ++ (intercalate "," clustaloIds) ++ "\n") (tempDirPath staticOptions)
       logVerboseMessage (verbositySwitch staticOptions) ("Distmatrix: " ++ show clustaloDistMatrix ++ "\n") (tempDirPath staticOptions)
       let clustaloDendrogram = dendrogram UPGMA clustaloIds (getDistanceMatrixElements clustaloIds clustaloDistMatrix)
-      putStrLn "clustaloDendrogram: "
-      print clustaloDendrogram
+      logMessage ("ClustaloDendrogram: " ++ show  clustaloDendrogram ++ "\n") (tempDirPath staticOptions)
       logVerboseMessage (verbositySwitch staticOptions) ("ClustaloDendrogram: " ++ show clustaloDistMatrix ++ "\n") (tempDirPath staticOptions)
       let numberOfClusters = setClusterNumber (length alignmentSequences)
-      let dendrogramStartCutDistance = 0 :: Double
+      logMessage ("numberOfClusters: " ++ show numberOfClusters ++ "\n") (tempDirPath staticOptions)
+      let dendrogramStartCutDistance = 1 :: Double
       let dendrogramCutDistance' = findCutoffforClusterNumber clustaloDendrogram numberOfClusters dendrogramStartCutDistance
+      logMessage ("dendrogramCutDistance': " ++ show dendrogramCutDistance' ++ "\n") (tempDirPath staticOptions)
       let cutDendrogram = cutAt clustaloDendrogram dendrogramCutDistance'
       putStrLn "cutDendrogram: "
       print cutDendrogram
@@ -554,9 +561,8 @@ firstOfQuadruple (a,_,_,_) = a
 blastHitsPresent :: BlastResult -> Bool
 blastHitsPresent blastResult 
   | (null resultList) = False
-  | not (null resultList) = not (null (concatMap hits resultList))
-  | otherwise = False
-  where resultList = (results blastResult)
+  | otherwise = True
+  where resultList = (concat (map hits (results blastResult)))
                                 
 -- | Compute identity of sequences
 sequenceIdentity :: Sequence -> Sequence -> Double
@@ -626,13 +632,13 @@ buildSeqRecord currentIterationNumber (parsedFasta,_,seqSubject,seqOrigin) = Seq
 -- | Partitions sequences by containing a cmsearch hit and extracts the hit region as new sequence
 evaluePartitionTrimCMsearchHits :: Double -> [(CMsearch,(Sequence, Int, String, Char))] -> ([(CMsearch,(Sequence, Int, String, Char))],[(CMsearch,(Sequence, Int, String, Char))])
 evaluePartitionTrimCMsearchHits eValueThreshold cmSearchCandidatesWithSequences = (trimmedSelectedCandidates,rejectedCandidates')
-  where (selectedCandidates',rejectedCandidates') = partition (\(cmSearchResult,_) -> any (\hitScore' -> (eValueThreshold < (hitEvalue hitScore'))) (hitScores cmSearchResult)) cmSearchCandidatesWithSequences
+  where (selectedCandidates',rejectedCandidates') = partition (\(cmSearchResult,_) -> any (\hitScore' -> (eValueThreshold >= (hitEvalue hitScore'))) (hitScores cmSearchResult)) cmSearchCandidatesWithSequences
         trimmedSelectedCandidates = map (\(cmSearchResult,inputSequence) -> (cmSearchResult,(trimCMsearchHit cmSearchResult inputSequence))) selectedCandidates'
 
 -- | Partitions sequences by containing a cmsearch hit and extracts the hit region as new sequence
 partitionTrimCMsearchHits :: Double -> [(CMsearch,(Sequence, Int, String, Char))] -> ([(CMsearch,(Sequence, Int, String, Char))],[(CMsearch,(Sequence, Int, String, Char))])
 partitionTrimCMsearchHits bitScoreCutoff cmSearchCandidatesWithSequences = (trimmedSelectedCandidates,rejectedCandidates')
-  where (selectedCandidates',rejectedCandidates') = partition (\(cmSearchResult,_) -> any (\hitScore' -> (bitScoreCutoff < (hitScore hitScore'))) (hitScores cmSearchResult)) cmSearchCandidatesWithSequences
+  where (selectedCandidates',rejectedCandidates') = partition (\(cmSearchResult,_) -> any (\hitScore' -> (bitScoreCutoff <= (hitScore hitScore'))) (hitScores cmSearchResult)) cmSearchCandidatesWithSequences
         trimmedSelectedCandidates = map (\(cmSearchResult,inputSequence) -> (cmSearchResult,(trimCMsearchHit cmSearchResult inputSequence))) selectedCandidates'
         
 trimCMsearchHit :: CMsearch -> (Sequence, Int, String, Char) -> (Sequence, Int, String, Char)
@@ -709,7 +715,7 @@ systemBlast filePath inputIterationNumber = do
 
 -- | Run external RNAalifold command and read the output into the corresponding datatype
 systemRNAfold :: String -> String -> IO ExitCode
-systemRNAfold inputFilePath outputFilePath = system ("RNAfold <" ++ inputFilePath  ++ " >" ++ outputFilePath)
+systemRNAfold inputFilePath outputFilePath = system ("RNAfold --noPS  <" ++ inputFilePath  ++ " >" ++ outputFilePath)
          
 -- | Run external locarna command and read the output into the corresponding datatype
 systemlocarna :: String -> (String,String,String,String) -> IO ExitCode
@@ -1063,30 +1069,43 @@ retrieveGenbankFeatures (_,seqStart,seqStop,_,accession',taxid,subject') = do
   return (queryResult,taxid,subject')
 
 -- | Wrapper for retrieveFullSequence that rerequests incomplete return sequees
-retrieveFullSequences :: [(String,Int,Int,String,String,Int,String)] -> IO [(Sequence,Int,String)]
-retrieveFullSequences requestedSequences = do
-  fullSequences <- mapM retrieveFullSequence requestedSequences
-  if (not (null (filter (\fullSequence -> L.null (unSD (seqdata fullSequence))) (map firstOfTriple fullSequences))))
+retrieveFullSequences :: StaticOptions -> [(String,Int,Int,String,String,Int,String)] -> IO [(Sequence,Int,String)]
+retrieveFullSequences staticOptions requestedSequences = do
+  fullSequences <- mapM (retrieveFullSequence (tempDirPath staticOptions)) requestedSequences
+  if (any (\x -> isNothing (firstOfTriple x)) fullSequences)
     then do
       let fullSequencesWithRequestedSequences = zip fullSequences requestedSequences
-      let (failedRetrievals, successfulRetrievals) = partition (\x -> L.null (unSD (seqdata (firstOfTriple (fst x))))) fullSequencesWithRequestedSequences
+      --let (failedRetrievals, successfulRetrievals) = partition (\x -> L.null (unSD (seqdata (firstOfTriple (fst x))))) fullSequencesWithRequestedSequences
+      let (failedRetrievals, successfulRetrievals) = partition (\x -> isNothing (firstOfTriple (fst x))) fullSequencesWithRequestedSequences
       --we try to reretrieve failed entries once
-      missingSequences <- mapM retrieveFullSequence (map snd failedRetrievals)
-      let (stillMissingSequences,reRetrievedSequences) = partition (\fullSequence -> L.null (unSD (seqdata (firstOfTriple fullSequence)))) missingSequences
-      print stillMissingSequences                            
-      return ((map fst successfulRetrievals) ++ reRetrievedSequences) 
-    else return fullSequences 
+      missingSequences <- mapM (retrieveFullSequence (tempDirPath staticOptions)) (map snd failedRetrievals)
+      let (stillMissingSequences,reRetrievedSequences) = partition (\fullSequence -> isNothing (firstOfTriple fullSequence)) missingSequences
+      print stillMissingSequences
+      let unwrappedRetrievals = map (\(x,y,z) -> (fromJust x,y,z))  ((map fst successfulRetrievals) ++ reRetrievedSequences)
+      return unwrappedRetrievals
+    else return (map (\(x,y,z) -> (fromJust x,y,z)) fullSequences)
          
-retrieveFullSequence :: (String,Int,Int,String,String,Int,String) -> IO (Sequence,Int,String)
-retrieveFullSequence (geneId,seqStart,seqStop,strand,_,taxid,subject') = do
+retrieveFullSequence :: String -> (String,Int,Int,String,String,Int,String) -> IO (Maybe Sequence,Int,String)
+retrieveFullSequence temporaryDirectoryPath (geneId,seqStart,seqStop,strand,_,taxid,subject') = do
   let program' = Just "efetch"
   let database' = Just "nucleotide"
   let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
   let queryString = "id=" ++ geneId ++ "&seq_start=" ++ (show seqStart) ++ "&seq_stop=" ++ (show seqStop) ++ "&rettype=fasta" ++ "&strand=" ++ strand ++ registrationInfo
   let entrezQuery = EntrezHTTPQuery program' database' queryString 
-  result <- entrezHTTP entrezQuery
-  let parsedFasta = head ((mkSeqs . L.lines) (L.pack result))
-  return (parsedFasta,taxid,subject')
+  result <- CE.catch (entrezHTTP entrezQuery)
+              (\e -> do let err = show (e :: CE.IOException)
+                        logMessage ("Warning: Full sequence retrieval failed:" ++ " " ++ err) temporaryDirectoryPath
+                        return [])
+  if (null result)
+    then do
+      return (Nothing,taxid,subject')
+    else do
+      let parsedFasta = head ((mkSeqs . L.lines) (L.pack result))
+      if (L.null (unSD (seqdata parsedFasta)))
+        then do 
+          return (Nothing,taxid,subject')
+        else do
+          return (Just parsedFasta,taxid,subject')
  
 getRequestedSequenceElement :: Int -> (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
 getRequestedSequenceElement queryLength (blastHit,taxid) 
