@@ -60,7 +60,7 @@ modelConstructer staticOptions modelConstruction = do
        let (upperTaxLimit,lowerTaxLimit) = getTaxonomicContext currentIterationNumber staticOptions (upperTaxonomyLimit modelConstruction)
        logVerboseMessage (verbositySwitch staticOptions) ("Upper taxonomy limit: " ++ (show upperTaxLimit) ++ "\n " ++ "Lower taxonomy limit: "++ show lowerTaxLimit ++ "\n") (tempDirPath staticOptions)
        --search queries
-       searchResults <- searchCandidates staticOptions Nothing currentIterationNumber upperTaxLimit lowerTaxLimit queries
+       searchResults <- searchCandidates staticOptions Nothing currentIterationNumber (alignmentModeInfernal modelConstruction) upperTaxLimit lowerTaxLimit queries
        if null (candidates searchResults)
          then do
             alignmentConstructionWithoutCandidates upperTaxLimit staticOptions modelConstruction
@@ -96,15 +96,15 @@ alignmentConstructionResult staticOptions modelConstruction = do
   --logVerboseMessage (verbositySwitch staticOptions) ("Upper taxonomy limit: " ++ (show upperTaxLimit) ++ "\n " ++ "Lower taxonomy limit: "++ show lowerTaxLimit ++ "\n") (tempDirPath staticOptions)
   --taxonomic context archea
   let (upperTaxLimit1,lowerTaxLimit1) = (Just (2157 :: Int), Nothing)
-  candidates1 <- searchCandidates staticOptions (Just "archea") currentIterationNumber upperTaxLimit1 lowerTaxLimit1 queries
+  candidates1 <- searchCandidates staticOptions (Just "archea") currentIterationNumber (alignmentModeInfernal modelConstruction) upperTaxLimit1 lowerTaxLimit1 queries
   alignmentResults1 <- alignCandidates staticOptions modelConstruction "archea" candidates1
   --taxonomic context bacteria
   let (upperTaxLimit2,lowerTaxLimit2) = (Just (2 :: Int), Nothing)
-  candidates2 <- searchCandidates staticOptions (Just "bacteria") currentIterationNumber upperTaxLimit2 lowerTaxLimit2 queries
+  candidates2 <- searchCandidates staticOptions (Just "bacteria") currentIterationNumber (alignmentModeInfernal modelConstruction) upperTaxLimit2 lowerTaxLimit2 queries
   alignmentResults2 <- alignCandidates staticOptions modelConstruction "bacteria" candidates2
   --taxonomic context eukaryia
   let (upperTaxLimit3,lowerTaxLimit3) = (Just (2759 :: Int), Nothing)
-  candidates3 <- searchCandidates staticOptions (Just "eukaryia") currentIterationNumber upperTaxLimit3 lowerTaxLimit3 queries
+  candidates3 <- searchCandidates staticOptions (Just "eukaryia") currentIterationNumber (alignmentModeInfernal modelConstruction) upperTaxLimit3 lowerTaxLimit3 queries
   alignmentResults3 <- alignCandidates staticOptions modelConstruction "eukaryia" candidates3
   --the used taxids are preset
   let alignmentResults = alignmentResults1  ++ alignmentResults2 ++ alignmentResults3
@@ -267,15 +267,15 @@ setInclusionThreshold nextModelConstruction staticOptions cmFilepath = do
       return nextModelConstructionWithThreshold
     else return nextModelConstruction
 
-searchCandidates :: StaticOptions -> Maybe String -> Int -> Maybe Int -> Maybe Int -> [Sequence] -> IO SearchResult
-searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimit lowerTaxLimit querySequences' = do
+searchCandidates :: StaticOptions -> Maybe String -> Int -> Bool -> Maybe Int -> Maybe Int -> [Sequence] -> IO SearchResult
+searchCandidates staticOptions finaliterationprefix iterationnumber alignmentModeInfernalToggle  upperTaxLimit lowerTaxLimit querySequences' = do
   --let fastaSeqData = seqdata _querySequence
   let queryLength = fromIntegral (seqlength (head querySequences'))
   let queryIndexString = "1"
   let entrezTaxFilter = buildTaxFilterQuery upperTaxLimit lowerTaxLimit 
   logVerboseMessage (verbositySwitch staticOptions) ("entrezTaxFilter" ++ show entrezTaxFilter ++ "\n") (tempDirPath staticOptions)
   print ("entrezTaxFilter" ++ show entrezTaxFilter ++ "\n")
-  let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=10000" 
+  let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=10000&EXPECT=1" 
   let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
   --let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter ++ registrationInfo))
   let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) querySequences'  (Just (hitNumberQuery ++ entrezTaxFilter ++ registrationInfo))
@@ -315,7 +315,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_4blastHitsFilteredByParentTaxId") (showlines blastHitsFilteredByParentTaxId)
        -- Filtering with TaxTree (only hits from the same subtree as besthit)
        let blastHitsWithTaxId = zip blastHitsFilteredByParentTaxId blastHittaxIdList
-       let (usedUpperTaxLimit, filteredBlastResults) = filterByNeighborhoodTreeConditional iterationnumber upperTaxLimit blastHitsWithTaxId (inputTaxNodes staticOptions) rightBestTaxIdResult (singleHitperTaxToggle staticOptions)
+       let (usedUpperTaxLimit, filteredBlastResults) = filterByNeighborhoodTreeConditional alignmentModeInfernalToggle upperTaxLimit blastHitsWithTaxId (inputTaxNodes staticOptions) rightBestTaxIdResult (singleHitperTaxToggle staticOptions)
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_5filteredBlastResults") (showlines filteredBlastResults)
        -- Coordinate generation
        let requestedSequenceElements = map (getRequestedSequenceElement queryLength) filteredBlastResults
@@ -1239,9 +1239,9 @@ getBestHitTreePosition nodes rank' rightBestTaxIdResult = bestHitTreePosition
          bestHitTreePosition = head (findChildTaxTreeNodePosition (simpleTaxId hitNode) rootNode)
 
 -- | If no species of origin as been set by the user we blast without tax restriction and filter after blasting
-filterByNeighborhoodTreeConditional :: Int -> Maybe Int -> [(BlastHit,Int)] -> [SimpleTaxDumpNode] -> Int -> Bool -> (Int, [(BlastHit,Int)])
-filterByNeighborhoodTreeConditional iterationnumber upperTaxIdLimit blastHitsWithTaxId taxNodes rightBestTaxIdResult singleHitperTax 
-  | iterationnumber == 0 && isNothing upperTaxIdLimit = (firstUpperTaxIdLimit,filterByNeighborhoodTree blastHitsWithTaxId bestHitTreePosition singleHitperTax)
+filterByNeighborhoodTreeConditional :: Bool -> Maybe Int -> [(BlastHit,Int)] -> [SimpleTaxDumpNode] -> Int -> Bool -> (Int, [(BlastHit,Int)])
+filterByNeighborhoodTreeConditional alignmentModeInfernalToggle upperTaxIdLimit blastHitsWithTaxId taxNodes rightBestTaxIdResult singleHitperTax 
+  | (not alignmentModeInfernalToggle) && isNothing upperTaxIdLimit = (firstUpperTaxIdLimit,filterByNeighborhoodTree blastHitsWithTaxId bestHitTreePosition singleHitperTax)
   --already resticted search space during blast search
   | otherwise = ((fromJust upperTaxIdLimit), blastHitsWithTaxId)
   where bestHitTreePosition = getBestHitTreePosition taxNodes Family rightBestTaxIdResult
