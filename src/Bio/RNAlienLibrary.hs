@@ -595,9 +595,8 @@ getTaxonomicContextEntrez upperTaxLimit currentTaxonomicContext = do
 
 setTaxonomicContextEntrez :: Int -> Maybe Taxon -> StaticOptions -> Maybe Int -> (Maybe Int, Maybe Int)
 setTaxonomicContextEntrez currentIterationNumber currentTaxonomicContext staticOptions subTreeTaxId 
-  | currentIterationNumber == 0 = (userTaxFilter, Nothing)
+  | currentIterationNumber == 0 = (userTaxId staticOptions, Nothing)
   | otherwise = setUpperLowerTaxLimitEntrez (fromJust subTreeTaxId) (fromJust currentTaxonomicContext)
-  where userTaxFilter = checkUserTaxId staticOptions 
                           
 -- setTaxonomic Context for next candidate search, the upper bound of the last search become the lower bound of the next
 setUpperLowerTaxLimitEntrez :: Int -> Taxon -> (Maybe Int, Maybe Int) 
