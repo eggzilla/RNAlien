@@ -24,7 +24,7 @@ import qualified Data.Tree.Zipper as TZ
 import Data.Maybe
 import Text.Parsec.Error
 import Text.ParserCombinators.Parsec.Pos
-import Bio.EntrezHTTP
+import Bio.EntrezHTTP 
 import qualified Data.List.Split as DS
 import System.Exit
 import Data.Either (lefts,rights)
@@ -604,11 +604,14 @@ setUpperLowerTaxLimitEntrez subTreeTaxId currentTaxonomicContext = (upperLimit,l
   where upperLimit = raiseTaxIdLimitEntrez subTreeTaxId currentTaxonomicContext
         lowerLimit = Just subTreeTaxId
 
-raiseTaxIdLimitEntrez :: Int -> Taxon ->Maybe Int
+raiseTaxIdLimitEntrez :: Int -> Taxon -> Maybe Int
 raiseTaxIdLimitEntrez subTreeTaxId taxon = parentNodeTaxId
   where lastUpperBoundNodeIndex = fromJust (V.findIndex  (\node -> (lineageTaxId node == subTreeTaxId)) lineageExVector)
-        parentNodeTaxId = Just (lineageTaxId (lineageExVector V.! (lastUpperBoundNodeIndex -1)))
+        linageNodeTaxId = Just (lineageTaxId (lineageExVector V.! (lastUpperBoundNodeIndex -1)))
         lineageExVector = V.fromList (lineageEx taxon)
+        --the input taxid is not part of the lineage, therefor we look for further taxids in the lineage after we used the parent tax id of the input node
+        parentNodeTaxId = if (subTreeTaxId == (taxonomyId taxon)) then Just (parentTaxonomyId taxon) else linageNodeTaxId
+
 
 -- | convert subtreeTaxId of last round into upper and lower search space boundry
 -- In the first iteration we either set the taxfilter provided by the user or no filter at all 
@@ -624,10 +627,10 @@ getTaxonomicContext currentIterationNumber staticOptions subTreeTaxId
 -- | Check user provided taxId for sanity and raise it to > family rank
 checkUserTaxId :: StaticOptions -> Maybe Int 
 checkUserTaxId staticOptions
-  | isJust taxonomyId = Just (simpleTaxId (parentNodeWithRank currentNode Genus (inputTaxNodes staticOptions)))
+  | isJust currentTaxonomyId = Just (simpleTaxId (parentNodeWithRank currentNode Genus (inputTaxNodes staticOptions)))
   | otherwise = Nothing
-  where taxonomyId = userTaxId staticOptions
-        currentNode = fromJust (retrieveNode (fromJust taxonomyId) (inputTaxNodes staticOptions))
+  where currentTaxonomyId = userTaxId staticOptions
+        currentNode = fromJust (retrieveNode (fromJust currentTaxonomyId) (inputTaxNodes staticOptions))
  
 -- setTaxonomic Context for next candidate search, the upper bound of the last search become the lower bound of the next
 setTaxonomicContext :: Int -> [SimpleTaxDumpNode] -> (Maybe Int, Maybe Int) 
@@ -659,7 +662,7 @@ sameTaxIdAlignmentResult (_,taxId1,_,_) (_,taxId2,_,_) = taxId1 == taxId2
 
 buildTaxRecord :: Int -> [(Sequence,Int,String,Char)] -> TaxonomyRecord
 buildTaxRecord currentIterationNumber entries = taxRecord
-  where recordTaxId = (\(_,taxonomyId,_,_) -> taxonomyId) $ (head entries)
+  where recordTaxId = (\(_,currentTaxonomyId,_,_) -> currentTaxonomyId) $ (head entries)
         seqRecords = map (buildSeqRecord currentIterationNumber)  entries
         taxRecord = TaxonomyRecord recordTaxId seqRecords
 
