@@ -53,25 +53,33 @@ modelConstructer staticOptions modelConstruction = do
   let queries = extractQueries foundSequenceNumber modelConstruction
   logVerboseMessage (verbositySwitch staticOptions) ("Queries:" ++ show queries ++ "\n") (tempDirPath staticOptions)
   let iterationDirectory = (tempDirPath staticOptions) ++ (show currentIterationNumber) ++ "/"
-  if (maybe True (\x -> x > 1) (upperTaxonomyLimit modelConstruction))
+  let maybeLastTaxId = extractLastTaxId (taxonomicContext modelConstruction)
+  --If highest node in linage was used as upper taxonomy limit, taxonomic tree is exhausted
+  if (maybe True (\uppertaxlimit -> maybe True (\lastTaxId -> uppertaxlimit /= lastTaxId) maybeLastTaxId) (upperTaxonomyLimit modelConstruction))
      then do
        createDirectory (iterationDirectory) 
-       --taxonomic context
-       let (upperTaxLimit,lowerTaxLimit) = getTaxonomicContext currentIterationNumber staticOptions (upperTaxonomyLimit modelConstruction)
+       let (upperTaxLimit,lowerTaxLimit) = setTaxonomicContextEntrez currentIterationNumber (taxonomicContext modelConstruction) staticOptions (upperTaxonomyLimit modelConstruction)
        logVerboseMessage (verbositySwitch staticOptions) ("Upper taxonomy limit: " ++ (show upperTaxLimit) ++ "\n " ++ "Lower taxonomy limit: "++ show lowerTaxLimit ++ "\n") (tempDirPath staticOptions)
        --search queries
        searchResults <- searchCandidates staticOptions Nothing currentIterationNumber (alignmentModeInfernal modelConstruction) upperTaxLimit lowerTaxLimit queries
+       currentTaxonomicContext <- getTaxonomicContextEntrez (usedTaxonomyIdentifier searchResults) (taxonomicContext modelConstruction)
        if null (candidates searchResults)
          then do
-            alignmentConstructionWithoutCandidates upperTaxLimit staticOptions modelConstruction
+            alignmentConstructionWithoutCandidates currentTaxonomicContext upperTaxLimit staticOptions modelConstruction
          else do            
-            alignmentConstructionWithCandidates searchResults staticOptions modelConstruction
+            alignmentConstructionWithCandidates currentTaxonomicContext searchResults staticOptions modelConstruction
      else do
        logMessage ("Message: Modelconstruction complete: Out of queries or taxonomic tree exhausted\n") (tempDirPath staticOptions)
-       alignmentConstructionResult staticOptions modelConstruction
+       alignmentConstructionResult (taxonomicContext modelConstruction) staticOptions modelConstruction
 
-alignmentConstructionResult :: StaticOptions -> ModelConstruction -> IO ModelConstruction
-alignmentConstructionResult staticOptions modelConstruction = do
+extractLastTaxId :: Maybe Taxon -> Maybe Int
+extractLastTaxId taxon 
+  | isJust taxon = Just (lineageTaxId (V.head lineageExVector))
+  | otherwise = Nothing
+    where lineageExVector = V.fromList (lineageEx (fromJust taxon))
+
+alignmentConstructionResult :: Maybe Taxon -> StaticOptions -> ModelConstruction -> IO ModelConstruction
+alignmentConstructionResult currentTaxonomicContext staticOptions modelConstruction = do
   let currentIterationNumber = (iterationNumber modelConstruction)
   print "final iteration reblast kingdoms" ---
   logMessage ("Final Iteration: " ++ show (iterationNumber modelConstruction) ++ "\n") (tempDirPath staticOptions)
@@ -137,7 +145,7 @@ alignmentConstructionResult staticOptions modelConstruction = do
         then do
           logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - infernal mode\n") (tempDirPath staticOptions)
           --prepare next iteration
-          let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults Nothing currentSelectedQueries True
+          let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults Nothing currentTaxonomicContext currentSelectedQueries True
           cmFilepath <- constructModel nextModelConstructionInput staticOptions
           nextModelConstructionInputWithThreshold <- setInclusionThreshold nextModelConstructionInput staticOptions cmFilepath
           writeFile (iterationDirectory ++ "done") ""
@@ -158,7 +166,7 @@ alignmentConstructionResult staticOptions modelConstruction = do
           logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - initial mode\n") (tempDirPath staticOptions)
           --First round enough candidates are avialable for modelconstruction, alignmentModeInfernal is set to true after this iteration
           --prepare next iteration
-          let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults Nothing currentSelectedQueries False
+          let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults Nothing currentTaxonomicContext currentSelectedQueries False
           cmFilepath <- constructModel nextModelConstructionInput staticOptions
           nextModelConstructionInputWithThreshold <- setInclusionThreshold nextModelConstructionInput staticOptions cmFilepath
           let nextModelConstructionInputWithThresholdInfernalMode = nextModelConstructionInputWithThreshold {alignmentModeInfernal = True}
@@ -178,8 +186,8 @@ alignmentConstructionResult staticOptions modelConstruction = do
           _ <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath
           return nextModelConstructionInputWithThreshold
                   
-alignmentConstructionWithCandidates :: SearchResult -> StaticOptions -> ModelConstruction -> IO ModelConstruction
-alignmentConstructionWithCandidates searchResults staticOptions modelConstruction = do
+alignmentConstructionWithCandidates :: Maybe Taxon -> SearchResult -> StaticOptions -> ModelConstruction -> IO ModelConstruction
+alignmentConstructionWithCandidates currentTaxonomicContext searchResults staticOptions modelConstruction = do
     --candidates usedUpperTaxonomyLimit blastDatabaseSize 
     let currentIterationNumber = (iterationNumber modelConstruction)
     let iterationDirectory = (tempDirPath staticOptions) ++ (show currentIterationNumber) ++ "/"                             
@@ -205,7 +213,7 @@ alignmentConstructionWithCandidates searchResults staticOptions modelConstructio
           then do
             logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - infernal mode\n") (tempDirPath staticOptions)
             --prepare next iteration
-            let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults (usedTaxonomyIdentifier searchResults) currentSelectedQueries True        
+            let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults (usedTaxonomyIdentifier searchResults) currentTaxonomicContext currentSelectedQueries True        
             cmFilepath <- constructModel nextModelConstructionInput staticOptions               
             nextModelConstructionInputWithThreshold <- setInclusionThreshold nextModelConstructionInput staticOptions cmFilepath
             writeFile (iterationDirectory ++ "done") ""
@@ -216,7 +224,7 @@ alignmentConstructionWithCandidates searchResults staticOptions modelConstructio
             logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - initial mode\n") (tempDirPath staticOptions)
             --First round enough candidates are avialable for modelconstruction, alignmentModeInfernal is set to true after this iteration
             --prepare next iteration
-            let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults (usedTaxonomyIdentifier searchResults) currentSelectedQueries False       
+            let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults (usedTaxonomyIdentifier searchResults) currentTaxonomicContext currentSelectedQueries False       
             cmFilepath <- constructModel nextModelConstructionInput staticOptions               
             nextModelConstructionInputWithThreshold <- setInclusionThreshold nextModelConstructionInput staticOptions cmFilepath
             let nextModelConstructionInputWithThresholdInfernalMode = nextModelConstructionInputWithThreshold {alignmentModeInfernal = True}
@@ -225,12 +233,12 @@ alignmentConstructionWithCandidates searchResults staticOptions modelConstructio
             nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInputWithThresholdInfernalMode        
             return nextModelConstruction
                
-alignmentConstructionWithoutCandidates :: Maybe Int ->  StaticOptions -> ModelConstruction -> IO ModelConstruction
-alignmentConstructionWithoutCandidates upperTaxLimit staticOptions modelConstruction = do
+alignmentConstructionWithoutCandidates :: Maybe Taxon -> Maybe Int ->  StaticOptions -> ModelConstruction -> IO ModelConstruction
+alignmentConstructionWithoutCandidates currentTaxonomicContext upperTaxLimit staticOptions modelConstruction = do
     let currentIterationNumber = (iterationNumber modelConstruction)
     let iterationDirectory = (tempDirPath staticOptions) ++ (show currentIterationNumber) ++ "/"   
     --Found no new candidates in this iteration, reusing previous modelconstruction with increased upperTaxonomyLimit
-    let nextModelConstructionInputWithThreshold = modelConstruction  {iterationNumber = (currentIterationNumber + 1),upperTaxonomyLimit = upperTaxLimit}
+    let nextModelConstructionInputWithThreshold = modelConstruction  {iterationNumber = (currentIterationNumber + 1),upperTaxonomyLimit = upperTaxLimit,taxonomicContext = currentTaxonomicContext}
     --copy model and alignment from last iteration in place if present
     let previousIterationCMPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.cm"
     previousIterationCMexists <- doesFileExist previousIterationCMPath
@@ -351,7 +359,7 @@ alignCandidates staticOptions modelConstruction multipleSearchResultPrefix searc
       let filteredCandidates = filterIdenticalSequencesWithOrigin (candidates searchResults) 99
       let candidateSequences = extractCandidateSequences filteredCandidates
       --Extract sequences from modelconstruction
-      let previouslyAlignedSequences = extractAlignedSequences (iterationNumber modelConstruction) modelConstruction                  
+      --let previouslyAlignedSequences = extractAlignedSequences (iterationNumber modelConstruction) modelConstruction                  
       if(alignmentModeInfernal modelConstruction)
         then do
           logVerboseMessage (verbositySwitch staticOptions) ("Alignment Mode Infernal\n") (tempDirPath staticOptions)
@@ -572,7 +580,37 @@ sequenceIdentity sequence1 sequence2 = identityPercent
         sequence2string = L.unpack (unSD (seqdata sequence2))
         maximumDistance = maximum [(length sequence1string),(length sequence2string)]
         identityPercent = 100 - ((fromIntegral distance/fromIntegral (maximumDistance)) * (read "100" ::Double))
+
+getTaxonomicContextEntrez :: Maybe Int -> Maybe Taxon -> IO (Maybe Taxon)
+getTaxonomicContextEntrez upperTaxLimit currentTaxonomicContext = do
+  if (isJust upperTaxLimit)
+    then do
+      if (isJust currentTaxonomicContext)
+        then do
+          return currentTaxonomicContext
+        else do 
+          retrievedTaxonomicContext <- retrieveTaxonomicContextEntrez (fromJust upperTaxLimit)
+          return retrievedTaxonomicContext
+    else return Nothing
+
+setTaxonomicContextEntrez :: Int -> Maybe Taxon -> StaticOptions -> Maybe Int -> (Maybe Int, Maybe Int)
+setTaxonomicContextEntrez currentIterationNumber currentTaxonomicContext staticOptions subTreeTaxId 
+  | currentIterationNumber == 0 = (userTaxFilter, Nothing)
+  | otherwise = setUpperLowerTaxLimitEntrez (fromJust subTreeTaxId) (fromJust currentTaxonomicContext)
+  where userTaxFilter = checkUserTaxId staticOptions 
                           
+-- setTaxonomic Context for next candidate search, the upper bound of the last search become the lower bound of the next
+setUpperLowerTaxLimitEntrez :: Int -> Taxon -> (Maybe Int, Maybe Int) 
+setUpperLowerTaxLimitEntrez subTreeTaxId currentTaxonomicContext = (upperLimit,lowerLimit)
+  where upperLimit = raiseTaxIdLimitEntrez subTreeTaxId currentTaxonomicContext
+        lowerLimit = Just subTreeTaxId
+
+raiseTaxIdLimitEntrez :: Int -> Taxon ->Maybe Int
+raiseTaxIdLimitEntrez subTreeTaxId taxon = parentNodeTaxId
+  where lastUpperBoundNodeIndex = fromJust (V.findIndex  (\node -> (lineageTaxId node == subTreeTaxId)) lineageExVector)
+        parentNodeTaxId = Just (lineageTaxId (lineageExVector V.! (lastUpperBoundNodeIndex -1)))
+        lineageExVector = V.fromList (lineageEx taxon)
+
 -- | convert subtreeTaxId of last round into upper and lower search space boundry
 -- In the first iteration we either set the taxfilter provided by the user or no filter at all 
 -- If no filter was set, a parent node of the best git will be used instead.
@@ -603,14 +641,14 @@ raiseTaxIdLimit subTreeTaxId taxonomyDumpNodes = parentNodeTaxId
   where  currentNode = fromJust (retrieveNode subTreeTaxId taxonomyDumpNodes)
          parentNodeTaxId = Just (simpleParentTaxId currentNode)
        
-constructNext :: Int -> ModelConstruction -> [(Sequence,Int,String,Char)] -> Maybe Int -> [String] -> Bool -> ModelConstruction
-constructNext currentIterationNumber modelconstruction alignmentResults upperTaxLimit inputSelectedQueries toggleInfernalAlignmentModeTrue = nextModelConstruction
+constructNext :: Int -> ModelConstruction -> [(Sequence,Int,String,Char)] -> Maybe Int -> Maybe Taxon  -> [String] -> Bool -> ModelConstruction
+constructNext currentIterationNumber modelconstruction alignmentResults upperTaxLimit inputTaxonomicContext inputSelectedQueries toggleInfernalAlignmentModeTrue = nextModelConstruction
   where newIterationNumber = currentIterationNumber + 1
         taxEntries = (taxRecords modelconstruction) ++ (buildTaxRecords alignmentResults currentIterationNumber)
         currentAlignmentMode = case toggleInfernalAlignmentModeTrue of
                                  True -> True
                                  False -> alignmentModeInfernal modelconstruction
-        nextModelConstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) taxEntries upperTaxLimit (bitScoreThreshold modelconstruction) (evalueThreshold modelconstruction) currentAlignmentMode inputSelectedQueries 
+        nextModelConstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) taxEntries upperTaxLimit inputTaxonomicContext (bitScoreThreshold modelconstruction) (evalueThreshold modelconstruction) currentAlignmentMode inputSelectedQueries 
          
 buildTaxRecords :: [(Sequence,Int,String,Char)] -> Int -> [TaxonomyRecord]
 buildTaxRecords alignmentResults currentIterationNumber = taxonomyRecords
@@ -1379,20 +1417,31 @@ checkisNeighbor :: Either ParseError Int -> [Int] -> Bool
 checkisNeighbor (Right hitTaxId) neighborhoodTaxIds = elem hitTaxId neighborhoodTaxIds
 checkisNeighbor (Left _) _ = False
 
+retrieveTaxonomicContextEntrez :: Int -> IO (Maybe Taxon)
+retrieveTaxonomicContextEntrez inputTaxId = do
+       let program' = Just "efetch"
+       let database' = Just "taxonomy"
+       let taxIdString = show inputTaxId
+       let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
+       let queryString = "id=" ++ taxIdString ++ registrationInfo
+       let entrezQuery = EntrezHTTPQuery program' database' queryString 
+       result <- entrezHTTP entrezQuery
+       let taxon = head (readEntrezTaxonSet result)
+       return (Just taxon)
+
 retrieveParentTaxIdEntrez :: [Int] -> IO [Int]
-retrieveParentTaxIdEntrez taxIds = do
-  if not (null taxIds)
+retrieveParentTaxIdEntrez inputTaxIds = do
+  if not (null inputTaxIds)
      then do
        let program' = Just "efetch"
        let database' = Just "taxonomy"
-       let taxIdStrings = map show taxIds
+       let taxIdStrings = map show inputTaxIds
        let taxIdQuery = intercalate "," taxIdStrings
        let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
        let queryString = "id=" ++ taxIdQuery ++ registrationInfo
        let entrezQuery = EntrezHTTPQuery program' database' queryString 
        result <- entrezHTTP entrezQuery
        let parentTaxIds = readEntrezParentIds result
-       --let parentTaxIds = map getEntrezParentTaxIds resulttaxons
        return parentTaxIds
     else return []
 

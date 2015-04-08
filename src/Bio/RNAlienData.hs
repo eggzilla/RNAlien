@@ -5,6 +5,7 @@ module Bio.RNAlienData where
 import qualified Data.ByteString.Lazy.Char8 as L
 import Bio.Sequence.Fasta 
 import Bio.Taxonomy
+import Bio.EntrezHTTPData
 
 -- | Static construction options
 data StaticOptions = StaticOptions
@@ -29,6 +30,7 @@ data ModelConstruction = ModelConstruction
     taxRecords :: [TaxonomyRecord],
     --Taxonomy ID of the highest node in taxonomic subtree used in search
     upperTaxonomyLimit :: Maybe Int,
+    taxonomicContext :: Maybe Taxon,
     bitScoreThreshold :: Maybe Double,
     evalueThreshold :: Double,                     
     alignmentModeInfernal :: Bool,
@@ -36,14 +38,15 @@ data ModelConstruction = ModelConstruction
   } 
 
 instance Show ModelConstruction where
-  show (ModelConstruction _iterationNumber _inputFasta _taxRecords _upperTaxonomyLimit _bitScoreThreshold _evalueThreshold _alignmentModeInfernal _selectedQueries) = a ++ b ++ c ++ d ++ e ++ f ++ g
+  show (ModelConstruction _iterationNumber _inputFasta _taxRecords _upperTaxonomyLimit _taxonomicContext _bitScoreThreshold _evalueThreshold _alignmentModeInfernal _selectedQueries) = a ++ b ++ c ++ d ++ e ++ f ++ g ++ i
     where a = "Modelconstruction iteration: " ++ show _iterationNumber ++ "\n" 
           b = "Input fasta:\n" ++ show _inputFasta ++ "\n" 
           c = show _taxRecords
           d = "Upper taxonomy limit: " ++ maybe "not set" show _upperTaxonomyLimit ++ "\n"
-          e = "Inclusion Threshold [bit]: " ++ maybe "not set" show _bitScoreThreshold ++ "\n"
-          f = "Evalue cutoff: " ++ show _evalueThreshold ++ "\n"
-          g = "Selected queries: \n"  ++ concatMap (\x -> x ++ "\n") _selectedQueries
+          e = "Taxonomic Context: " ++  maybe "not set" show _taxonomicContext ++ "\n"
+          f = "Inclusion Threshold [bit]: " ++ maybe "not set" show _bitScoreThreshold ++ "\n"
+          g = "Evalue cutoff: " ++ show _evalueThreshold ++ "\n"
+          i = "Selected queries: \n"  ++ concatMap (\x -> x ++ "\n") _selectedQueries
 
 data TaxonomyRecord = TaxonomyRecord
   { recordTaxonomyId :: Int,
