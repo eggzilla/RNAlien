@@ -347,7 +347,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber alignmentMod
 
 -- |Computes size of blast db in Mb 
 computeDataBaseSize :: Double -> Double -> Double -> Double 
-computeDataBaseSize evalue bitscore querylength = (evalue * 2 ** bitscore) / querylength 
+computeDataBaseSize evalue bitscore querylength = ((evalue * 2 ** bitscore) / querylength)/10^(6 :: Integer)
 
 alignCandidates :: StaticOptions -> ModelConstruction -> String -> SearchResult -> IO [(Sequence,Int,String,Char)]
 alignCandidates staticOptions modelConstruction multipleSearchResultPrefix searchResults = do
