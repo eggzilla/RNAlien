@@ -65,6 +65,7 @@ modelConstructer staticOptions modelConstruction = do
   logVerboseMessage (verbositySwitch staticOptions) ("Queries:" ++ show queries ++ "\n") (tempDirPath staticOptions)
   let iterationDirectory = (tempDirPath staticOptions) ++ (show currentIterationNumber) ++ "/"
   let maybeLastTaxId = extractLastTaxId (taxonomicContext modelConstruction)
+  if (isNothing maybeLastTaxId) then logMessage ("Lineage: Could not extract last tax od \n") (tempDirPath staticOptions) else (return ())
   --If highest node in linage was used as upper taxonomy limit, taxonomic tree is exhausted
   if (maybe True (\uppertaxlimit -> maybe True (\lastTaxId -> uppertaxlimit /= lastTaxId) maybeLastTaxId) (upperTaxonomyLimit modelConstruction))
      then do
@@ -144,6 +145,7 @@ alignmentConstructionResult currentTaxonomicContext staticOptions modelConstruct
       _ <- systemRNAfold fastaFilepath foldFilepath
       foldoutput <- readRNAfold foldFilepath
       let seqStructure = foldSecondaryStructure (fromRight foldoutput)
+      if (null alignmentSequences) then (error "Message: No sequences found that statisfy filters. Reconstruct model with less strict cutoff parameters.") else (return ())
       let stockholAlignment = convertFastaFoldStockholm (head alignmentSequences) seqStructure
       writeFile stockholmFilepath stockholAlignment
       _ <- systemCMbuild stockholmFilepath cmFilepath cmBuildFilepath
@@ -289,6 +291,7 @@ setInclusionThreshold nextModelConstruction staticOptions cmFilepath = do
 searchCandidates :: StaticOptions -> Maybe String -> Int -> Bool -> Maybe Int -> Maybe Int -> [Sequence] -> IO SearchResult
 searchCandidates staticOptions finaliterationprefix iterationnumber alignmentModeInfernalToggle  upperTaxLimit lowerTaxLimit querySequences' = do
   --let fastaSeqData = seqdata _querySequence
+  if (null querySequences') then error "searchCandidates: - head: empty list of query sequences" else return ()
   let queryLength = fromIntegral (seqlength (head querySequences'))
   let queryIndexString = "1"
   let entrezTaxFilter = buildTaxFilterQuery upperTaxLimit lowerTaxLimit 
@@ -309,13 +312,15 @@ searchCandidates staticOptions finaliterationprefix iterationnumber alignmentMod
     then createDirectory (logFileDirectoryPath) else return ()
   writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_1blastOutput") (show blastOutput)
   logEither blastOutput (tempDirPath staticOptions) 
-  let blastHitsArePresent = either (\_ -> False) blastHitsPresent blastOutput
+  let blastHitsArePresent = either (\_ -> False) blastMatchesPresent blastOutput
   if (blastHitsArePresent)
      then do
        let rightBlast = fromRight blastOutput
        let bestHit = getBestHit rightBlast
        bestBlastHitTaxIdOutput <- retrieveBlastHitTaxIdEntrez [bestHit]
-       let rightBestTaxIdResult = head (extractTaxIdFromEntrySummaries bestBlastHitTaxIdOutput)
+       let taxIdFromEntrySummaries = extractTaxIdFromEntrySummaries bestBlastHitTaxIdOutput
+       if (null taxIdFromEntrySummaries) then (error "searchCandidates: - head: empty list of taxonomy entry summary for best hit")  else return ()
+       let rightBestTaxIdResult = head taxIdFromEntrySummaries
        logVerboseMessage (verbositySwitch staticOptions) ("rightbestTaxIdResult: " ++ (show rightBestTaxIdResult) ++ "\n") (tempDirPath staticOptions)
        let blastHits = (concat (map hits (results rightBlast)))
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_2blastHits") (showlines blastHits)
@@ -351,10 +356,15 @@ searchCandidates staticOptions finaliterationprefix iterationnumber alignmentMod
            let fullSequences = filterIdenticalSequences fullSequencesWithSimilars 100
            let fullSequencesWithOrigin = map (\(parsedFasta,taxid,seqSubject) -> (parsedFasta,taxid,seqSubject,'B')) fullSequences
            writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10fullSequences") (showlines fullSequences)
-           let bestMatch = head (matches bestHit)
+           let bestMatch = extractBestMatch (matches bestHit)
            let dbSize = computeDataBaseSize (e_val bestMatch) (bits bestMatch) (fromIntegral queryLength ::Double)
            return (SearchResult fullSequencesWithOrigin (Just usedUpperTaxLimit) (Just dbSize))
      else return (SearchResult [] upperTaxLimit Nothing)  
+
+extractBestMatch :: [a] -> a
+extractBestMatch bestHitMatches 
+  | null bestHitMatches = error "extractBestMatch: - head: empty list"
+  | otherwise = head bestHitMatches
 
 -- |Computes size of blast db in Mb 
 computeDataBaseSize :: Double -> Double -> Double -> Double 
@@ -467,7 +477,7 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
       let cutDendrogram = cutAt clustaloDendrogram dendrogramCutDistance'
       putStrLn "cutDendrogram: "
       print cutDendrogram
-      let currentSelectedQueries = take 5 (map head (map elements cutDendrogram))
+      let currentSelectedQueries = take 5 (concatMap (take 1) (map elements cutDendrogram))
       logVerboseMessage (verbositySwitch staticOptions) ("SelectedQueries: " ++ show currentSelectedQueries ++ "\n") (tempDirPath staticOptions)                       
       writeFile ((tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/log" ++ "/13selectedQueries") (showlines currentSelectedQueries)
       return (currentSelectedQueries)
@@ -577,11 +587,11 @@ firstOfQuadruple :: (t, t1, t2, t3) -> t
 firstOfQuadruple (a,_,_,_) = a 
 
 -- | Check if the result field of BlastResult is filled and if hits are present
-blastHitsPresent :: BlastResult -> Bool
-blastHitsPresent blastResult 
+blastMatchesPresent :: BlastResult -> Bool
+blastMatchesPresent blastResult 
   | (null resultList) = False
   | otherwise = True
-  where resultList = (concat (map hits (results blastResult)))
+  where resultList = concat (map matches (concat (map hits (results blastResult))))
                                 
 -- | Compute identity of sequences
 sequenceIdentity :: Sequence -> Sequence -> Double
@@ -1231,8 +1241,17 @@ retrieveTaxonomicContextEntrez inputTaxId = do
        let queryString = "id=" ++ taxIdString ++ registrationInfo
        let entrezQuery = EntrezHTTPQuery program' database' queryString 
        result <- entrezHTTP entrezQuery
-       let taxon = head (readEntrezTaxonSet result)
-       return (Just taxon)
+       if (null result)
+          then do
+            error "Could not retrieve taxonomic context from NCBI Entrez, cannot proceed."
+            return Nothing
+          else do
+            let taxon = head (readEntrezTaxonSet result)
+            if (null (lineageEx taxon))
+              then do
+                error "Retrieved taxonomic context taxon from NCBI Entrez with empty lineage, cannot proceed."
+              else do
+                return (Just taxon)
 
 retrieveParentTaxIdEntrez :: [Int] -> IO [Int]
 retrieveParentTaxIdEntrez inputTaxIds = do
@@ -1316,7 +1335,9 @@ extractTaxIdfromDocumentSummary :: EntrezDocSum -> String
 extractTaxIdfromDocumentSummary documentSummary = itemContent (fromJust (find (\item -> "TaxId" == (itemName item)) (summaryItems (documentSummary))))
 
 getBestHit :: BlastResult -> BlastHit
-getBestHit blastResult = head (hits (head (results blastResult)))
+getBestHit blastResult 
+  | null (hits (head (results blastResult))) = error "getBestHit - head: empty list"
+  | otherwise = head (hits (head (results blastResult)))
 
 retrieveNode :: Int -> [SimpleTaxDumpNode] -> Maybe SimpleTaxDumpNode 
 retrieveNode nodeTaxId nodes = find (\node -> (simpleTaxId node) == nodeTaxId) nodes
