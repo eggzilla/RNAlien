@@ -14,7 +14,8 @@ module Bio.RNAlienLibrary (
                            systemCMsearch,
                            readCMSearch,
                            compareCM,
-                           cmSearchsubString
+                           cmSearchsubString,
+                           setInitialTaxId                 
                            )
 where
    
@@ -83,6 +84,15 @@ modelConstructer staticOptions modelConstruction = do
      else do
        logMessage ("Message: Modelconstruction complete: Out of queries or taxonomic tree exhausted\n") (tempDirPath staticOptions)
        alignmentConstructionResult (taxonomicContext modelConstruction) staticOptions modelConstruction
+
+setInitialTaxId :: Maybe String -> String -> Maybe Int -> Sequence -> IO (Maybe Int)
+setInitialTaxId inputBlastDatabase tempdir inputTaxId inputSequence = do
+  if (isNothing inputTaxId)
+    then do
+      initialTaxId <- findTaxonomyStart inputBlastDatabase tempdir inputSequence
+      return (Just initialTaxId)
+    else do 
+        return inputTaxId
 
 extractLastTaxId :: Maybe Taxon -> Maybe Int
 extractLastTaxId taxon 
@@ -287,6 +297,36 @@ setInclusionThreshold nextModelConstruction staticOptions cmFilepath = do
       let nextModelConstructionWithThreshold = nextModelConstruction{bitScoreThreshold = (Just inclusionThreshold)}
       return nextModelConstructionWithThreshold
     else return nextModelConstruction
+
+findTaxonomyStart :: Maybe String -> String -> Sequence -> IO Int
+findTaxonomyStart inputBlastDatabase temporaryDirectory querySequence = do
+  let queryIndexString = "1"
+  let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=10" 
+  let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
+  let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") inputBlastDatabase [querySequence] (Just (hitNumberQuery ++ registrationInfo))
+  logMessage ("Sending find taxonomy start blast query \n") temporaryDirectory
+  blastOutput <- CE.catch (blastHTTP blastQuery)
+	               (\e -> do let err = show (e :: CE.IOException)
+                                 logMessage ("Warning: Blast attempt failed:" ++ " " ++ err) temporaryDirectory
+                                 error "findTaxonomyStart: Blast attempt failed"
+                                 return (Left ""))
+  
+  let logFileDirectoryPath =  temporaryDirectory ++ "taxonomystart" ++ "/" 
+  createDirectory logFileDirectoryPath
+  writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_1blastOutput") (show blastOutput)
+  logEither blastOutput temporaryDirectory 
+  let blastHitsArePresent = either (\_ -> False) blastMatchesPresent blastOutput
+  if (blastHitsArePresent)
+     then do
+       let rightBlast = fromRight blastOutput
+       let bestHit = getBestHit rightBlast
+       bestBlastHitTaxIdOutput <- retrieveBlastHitTaxIdEntrez [bestHit]
+       let taxIdFromEntrySummaries = extractTaxIdFromEntrySummaries bestBlastHitTaxIdOutput
+       if (null taxIdFromEntrySummaries) then (error "findTaxonomyStart: - head: empty list of taxonomy entry summary for best hit")  else return ()
+       let rightBestTaxIdResult = head taxIdFromEntrySummaries
+       logMessage ("Initial TaxId: " ++ (show rightBestTaxIdResult) ++ "\n") temporaryDirectory
+       return rightBestTaxIdResult
+     else error "Find taxonomy start: Could not find blast hits to use as a taxonomic starting point"
 
 searchCandidates :: StaticOptions -> Maybe String -> Int -> Bool -> Maybe Int -> Maybe Int -> [Sequence] -> IO SearchResult
 searchCandidates staticOptions finaliterationprefix iterationnumber alignmentModeInfernalToggle  upperTaxLimit lowerTaxLimit querySequences' = do
