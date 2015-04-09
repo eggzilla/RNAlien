@@ -10,7 +10,6 @@ import Data.Either.Unwrap
 import System.Process
 import qualified Data.ByteString.Lazy.Char8 as L
 import Bio.RNAlienLibrary
-import Bio.RNAlienData
 import System.Directory
 import Bio.Core.Sequence 
 import Bio.Sequence.Fasta

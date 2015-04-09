@@ -1,6 +1,22 @@
 -- | This module contains functions for RNAlien
 
-module Bio.RNAlienLibrary where
+module Bio.RNAlienLibrary (
+                           module Bio.RNAlienData,
+                           createSessionID,
+                           logMessage,
+                           logEither,
+                           modelConstructer,
+                           constructTaxonomyRecordsCSVTable,
+                           resultSummary,
+                           readNCBISimpleTaxDumpNodes,
+                           setVerbose,
+                           logToolVersions,
+                           systemCMsearch,
+                           readCMSearch,
+                           compareCM,
+                           cmSearchsubString
+                           )
+where
    
 import System.Process 
 import qualified System.FilePath as FP
