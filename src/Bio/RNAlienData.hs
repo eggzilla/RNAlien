@@ -128,6 +128,5 @@ data Gene2Accession = Gene2Accession
 
 data SearchResult = SearchResult
   { candidates :: [(Sequence,Int,String,Char)],
-    usedTaxonomyIdentifier :: Maybe Int,
     blastDatabaseSize :: Maybe Double
   }

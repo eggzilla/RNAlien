@@ -75,12 +75,12 @@ modelConstructer staticOptions modelConstruction = do
        logVerboseMessage (verbositySwitch staticOptions) ("Upper taxonomy limit: " ++ (show upperTaxLimit) ++ "\n " ++ "Lower taxonomy limit: "++ show lowerTaxLimit ++ "\n") (tempDirPath staticOptions)
        --search queries
        searchResults <- searchCandidates staticOptions Nothing currentIterationNumber (alignmentModeInfernal modelConstruction) upperTaxLimit lowerTaxLimit queries
-       currentTaxonomicContext <- getTaxonomicContextEntrez (usedTaxonomyIdentifier searchResults) (taxonomicContext modelConstruction)
+       currentTaxonomicContext <- getTaxonomicContextEntrez upperTaxLimit (taxonomicContext modelConstruction)
        if null (candidates searchResults)
          then do
             alignmentConstructionWithoutCandidates currentTaxonomicContext upperTaxLimit staticOptions modelConstruction
          else do            
-            alignmentConstructionWithCandidates currentTaxonomicContext searchResults staticOptions modelConstruction
+            alignmentConstructionWithCandidates currentTaxonomicContext upperTaxLimit searchResults staticOptions modelConstruction
      else do
        logMessage ("Message: Modelconstruction complete: Out of queries or taxonomic tree exhausted\n") (tempDirPath staticOptions)
        alignmentConstructionResult (taxonomicContext modelConstruction) staticOptions modelConstruction
@@ -209,8 +209,8 @@ alignmentConstructionResult currentTaxonomicContext staticOptions modelConstruct
           _ <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath
           return nextModelConstructionInputWithThreshold
                   
-alignmentConstructionWithCandidates :: Maybe Taxon -> SearchResult -> StaticOptions -> ModelConstruction -> IO ModelConstruction
-alignmentConstructionWithCandidates currentTaxonomicContext searchResults staticOptions modelConstruction = do
+alignmentConstructionWithCandidates :: Maybe Taxon -> Maybe Int -> SearchResult -> StaticOptions -> ModelConstruction -> IO ModelConstruction
+alignmentConstructionWithCandidates currentTaxonomicContext currentUpperTaxonomyLimit searchResults staticOptions modelConstruction = do
     --candidates usedUpperTaxonomyLimit blastDatabaseSize 
     let currentIterationNumber = (iterationNumber modelConstruction)
     let iterationDirectory = (tempDirPath staticOptions) ++ (show currentIterationNumber) ++ "/"                             
@@ -224,7 +224,7 @@ alignmentConstructionWithCandidates currentTaxonomicContext searchResults static
         --reusing previous modelconstruction with increased upperTaxonomyLimit but include found sequence
         --prepare next iteration
         let newTaxEntries = (taxRecords modelConstruction) ++ (buildTaxRecords alignmentResults currentIterationNumber)
-        let nextModelConstructionInputWithThreshold = modelConstruction  {iterationNumber = (currentIterationNumber + 1),upperTaxonomyLimit = (usedTaxonomyIdentifier searchResults), taxRecords = newTaxEntries}
+        let nextModelConstructionInputWithThreshold = modelConstruction  {iterationNumber = (currentIterationNumber + 1),upperTaxonomyLimit = currentUpperTaxonomyLimit, taxRecords = newTaxEntries}
         logMessage (show nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)     ----      
         writeFile (iterationDirectory ++ "done") ""
         nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInputWithThreshold           
@@ -236,7 +236,7 @@ alignmentConstructionWithCandidates currentTaxonomicContext searchResults static
           then do
             logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - infernal mode\n") (tempDirPath staticOptions)
             --prepare next iteration
-            let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults (usedTaxonomyIdentifier searchResults) currentTaxonomicContext currentSelectedQueries True        
+            let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults currentUpperTaxonomyLimit currentTaxonomicContext currentSelectedQueries True        
             cmFilepath <- constructModel nextModelConstructionInput staticOptions               
             nextModelConstructionInputWithThreshold <- setInclusionThreshold nextModelConstructionInput staticOptions cmFilepath
             writeFile (iterationDirectory ++ "done") ""
@@ -247,7 +247,7 @@ alignmentConstructionWithCandidates currentTaxonomicContext searchResults static
             logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - initial mode\n") (tempDirPath staticOptions)
             --First round enough candidates are avialable for modelconstruction, alignmentModeInfernal is set to true after this iteration
             --prepare next iteration
-            let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults (usedTaxonomyIdentifier searchResults) currentTaxonomicContext currentSelectedQueries False       
+            let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults currentUpperTaxonomyLimit currentTaxonomicContext currentSelectedQueries False       
             cmFilepath <- constructModel nextModelConstructionInput staticOptions               
             nextModelConstructionInputWithThreshold <- setInclusionThreshold nextModelConstructionInput staticOptions cmFilepath
             let nextModelConstructionInputWithThresholdInfernalMode = nextModelConstructionInputWithThreshold {alignmentModeInfernal = True}
@@ -357,12 +357,12 @@ searchCandidates staticOptions finaliterationprefix iterationnumber alignmentMod
      then do
        let rightBlast = fromRight blastOutput
        let bestHit = getBestHit rightBlast
-       bestBlastHitTaxIdOutput <- retrieveBlastHitTaxIdEntrez [bestHit]
-       let taxIdFromEntrySummaries = extractTaxIdFromEntrySummaries bestBlastHitTaxIdOutput
-       if (null taxIdFromEntrySummaries) then (error "searchCandidates: - head: empty list of taxonomy entry summary for best hit")  else return ()
-       let rightBestTaxIdResult = head taxIdFromEntrySummaries
-       logVerboseMessage (verbositySwitch staticOptions) ("rightbestTaxIdResult: " ++ (show rightBestTaxIdResult) ++ "\n") (tempDirPath staticOptions)
-       let blastHits = (concat (map hits (results rightBlast)))
+      -- bestBlastHitTaxIdOutput <- retrieveBlastHitTaxIdEntrez [bestHit]
+      -- let taxIdFromEntrySummaries = extractTaxIdFromEntrySummaries bestBlastHitTaxIdOutput
+      -- if (null taxIdFromEntrySummaries) then (error "searchCandidates: - head: empty list of taxonomy entry summary for best hit")  else return ()
+      -- let rightBestTaxIdResult = head taxIdFromEntrySummaries
+      -- logVerboseMessage (verbositySwitch staticOptions) ("rightbestTaxIdResult: " ++ (show rightBestTaxIdResult) ++ "\n") (tempDirPath staticOptions)
+       let blastHits = concat (map hits (results rightBlast))
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_2blastHits") (showlines blastHits)
        --filter by length
        let blastHitsFilteredByLength = filterByHitLength blastHits queryLength (lengthFilterToggle staticOptions)
@@ -379,7 +379,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber alignmentMod
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_4blastHitsFilteredByParentTaxId") (showlines blastHitsFilteredByParentTaxId)
        -- Filtering with TaxTree (only hits from the same subtree as besthit)
        let blastHitsWithTaxId = zip blastHitsFilteredByParentTaxId blastHittaxIdList
-       let (usedUpperTaxLimit, filteredBlastResults) = filterByNeighborhoodTreeConditional alignmentModeInfernalToggle upperTaxLimit blastHitsWithTaxId (inputTaxNodes staticOptions) rightBestTaxIdResult (singleHitperTaxToggle staticOptions)
+       let (_, filteredBlastResults) = filterByNeighborhoodTreeConditional alignmentModeInfernalToggle upperTaxLimit blastHitsWithTaxId (inputTaxNodes staticOptions) (fromJust upperTaxLimit) (singleHitperTaxToggle staticOptions)
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_5filteredBlastResults") (showlines filteredBlastResults)
        -- Coordinate generation
        let requestedSequenceElements = map (getRequestedSequenceElement queryLength) filteredBlastResults
@@ -390,7 +390,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber alignmentMod
        if (null fullSequencesWithSimilars)
          then do
            writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10afullSequencesWithSimilars") ("No sequences retrieved")
-           return (SearchResult [] upperTaxLimit Nothing)
+           return (SearchResult [] Nothing)
          else do
            writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10afullSequencesWithSimilars") (showlines fullSequencesWithSimilars)
            let fullSequences = filterIdenticalSequences fullSequencesWithSimilars 100
@@ -398,8 +398,8 @@ searchCandidates staticOptions finaliterationprefix iterationnumber alignmentMod
            writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10fullSequences") (showlines fullSequences)
            let bestMatch = extractBestMatch (matches bestHit)
            let dbSize = computeDataBaseSize (e_val bestMatch) (bits bestMatch) (fromIntegral queryLength ::Double)
-           return (SearchResult fullSequencesWithOrigin (Just usedUpperTaxLimit) (Just dbSize))
-     else return (SearchResult [] upperTaxLimit Nothing)  
+           return (SearchResult fullSequencesWithOrigin (Just dbSize))
+     else return (SearchResult [] Nothing)  
 
 extractBestMatch :: [a] -> a
 extractBestMatch bestHitMatches 
