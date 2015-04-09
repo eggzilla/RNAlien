@@ -390,7 +390,7 @@ alignCandidates staticOptions modelConstruction multipleSearchResultPrefix searc
           cmSearchResults <- mapM readCMSearch cmSearchFilePaths 
           writeFile (iterationDirectory ++ "cm_error") (concatMap show (lefts cmSearchResults))
           let rightCMSearchResults = rights cmSearchResults
-          let cmSearchCandidatesWithSequences = zip rightCMSearchResults (candidates searchResults)
+          let cmSearchCandidatesWithSequences = zip rightCMSearchResults filteredCandidates
           --let (trimmedSelectedCandidates,rejectedCandidates') = partitionTrimCMsearchHits (fromJust (bitScoreThreshold modelConstruction)) cmSearchCandidatesWithSequences
           let (trimmedSelectedCandidates,rejectedCandidates') = evaluePartitionTrimCMsearchHits (evalueThreshold modelConstruction) cmSearchCandidatesWithSequences
           writeFile (iterationDirectory ++ "log" ++ "/11selectedCandidates'") (showlines trimmedSelectedCandidates)
@@ -1136,11 +1136,11 @@ retrieveFullSequences staticOptions requestedSequences = do
       --we try to reretrieve failed entries once
       missingSequences <- mapM (retrieveFullSequence (tempDirPath staticOptions)) (map snd failedRetrievals)
       let (stillMissingSequences,reRetrievedSequences) = partition (\fullSequence -> isNothing (firstOfTriple fullSequence)) missingSequences
-      print stillMissingSequences
+      logMessage ("Sequence retrieval failed: \n" ++ (concatMap show stillMissingSequences) ++ "\n") (tempDirPath staticOptions)
       let unwrappedRetrievals = map (\(x,y,z) -> (fromJust x,y,z))  ((map fst successfulRetrievals) ++ reRetrievedSequences)
       return unwrappedRetrievals
     else return (map (\(x,y,z) -> (fromJust x,y,z)) fullSequences)
-         
+        
 retrieveFullSequence :: String -> (String,Int,Int,String,String,Int,String) -> IO (Maybe Sequence,Int,String)
 retrieveFullSequence temporaryDirectoryPath (geneId,seqStart,seqStop,strand,_,taxid,subject') = do
   let program' = Just "efetch"
