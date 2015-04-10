@@ -1376,7 +1376,7 @@ extractTaxIdfromDocumentSummary documentSummary = itemContent (fromJust (find (\
 
 getBestHit :: BlastResult -> BlastHit
 getBestHit blastResult 
-  | null (hits (head (results blastResult))) = error "getBestHit - head: empty list"
+  | null (concatMap hits (results blastResult)) = error "getBestHit - head: empty list"
   | otherwise = head (hits (head (results blastResult)))
 
 retrieveNode :: Int -> [SimpleTaxDumpNode] -> Maybe SimpleTaxDumpNode 
