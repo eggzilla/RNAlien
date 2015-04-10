@@ -382,6 +382,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber alignmentMod
        let (_, filteredBlastResults) = filterByNeighborhoodTreeConditional alignmentModeInfernalToggle upperTaxLimit blastHitsWithTaxId (inputTaxNodes staticOptions) (fromJust upperTaxLimit) (singleHitperTaxToggle staticOptions)
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_5filteredBlastResults") (showlines filteredBlastResults)
        -- Coordinate generation
+       let nonemptyfilteredBlastResults = filter (\(blasthit,_) -> not (null (matches blasthit))) filteredBlastResults
        let requestedSequenceElements = map (getRequestedSequenceElement queryLength) filteredBlastResults
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++  "_6requestedSequenceElements") (showlines requestedSequenceElements)
        -- Retrieval of full sequences from entrez
@@ -1055,12 +1056,17 @@ retrieveFullSequence temporaryDirectoryPath (geneId,seqStart,seqStop,strand,_,ta
     then do
       return (Nothing,taxid,subject')
     else do
-      let parsedFasta = head ((mkSeqs . L.lines) (L.pack result))
-      if (L.null (unSD (seqdata parsedFasta)))
-        then do 
+      if (null ((mkSeqs . L.lines) (L.pack result)))
+        then do
           return (Nothing,taxid,subject')
         else do
-          return (Just parsedFasta,taxid,subject')
+          let parsedFasta = head ((mkSeqs . L.lines) (L.pack result))
+          if (L.null (unSD (seqdata parsedFasta)))
+            then do 
+              return (Nothing,taxid,subject')
+            else do
+              let parsedFasta = head ((mkSeqs . L.lines) (L.pack result))
+              return (Just parsedFasta,taxid,subject')
  
 getRequestedSequenceElement :: Int -> (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
 getRequestedSequenceElement queryLength (blastHit,taxid) 
@@ -1069,9 +1075,9 @@ getRequestedSequenceElement queryLength (blastHit,taxid)
 
 blastHitIsReverseComplement :: (BlastHit,Int) -> Bool
 blastHitIsReverseComplement (blastHit,_) = isReverse
-  where blastMatches = matches blastHit
-        firstHSPfrom = h_from (head blastMatches)
-        firstHSPto = h_to (head blastMatches)
+  where blastMatch = head (matches blastHit)
+        firstHSPfrom = h_from blastMatch
+        firstHSPto = h_to blastMatch
         isReverse = firstHSPfrom > firstHSPto
 
 getForwardRequestedSequenceElement :: Int -> (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
