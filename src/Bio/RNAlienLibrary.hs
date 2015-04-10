@@ -66,7 +66,7 @@ modelConstructer staticOptions modelConstruction = do
   logVerboseMessage (verbositySwitch staticOptions) ("Queries:" ++ show queries ++ "\n") (tempDirPath staticOptions)
   let iterationDirectory = (tempDirPath staticOptions) ++ (show currentIterationNumber) ++ "/"
   let maybeLastTaxId = extractLastTaxId (taxonomicContext modelConstruction)
-  if (isNothing maybeLastTaxId) then logMessage ("Lineage: Could not extract last tax od \n") (tempDirPath staticOptions) else (return ())
+  if (isNothing maybeLastTaxId) then logMessage ("Lineage: Could not extract last tax id \n") (tempDirPath staticOptions) else (return ())
   --If highest node in linage was used as upper taxonomy limit, taxonomic tree is exhausted
   if (maybe True (\uppertaxlimit -> maybe True (\lastTaxId -> uppertaxlimit /= lastTaxId) maybeLastTaxId) (upperTaxonomyLimit modelConstruction))
      then do
@@ -224,7 +224,7 @@ alignmentConstructionWithCandidates currentTaxonomicContext currentUpperTaxonomy
         --reusing previous modelconstruction with increased upperTaxonomyLimit but include found sequence
         --prepare next iteration
         let newTaxEntries = (taxRecords modelConstruction) ++ (buildTaxRecords alignmentResults currentIterationNumber)
-        let nextModelConstructionInputWithThreshold = modelConstruction  {iterationNumber = (currentIterationNumber + 1),upperTaxonomyLimit = currentUpperTaxonomyLimit, taxRecords = newTaxEntries}
+        let nextModelConstructionInputWithThreshold = modelConstruction  {iterationNumber = (currentIterationNumber + 1),upperTaxonomyLimit = currentUpperTaxonomyLimit, taxRecords = newTaxEntries,taxonomicContext = currentTaxonomicContext}
         logMessage (show nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)     ----      
         writeFile (iterationDirectory ++ "done") ""
         nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInputWithThreshold           
@@ -337,7 +337,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber alignmentMod
   let entrezTaxFilter = buildTaxFilterQuery upperTaxLimit lowerTaxLimit 
   logVerboseMessage (verbositySwitch staticOptions) ("entrezTaxFilter" ++ show entrezTaxFilter ++ "\n") (tempDirPath staticOptions)
   print ("entrezTaxFilter" ++ show entrezTaxFilter ++ "\n")
-  let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=10000&EXPECT=1" 
+  let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=5000&EXPECT=1" 
   let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
   --let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter ++ registrationInfo))
   let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) querySequences'  (Just (hitNumberQuery ++ entrezTaxFilter ++ registrationInfo))
@@ -1292,6 +1292,7 @@ retrieveTaxonomicContextEntrez inputTaxId = do
             return Nothing
           else do
             let taxon = head (readEntrezTaxonSet result)
+            print taxon
             if (null (lineageEx taxon))
               then do
                 error "Retrieved taxonomic context taxon from NCBI Entrez with empty lineage, cannot proceed."
