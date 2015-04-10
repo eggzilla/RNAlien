@@ -66,12 +66,12 @@ main = do
   logMessage ("Temporary Directory: " ++ temporaryDirectoryPath ++ "\n") temporaryDirectoryPath
   logToolVersions temporaryDirectoryPath
   inputFasta <- readFasta inputFastaFilePath
-  nodes <- readNCBISimpleTaxDumpNodes taxNodesFilePath
-  logEither nodes temporaryDirectoryPath
-  let rightNodes = fromRight nodes
+  --nodes <- readNCBISimpleTaxDumpNodes taxNodesFilePath
+  --logEither nodes temporaryDirectoryPath
+  --let rightNodes = fromRight nodes
   let inputSequence = (head inputFasta)
   initialTaxId <- setInitialTaxId inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
-  let staticOptions = StaticOptions temporaryDirectoryPath sessionId rightNodes (fromJust inputZScoreCutoff) (fromJust inputInclusionThresholdRatio) (fromJust inputDendrogramCutDistance) initialTaxId singleHitperTax lengthFilter threads inputBlastDatabase (setVerbose verboseLevel)
+  let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputZScoreCutoff) (fromJust inputInclusionThresholdRatio) (fromJust inputDendrogramCutDistance) inputTaxId singleHitperTax lengthFilter threads inputBlastDatabase (setVerbose verboseLevel)
   let initialization = ModelConstruction iterationNumber inputSequence [] initialTaxId Nothing Nothing (fromJust inputEvalueCutoff) False []
   logMessage (show initialization) temporaryDirectoryPath
   modelConstructionResults <- modelConstructer staticOptions initialization

@@ -379,11 +379,11 @@ searchCandidates staticOptions finaliterationprefix iterationnumber alignmentMod
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_4blastHitsFilteredByParentTaxId") (showlines blastHitsFilteredByParentTaxId)
        -- Filtering with TaxTree (only hits from the same subtree as besthit)
        let blastHitsWithTaxId = zip blastHitsFilteredByParentTaxId blastHittaxIdList
-       let (_, filteredBlastResults) = filterByNeighborhoodTreeConditional alignmentModeInfernalToggle upperTaxLimit blastHitsWithTaxId (inputTaxNodes staticOptions) (fromJust upperTaxLimit) (singleHitperTaxToggle staticOptions)
-       writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_5filteredBlastResults") (showlines filteredBlastResults)
+       --let (_, filteredBlastResults) = filterByNeighborhoodTreeConditional alignmentModeInfernalToggle upperTaxLimit blastHitsWithTaxId (inputTaxNodes staticOptions) (fromJust upperTaxLimit) (singleHitperTaxToggle staticOptions)
+       --writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_5filteredBlastResults") (showlines filteredBlastResults)
        -- Coordinate generation
-       let nonemptyfilteredBlastResults = filter (\(blasthit,_) -> not (null (matches blasthit))) filteredBlastResults
-       let requestedSequenceElements = map (getRequestedSequenceElement queryLength) filteredBlastResults
+       let nonEmptyfilteredBlastResults = filter (\(blasthit,_) -> not (null (matches blasthit))) blastHitsWithTaxId --filteredBlastResults
+       let requestedSequenceElements = map (getRequestedSequenceElement queryLength) nonEmptyfilteredBlastResults
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++  "_6requestedSequenceElements") (showlines requestedSequenceElements)
        -- Retrieval of full sequences from entrez
        --fullSequencesWithSimilars <- retrieveFullSequences requestedSequenceElements
@@ -657,7 +657,7 @@ getTaxonomicContextEntrez upperTaxLimit currentTaxonomicContext = do
 
 setTaxonomicContextEntrez :: Int -> Maybe Taxon -> StaticOptions -> Maybe Int -> (Maybe Int, Maybe Int)
 setTaxonomicContextEntrez currentIterationNumber currentTaxonomicContext staticOptions subTreeTaxId 
-  | currentIterationNumber == 0 = (userTaxId staticOptions, Nothing)
+  | currentIterationNumber == 0 = (subTreeTaxId, Nothing)
   | otherwise = setUpperLowerTaxLimitEntrez (fromJust subTreeTaxId) (fromJust currentTaxonomicContext)
                           
 -- setTaxonomic Context for next candidate search, the upper bound of the last search become the lower bound of the next
@@ -1065,7 +1065,6 @@ retrieveFullSequence temporaryDirectoryPath (geneId,seqStart,seqStop,strand,_,ta
             then do 
               return (Nothing,taxid,subject')
             else do
-              let parsedFasta = head ((mkSeqs . L.lines) (L.pack result))
               return (Just parsedFasta,taxid,subject')
  
 getRequestedSequenceElement :: Int -> (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)

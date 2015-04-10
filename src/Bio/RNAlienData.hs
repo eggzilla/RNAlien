@@ -11,7 +11,6 @@ import Bio.EntrezHTTPData
 data StaticOptions = StaticOptions
   { tempDirPath :: String,
     sessionID :: String,
-    inputTaxNodes :: [SimpleTaxDumpNode],
     zScoreCutoff :: Double,
     inclusionThresholdRatio :: Double,
     dendrogramCutDistance :: Double,
