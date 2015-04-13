@@ -416,64 +416,60 @@ alignCandidates staticOptions modelConstruction multipleSearchResultPrefix searc
   if (null (candidates searchResults))
     then do return []
     else do
-      let iterationDirectory = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/" ++ multipleSearchResultPrefix
-      --refilter for similarity for multiple queries
+      --refilter for similarity 
       let filteredCandidates = filterIdenticalSequencesWithOrigin (candidates searchResults) 99
-      let candidateSequences = extractCandidateSequences filteredCandidates
-      --Extract sequences from modelconstruction
-      --let previouslyAlignedSequences = extractAlignedSequences (iterationNumber modelConstruction) modelConstruction                  
       if(alignmentModeInfernal modelConstruction)
         then do
-          logVerboseMessage (verbositySwitch staticOptions) ("Alignment Mode Infernal\n") (tempDirPath staticOptions)
-          let indexedCandidateSequenceList = (V.toList candidateSequences)
-          let cmSearchFastaFilePaths = map (constructFastaFilePaths iterationDirectory) indexedCandidateSequenceList
-          let cmSearchFilePaths = map (constructCMsearchFilePaths iterationDirectory) indexedCandidateSequenceList
-          let covarianceModelPath = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction - 1)) ++ "/" ++ "model.cm"
-          mapM_ (\(number,_nucleotideSequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") [_nucleotideSequence]) indexedCandidateSequenceList
-          let zippedFastaCMSearchResultPaths = zip cmSearchFastaFilePaths cmSearchFilePaths       
-          --check with cmSearch
-          mapM_ (\(fastaPath,resultPath) -> systemCMsearch (cpuThreads staticOptions) ("-Z " ++ show (fromJust (blastDatabaseSize searchResults))) covarianceModelPath fastaPath resultPath) zippedFastaCMSearchResultPaths
-          cmSearchResults <- mapM readCMSearch cmSearchFilePaths 
-          writeFile (iterationDirectory ++ "cm_error") (concatMap show (lefts cmSearchResults))
-          let rightCMSearchResults = rights cmSearchResults
-          let cmSearchCandidatesWithSequences = zip rightCMSearchResults filteredCandidates
-          --let (trimmedSelectedCandidates,rejectedCandidates') = partitionTrimCMsearchHits (fromJust (bitScoreThreshold modelConstruction)) cmSearchCandidatesWithSequences
-          let (trimmedSelectedCandidates,rejectedCandidates') = evaluePartitionTrimCMsearchHits (evalueThreshold modelConstruction) cmSearchCandidatesWithSequences
-          writeFile (iterationDirectory ++ "log" ++ "/11selectedCandidates'") (showlines trimmedSelectedCandidates)
-          writeFile (iterationDirectory ++ "log" ++ "/12rejectedCandidates'") (showlines rejectedCandidates')                                               
-          return (map snd trimmedSelectedCandidates)
+          alignCandidatesInfernalMode staticOptions modelConstruction multipleSearchResultPrefix (blastDatabaseSize searchResults) filteredCandidates
         else do
-          --Extract sequences from modelconstruction
-          -- logVerboseMessage (verbositySwitch staticOptions) ("Alignment Mode Initial\n") (tempDirPath staticOptions)
-          -- let currentAlignmentSequences = V.concat (map (constructPairwiseAlignmentSequences candidateSequences) (V.toList previouslyAlignedSequences))
-          -- --write Fasta sequences
-          -- V.mapM_ (\(number,_nucleotideSequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") _nucleotideSequence) currentAlignmentSequences
-          -- let pairwiseFastaFilepath = constructPairwiseFastaFilePaths iterationDirectory currentAlignmentSequences
-          -- let pairwiseLocarnaFilepath = constructPairwiseAlignmentFilePaths "mlocarna" iterationDirectory currentAlignmentSequences
-          -- let pairwiseLocarnainClustalw2FormatFilepath = constructPairwiseAlignmentFilePaths "mlocarnainclustalw2format" iterationDirectory currentAlignmentSequences
-          --alignSequences "mlocarna" ("--local-progressive --threads=" ++ (show (cpuThreads staticOptions)) ++ " ") pairwiseFastaFilepath [] pairwiseLocarnaFilepath []
-          --Extract sequences from modelconstruction
-          logVerboseMessage (verbositySwitch staticOptions) ("Alignment Mode Initial\n") (tempDirPath staticOptions)
-          --let currentAlignmentSequences = V.concat (map (constructPairwiseAlignmentSequences candidateSequences) (V.toList previouslyAlignedSequences))
-          --write Fasta sequences
-          writeFasta (iterationDirectory ++ "input.fa") ([inputFasta modelConstruction])
-          V.mapM_ (\(number,_nucleotideSequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") [_nucleotideSequence]) candidateSequences
-          let inputFastaFilepath = V.toList (V.map (\_ ->  iterationDirectory ++ "input.fa") candidateSequences)
-          let candidateFastaFilepath = V.toList (V.map (\(number,_) -> iterationDirectory ++ (show number) ++ "." ++ "fa") candidateSequences)
-          let locarnainClustalw2FormatFilepath =  V.toList (V.map (\(number,_) -> iterationDirectory ++ (show number) ++ "." ++ "clustalmlocarna") candidateSequences)
-          let locarnaFilepath =  V.toList (V.map (\(number,_) -> iterationDirectory ++ (show number) ++ "." ++ "mlocarna") candidateSequences)
-          alignSequences "locarna" (" --write-structure --free-endgaps=++-- ") inputFastaFilepath candidateFastaFilepath locarnainClustalw2FormatFilepath locarnaFilepath
-          --compute SCI
-          let pairwiseLocarnaRNAzFilePaths = V.toList (V.map (\(iterator,_) -> iterationDirectory ++ (show iterator) ++ ".rnaz") candidateSequences)
-          computeAlignmentSCIs locarnainClustalw2FormatFilepath pairwiseLocarnaRNAzFilePaths
-          mlocarnaRNAzOutput <- mapM readRNAz pairwiseLocarnaRNAzFilePaths
-          mapM (\out -> logEither out (tempDirPath staticOptions)) mlocarnaRNAzOutput
-          let locarnaSCI = map (\x -> show (structureConservationIndex x)) (rights mlocarnaRNAzOutput)
-          let alignedCandidates = zip locarnaSCI (candidates searchResults)
-          let (selectedCandidates,rejectedCandidates) = partition (\(sci,_) -> (read sci ::Double) > (zScoreCutoff staticOptions)) alignedCandidates
-          writeFile (iterationDirectory ++ "log" ++ "/11selectedCandidates") (showlines selectedCandidates)
-          writeFile (iterationDirectory ++ "log" ++ "/12rejectedCandidates") (showlines rejectedCandidates)
-          return (map snd selectedCandidates)
+          alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultPrefix filteredCandidates
+
+alignCandidatesInfernalMode :: StaticOptions -> ModelConstruction -> String -> Maybe Double -> [(Sequence,Int,String,Char)] -> IO [(Sequence,Int,String,Char)]
+alignCandidatesInfernalMode staticOptions modelConstruction multipleSearchResultPrefix blastDbSize filteredCandidates = do
+  let iterationDirectory = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/" ++ multipleSearchResultPrefix
+  let candidateSequences = extractCandidateSequences filteredCandidates 
+  logVerboseMessage (verbositySwitch staticOptions) ("Alignment Mode Infernal\n") (tempDirPath staticOptions)
+  let indexedCandidateSequenceList = (V.toList candidateSequences)
+  let cmSearchFastaFilePaths = map (constructFastaFilePaths iterationDirectory) indexedCandidateSequenceList
+  let cmSearchFilePaths = map (constructCMsearchFilePaths iterationDirectory) indexedCandidateSequenceList
+  let covarianceModelPath = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction - 1)) ++ "/" ++ "model.cm"
+  mapM_ (\(number,_nucleotideSequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") [_nucleotideSequence]) indexedCandidateSequenceList
+  let zippedFastaCMSearchResultPaths = zip cmSearchFastaFilePaths cmSearchFilePaths       
+  --check with cmSearch
+  mapM_ (\(fastaPath,resultPath) -> systemCMsearch (cpuThreads staticOptions) ("-Z " ++ show (fromJust blastDbSize)) covarianceModelPath fastaPath resultPath) zippedFastaCMSearchResultPaths
+  cmSearchResults <- mapM readCMSearch cmSearchFilePaths 
+  writeFile (iterationDirectory ++ "cm_error") (concatMap show (lefts cmSearchResults))
+  let rightCMSearchResults = rights cmSearchResults
+  let cmSearchCandidatesWithSequences = zip rightCMSearchResults filteredCandidates    
+  let (trimmedSelectedCandidates,rejectedCandidates') = evaluePartitionTrimCMsearchHits (evalueThreshold modelConstruction) cmSearchCandidatesWithSequences
+  writeFile (iterationDirectory ++ "log" ++ "/11selectedCandidates'") (showlines trimmedSelectedCandidates)
+  writeFile (iterationDirectory ++ "log" ++ "/12rejectedCandidates'") (showlines rejectedCandidates')                                               
+  return (map snd trimmedSelectedCandidates)
+
+alignCandidatesInitialMode :: StaticOptions -> ModelConstruction -> String -> [(Sequence,Int,String,Char)] -> IO [(Sequence,Int,String,Char)]
+alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultPrefix filteredCandidates = do
+  let iterationDirectory = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/" ++ multipleSearchResultPrefix
+  let candidateSequences = extractCandidateSequences filteredCandidates 
+  logVerboseMessage (verbositySwitch staticOptions) ("Alignment Mode Initial\n") (tempDirPath staticOptions)
+  --write Fasta sequences
+  writeFasta (iterationDirectory ++ "input.fa") ([inputFasta modelConstruction])
+  V.mapM_ (\(number,_nucleotideSequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") [_nucleotideSequence]) candidateSequences
+  let inputFastaFilepath = V.toList (V.map (\_ ->  iterationDirectory ++ "input.fa") candidateSequences)
+  let candidateFastaFilepath = V.toList (V.map (\(number,_) -> iterationDirectory ++ (show number) ++ "." ++ "fa") candidateSequences)
+  let locarnainClustalw2FormatFilepath =  V.toList (V.map (\(number,_) -> iterationDirectory ++ (show number) ++ "." ++ "clustalmlocarna") candidateSequences)
+  let locarnaFilepath =  V.toList (V.map (\(number,_) -> iterationDirectory ++ (show number) ++ "." ++ "mlocarna") candidateSequences)
+  alignSequences "locarna" (" --write-structure --free-endgaps=++-- ") inputFastaFilepath candidateFastaFilepath locarnainClustalw2FormatFilepath locarnaFilepath
+  --compute SCI
+  let pairwiseLocarnaRNAzFilePaths = V.toList (V.map (\(iterator,_) -> iterationDirectory ++ (show iterator) ++ ".rnaz") candidateSequences)
+  computeAlignmentSCIs locarnainClustalw2FormatFilepath pairwiseLocarnaRNAzFilePaths
+  mlocarnaRNAzOutput <- mapM readRNAz pairwiseLocarnaRNAzFilePaths
+  mapM (\out -> logEither out (tempDirPath staticOptions)) mlocarnaRNAzOutput
+  let locarnaSCI = map (\x -> show (structureConservationIndex x)) (rights mlocarnaRNAzOutput)
+  let alignedCandidates = zip locarnaSCI filteredCandidates
+  let (selectedCandidates,rejectedCandidates) = partition (\(sci,_) -> (read sci ::Double) > (zScoreCutoff staticOptions)) alignedCandidates
+  writeFile (iterationDirectory ++ "log" ++ "/11selectedCandidates") (showlines selectedCandidates)
+  writeFile (iterationDirectory ++ "log" ++ "/12rejectedCandidates") (showlines rejectedCandidates)
+  return (map snd selectedCandidates)
 
 setClusterNumber :: Int -> Int
 setClusterNumber x
