@@ -33,8 +33,6 @@ import Bio.RNAlienData
 import qualified Data.ByteString.Lazy.Char8 as L
 import Bio.Taxonomy 
 import Data.Either.Unwrap
-import Data.Tree
-import qualified Data.Tree.Zipper as TZ
 import Data.Maybe
 import Bio.EntrezHTTP 
 import qualified Data.List.Split as DS
@@ -71,10 +69,10 @@ modelConstructer staticOptions modelConstruction = do
   if (maybe True (\uppertaxlimit -> maybe True (\lastTaxId -> uppertaxlimit /= lastTaxId) maybeLastTaxId) (upperTaxonomyLimit modelConstruction))
      then do
        createDirectory (iterationDirectory) 
-       let (upperTaxLimit,lowerTaxLimit) = setTaxonomicContextEntrez currentIterationNumber (taxonomicContext modelConstruction) staticOptions (upperTaxonomyLimit modelConstruction)
+       let (upperTaxLimit,lowerTaxLimit) = setTaxonomicContextEntrez currentIterationNumber (taxonomicContext modelConstruction) (upperTaxonomyLimit modelConstruction)
        logVerboseMessage (verbositySwitch staticOptions) ("Upper taxonomy limit: " ++ (show upperTaxLimit) ++ "\n " ++ "Lower taxonomy limit: "++ show lowerTaxLimit ++ "\n") (tempDirPath staticOptions)
        --search queries
-       searchResults <- searchCandidates staticOptions Nothing currentIterationNumber (alignmentModeInfernal modelConstruction) upperTaxLimit lowerTaxLimit queries
+       searchResults <- searchCandidates staticOptions Nothing currentIterationNumber upperTaxLimit lowerTaxLimit queries
        currentTaxonomicContext <- getTaxonomicContextEntrez upperTaxLimit (taxonomicContext modelConstruction)
        if null (candidates searchResults)
          then do
@@ -126,15 +124,15 @@ alignmentConstructionResult currentTaxonomicContext staticOptions modelConstruct
   --logVerboseMessage (verbositySwitch staticOptions) ("Upper taxonomy limit: " ++ (show upperTaxLimit) ++ "\n " ++ "Lower taxonomy limit: "++ show lowerTaxLimit ++ "\n") (tempDirPath staticOptions)
   --taxonomic context archea
   let (upperTaxLimit1,lowerTaxLimit1) = (Just (2157 :: Int), Nothing)
-  candidates1 <- searchCandidates staticOptions (Just "archea") currentIterationNumber (alignmentModeInfernal modelConstruction) upperTaxLimit1 lowerTaxLimit1 queries
+  candidates1 <- searchCandidates staticOptions (Just "archea") currentIterationNumber upperTaxLimit1 lowerTaxLimit1 queries
   alignmentResults1 <- alignCandidates staticOptions modelConstruction "archea" candidates1
   --taxonomic context bacteria
   let (upperTaxLimit2,lowerTaxLimit2) = (Just (2 :: Int), Nothing)
-  candidates2 <- searchCandidates staticOptions (Just "bacteria") currentIterationNumber (alignmentModeInfernal modelConstruction) upperTaxLimit2 lowerTaxLimit2 queries
+  candidates2 <- searchCandidates staticOptions (Just "bacteria") currentIterationNumber upperTaxLimit2 lowerTaxLimit2 queries
   alignmentResults2 <- alignCandidates staticOptions modelConstruction "bacteria" candidates2
   --taxonomic context eukaryia
   let (upperTaxLimit3,lowerTaxLimit3) = (Just (2759 :: Int), Nothing)
-  candidates3 <- searchCandidates staticOptions (Just "eukaryia") currentIterationNumber (alignmentModeInfernal modelConstruction) upperTaxLimit3 lowerTaxLimit3 queries
+  candidates3 <- searchCandidates staticOptions (Just "eukaryia") currentIterationNumber upperTaxLimit3 lowerTaxLimit3 queries
   alignmentResults3 <- alignCandidates staticOptions modelConstruction "eukaryia" candidates3
   --the used taxids are preset
   let alignmentResults = alignmentResults1  ++ alignmentResults2 ++ alignmentResults3
@@ -321,15 +319,15 @@ findTaxonomyStart inputBlastDatabase temporaryDirectory querySequence = do
        let rightBlast = fromRight blastOutput
        let bestHit = getBestHit rightBlast
        bestBlastHitTaxIdOutput <- retrieveBlastHitTaxIdEntrez [bestHit]
-       let taxIdFromEntrySummaries = extractTaxIdFromEntrySummaries bestBlastHitTaxIdOutput
+       let taxIdFromEntrySummaries = extractTaxIdFromEntrySummaries (snd bestBlastHitTaxIdOutput)
        if (null taxIdFromEntrySummaries) then (error "findTaxonomyStart: - head: empty list of taxonomy entry summary for best hit")  else return ()
        let rightBestTaxIdResult = head taxIdFromEntrySummaries
        logMessage ("Initial TaxId: " ++ (show rightBestTaxIdResult) ++ "\n") temporaryDirectory
        return rightBestTaxIdResult
      else error "Find taxonomy start: Could not find blast hits to use as a taxonomic starting point"
 
-searchCandidates :: StaticOptions -> Maybe String -> Int -> Bool -> Maybe Int -> Maybe Int -> [Sequence] -> IO SearchResult
-searchCandidates staticOptions finaliterationprefix iterationnumber alignmentModeInfernalToggle  upperTaxLimit lowerTaxLimit querySequences' = do
+searchCandidates :: StaticOptions -> Maybe String -> Int ->  Maybe Int -> Maybe Int -> [Sequence] -> IO SearchResult
+searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimit lowerTaxLimit querySequences' = do
   --let fastaSeqData = seqdata _querySequence
   if (null querySequences') then error "searchCandidates: - head: empty list of query sequences" else return ()
   let queryLength = fromIntegral (seqlength (head querySequences'))
@@ -368,21 +366,23 @@ searchCandidates staticOptions finaliterationprefix iterationnumber alignmentMod
        let blastHitsFilteredByLength = filterByHitLength blastHits queryLength (lengthFilterToggle staticOptions)
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_3blastHitsFilteredByLength") (showlines blastHitsFilteredByLength)
        --tag BlastHits with TaxId
-       blastHitTaxIdOutput <- retrieveBlastHitsTaxIdEntrez blastHitsFilteredByLength
-       let blastHittaxIdList = concat (map extractTaxIdFromEntrySummaries blastHitTaxIdOutput)
-       blastHitsParentTaxIdOutput <- retrieveParentTaxIdsEntrez blastHittaxIdList 
-       -- filter by taxid
-       let blastHitsWithParentTaxId = zip blastHitsFilteredByLength blastHitsParentTaxIdOutput
+       blastHitsWithTaxIdOutput <- retrieveBlastHitsTaxIdEntrez blastHitsFilteredByLength
+       let uncheckedBlastHitsWithTaxIdList = map (\(blasthits,taxIdout) -> (blasthits,extractTaxIdFromEntrySummaries taxIdout)) blastHitsWithTaxIdOutput
+       let checkedBlastHitsWithTaxId = filter (\(_,taxids) -> not (null taxids)) uncheckedBlastHitsWithTaxIdList
+       --todo checked blasthittaxidswithblasthits need to be merged as taxid blasthit pairs
+       let blastHitsWithTaxId = zip (concatMap (\(a,_) -> a) checkedBlastHitsWithTaxId) (concatMap (\(_,b) -> b) checkedBlastHitsWithTaxId)
+       blastHitsWithParentTaxIdOutput <- retrieveParentTaxIdsEntrez blastHitsWithTaxId
+       --let blastHitsWithParentTaxId = concat blastHitsWithParentTaxIdOutput
        -- filter by ParentTaxId (only one hit per TaxId)
-       let blastHitsFilteredByParentTaxIdWithParentTaxId = filterByParentTaxId blastHitsWithParentTaxId True
-       let blastHitsFilteredByParentTaxId = map fst blastHitsFilteredByParentTaxIdWithParentTaxId
-       writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_4blastHitsFilteredByParentTaxId") (showlines blastHitsFilteredByParentTaxId)
+       let blastHitsFilteredByParentTaxIdWithParentTaxId = filterByParentTaxId blastHitsWithParentTaxIdOutput True
+       --let blastHitsFilteredByParentTaxId = map fst blastHitsFilteredByParentTaxIdWithParentTaxId
+       writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_4blastHitsFilteredByParentTaxId") (showlines blastHitsFilteredByParentTaxIdWithParentTaxId)
        -- Filtering with TaxTree (only hits from the same subtree as besthit)
-       let blastHitsWithTaxId = zip blastHitsFilteredByParentTaxId blastHittaxIdList
+       --let blastHitsWithTaxId = zip blastHitsFilteredByParentTaxId blastHittaxIdList
        --let (_, filteredBlastResults) = filterByNeighborhoodTreeConditional alignmentModeInfernalToggle upperTaxLimit blastHitsWithTaxId (inputTaxNodes staticOptions) (fromJust upperTaxLimit) (singleHitperTaxToggle staticOptions)
        --writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_5filteredBlastResults") (showlines filteredBlastResults)
        -- Coordinate generation
-       let nonEmptyfilteredBlastResults = filter (\(blasthit,_) -> not (null (matches blasthit))) blastHitsWithTaxId --filteredBlastResults
+       let nonEmptyfilteredBlastResults = filter (\(blasthit,_) -> not (null (matches blasthit))) blastHitsFilteredByParentTaxIdWithParentTaxId
        let requestedSequenceElements = map (getRequestedSequenceElement queryLength) nonEmptyfilteredBlastResults
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++  "_6requestedSequenceElements") (showlines requestedSequenceElements)
        -- Retrieval of full sequences from entrez
@@ -655,8 +655,8 @@ getTaxonomicContextEntrez upperTaxLimit currentTaxonomicContext = do
           return retrievedTaxonomicContext
     else return Nothing
 
-setTaxonomicContextEntrez :: Int -> Maybe Taxon -> StaticOptions -> Maybe Int -> (Maybe Int, Maybe Int)
-setTaxonomicContextEntrez currentIterationNumber currentTaxonomicContext staticOptions subTreeTaxId 
+setTaxonomicContextEntrez :: Int -> Maybe Taxon -> Maybe Int -> (Maybe Int, Maybe Int)
+setTaxonomicContextEntrez currentIterationNumber currentTaxonomicContext subTreeTaxId 
   | currentIterationNumber == 0 = (subTreeTaxId, Nothing)
   | otherwise = setUpperLowerTaxLimitEntrez (fromJust subTreeTaxId) (fromJust currentTaxonomicContext)
                           
@@ -1152,44 +1152,7 @@ constructFastaFilePaths currentDirectory (fastaIdentifier, _) = currentDirectory
 
 constructCMsearchFilePaths :: String -> (Int, Sequence) -> String
 constructCMsearchFilePaths currentDirectory (fastaIdentifier, _) = currentDirectory ++ (show fastaIdentifier) ++".cmsearch"
-                                                                          
-getBestHitTreePosition :: [SimpleTaxDumpNode] -> Rank -> Int -> TZ.TreePos TZ.Full SimpleTaxDumpNode
-getBestHitTreePosition nodes rank' rightBestTaxIdResult = bestHitTreePosition
-  where  hitNode = fromJust (retrieveNode rightBestTaxIdResult nodes)
-         parentFamilyNode = parentNodeWithRank hitNode rank' nodes
-         neighborhoodNodes = (retrieveAllDescendents nodes parentFamilyNode)
-         simpleTaxTree = constructSimpleTaxTree neighborhoodNodes
-         rootNode = TZ.fromTree simpleTaxTree
-         bestHitTreePosition = head (findChildTaxTreeNodePosition (simpleTaxId hitNode) rootNode)
-
--- | If no species of origin as been set by the user we blast without tax restriction and filter after blasting
-filterByNeighborhoodTreeConditional :: Bool -> Maybe Int -> [(BlastHit,Int)] -> [SimpleTaxDumpNode] -> Int -> Bool -> (Int, [(BlastHit,Int)])
-filterByNeighborhoodTreeConditional alignmentModeInfernalToggle upperTaxIdLimit blastHitsWithTaxId taxNodes rightBestTaxIdResult singleHitperTax 
-  | (not alignmentModeInfernalToggle) && isNothing upperTaxIdLimit = (firstUpperTaxIdLimit,filterByNeighborhoodTree blastHitsWithTaxId bestHitTreePosition singleHitperTax)
-  --already resticted search space during blast search
-  | otherwise = ((fromJust upperTaxIdLimit), blastHitsWithTaxId)
-  where bestHitTreePosition = getBestHitTreePosition taxNodes Family rightBestTaxIdResult
-        firstUpperTaxIdLimit =  (simpleTaxId (rootLabel (TZ.toTree (bestHitTreePosition))))
-
--- | Filter blast hits by location in the taxtree. Node has to be in subtree of the besthit provided
-filterByNeighborhoodTree :: [(BlastHit,Int)] -> TZ.TreePos TZ.Full SimpleTaxDumpNode -> Bool -> [(BlastHit,Int)]
-filterByNeighborhoodTree blastHitsWithTaxId bestHitTreePosition singleHitperTax = neighborhoodEntries
-  where  subtree = TZ.tree bestHitTreePosition
-         subtreeNodes = flatten subtree
-         neighborhoodTaxIds = map simpleTaxId subtreeNodes
-         currentNeighborhoodEntries = filterNeighborhoodEntries blastHitsWithTaxId neighborhoodTaxIds singleHitperTax
-         neighborNumber = length currentNeighborhoodEntries
-         neighborhoodEntries = enoughSubTreeNeighbors neighborNumber currentNeighborhoodEntries blastHitsWithTaxId bestHitTreePosition singleHitperTax
-
-filterNeighborhoodEntries :: [(BlastHit,Int)] -> [Int] -> Bool -> [(BlastHit,Int)]
-filterNeighborhoodEntries blastHitsWithTaxId neighborhoodTaxIds singleHitperTax 
-  |  singleHitperTax = singleBlastHitperTaxId
-  |  otherwise = neighborhoodBlastHitsWithTaxId
-  where neighborhoodBlastHitsWithTaxId = filter (\blastHit -> isInNeighborhood neighborhoodTaxIds blastHit) blastHitsWithTaxId
-        neighborhoodBlastHitsWithTaxIdSortedByTaxId = sortBy compareTaxId neighborhoodBlastHitsWithTaxId
-        neighborhoodBlastHitsWithTaxIdGroupedByTaxId = groupBy sameTaxId neighborhoodBlastHitsWithTaxIdSortedByTaxId
-        singleBlastHitperTaxId = map (maximumBy compareHitEValue) neighborhoodBlastHitsWithTaxIdGroupedByTaxId
-        
+                                                                                  
 -- Smaller e-Values are greater, the maximum function is applied
 compareHitEValue :: (BlastHit,Int) -> (BlastHit,Int) -> Ordering                    
 compareHitEValue (hit1,_) (hit2,_)
@@ -1214,27 +1177,7 @@ sameTaxId (_,taxId1) (_,taxId2) = taxId1 == taxId2
 -- | NCBI uses the e-Value of the best HSP as the Hits e-Value
 hitEValue :: BlastHit -> Double
 hitEValue hit = minimum (map e_val (matches hit))
-
-enoughSubTreeNeighbors :: Int -> [(BlastHit,Int)] -> [(BlastHit,Int)] -> TZ.TreePos TZ.Full SimpleTaxDumpNode -> Bool -> [(BlastHit,Int)]
-enoughSubTreeNeighbors neighborNumber currentNeighborhoodEntries blastHitsWithTaxId bestHitTreePosition singleHitperTax 
-  | neighborNumber < 10 = filterByNeighborhoodTree blastHitsWithTaxId (fromJust (TZ.parent bestHitTreePosition)) singleHitperTax
-  | otherwise = currentNeighborhoodEntries 
-         
--- | Retrieve position of a specific node in the tree
-findChildTaxTreeNodePosition :: Int -> TZ.TreePos TZ.Full SimpleTaxDumpNode -> [TZ.TreePos TZ.Full SimpleTaxDumpNode]
-findChildTaxTreeNodePosition searchedTaxId currentPosition 
-  | isLabelMatching == True = [currentPosition]
-  | (isLabelMatching == False) && (TZ.hasChildren currentPosition) = [] ++ (checkSiblings searchedTaxId (fromJust (TZ.firstChild currentPosition)))
-  | (isLabelMatching == False) = []
-  where currentTaxId = simpleTaxId (TZ.label currentPosition)
-        isLabelMatching = currentTaxId == searchedTaxId
-findChildTaxTreeNodePosition _ _ = []
                           
-checkSiblings :: Int -> TZ.TreePos TZ.Full SimpleTaxDumpNode -> [TZ.TreePos TZ.Full SimpleTaxDumpNode]        
-checkSiblings searchedTaxId currentPosition  
-  | (TZ.isLast currentPosition) = (findChildTaxTreeNodePosition searchedTaxId currentPosition)
-  | otherwise = (findChildTaxTreeNodePosition searchedTaxId currentPosition) ++ (checkSiblings searchedTaxId (fromJust (TZ.next currentPosition)))
-
 convertFastaFoldStockholm :: Sequence -> String -> String
 convertFastaFoldStockholm fastasequence foldedStructure = stockholmOutput
   where alnHeader = "# STOCKHOLM 1.0\n\n"
@@ -1273,9 +1216,6 @@ buildStockholmAlignmentEntries inputSpacerLength entry = entrystring
   where idLength = length (filter (/= '\n') (entrySequenceIdentifier entry))
         spacer = replicate (inputSpacerLength - idLength) ' '
         entrystring = (entrySequenceIdentifier entry) ++ spacer ++ (entryAlignedSequence entry) ++ "\n"
-                    
-isInNeighborhood :: [Int] -> (BlastHit,Int) -> Bool
-isInNeighborhood neighborhoodTaxIds (_,hitTaxId) = elem hitTaxId neighborhoodTaxIds
 
 retrieveTaxonomicContextEntrez :: Int -> IO (Maybe Taxon)
 retrieveTaxonomicContextEntrez inputTaxId = do
@@ -1299,42 +1239,48 @@ retrieveTaxonomicContextEntrez inputTaxId = do
               else do
                 return (Just taxon)
 
-retrieveParentTaxIdEntrez :: [Int] -> IO [Int]
-retrieveParentTaxIdEntrez inputTaxIds = do
-  if not (null inputTaxIds)
+retrieveParentTaxIdEntrez :: [(BlastHit,Int)] -> IO [(BlastHit,Int)]
+retrieveParentTaxIdEntrez blastHitsWithHitTaxids = do
+  if not (null blastHitsWithHitTaxids)
      then do
        let program' = Just "efetch"
        let database' = Just "taxonomy"
-       let taxIdStrings = map show inputTaxIds
+       let extractedBlastHits = map fst blastHitsWithHitTaxids
+       let taxIds = map snd blastHitsWithHitTaxids
+       let taxIdStrings = map show taxIds
        let taxIdQuery = intercalate "," taxIdStrings
        let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
        let queryString = "id=" ++ taxIdQuery ++ registrationInfo
        let entrezQuery = EntrezHTTPQuery program' database' queryString 
        result <- entrezHTTP entrezQuery
        let parentTaxIds = readEntrezParentIds result
-       return parentTaxIds
+       if (null parentTaxIds) 
+         then do
+           return []
+         else do
+           return (zip extractedBlastHits parentTaxIds)
     else return []
 
 -- | Wrapper functions that ensures that only 20 queries are sent per request
-retrieveParentTaxIdsEntrez :: [Int] -> IO [Int]
-retrieveParentTaxIdsEntrez taxids = do
-  let splits = partitionTaxIds taxids 20
+retrieveParentTaxIdsEntrez :: [(BlastHit,Int)] -> IO [(BlastHit,Int)]
+retrieveParentTaxIdsEntrez taxIdwithBlastHits = do
+  let splits = partitionTaxIdwithBlastHits taxIdwithBlastHits 20
   taxIdsOutput <- mapM retrieveParentTaxIdEntrez splits
   return (concat taxIdsOutput)
 
 -- | Wrapper functions that ensures that only 20 queries are sent per request
-retrieveBlastHitsTaxIdEntrez :: [BlastHit] -> IO [String]
+retrieveBlastHitsTaxIdEntrez :: [BlastHit] -> IO [([BlastHit],String)]
 retrieveBlastHitsTaxIdEntrez blastHits = do
   let splits = partitionBlastHits blastHits 20
   taxIdsOutput <- mapM retrieveBlastHitTaxIdEntrez splits
   return taxIdsOutput
 
-partitionTaxIds :: [Int] -> Int -> [[Int]]
-partitionTaxIds blastHits hitsperSplit
+partitionTaxIdwithBlastHits :: [(BlastHit,Int)] -> Int -> [[(BlastHit,Int)]]
+partitionTaxIdwithBlastHits blastHits hitsperSplit
   | not (null blastHits) = filter (\e ->not (null e)) result
   | otherwise = []
   where (heads,xs) = splitAt hitsperSplit blastHits
-        result = (heads:(partitionTaxIds xs hitsperSplit))
+        result = (heads:(partitionTaxIdwithBlastHits xs hitsperSplit))
 
 partitionBlastHits :: [BlastHit] -> Int -> [[BlastHit]]
 partitionBlastHits blastHits hitsperSplit
@@ -1343,7 +1289,7 @@ partitionBlastHits blastHits hitsperSplit
   where (heads,xs) = splitAt hitsperSplit blastHits
         result = (heads:(partitionBlastHits xs hitsperSplit))
 
-retrieveBlastHitTaxIdEntrez :: [BlastHit] -> IO String
+retrieveBlastHitTaxIdEntrez :: [BlastHit] -> IO ([BlastHit],String)
 retrieveBlastHitTaxIdEntrez blastHits = do
   if not (null blastHits)
      then do
@@ -1354,14 +1300,16 @@ retrieveBlastHitTaxIdEntrez blastHits = do
        let entrezQuery = EntrezHTTPQuery (Just "esummary") (Just "nucleotide") query'
        threadDelay 10000000                  
        result <- entrezHTTP entrezQuery
-       return result
-     else return ""
+       return (blastHits,result)
+     else return (blastHits,"")
 
 extractTaxIdFromEntrySummaries :: String -> [Int]
 extractTaxIdFromEntrySummaries input
-  | not (null input) = hitTaxIds
-  | otherwise = []
-  where parsedResult = (head (readEntrezSummaries input))
+  | null input = []
+  | null parsedResultList = []
+  | otherwise = hitTaxIds
+  where parsedResultList = readEntrezSummaries input
+        parsedResult = head parsedResultList
         blastHitSummaries = documentSummaries parsedResult
         hitTaxIdStrings = map extractTaxIdfromDocumentSummary blastHitSummaries
         hitTaxIds = map readInt hitTaxIdStrings
@@ -1384,21 +1332,6 @@ getBestHit :: BlastResult -> BlastHit
 getBestHit blastResult 
   | null (concatMap hits (results blastResult)) = error "getBestHit - head: empty list"
   | otherwise = head (hits (head (results blastResult)))
-
-retrieveNode :: Int -> [SimpleTaxDumpNode] -> Maybe SimpleTaxDumpNode 
-retrieveNode nodeTaxId nodes = find (\node -> (simpleTaxId node) == nodeTaxId) nodes
-
--- | Retrieve all taxonomic nodes that are directly
-retrieveChildren :: [SimpleTaxDumpNode] -> SimpleTaxDumpNode -> [SimpleTaxDumpNode]
-retrieveChildren nodes parentNode = filter (\node -> simpleParentTaxId node == simpleTaxId parentNode) nodes
-
--- | Retrieve all taxonomic nodes that are descented from this node including itself
-retrieveAllDescendents :: [SimpleTaxDumpNode] -> SimpleTaxDumpNode -> [SimpleTaxDumpNode]
-retrieveAllDescendents nodes parentNode 
-  | childNodes /= [] = [parentNode] ++ concatMap (retrieveAllDescendents nodes) childNodes
-  | otherwise = [parentNode]
-  where
-  childNodes = retrieveChildren nodes parentNode
 
 showlines :: Show a => [a] -> [Char]
 showlines input = concatMap (\x -> show x ++ "\n") input
@@ -1448,9 +1381,3 @@ setVerbose :: Verbosity -> Bool
 setVerbose verbosityLevel
   | verbosityLevel == Loud = True
   | otherwise = False
-
--- | retrieves ancestor node with at least the supplied rank
-parentNodeWithRank :: SimpleTaxDumpNode -> Rank -> [SimpleTaxDumpNode] -> SimpleTaxDumpNode
-parentNodeWithRank node requestedRank nodes
-  | (simpleRank node) >= requestedRank = node
-  | otherwise = parentNodeWithRank (fromJust (retrieveNode (simpleParentTaxId node) nodes)) requestedRank nodes

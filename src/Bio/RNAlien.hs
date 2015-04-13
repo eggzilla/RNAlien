@@ -11,8 +11,6 @@ import System.Console.CmdArgs
 import System.Directory 
 import Bio.Sequence.Fasta 
 import Bio.RNAlienData
-import Bio.Taxonomy  
-import Data.Either.Unwrap
 import Bio.RNAlienLibrary
 import Data.Maybe
 import Data.Time
