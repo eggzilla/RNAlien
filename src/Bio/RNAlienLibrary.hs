@@ -74,7 +74,9 @@ modelConstructer staticOptions modelConstruction = do
        let (upperTaxLimit,lowerTaxLimit) = setTaxonomicContextEntrez currentIterationNumber (taxonomicContext modelConstruction) (upperTaxonomyLimit modelConstruction)
        logVerboseMessage (verbositySwitch staticOptions) ("Upper taxonomy limit: " ++ (show upperTaxLimit) ++ "\n " ++ "Lower taxonomy limit: "++ show lowerTaxLimit ++ "\n") (tempDirPath staticOptions)
        --search queries
-       searchResults <- searchCandidates staticOptions Nothing currentIterationNumber upperTaxLimit lowerTaxLimit queries
+       searchResults <- catchAll (searchCandidates staticOptions Nothing currentIterationNumber upperTaxLimit lowerTaxLimit queries) 
+                        (\e -> do logMessage ("searchResults iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
+                                  return (SearchResult [] Nothing))
        currentTaxonomicContext <- getTaxonomicContextEntrez upperTaxLimit (taxonomicContext modelConstruction)
        if null (candidates searchResults)
          then do
@@ -84,6 +86,9 @@ modelConstructer staticOptions modelConstruction = do
      else do
        logMessage ("Message: Modelconstruction complete: Out of queries or taxonomic tree exhausted\n") (tempDirPath staticOptions)
        alignmentConstructionResult (taxonomicContext modelConstruction) staticOptions modelConstruction
+
+catchAll :: IO a -> (CE.SomeException -> IO a) -> IO a
+catchAll = CE.catch
 
 setInitialTaxId :: Maybe String -> String -> Maybe Int -> Sequence -> IO (Maybe Int)
 setInitialTaxId inputBlastDatabase tempdir inputTaxId inputSequence = do
@@ -127,16 +132,28 @@ alignmentConstructionResult currentTaxonomicContext staticOptions modelConstruct
   --logVerboseMessage (verbositySwitch staticOptions) ("Upper taxonomy limit: " ++ (show upperTaxLimit) ++ "\n " ++ "Lower taxonomy limit: "++ show lowerTaxLimit ++ "\n") (tempDirPath staticOptions)
   --taxonomic context archea
   let (upperTaxLimit1,lowerTaxLimit1) = (Just (2157 :: Int), Nothing)
-  candidates1 <- searchCandidates staticOptions (Just "archea") currentIterationNumber upperTaxLimit1 lowerTaxLimit1 queries
-  alignmentResults1 <- alignCandidates staticOptions modelConstruction "archea" candidates1
+  candidates1 <- catchAll  (searchCandidates staticOptions (Just "archea") currentIterationNumber upperTaxLimit1 lowerTaxLimit1 queries)
+                 (\e -> do logMessage ("searchResults iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
+                           return (SearchResult [] Nothing))
+  alignmentResults1 <- catchAll (alignCandidates staticOptions modelConstruction "archea" candidates1)
+                       (\e -> do logMessage ("alignmentResults iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
+                                 return  [])
   --taxonomic context bacteria
   let (upperTaxLimit2,lowerTaxLimit2) = (Just (2 :: Int), Nothing)
-  candidates2 <- searchCandidates staticOptions (Just "bacteria") currentIterationNumber upperTaxLimit2 lowerTaxLimit2 queries
-  alignmentResults2 <- alignCandidates staticOptions modelConstruction "bacteria" candidates2
+  candidates2 <- catchAll (searchCandidates staticOptions (Just "bacteria") currentIterationNumber upperTaxLimit2 lowerTaxLimit2 queries)
+                 (\e -> do logMessage ("searchResults iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
+                           return (SearchResult [] Nothing))
+  alignmentResults2 <- catchAll (alignCandidates staticOptions modelConstruction "bacteria" candidates2)
+                       (\e -> do logMessage ("alignmentResults iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
+                                 return  [])
   --taxonomic context eukaryia
   let (upperTaxLimit3,lowerTaxLimit3) = (Just (2759 :: Int), Nothing)
-  candidates3 <- searchCandidates staticOptions (Just "eukaryia") currentIterationNumber upperTaxLimit3 lowerTaxLimit3 queries
-  alignmentResults3 <- alignCandidates staticOptions modelConstruction "eukaryia" candidates3
+  candidates3 <- catchAll (searchCandidates staticOptions (Just "eukaryia") currentIterationNumber upperTaxLimit3 lowerTaxLimit3 queries)
+                 (\e -> do logMessage ("searchResults iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
+                           return (SearchResult [] Nothing))
+  alignmentResults3 <- catchAll (alignCandidates staticOptions modelConstruction "eukaryia" candidates3)
+                       (\e -> do logMessage ("alignmentResults iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
+                                 return  [])
   --the used taxids are preset
   let alignmentResults = alignmentResults1  ++ alignmentResults2 ++ alignmentResults3
   if (length alignmentResults == 0) && (not (alignmentModeInfernal modelConstruction))
@@ -156,20 +173,17 @@ alignmentConstructionResult currentTaxonomicContext staticOptions modelConstruct
       _ <- systemRNAfold fastaFilepath foldFilepath
       foldoutput <- readRNAfold foldFilepath
       let seqStructure = foldSecondaryStructure (fromRight foldoutput)
-      if (null alignmentSequences) then (error "Message: No sequences found that statisfy filters. Reconstruct model with less strict cutoff parameters.") else (return ())
+      if (null alignmentSequences) then (logMessage "Message: No sequences found that statisfy filters. Reconstruct model with less strict cutoff parameters." outputDirectory) else (return ())
       let stockholAlignment = convertFastaFoldStockholm (head alignmentSequences) seqStructure
       writeFile stockholmFilepath stockholAlignment
       _ <- systemCMbuild stockholmFilepath cmFilepath cmBuildFilepath
       _ <- systemCMcalibrate "standard" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
       return modelConstruction
-    else do
-      --select queries
-      currentSelectedQueries <- selectQueries staticOptions modelConstruction alignmentResults
+    else do     
       if (alignmentModeInfernal modelConstruction)
         then do
           logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - infernal mode\n") (tempDirPath staticOptions)
-          --prepare next iteration
-          let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults Nothing currentTaxonomicContext currentSelectedQueries True
+          let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults Nothing currentTaxonomicContext [] (alignmentModeInfernal modelConstruction)
           cmFilepath <- constructModel nextModelConstructionInput staticOptions
           nextModelConstructionInputWithThreshold <- setInclusionThreshold nextModelConstructionInput staticOptions cmFilepath
           writeFile (iterationDirectory ++ "done") ""
@@ -189,8 +203,7 @@ alignmentConstructionResult currentTaxonomicContext staticOptions modelConstruct
         else do
           logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - initial mode\n") (tempDirPath staticOptions)
           --First round enough candidates are avialable for modelconstruction, alignmentModeInfernal is set to true after this iteration
-          --prepare next iteration
-          let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults Nothing currentTaxonomicContext currentSelectedQueries False
+          let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults Nothing currentTaxonomicContext [] (alignmentModeInfernal modelConstruction)
           cmFilepath <- constructModel nextModelConstructionInput staticOptions
           nextModelConstructionInputWithThreshold <- setInclusionThreshold nextModelConstructionInput staticOptions cmFilepath
           let nextModelConstructionInputWithThresholdInfernalMode = nextModelConstructionInputWithThreshold {alignmentModeInfernal = True}
@@ -217,7 +230,9 @@ alignmentConstructionWithCandidates currentTaxonomicContext currentUpperTaxonomy
     let iterationDirectory = (tempDirPath staticOptions) ++ (show currentIterationNumber) ++ "/"                             
     --let usedUpperTaxonomyLimit = (snd (head candidates))                               
     --align search result
-    alignmentResults <- alignCandidates staticOptions modelConstruction "" searchResults
+    alignmentResults <- catchAll (alignCandidates staticOptions modelConstruction "" searchResults)
+                        (\e -> do logMessage ("alignmentResults iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
+                                  return  [])
     if (length alignmentResults == 0) && (not (alignmentModeInfernal modelConstruction))
       then do
         logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - length 1 - inital mode" ++ "\n") (tempDirPath staticOptions)
@@ -326,7 +341,7 @@ findTaxonomyStart inputBlastDatabase temporaryDirectory querySequence = do
        if (null taxIdFromEntrySummaries) then (error "findTaxonomyStart: - head: empty list of taxonomy entry summary for best hit")  else return ()
        let rightBestTaxIdResult = head taxIdFromEntrySummaries
        logMessage ("Initial TaxId: " ++ (show rightBestTaxIdResult) ++ "\n") temporaryDirectory
-       return rightBestTaxIdResult
+       CE.evaluate rightBestTaxIdResult
      else error "Find taxonomy start: Could not find blast hits to use as a taxonomic starting point"
 
 searchCandidates :: StaticOptions -> Maybe String -> Int ->  Maybe Int -> Maybe Int -> [Sequence] -> IO SearchResult
@@ -393,7 +408,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
        if (null fullSequencesWithSimilars)
          then do
            writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10afullSequencesWithSimilars") ("No sequences retrieved")
-           return (SearchResult [] Nothing)
+           CE.evaluate (SearchResult [] Nothing)
          else do
            writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10afullSequencesWithSimilars") (showlines fullSequencesWithSimilars)
            let fullSequences = filterIdenticalSequences fullSequencesWithSimilars 100
@@ -402,12 +417,12 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
            let maybeFractionEvalueMatch = getHitWithFractionEvalue rightBlast
            if (isNothing maybeFractionEvalueMatch)
              then do
-               return (SearchResult [] Nothing) 
+               CE.evaluate (SearchResult [] Nothing) 
              else do
                let fractionEvalueMatch = fromJust maybeFractionEvalueMatch
                let dbSize = computeDataBaseSize (e_val fractionEvalueMatch) (bits fractionEvalueMatch) (fromIntegral queryLength ::Double)
-               return (SearchResult fullSequencesWithOrigin (Just dbSize))
-     else return (SearchResult [] Nothing)  
+               CE.evaluate (SearchResult fullSequencesWithOrigin (Just dbSize))
+     else CE.evaluate (SearchResult [] Nothing)  
 
 -- |Computes size of blast db in Mb 
 computeDataBaseSize :: Double -> Double -> Double -> Double 
@@ -446,7 +461,7 @@ alignCandidatesInfernalMode staticOptions modelConstruction multipleSearchResult
   let (trimmedSelectedCandidates,rejectedCandidates') = evaluePartitionTrimCMsearchHits (evalueThreshold modelConstruction) cmSearchCandidatesWithSequences
   writeFile (iterationDirectory ++ "log" ++ "/11selectedCandidates'") (showlines trimmedSelectedCandidates)
   writeFile (iterationDirectory ++ "log" ++ "/12rejectedCandidates'") (showlines rejectedCandidates')                                               
-  return (map snd trimmedSelectedCandidates)
+  CE.evaluate (map snd trimmedSelectedCandidates)
 
 alignCandidatesInitialMode :: StaticOptions -> ModelConstruction -> String -> [(Sequence,Int,String,Char)] -> IO [(Sequence,Int,String,Char)]
 alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultPrefix filteredCandidates = do
@@ -471,7 +486,7 @@ alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultP
   let (selectedCandidates,rejectedCandidates) = partition (\(sci,_) -> (read sci ::Double) > (zScoreCutoff staticOptions)) alignedCandidates
   writeFile (iterationDirectory ++ "log" ++ "/11selectedCandidates") (showlines selectedCandidates)
   writeFile (iterationDirectory ++ "log" ++ "/12rejectedCandidates") (showlines rejectedCandidates)
-  return (map snd selectedCandidates)
+  CE.evaluate (map snd selectedCandidates)
 
 setClusterNumber :: Int -> Int
 setClusterNumber x
@@ -519,7 +534,7 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
       let currentSelectedQueries = take 5 (concatMap (take 1) (map elements cutDendrogram))
       logVerboseMessage (verbositySwitch staticOptions) ("SelectedQueries: " ++ show currentSelectedQueries ++ "\n") (tempDirPath staticOptions)                       
       writeFile ((tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/log" ++ "/13selectedQueries") (showlines currentSelectedQueries)
-      return (currentSelectedQueries)
+      CE.evaluate (currentSelectedQueries)
     else do
       return []
 
@@ -1036,8 +1051,8 @@ retrieveFullSequences staticOptions requestedSequences = do
       let (stillMissingSequences,reRetrievedSequences) = partition (\fullSequence -> isNothing (firstOfTriple fullSequence)) missingSequences
       logMessage ("Sequence retrieval failed: \n" ++ (concatMap show stillMissingSequences) ++ "\n") (tempDirPath staticOptions)
       let unwrappedRetrievals = map (\(x,y,z) -> (fromJust x,y,z))  ((map fst successfulRetrievals) ++ reRetrievedSequences)
-      return unwrappedRetrievals
-    else return (map (\(x,y,z) -> (fromJust x,y,z)) fullSequences)
+      CE.evaluate unwrappedRetrievals
+    else CE.evaluate (map (\(x,y,z) -> (fromJust x,y,z)) fullSequences)
         
 retrieveFullSequence :: String -> (String,Int,Int,String,String,Int,String) -> IO (Maybe Sequence,Int,String)
 retrieveFullSequence temporaryDirectoryPath (geneId,seqStart,seqStop,strand,_,taxid,subject') = do
@@ -1063,7 +1078,7 @@ retrieveFullSequence temporaryDirectoryPath (geneId,seqStart,seqStop,strand,_,ta
             then do 
               return (Nothing,taxid,subject')
             else do
-              return (Just parsedFasta,taxid,subject')
+              CE.evaluate (Just parsedFasta,taxid,subject')
  
 getRequestedSequenceElement :: Int -> (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
 getRequestedSequenceElement queryLength (blastHit,taxid) 
@@ -1235,7 +1250,7 @@ retrieveTaxonomicContextEntrez inputTaxId = do
               then do
                 error "Retrieved taxonomic context taxon from NCBI Entrez with empty lineage, cannot proceed."
               else do
-                return (Just taxon)
+                CE.evaluate (Just taxon)
 
 retrieveParentTaxIdEntrez :: [(BlastHit,Int)] -> IO [(BlastHit,Int)]
 retrieveParentTaxIdEntrez blastHitsWithHitTaxids = do
@@ -1256,7 +1271,7 @@ retrieveParentTaxIdEntrez blastHitsWithHitTaxids = do
          then do
            return []
          else do
-           return (zip extractedBlastHits parentTaxIds)
+           CE.evaluate (zip extractedBlastHits parentTaxIds)
     else return []
 
 -- | Wrapper functions that ensures that only 20 queries are sent per request
@@ -1298,7 +1313,7 @@ retrieveBlastHitTaxIdEntrez blastHits = do
        let entrezQuery = EntrezHTTPQuery (Just "esummary") (Just "nucleotide") query'
        threadDelay 10000000                  
        result <- entrezHTTP entrezQuery
-       return (blastHits,result)
+       CE.evaluate (blastHits,result)
      else return (blastHits,"")
 
 extractTaxIdFromEntrySummaries :: String -> [Int]
