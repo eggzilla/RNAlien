@@ -50,6 +50,8 @@ import System.Directory
 import Bio.ViennaRNAParser
 import System.Console.CmdArgs
 import qualified Control.Exception.Base as CE
+import Data.Conduit
+import Control.Monad.Trans
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 modelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
@@ -94,8 +96,9 @@ setInitialTaxId inputBlastDatabase tempdir inputTaxId inputSequence = do
 
 extractLastTaxId :: Maybe Taxon -> Maybe Int
 extractLastTaxId taxon 
-  | isJust taxon = Just (lineageTaxId (V.head lineageExVector))
-  | otherwise = Nothing
+  | isNothing taxon = Nothing
+  | V.null lineageExVector = Nothing
+  | otherwise = Just (lineageTaxId (V.head lineageExVector))
     where lineageExVector = V.fromList (lineageEx (fromJust taxon))
 
 alignmentConstructionResult :: Maybe Taxon -> StaticOptions -> ModelConstruction -> IO ModelConstruction
@@ -335,7 +338,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
   let entrezTaxFilter = buildTaxFilterQuery upperTaxLimit lowerTaxLimit 
   logVerboseMessage (verbositySwitch staticOptions) ("entrezTaxFilter" ++ show entrezTaxFilter ++ "\n") (tempDirPath staticOptions)
   print ("entrezTaxFilter" ++ show entrezTaxFilter ++ "\n")
-  let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=5000&EXPECT=1" 
+  let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=2000&EXPECT=1" 
   let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
   --let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter ++ registrationInfo))
   let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) querySequences'  (Just (hitNumberQuery ++ entrezTaxFilter ++ registrationInfo))
@@ -354,7 +357,6 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
   if (blastHitsArePresent)
      then do
        let rightBlast = fromRight blastOutput
-       let bestHit = getBestHit rightBlast
       -- bestBlastHitTaxIdOutput <- retrieveBlastHitTaxIdEntrez [bestHit]
       -- let taxIdFromEntrySummaries = extractTaxIdFromEntrySummaries bestBlastHitTaxIdOutput
       -- if (null taxIdFromEntrySummaries) then (error "searchCandidates: - head: empty list of taxonomy entry summary for best hit")  else return ()
@@ -397,15 +399,15 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
            let fullSequences = filterIdenticalSequences fullSequencesWithSimilars 100
            let fullSequencesWithOrigin = map (\(parsedFasta,taxid,seqSubject) -> (parsedFasta,taxid,seqSubject,'B')) fullSequences
            writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10fullSequences") (showlines fullSequences)
-           let bestMatch = extractBestMatch (matches bestHit)
-           let dbSize = computeDataBaseSize (e_val bestMatch) (bits bestMatch) (fromIntegral queryLength ::Double)
-           return (SearchResult fullSequencesWithOrigin (Just dbSize))
+           let maybeFractionEvalueMatch = getHitWithFractionEvalue rightBlast
+           if (isNothing maybeFractionEvalueMatch)
+             then do
+               return (SearchResult [] Nothing) 
+             else do
+               let fractionEvalueMatch = fromJust maybeFractionEvalueMatch
+               let dbSize = computeDataBaseSize (e_val fractionEvalueMatch) (bits fractionEvalueMatch) (fromIntegral queryLength ::Double)
+               return (SearchResult fullSequencesWithOrigin (Just dbSize))
      else return (SearchResult [] Nothing)  
-
-extractBestMatch :: [a] -> a
-extractBestMatch bestHitMatches 
-  | null bestHitMatches = error "extractBestMatch: - head: empty list"
-  | otherwise = head bestHitMatches
 
 -- |Computes size of blast db in Mb 
 computeDataBaseSize :: Double -> Double -> Double -> Double 
@@ -417,7 +419,7 @@ alignCandidates staticOptions modelConstruction multipleSearchResultPrefix searc
     then do return []
     else do
       --refilter for similarity 
-      let filteredCandidates = filterIdenticalSequencesWithOrigin (candidates searchResults) 99
+      let filteredCandidates = take 1000 (filterIdenticalSequencesWithOrigin (candidates searchResults) 99)
       if(alignmentModeInfernal modelConstruction)
         then do
           alignCandidatesInfernalMode staticOptions modelConstruction multipleSearchResultPrefix (blastDatabaseSize searchResults) filteredCandidates
@@ -434,7 +436,7 @@ alignCandidatesInfernalMode staticOptions modelConstruction multipleSearchResult
   let cmSearchFilePaths = map (constructCMsearchFilePaths iterationDirectory) indexedCandidateSequenceList
   let covarianceModelPath = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction - 1)) ++ "/" ++ "model.cm"
   mapM_ (\(number,_nucleotideSequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") [_nucleotideSequence]) indexedCandidateSequenceList
-  let zippedFastaCMSearchResultPaths = zip cmSearchFastaFilePaths cmSearchFilePaths       
+  let zippedFastaCMSearchResultPaths = zip cmSearchFastaFilePaths cmSearchFilePaths  
   --check with cmSearch
   mapM_ (\(fastaPath,resultPath) -> systemCMsearch (cpuThreads staticOptions) ("-Z " ++ show (fromJust blastDbSize)) covarianceModelPath fastaPath resultPath) zippedFastaCMSearchResultPaths
   cmSearchResults <- mapM readCMSearch cmSearchFilePaths 
@@ -1328,6 +1330,12 @@ getBestHit :: BlastResult -> BlastHit
 getBestHit blastResult 
   | null (concatMap hits (results blastResult)) = error "getBestHit - head: empty list"
   | otherwise = head (hits (head (results blastResult)))
+
+-- Blast returns low evalues with zero instead of the exact number
+getHitWithFractionEvalue :: BlastResult -> Maybe BlastMatch
+getHitWithFractionEvalue blastResult 
+  | null (concatMap hits (results blastResult)) = Nothing
+  | otherwise = find (\match -> (e_val match) /= (0 ::Double)) (concatMap matches (concatMap hits (results blastResult)))
 
 showlines :: Show a => [a] -> [Char]
 showlines input = concatMap (\x -> show x ++ "\n") input
