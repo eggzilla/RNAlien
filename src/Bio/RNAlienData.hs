@@ -13,7 +13,6 @@ data StaticOptions = StaticOptions
     sessionID :: String,
     zScoreCutoff :: Double,
     inclusionThresholdRatio :: Double,
-    dendrogramCutDistance :: Double,
     userTaxId :: Maybe Int,
     singleHitperTaxToggle :: Bool,
     lengthFilterToggle :: Bool,
