@@ -319,7 +319,7 @@ findTaxonomyStart inputBlastDatabase temporaryDirectory querySequence = do
   let queryIndexString = "1"
   let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=10" 
   let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
-  let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") inputBlastDatabase [querySequence] (Just (hitNumberQuery ++ registrationInfo))
+  let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") inputBlastDatabase [querySequence] (Just (hitNumberQuery ++ registrationInfo)) (Just (5400000000 :: Int))
   logMessage ("Sending find taxonomy start blast query \n") temporaryDirectory
   blastOutput <- CE.catch (blastHTTP blastQuery)
 	               (\e -> do let err = show (e :: CE.IOException)
@@ -356,7 +356,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
   let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=2000&EXPECT=1" 
   let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
   --let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter ++ registrationInfo))
-  let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) querySequences'  (Just (hitNumberQuery ++ entrezTaxFilter ++ registrationInfo))
+  let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) querySequences'  (Just (hitNumberQuery ++ entrezTaxFilter ++ registrationInfo)) (Just (5400000000 :: Int))
   logVerboseMessage (verbositySwitch staticOptions) ("Sending blast query " ++ (show iterationnumber) ++ "\n") (tempDirPath staticOptions)
   blastOutput <- CE.catch (blastHTTP blastQuery)
 	               (\e -> do let err = show (e :: CE.IOException)
@@ -451,12 +451,15 @@ alignCandidatesInfernalMode staticOptions modelConstruction multipleSearchResult
   let cmSearchFilePaths = map (constructCMsearchFilePaths iterationDirectory) indexedCandidateSequenceList
   let covarianceModelPath = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction - 1)) ++ "/" ++ "model.cm"
   mapM_ (\(number,_nucleotideSequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") [_nucleotideSequence]) indexedCandidateSequenceList
+  ----mapM_ (\(number,_nucleotideSequence) -> runResourceT $ DB.sourceLbs (L.pack content) $$ DC.sinkFile (decodeString (iterationDirectory ++ (show number) ++ ".fa"))) indexedCandidateSequenceList
   let zippedFastaCMSearchResultPaths = zip cmSearchFastaFilePaths cmSearchFilePaths  
   --check with cmSearch
   mapM_ (\(fastaPath,resultPath) -> systemCMsearch (cpuThreads staticOptions) ("-Z " ++ show (fromJust blastDbSize)) covarianceModelPath fastaPath resultPath) zippedFastaCMSearchResultPaths
   cmSearchResults <- mapM readCMSearch cmSearchFilePaths 
+  ---- cmSearchResultsOutput <- mapM (\file -> runResourceT $ DB.sourceFile file $$ DC.sinkList) cmSearchFilePaths 
+  ---- let cmSearchResults = map parseCMSearch cmSearchResultsOutput
   writeFile (iterationDirectory ++ "cm_error") (concatMap show (lefts cmSearchResults))
-  let rightCMSearchResults = rights cmSearchResults
+  let rightCMSearchResults = rights cmSearchResults 
   let cmSearchCandidatesWithSequences = zip rightCMSearchResults filteredCandidates    
   let (trimmedSelectedCandidates,rejectedCandidates') = evaluePartitionTrimCMsearchHits (evalueThreshold modelConstruction) cmSearchCandidatesWithSequences
   writeFile (iterationDirectory ++ "log" ++ "/11selectedCandidates'") (showlines trimmedSelectedCandidates)
@@ -471,6 +474,7 @@ alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultP
   --write Fasta sequences
   writeFasta (iterationDirectory ++ "input.fa") ([inputFasta modelConstruction])
   V.mapM_ (\(number,_nucleotideSequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") [_nucleotideSequence]) candidateSequences
+  ----mapM_ (\(number,_nucleotideSequence) -> runResourceT $ DB.sourceLbs (L.pack content) $$ DC.sinkFile (decodeString (iterationDirectory ++ (show number) ++ ".fa"))) indexedCandidateSequenceList
   let inputFastaFilepath = V.toList (V.map (\_ ->  iterationDirectory ++ "input.fa") candidateSequences)
   let candidateFastaFilepath = V.toList (V.map (\(number,_) -> iterationDirectory ++ (show number) ++ "." ++ "fa") candidateSequences)
   let locarnainClustalw2FormatFilepath =  V.toList (V.map (\(number,_) -> iterationDirectory ++ (show number) ++ "." ++ "clustalmlocarna") candidateSequences)
@@ -479,9 +483,11 @@ alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultP
   --compute SCI
   let pairwiseLocarnaRNAzFilePaths = V.toList (V.map (\(iterator,_) -> iterationDirectory ++ (show iterator) ++ ".rnaz") candidateSequences)
   computeAlignmentSCIs locarnainClustalw2FormatFilepath pairwiseLocarnaRNAzFilePaths
-  mlocarnaRNAzOutput <- mapM readRNAz pairwiseLocarnaRNAzFilePaths
-  mapM (\out -> logEither out (tempDirPath staticOptions)) mlocarnaRNAzOutput
-  let locarnaSCI = map (\x -> show (structureConservationIndex x)) (rights mlocarnaRNAzOutput)
+  mlocarnaRNAzResult <- mapM readRNAz pairwiseLocarnaRNAzFilePaths
+  ----mlocarnaRNAzOutput <- mapM (\file -> runResourceT $ DB.sourceFile file $$ DC.sinkList) pairwiseLocarnaRNAzFilePaths
+  ----mlocarnaRNAzResult <- map parseRNAz mlocarnaRNAzOutput
+  mapM (\out -> logEither out (tempDirPath staticOptions)) mlocarnaRNAzResult
+  let locarnaSCI = map (\x -> show (structureConservationIndex x)) (rights mlocarnaRNAzResult)
   let alignedCandidates = zip locarnaSCI filteredCandidates
   let (selectedCandidates,rejectedCandidates) = partition (\(sci,_) -> (read sci ::Double) > (zScoreCutoff staticOptions)) alignedCandidates
   writeFile (iterationDirectory ++ "log" ++ "/11selectedCandidates") (showlines selectedCandidates)
@@ -862,9 +868,9 @@ readInt = read
 readDouble :: String -> Double
 readDouble = read
  
---- | parse from input filePath              
----parseCMSearch :: String -> Either ParseError CMsearch
----parseCMSearch input = parse genParserCMsearch "parseCMsearch" input
+-- | parse from input filePath              
+parseCMSearch :: String -> Either ParseError CMsearch
+parseCMSearch input = parse genParserCMsearch "parseCMsearch" input
 
 -- | parse from input filePath                      
 readCMSearch :: String -> IO (Either ParseError CMsearch)             

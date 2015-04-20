@@ -61,6 +61,7 @@ main = do
   inputFasta <- readFasta inputFastaFilePath
   let inputSequence = (head inputFasta)
   initialTaxId <- setInitialTaxId inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
+  let inputInclusionThresholdRatio = (Just (0.25 :: Double))
   let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputZScoreCutoff) (fromJust inputInclusionThresholdRatio) inputTaxId singleHitperTax lengthFilter threads inputBlastDatabase (setVerbose verboseLevel)
   let initialization = ModelConstruction iterationNumber inputSequence [] initialTaxId Nothing Nothing (fromJust inputEvalueCutoff) False []
   logMessage (show initialization) temporaryDirectoryPath
