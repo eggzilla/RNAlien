@@ -1395,7 +1395,7 @@ logToolVersions temporaryDirectoryPath = do
 
 constructTaxonomyRecordsCSVTable :: ModelConstruction -> String
 constructTaxonomyRecordsCSVTable modelconstruction = csvtable
-  where tableheader = "Taxonomy Id;Added in Iteration Step;Entry Header"
+  where tableheader = "Taxonomy Id;Added in Iteration Step;Entry Header\n"
         tablebody = concatMap constructTaxonomyRecordCSVEntries (taxRecords modelconstruction)
         csvtable = tableheader ++ tablebody
 
