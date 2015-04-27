@@ -8,7 +8,6 @@ module Bio.RNAlienLibrary (
                            modelConstructer,
                            constructTaxonomyRecordsCSVTable,
                            resultSummary,
-                           readNCBISimpleTaxDumpNodes,
                            setVerbose,
                            logToolVersions,
                            systemCMsearch,
@@ -691,7 +690,7 @@ raiseTaxIdLimitEntrez subTreeTaxId taxon = parentNodeTaxId
         linageNodeTaxId = Just (lineageTaxId (lineageExVector V.! (lastUpperBoundNodeIndex -1)))
         lineageExVector = V.fromList (lineageEx taxon)
         --the input taxid is not part of the lineage, therefor we look for further taxids in the lineage after we used the parent tax id of the input node
-        parentNodeTaxId = if (subTreeTaxId == (taxonomyId taxon)) then Just (parentTaxonomyId taxon) else linageNodeTaxId
+        parentNodeTaxId = if (subTreeTaxId == (taxonTaxId taxon)) then Just (taxonParentTaxId taxon) else linageNodeTaxId
        
 constructNext :: Int -> ModelConstruction -> [(Sequence,Int,String,Char)] -> Maybe Int -> Maybe Taxon  -> [String] -> Bool -> ModelConstruction
 constructNext currentIterationNumber modelconstruction alignmentResults upperTaxLimit inputTaxonomicContext inputSelectedQueries toggleInfernalAlignmentModeTrue = nextModelConstruction
