@@ -1399,7 +1399,7 @@ constructTaxonomyRecordsCSVTable modelconstruction = csvtable
         csvtable = tableheader ++ tablebody
 
 constructTaxonomyRecordCSVEntries :: TaxonomyRecord -> String
-constructTaxonomyRecordCSVEntries taxRecord = concatMap (\seqrec -> show (recordTaxonomyId taxRecord) ++ ";" ++ show (aligned seqrec) ++ ";" ++ (L.unpack (unSL (seqheader (nucleotideSequence seqrec)))) ++ "\n") (sequenceRecords taxRecord)
+constructTaxonomyRecordCSVEntries taxRecord = concatMap (\seqrec -> show (recordTaxonomyId taxRecord) ++ ";" ++ show (aligned seqrec) ++ ";" ++ (filter (\c -> c /= ';') (L.unpack (unSL (seqheader (nucleotideSequence seqrec))))) ++ "\n") (sequenceRecords taxRecord)
 
 setVerbose :: Verbosity -> Bool
 setVerbose verbosityLevel
