@@ -1282,30 +1282,16 @@ retrieveParentTaxIdEntrez blastHitsWithHitTaxids = do
 -- | Wrapper functions that ensures that only 20 queries are sent per request
 retrieveParentTaxIdsEntrez :: [(BlastHit,Int)] -> IO [(BlastHit,Int)]
 retrieveParentTaxIdsEntrez taxIdwithBlastHits = do
-  let splits = partitionTaxIdwithBlastHits taxIdwithBlastHits 20
+  let splits = portionListElements taxIdwithBlastHits 20
   taxIdsOutput <- mapM retrieveParentTaxIdEntrez splits
   return (concat taxIdsOutput)
 
 -- | Wrapper functions that ensures that only 20 queries are sent per request
 retrieveBlastHitsTaxIdEntrez :: [BlastHit] -> IO [([BlastHit],String)]
 retrieveBlastHitsTaxIdEntrez blastHits = do
-  let splits = partitionBlastHits blastHits 20
+  let splits = portionListElements blastHits 20
   taxIdsOutput <- mapM retrieveBlastHitTaxIdEntrez splits
   return taxIdsOutput
-
-partitionTaxIdwithBlastHits :: [(BlastHit,Int)] -> Int -> [[(BlastHit,Int)]]
-partitionTaxIdwithBlastHits blastHits hitsperSplit
-  | not (null blastHits) = filter (\e ->not (null e)) result
-  | otherwise = []
-  where (heads,xs) = splitAt hitsperSplit blastHits
-        result = (heads:(partitionTaxIdwithBlastHits xs hitsperSplit))
-
-partitionBlastHits :: [BlastHit] -> Int -> [[BlastHit]]
-partitionBlastHits blastHits hitsperSplit
-  | not (null blastHits) = filter (\e ->not (null e)) result
-  | otherwise = []
-  where (heads,xs) = splitAt hitsperSplit blastHits
-        result = (heads:(partitionBlastHits xs hitsperSplit))
 
 retrieveBlastHitTaxIdEntrez :: [BlastHit] -> IO ([BlastHit],String)
 retrieveBlastHitTaxIdEntrez blastHits = do
