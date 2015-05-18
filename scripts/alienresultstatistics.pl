@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-
+#./alienresultstatistics structured 11
 use warnings;
 use strict;
 use diagnostics;
@@ -8,8 +8,9 @@ use Data::Dumper;
 use Cwd;
 $|=1;
 #decideds which benchmark data to process
-my $type = "structured";
-
+my $type = $ARGV[0];
+#result iteration
+my $currentresultnumber = $ARGV[1];
 #contains all RNAlien result folders for sRNA tagged families
 my $alienresult_basename;
 #contains all Rfam Families names by family name with extension .cm
@@ -19,24 +20,24 @@ my $rfamfasta_basename;
 my $RNAFamilyIdFile;
 my $familyNumber;
 my $resulttempdir;
+
 if($type eq "structured"){
-	$alienresult_basename="/scr/kronos/egg/AlienStructuredResultsCollected4/";
+	$alienresult_basename="/scr/kronos/egg/AlienStructuredResultsCollected" . "$currentresultnumber" . "/";
 	$rfammodel_basename = "/scr/kronos/egg/AlienTest/sRNAFamilies/all_models/";
-	#$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyfasta/";
+	#$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyfasta/"; full fasta
 	$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyseedfasta/";
 	$RNAFamilyIdFile = "/scr/kronos/egg/structuredFamilyNameIdGatheringCutoffSorted";
 	$familyNumber = 56;
-	$resulttempdir = "/scr/kronos/egg/temp/AlienStructuredResultStatistics3";
+	$resulttempdir = "/scr/kronos/egg/temp/AlienStructuredResultStatistics". "$currentresultnumber" . "/";
 }else{
 	#sRNA
-	$alienresult_basename="/scr/kronos/egg/AlienResultsCollected/";
+	$alienresult_basename="/scr/kronos/egg/AlienResultsCollected" . "$currentresultnumber" . "/";
 	$rfammodel_basename = "/scr/kronos/egg/AlienTest/sRNAFamilies/all_models/";
 	$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyfasta/";
 	$RNAFamilyIdFile = "/scr/kronos/egg/sRNAFamiliesIdNameGatheringCutoffTagSorted";
         $familyNumber = 374;
-	$resulttempdir = "/scr/kronos/egg/temp/AlienResultStatistics";
+	$resulttempdir = "/scr/kronos/egg/temp/AlienResultStatistics" . "$currentresultnumber" . "/";
 }
-
 
 my @RNAfamilies;
 open(my $RNAfamilyfh, "<", $RNAFamilyIdFile)
@@ -46,10 +47,30 @@ while(<$RNAfamilyfh>) {
     push @RNAfamilies, $_;
 }
 close $RNAfamilyfh;
-my $gathering_score_multiplier = 1.5;  # 1.5 1.4 1.3 1.2 1.1 1 0.9 0.8 0.7 0.6 0.5 0.4 0.3 0.2 0.1
 
-for(1..15){
-    my $output;
+my $gathering_score_multiplier = 1.0; 
+my $gathering_score_lower_bound;
+alienresultstatistic($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,$gathering_score_multiplier,$gathering_score_lower_bound,"/scr/kronos/egg/structuredalienseedoutput$currentresultnumber-" . $gathering_score_multiplier . ".csv");
+
+#for(1..10){
+#     my $outputfilePath = "/scr/kronos/egg/structuredalienseedoutput$currentresultnumber-" . $gathering_score_multiplier . ".csv";
+#     alienresultstatistic($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,$gathering_score_multiplier,$gathering_score_lower_bound,$outputfilePath);
+#     $gathering_score_multiplier = $gathering_score_multiplier - 0.1;
+# }
+# alienresultstatistic($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,0.5,40,"/scr/kronos/egg/structuredalienseedoutput$currentresultnumber-fixed0.5or40bit.csv");
+# alienresultstatistic($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,0.5,20,"/scr/kronos/egg/structuredalienseedoutput$currentresultnumber-fixed0.5or20bit.csv");
+
+sub alienresultstatistic{
+    my $familyNumber = shift;
+    my $alienresult_basename = shift;
+    my $rfammodel_basename = shift;
+    my $rfamfasta_basename = shift;
+    my $RNAFamilyIdFile = shift;
+    my $resulttempdir = shift;
+    my $gathering_score_multiplier = shift;
+    my $gathering_score_lower_bound = shift;
+    my $outputfilePath = shift;
+    my $output; 
     for(my $counter=1; $counter <= $familyNumber; $counter++){
         my $current_alienresult_folder= $alienresult_basename.$counter."/";
         if(-e $alienresult_basename.$counter."/done"){
@@ -69,7 +90,13 @@ for(1..15){
             close $RNAfamilyfh;
             my @alienThresholdLogSplit = split (/,/,$alienThresholdLog[0]);
             my $alienThresholdUnmodified = $alienThresholdLogSplit[2];
-            my $alienThreshold = $alienThresholdUnmodified * $gathering_score_multiplier;            
+            my $alienThreshold = $alienThresholdUnmodified * $gathering_score_multiplier;
+            #if defined alienthreshold cannot be lower than lower bound value
+            if(defined $gathering_score_lower_bound){
+                if($alienThreshold < $gathering_score_lower_bound){
+                    $alienThreshold = $gathering_score_lower_bound;
+                }       
+            }
             my @rfamModelNameId = split(/\s+/,$RNAfamilies[($counter - 1)]);
             my $rfamModelName = $rfamModelNameId[0];
             my $rfamModelId = $rfamModelNameId[1];
@@ -90,77 +117,19 @@ for(1..15){
             }
             my $rfamThresholdUnmodified = $rfamModelNameId[2];
             my $rfamThreshold = $rfamThresholdUnmodified * $gathering_score_multiplier;
+            if(defined $gathering_score_lower_bound){
+                if($rfamThreshold < $gathering_score_lower_bound){
+                    $rfamThreshold = $gathering_score_lower_bound;
+                }       
+            }
             #print "RNAlienStatistics -n $rfamModelName -d $rfamModelId -b $counter -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -t $alienThreshold -x $rfamThreshold -o $resulttempdir\n";
-            $output = $output . `RNAlienStatistics -c 10 -n $rfamModelName -d $rfamModelId -b $counter -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -t $alienThreshold -x $rfamThreshold -o $resulttempdir`;
+            $output = $output . `RNAlienStatistics -c 20 -n $rfamModelName -d $rfamModelId -b $counter -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -t $alienThreshold -x $rfamThreshold -o $resulttempdir`;
         }
-    }
-    my $outputfilePath = "/scr/kronos/egg/structuredalienseedoutput4-" . $gathering_score_multiplier . ".csv";
-    if($gathering_score_multiplier == 1){
-	$outputfilePath = "/scr/kronos/egg/structuredalienseedoutput4-1.0.csv"
     }
     open(my $outputfh, ">", $outputfilePath)
                 or die "Failed to open file: $!\n";
     print $outputfh $output;
     close $outputfh;
-    #$gathering_score_multiplier = 1.0;  # 0.9 0.8 0.7 0.6 0.5 0.4 0.3 0.2 0.1
-    $gathering_score_multiplier = $gathering_score_multiplier - 0.1;
+    return 1;
 }
-
-my $output;
-$gathering_score_multiplier = 0.5;
-for(my $counter=1; $counter <= $familyNumber; $counter++){
-    my $current_alienresult_folder= $alienresult_basename.$counter."/";
-    if(-e $alienresult_basename.$counter."/done"){
-        my $alienModelPath = $current_alienresult_folder."result.cm";
-        my $alienFastaPath = $current_alienresult_folder."result.fa";
-        my $alienThresholdLogFile = $current_alienresult_folder."result.log";
-        if(! -e  $alienThresholdLogFile){
-            print "Does not exist: $alienThresholdLogFile ";
-        }
-        my @alienThresholdLog;
-        open(my $alienThresholdLogfh, "<", $alienThresholdLogFile)
-            or die "Failed to open file: $!\n";
-        while(<$alienThresholdLogfh>) {
-            chomp;
-            push @alienThresholdLog, $_;
-        }
-        close $RNAfamilyfh;
-        my @alienThresholdLogSplit = split (/,/,$alienThresholdLog[0]);
-        my $alienThresholdUnmodified = $alienThresholdLogSplit[2];
-        my $alienThreshold = $alienThresholdUnmodified * $gathering_score_multiplier;     
-        if($alienThreshold < 40){
-            $alienThreshold = 40;
-        }
-        my @rfamModelNameId = split(/\s+/,$RNAfamilies[($counter - 1)]);
-        my $rfamModelName = $rfamModelNameId[0];
-        my $rfamModelId = $rfamModelNameId[1];
-        my $rfamModelPath = $rfammodel_basename . $rfamModelId . ".cm";
-        my $rfamFastaPath =$rfamfasta_basename . $rfamModelId . ".fa";
-        if(! -e  $rfamModelPath){
-            print "Does not exist: $rfamModelPath ";
-        }
-        if(! -e  $rfamFastaPath){
-            print "Does not exist: $rfamFastaPath ";
-        }
-
-        if(! -e  $alienModelPath){
-            print "Does not exist: $alienModelPath ";
-        }
-        if(! -e  $alienFastaPath){
-            print "Does not exist: $alienFastaPath";
-        }
-        my $rfamThresholdUnmodified = $rfamModelNameId[2];
-        my $rfamThreshold = $rfamThresholdUnmodified * $gathering_score_multiplier;
-        if($rfamThreshold < 40){
-            $rfamThreshold = 40;
-        }
-        #print "RNAlienStatistics -n $rfamModelName -d $rfamModelId -b $counter -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -t $alienThreshold -x $rfamThreshold -o $resulttempdir\n";
-        $output = $output . `RNAlienStatistics -c 10 -n $rfamModelName -d $rfamModelId -b $counter -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -t $alienThreshold -x $rfamThreshold -o $resulttempdir`;
-    }
-}
-my $outputfilePath = "/scr/kronos/egg/structuredalienseedoutput4-fixed0.5or40bit.csv";
-open(my $outputfh, ">", $outputfilePath)
-	or die "Failed to open file: $!\n";
-print $outputfh $output;
-close $outputfh;
 
