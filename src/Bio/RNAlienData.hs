@@ -32,7 +32,7 @@ data ModelConstruction = ModelConstruction
     evalueThreshold :: Double,                     
     alignmentModeInfernal :: Bool,
     selectedQueries :: [String],
-    potentialMembers :: [SequenceRecord]
+    potentialMembers :: [(Sequence,Int,String,Char)]
   } 
 
 instance Show ModelConstruction where
@@ -98,31 +98,6 @@ data CMsearchHitScore = CMsearchHitScore
     hitTruncation :: L.ByteString,
     hitGCContent :: Double,
     hitDescription :: L.ByteString
-  } deriving (Show, Eq, Read) 
-
--- | Simple Gene2Accession table 
-data SimpleGene2Accession = SimpleGene2Accession
-  { simpleTaxIdEntry :: Int,
-    simpleGenomicNucleotideAccessionVersion :: String
-  } deriving (Show, Eq, Read) 
-
--- | Datastructure for Gene2Accession table
-data Gene2Accession = Gene2Accession
-  { taxIdEntry :: Int,
-    geneID :: Int,
-    status :: String,
-    rnaNucleotideAccessionVersion :: String,
-    rnaNucleotideGi :: String,
-    proteinAccessionVersion :: String,
-    proteinGi :: String,
-    genomicNucleotideAccessionVersion :: String,
-    genomicNucleotideGi :: String,
-    startPositionOnTheGenomicAccession :: String,
-    endPositionOnTheGenomicAccession ::  String,
-    orientation :: String,
-    assembly :: String,
-    maturePeptideAccessionVersion :: String,
-    maturePeptideGi :: String
   } deriving (Show, Eq, Read) 
 
 data SearchResult = SearchResult

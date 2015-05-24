@@ -134,7 +134,7 @@ alignmentConstructionResult currentTaxonomicContext staticOptions modelConstruct
   candidates1 <- catchAll  (searchCandidates staticOptions (Just "archea") currentIterationNumber upperTaxLimit1 lowerTaxLimit1 queries)
                  (\e -> do logMessage ("searchResults iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
                            return (SearchResult [] Nothing))
-  (alignmentResults1,_)<- catchAll (alignCandidates staticOptions modelConstruction "archea" candidates1)
+  (alignmentResults1,potentialMembers1)<- catchAll (alignCandidates staticOptions modelConstruction "archea" candidates1)
                        (\e -> do logMessage ("alignmentResults iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
                                  return  ([],[]))
   --taxonomic context bacteria
@@ -142,7 +142,7 @@ alignmentConstructionResult currentTaxonomicContext staticOptions modelConstruct
   candidates2 <- catchAll (searchCandidates staticOptions (Just "bacteria") currentIterationNumber upperTaxLimit2 lowerTaxLimit2 queries)
                  (\e -> do logMessage ("searchResults iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
                            return (SearchResult [] Nothing))
-  (alignmentResults2,_)<- catchAll (alignCandidates staticOptions modelConstruction "bacteria" candidates2)
+  (alignmentResults2,potentialMembers2)<- catchAll (alignCandidates staticOptions modelConstruction "bacteria" candidates2)
                        (\e -> do logMessage ("alignmentResults iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
                                  return  ([],[]))
   --taxonomic context eukaryia
@@ -150,7 +150,7 @@ alignmentConstructionResult currentTaxonomicContext staticOptions modelConstruct
   candidates3 <- catchAll (searchCandidates staticOptions (Just "eukaryia") currentIterationNumber upperTaxLimit3 lowerTaxLimit3 queries)
                  (\e -> do logMessage ("searchResults iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
                            return (SearchResult [] Nothing))
-  (alignmentResults3,_) <- catchAll (alignCandidates staticOptions modelConstruction "eukaryia" candidates3)
+  (alignmentResults3,potentialMembers3) <- catchAll (alignCandidates staticOptions modelConstruction "eukaryia" candidates3)
                        (\e -> do logMessage ("alignmentResults iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
                                  return  ([],[]))
   --the used taxids are preset
@@ -182,7 +182,7 @@ alignmentConstructionResult currentTaxonomicContext staticOptions modelConstruct
       if (alignmentModeInfernal modelConstruction)
         then do
           logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - infernal mode\n") (tempDirPath staticOptions)
-          let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults Nothing currentTaxonomicContext [] (alignmentModeInfernal modelConstruction)
+          let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults Nothing currentTaxonomicContext [] (potentialMembers1 ++ potentialMembers2 ++ potentialMembers3) (alignmentModeInfernal modelConstruction)
           cmFilepath <- constructModel nextModelConstructionInput staticOptions
           nextModelConstructionInputWithThreshold <- setInclusionThreshold nextModelConstructionInput staticOptions cmFilepath
           writeFile (iterationDirectory ++ "done") ""
@@ -202,7 +202,7 @@ alignmentConstructionResult currentTaxonomicContext staticOptions modelConstruct
         else do
           logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - initial mode\n") (tempDirPath staticOptions)
           --First round enough candidates are avialable for modelconstruction, alignmentModeInfernal is set to true after this iteration
-          let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults Nothing currentTaxonomicContext [] (alignmentModeInfernal modelConstruction)
+          let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults Nothing currentTaxonomicContext [] (potentialMembers1 ++ potentialMembers2 ++ potentialMembers3) (alignmentModeInfernal modelConstruction)
           cmFilepath <- constructModel nextModelConstructionInput staticOptions
           nextModelConstructionInputWithThreshold <- setInclusionThreshold nextModelConstructionInput staticOptions cmFilepath
           let nextModelConstructionInputWithThresholdInfernalMode = nextModelConstructionInputWithThreshold {alignmentModeInfernal = True}
@@ -229,7 +229,7 @@ alignmentConstructionWithCandidates currentTaxonomicContext currentUpperTaxonomy
     let iterationDirectory = (tempDirPath staticOptions) ++ (show currentIterationNumber) ++ "/"                             
     --let usedUpperTaxonomyLimit = (snd (head candidates))                               
     --align search result
-    (alignmentResults,_) <- catchAll (alignCandidates staticOptions modelConstruction "" searchResults)
+    (alignmentResults,currentPotentialMembers) <- catchAll (alignCandidates staticOptions modelConstruction "" searchResults)
                         (\e -> do logMessage ("alignmentResults iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
                                   return ([],[]))
     if (length alignmentResults == 0) && (not (alignmentModeInfernal modelConstruction))
@@ -251,7 +251,7 @@ alignmentConstructionWithCandidates currentTaxonomicContext currentUpperTaxonomy
           then do
             logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - infernal mode\n") (tempDirPath staticOptions)
             --prepare next iteration
-            let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults currentUpperTaxonomyLimit currentTaxonomicContext currentSelectedQueries True        
+            let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults currentUpperTaxonomyLimit currentTaxonomicContext currentSelectedQueries currentPotentialMembers True        
             cmFilepath <- constructModel nextModelConstructionInput staticOptions               
             nextModelConstructionInputWithThreshold <- setInclusionThreshold nextModelConstructionInput staticOptions cmFilepath
             writeFile (iterationDirectory ++ "done") ""
@@ -262,7 +262,7 @@ alignmentConstructionWithCandidates currentTaxonomicContext currentUpperTaxonomy
             logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - initial mode\n") (tempDirPath staticOptions)
             --First round enough candidates are avialable for modelconstruction, alignmentModeInfernal is set to true after this iteration
             --prepare next iteration
-            let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults currentUpperTaxonomyLimit currentTaxonomicContext currentSelectedQueries False       
+            let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults currentUpperTaxonomyLimit currentTaxonomicContext currentSelectedQueries currentPotentialMembers False       
             cmFilepath <- constructModel nextModelConstructionInput staticOptions               
             nextModelConstructionInputWithThreshold <- setInclusionThreshold nextModelConstructionInput staticOptions cmFilepath
             let nextModelConstructionInputWithThresholdInfernalMode = nextModelConstructionInputWithThreshold {alignmentModeInfernal = True}
@@ -395,7 +395,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_4blastHitsFilteredByParentTaxId") (showlines blastHitsFilteredByParentTaxIdWithParentTaxId)
        -- Filtering with TaxTree (only hits from the same subtree as besthit)
        --let blastHitsWithTaxId = zip blastHitsFilteredByParentTaxId blastHittaxIdList
-       --let (_, filteredBlastResults) = filterByNeighborhoodTreeConditional alignmentModeInfernalToggle upperTaxLimit blastHitsWithTaxId (inputTaxNodes staticOptions) (fromJust upperTaxLimit) (singleHitperTaxToggle staticOptions)
+       --let (_, filteredBlastResults) = filterByNeighborhoodTreeConditional alignndmentModeInfernalToggle upperTaxLimit blastHitsWithTaxId (inputTaxNodes staticOptions) (fromJust upperTaxLimit) (singleHitperTaxToggle staticOptions)
        --writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_5filteredBlastResults") (showlines filteredBlastResults)
        -- Coordinate generation
        let nonEmptyfilteredBlastResults = filter (\(blasthit,_) -> not (null (matches blasthit))) blastHitsFilteredByParentTaxIdWithParentTaxId
@@ -693,14 +693,15 @@ raiseTaxIdLimitEntrez subTreeTaxId taxon = parentNodeTaxId
         --the input taxid is not part of the lineage, therefor we look for further taxids in the lineage after we used the parent tax id of the input node
         parentNodeTaxId = if (subTreeTaxId == (taxonTaxId taxon)) then Just (taxonParentTaxId taxon) else linageNodeTaxId
        
-constructNext :: Int -> ModelConstruction -> [(Sequence,Int,String,Char)] -> Maybe Int -> Maybe Taxon  -> [String] -> Bool -> ModelConstruction
-constructNext currentIterationNumber modelconstruction alignmentResults upperTaxLimit inputTaxonomicContext inputSelectedQueries toggleInfernalAlignmentModeTrue = nextModelConstruction
+constructNext :: Int -> ModelConstruction -> [(Sequence,Int,String,Char)] -> Maybe Int -> Maybe Taxon  -> [String] -> [(Sequence,Int,String,Char)] -> Bool -> ModelConstruction
+constructNext currentIterationNumber modelconstruction alignmentResults upperTaxLimit inputTaxonomicContext inputSelectedQueries inputPotentialMembers toggleInfernalAlignmentModeTrue = nextModelConstruction
   where newIterationNumber = currentIterationNumber + 1
         taxEntries = (taxRecords modelconstruction) ++ (buildTaxRecords alignmentResults currentIterationNumber)
+        potMembers = (potentialMembers modelconstruction) ++ inputPotentialMembers
         currentAlignmentMode = case toggleInfernalAlignmentModeTrue of
                                  True -> True
                                  False -> alignmentModeInfernal modelconstruction
-        nextModelConstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) taxEntries upperTaxLimit inputTaxonomicContext (bitScoreThreshold modelconstruction) (evalueThreshold modelconstruction) currentAlignmentMode inputSelectedQueries []
+        nextModelConstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) taxEntries upperTaxLimit inputTaxonomicContext (bitScoreThreshold modelconstruction) (evalueThreshold modelconstruction) currentAlignmentMode inputSelectedQueries potMembers
          
 buildTaxRecords :: [(Sequence,Int,String,Char)] -> Int -> [TaxonomyRecord]
 buildTaxRecords alignmentResults currentIterationNumber = taxonomyRecords
