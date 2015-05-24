@@ -5,7 +5,6 @@ module Bio.RNAlienData where
 import qualified Data.ByteString.Lazy.Char8 as L
 import Bio.Sequence.Fasta 
 import Bio.Taxonomy
-import Bio.EntrezHTTPData
 
 -- | Static construction options
 data StaticOptions = StaticOptions
@@ -32,11 +31,12 @@ data ModelConstruction = ModelConstruction
     bitScoreThreshold :: Maybe Double,
     evalueThreshold :: Double,                     
     alignmentModeInfernal :: Bool,
-    selectedQueries :: [String]
+    selectedQueries :: [String],
+    potentialMembers :: [SequenceRecord]
   } 
 
 instance Show ModelConstruction where
-  show (ModelConstruction _iterationNumber _inputFasta _taxRecords _upperTaxonomyLimit _taxonomicContext _bitScoreThreshold _evalueThreshold _alignmentModeInfernal _selectedQueries) = a ++ b ++ c ++ d ++ e ++ f ++ g ++ i
+  show (ModelConstruction _iterationNumber _inputFasta _taxRecords _upperTaxonomyLimit _taxonomicContext _bitScoreThreshold _evalueThreshold _alignmentModeInfernal _selectedQueries _potentialMembers) = a ++ b ++ c ++ d ++ e ++ f ++ g ++ h ++ i
     where a = "Modelconstruction iteration: " ++ show _iterationNumber ++ "\n" 
           b = "Input fasta:\n" ++ show _inputFasta ++ "\n" 
           c = show _taxRecords
@@ -44,7 +44,8 @@ instance Show ModelConstruction where
           e = "Taxonomic Context: " ++  maybe "not set" show _taxonomicContext ++ "\n"
           f = "Inclusion Threshold [bit]: " ++ maybe "not set" show _bitScoreThreshold ++ "\n"
           g = "Evalue cutoff: " ++ show _evalueThreshold ++ "\n"
-          i = "Selected queries: \n"  ++ concatMap (\x -> x ++ "\n") _selectedQueries
+          h = "Selected queries: \n" ++ concatMap (\x -> x ++ "\n") _selectedQueries
+          i = "Potential Members: \n" ++ concatMap show _potentialMembers
 
 data TaxonomyRecord = TaxonomyRecord
   { recordTaxonomyId :: Int,

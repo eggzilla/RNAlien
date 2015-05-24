@@ -134,25 +134,25 @@ alignmentConstructionResult currentTaxonomicContext staticOptions modelConstruct
   candidates1 <- catchAll  (searchCandidates staticOptions (Just "archea") currentIterationNumber upperTaxLimit1 lowerTaxLimit1 queries)
                  (\e -> do logMessage ("searchResults iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
                            return (SearchResult [] Nothing))
-  alignmentResults1 <- catchAll (alignCandidates staticOptions modelConstruction "archea" candidates1)
+  (alignmentResults1,_)<- catchAll (alignCandidates staticOptions modelConstruction "archea" candidates1)
                        (\e -> do logMessage ("alignmentResults iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
-                                 return  [])
+                                 return  ([],[]))
   --taxonomic context bacteria
   let (upperTaxLimit2,lowerTaxLimit2) = (Just (2 :: Int), Nothing)
   candidates2 <- catchAll (searchCandidates staticOptions (Just "bacteria") currentIterationNumber upperTaxLimit2 lowerTaxLimit2 queries)
                  (\e -> do logMessage ("searchResults iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
                            return (SearchResult [] Nothing))
-  alignmentResults2 <- catchAll (alignCandidates staticOptions modelConstruction "bacteria" candidates2)
+  (alignmentResults2,_)<- catchAll (alignCandidates staticOptions modelConstruction "bacteria" candidates2)
                        (\e -> do logMessage ("alignmentResults iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
-                                 return  [])
+                                 return  ([],[]))
   --taxonomic context eukaryia
   let (upperTaxLimit3,lowerTaxLimit3) = (Just (2759 :: Int), Nothing)
   candidates3 <- catchAll (searchCandidates staticOptions (Just "eukaryia") currentIterationNumber upperTaxLimit3 lowerTaxLimit3 queries)
                  (\e -> do logMessage ("searchResults iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
                            return (SearchResult [] Nothing))
-  alignmentResults3 <- catchAll (alignCandidates staticOptions modelConstruction "eukaryia" candidates3)
+  (alignmentResults3,_) <- catchAll (alignCandidates staticOptions modelConstruction "eukaryia" candidates3)
                        (\e -> do logMessage ("alignmentResults iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
-                                 return  [])
+                                 return  ([],[]))
   --the used taxids are preset
   let alignmentResults = alignmentResults1  ++ alignmentResults2 ++ alignmentResults3
   if (length alignmentResults == 0) && (not (alignmentModeInfernal modelConstruction))
@@ -229,9 +229,9 @@ alignmentConstructionWithCandidates currentTaxonomicContext currentUpperTaxonomy
     let iterationDirectory = (tempDirPath staticOptions) ++ (show currentIterationNumber) ++ "/"                             
     --let usedUpperTaxonomyLimit = (snd (head candidates))                               
     --align search result
-    alignmentResults <- catchAll (alignCandidates staticOptions modelConstruction "" searchResults)
+    (alignmentResults,_) <- catchAll (alignCandidates staticOptions modelConstruction "" searchResults)
                         (\e -> do logMessage ("alignmentResults iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
-                                  return  [])
+                                  return ([],[]))
     if (length alignmentResults == 0) && (not (alignmentModeInfernal modelConstruction))
       then do
         logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - length 1 - inital mode" ++ "\n") (tempDirPath staticOptions)
@@ -427,10 +427,10 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
 computeDataBaseSize :: Double -> Double -> Double -> Double 
 computeDataBaseSize evalue bitscore querylength = ((evalue * 2 ** bitscore) / querylength)/10^(6 :: Integer)
 
-alignCandidates :: StaticOptions -> ModelConstruction -> String -> SearchResult -> IO [(Sequence,Int,String,Char)]
+alignCandidates :: StaticOptions -> ModelConstruction -> String -> SearchResult -> IO ([(Sequence,Int,String,Char)],[(Sequence,Int,String,Char)])
 alignCandidates staticOptions modelConstruction multipleSearchResultPrefix searchResults = do
   if (null (candidates searchResults))
-    then do return []
+    then do return ([],[])
     else do
       --refilter for similarity 
       let filteredCandidates = take 1000 (filterIdenticalSequencesWithOrigin (candidates searchResults) 99)
@@ -440,7 +440,7 @@ alignCandidates staticOptions modelConstruction multipleSearchResultPrefix searc
         else do
           alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultPrefix filteredCandidates
 
-alignCandidatesInfernalMode :: StaticOptions -> ModelConstruction -> String -> Maybe Double -> [(Sequence,Int,String,Char)] -> IO [(Sequence,Int,String,Char)]
+alignCandidatesInfernalMode :: StaticOptions -> ModelConstruction -> String -> Maybe Double -> [(Sequence,Int,String,Char)] -> IO ([(Sequence,Int,String,Char)],[(Sequence,Int,String,Char)])
 alignCandidatesInfernalMode staticOptions modelConstruction multipleSearchResultPrefix blastDbSize filteredCandidates = do
   let iterationDirectory = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/" ++ multipleSearchResultPrefix
   let candidateSequences = extractCandidateSequences filteredCandidates 
@@ -460,12 +460,13 @@ alignCandidatesInfernalMode staticOptions modelConstruction multipleSearchResult
   writeFile (iterationDirectory ++ "cm_error") (concatMap show (lefts cmSearchResults))
   let rightCMSearchResults = rights cmSearchResults 
   let cmSearchCandidatesWithSequences = zip rightCMSearchResults filteredCandidates    
-  let (trimmedSelectedCandidates,rejectedCandidates') = evaluePartitionTrimCMsearchHits (evalueThreshold modelConstruction) cmSearchCandidatesWithSequences
+  let (trimmedSelectedCandidates,potentialCandidates,rejectedCandidates) = evaluePartitionTrimCMsearchHits (evalueThreshold modelConstruction) cmSearchCandidatesWithSequences
   writeFile (iterationDirectory ++ "log" ++ "/11selectedCandidates'") (showlines trimmedSelectedCandidates)
-  writeFile (iterationDirectory ++ "log" ++ "/12rejectedCandidates'") (showlines rejectedCandidates')                                               
-  CE.evaluate (map snd trimmedSelectedCandidates)
+  writeFile (iterationDirectory ++ "log" ++ "/12potentialCandidates'") (showlines potentialCandidates)
+  writeFile (iterationDirectory ++ "log" ++ "/13rejectedCandidates'") (showlines rejectedCandidates)                                               
+  CE.evaluate (map snd trimmedSelectedCandidates,map snd potentialCandidates)
 
-alignCandidatesInitialMode :: StaticOptions -> ModelConstruction -> String -> [(Sequence,Int,String,Char)] -> IO [(Sequence,Int,String,Char)]
+alignCandidatesInitialMode :: StaticOptions -> ModelConstruction -> String -> [(Sequence,Int,String,Char)] -> IO ([(Sequence,Int,String,Char)],[(Sequence,Int,String,Char)])
 alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultPrefix filteredCandidates = do
   let iterationDirectory = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/" ++ multipleSearchResultPrefix
   let candidateSequences = extractCandidateSequences filteredCandidates 
@@ -491,7 +492,7 @@ alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultP
   let (selectedCandidates,rejectedCandidates) = partition (\(sci,_) -> (read sci ::Double) > (zScoreCutoff staticOptions)) alignedCandidates
   writeFile (iterationDirectory ++ "log" ++ "/11selectedCandidates") (showlines selectedCandidates)
   writeFile (iterationDirectory ++ "log" ++ "/12rejectedCandidates") (showlines rejectedCandidates)
-  CE.evaluate (map snd selectedCandidates)
+  CE.evaluate (map snd selectedCandidates,[])
 
 setClusterNumber :: Int -> Int
 setClusterNumber x
@@ -699,7 +700,7 @@ constructNext currentIterationNumber modelconstruction alignmentResults upperTax
         currentAlignmentMode = case toggleInfernalAlignmentModeTrue of
                                  True -> True
                                  False -> alignmentModeInfernal modelconstruction
-        nextModelConstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) taxEntries upperTaxLimit inputTaxonomicContext (bitScoreThreshold modelconstruction) (evalueThreshold modelconstruction) currentAlignmentMode inputSelectedQueries 
+        nextModelConstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) taxEntries upperTaxLimit inputTaxonomicContext (bitScoreThreshold modelconstruction) (evalueThreshold modelconstruction) currentAlignmentMode inputSelectedQueries []
          
 buildTaxRecords :: [(Sequence,Int,String,Char)] -> Int -> [TaxonomyRecord]
 buildTaxRecords alignmentResults currentIterationNumber = taxonomyRecords
@@ -719,10 +720,13 @@ buildSeqRecord :: Int -> (Sequence,Int,String,Char) -> SequenceRecord
 buildSeqRecord currentIterationNumber (parsedFasta,_,seqSubject,seqOrigin) = SequenceRecord parsedFasta currentIterationNumber seqSubject seqOrigin   
 
 -- | Partitions sequences by containing a cmsearch hit and extracts the hit region as new sequence
-evaluePartitionTrimCMsearchHits :: Double -> [(CMsearch,(Sequence, Int, String, Char))] -> ([(CMsearch,(Sequence, Int, String, Char))],[(CMsearch,(Sequence, Int, String, Char))])
-evaluePartitionTrimCMsearchHits eValueThreshold cmSearchCandidatesWithSequences = (trimmedSelectedCandidates,rejectedCandidates')
-  where (selectedCandidates',rejectedCandidates') = partition (\(cmSearchResult,_) -> any (\hitScore' -> (eValueThreshold >= (hitEvalue hitScore'))) (hitScores cmSearchResult)) cmSearchCandidatesWithSequences
-        trimmedSelectedCandidates = map (\(cmSearchResult,inputSequence) -> (cmSearchResult,(trimCMsearchHit cmSearchResult inputSequence))) selectedCandidates'
+evaluePartitionTrimCMsearchHits :: Double -> [(CMsearch,(Sequence, Int, String, Char))] -> ([(CMsearch,(Sequence, Int, String, Char))],[(CMsearch,(Sequence, Int, String, Char))],[(CMsearch,(Sequence, Int, String, Char))])
+evaluePartitionTrimCMsearchHits eValueThreshold cmSearchCandidatesWithSequences = (trimmedSelectedCandidates,potentialCandidates,rejectedCandidates)
+  where potentialMemberseValueThreshold = eValueThreshold * 1000
+        (prefilteredCandidates,rejectedCandidates) = partition (\(cmSearchResult,_) -> any (\hitScore' -> (potentialMemberseValueThreshold >= (hitEvalue hitScore'))) (hitScores cmSearchResult)) cmSearchCandidatesWithSequences
+        (selectedCandidates,potentialCandidates) = partition (\(cmSearchResult,_) -> any (\hitScore' -> (eValueThreshold >= (hitEvalue hitScore'))) (hitScores cmSearchResult)) prefilteredCandidates
+        trimmedSelectedCandidates = map (\(cmSearchResult,inputSequence) -> (cmSearchResult,(trimCMsearchHit cmSearchResult inputSequence))) selectedCandidates
+        
         
 trimCMsearchHit :: CMsearch -> (Sequence, Int, String, Char) -> (Sequence, Int, String, Char)
 trimCMsearchHit cmSearchResult (inputSequence,b,c,d) = (subSequence,b,c,d)
