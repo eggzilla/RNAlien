@@ -32,7 +32,7 @@ data ModelConstruction = ModelConstruction
     evalueThreshold :: Double,                     
     alignmentModeInfernal :: Bool,
     selectedQueries :: [String],
-    potentialMembers :: [(Sequence,Int,String,Char)]
+    potentialMembers :: [SearchResult]
   } 
 
 instance Show ModelConstruction where
@@ -104,3 +104,8 @@ data SearchResult = SearchResult
   { candidates :: [(Sequence,Int,String,Char)],
     blastDatabaseSize :: Maybe Double
   }
+
+instance Show SearchResult where
+  show (SearchResult _candidates _blastDatabaseSize) = a ++ b 
+    where a = "SearchResults :\n " ++ concatMap show _candidates ++ "\n" 
+          b = "BlastDb Size: " ++ show _blastDatabaseSize ++ "\n" 
