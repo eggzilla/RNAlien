@@ -47,12 +47,13 @@ import Data.Matrix
 import Bio.BlastHTTP 
 import Data.Clustering.Hierarchical
 import System.Directory
-import Bio.ViennaRNAParser
 import System.Console.CmdArgs
 import qualified Control.Exception.Base as CE
 import Data.Conduit
 --import Control.Monad.Trans
 import Control.Monad.Trans.Resource
+import Bio.RNAfoldParser
+import Bio.RNAalifoldParser
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 modelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
@@ -806,11 +807,7 @@ createSessionID sessionIdentificator = do
       randomNumber <- randomIO :: IO Int16
       let sessionId = randomid randomNumber
       return sessionId
-                  
--- | Run external RNAfold command and read the output into the corresponding datatype
-systemRNAfold :: String -> String -> IO ExitCode
-systemRNAfold inputFilePath outputFilePath = system ("RNAfold --noPS  <" ++ inputFilePath  ++ " >" ++ outputFilePath)
-         
+                           
 -- | Run external locarna command and read the output into the corresponding datatype
 systemlocarna :: String -> (String,String,String,String) -> IO ExitCode
 systemlocarna options (inputFilePath1, inputFilePath2, clustalformatoutputFilePath, outputFilePath) = system ("locarna " ++ options ++ " --clustal=" ++ clustalformatoutputFilePath  ++ " " ++ inputFilePath1  ++ " " ++ inputFilePath2 ++ " > " ++ outputFilePath)
@@ -830,14 +827,6 @@ systemClustalw2 options (inputFilePath, outputFilePath, summaryFilePath) = syste
 -- | Run external clustalo command and return the Exitcode
 systemClustalo :: String -> (String,String) -> IO ExitCode
 systemClustalo options (inputFilePath, outputFilePath) = system ("clustalo " ++ options ++ "--infile=" ++ inputFilePath ++ " >" ++ outputFilePath)
-
---- | Run external RNAalifold command and read the output into the corresponding datatype
-systemRNAalifold :: String -> String -> String -> IO ExitCode
-systemRNAalifold options inputFilePath outputFilePath = system ("RNAalifold " ++ options  ++ " < " ++ inputFilePath  ++ " > " ++ outputFilePath)
-
--- | Run external RNAz command and read the output into the corresponding datatype
-systemRNAz :: (String,String) -> IO ExitCode
-systemRNAz (inputFilePath, outputFilePath) = system ("RNAz " ++ inputFilePath ++ " >" ++ outputFilePath)
 
 -- | Run external CMbuild command and read the output into the corresponding datatype 
 systemCMbuild ::  String -> String -> String -> IO ExitCode
