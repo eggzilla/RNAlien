@@ -800,7 +800,7 @@ createSessionID sessionIdentificator = do
       let sessionId = randomid randomNumber
       return sessionId
                   
--- | Run external RNAalifold command and read the output into the corresponding datatype
+-- | Run external RNAfold command and read the output into the corresponding datatype
 systemRNAfold :: String -> String -> IO ExitCode
 systemRNAfold inputFilePath outputFilePath = system ("RNAfold --noPS  <" ++ inputFilePath  ++ " >" ++ outputFilePath)
          
@@ -825,8 +825,8 @@ systemClustalo :: String -> (String,String) -> IO ExitCode
 systemClustalo options (inputFilePath, outputFilePath) = system ("clustalo " ++ options ++ "--infile=" ++ inputFilePath ++ " >" ++ outputFilePath)
 
 --- | Run external RNAalifold command and read the output into the corresponding datatype
----systemRNAalifold :: String -> String -> IO ExitCode
----systemRNAalifold filePath inputIterationNumber = system ("RNAalifold " ++ filePath  ++ " >" ++ inputIterationNumber ++ ".alifold")
+systemRNAalifold :: String -> String -> String -> IO ExitCode
+systemRNAalifold options inputFilePath outputFilePath = system ("RNAalifold " ++ options  ++ " < " ++ outputFilePath  ++ " > " ++ inputIterationNumber ++ ".alifold")
 
 -- | Run external RNAz command and read the output into the corresponding datatype
 systemRNAz :: (String,String) -> IO ExitCode
