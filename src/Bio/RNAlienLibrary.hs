@@ -1155,10 +1155,10 @@ getReverseRequestedSequenceElement queryLength (blastHit,taxid) = (geneIdentifie
            endcoordinate = lowerBoundryCoordinateSetter 0 unsafeendcoordinate 
            strand = "2"
 
-computeAlignmentSCIs :: [String] -> [String] -> IO ()
-computeAlignmentSCIs alignmentFilepaths rnazOutputFilepaths = do
-  let zippedFilepaths = zip alignmentFilepaths rnazOutputFilepaths
-  mapM_ systemRNAz zippedFilepaths  
+--computeAlignmentSCIs :: [String] -> [String] -> IO ()
+--computeAlignmentSCIs alignmentFilepaths rnazOutputFilepaths = do
+--  let zippedFilepaths = zip alignmentFilepaths rnazOutputFilepaths
+--  mapM_ systemRNAz zippedFilepaths  
 
 alignSequences :: String -> String -> [String] -> [String] -> [String] -> [String] -> IO ()
 alignSequences program' options fastaFilepaths fastaFilepaths2 alignmentFilepaths summaryFilepaths = do

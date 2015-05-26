@@ -50,23 +50,27 @@ main = do
   -- Generate SessionID
   sessionId <- createSessionID sessionIdentificator
   timestamp <- getCurrentTime
-  let iterationNumber = 0
-  let temporaryDirectoryPath = outputPath ++ sessionId ++ "/"            
-  createDirectoryIfMissing False temporaryDirectoryPath
-  -- create Log file
-  writeFile (temporaryDirectoryPath ++ "Log") ("RNAlien 1.0.0" ++ "\n")
-  logMessage ("Timestamp: " ++ (show timestamp) ++ "\n") temporaryDirectoryPath
-  logMessage ("Temporary Directory: " ++ temporaryDirectoryPath ++ "\n") temporaryDirectoryPath
-  logToolVersions temporaryDirectoryPath
   inputFasta <- readFasta inputFastaFilePath
-  let inputSequence = (head inputFasta)
-  initialTaxId <- setInitialTaxId inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
-  let inputInclusionThresholdRatio = (Just (0.25 :: Double))
-  let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputZScoreCutoff) (fromJust inputInclusionThresholdRatio) inputTaxId singleHitperTax lengthFilter threads inputBlastDatabase (setVerbose verboseLevel)
-  let initialization = ModelConstruction iterationNumber inputSequence [] initialTaxId Nothing Nothing (fromJust inputEvalueCutoff) False [] []
-  logMessage (show initialization) temporaryDirectoryPath
-  modelConstructionResults <- modelConstructer staticOptions initialization
-  let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults
-  writeFile (temporaryDirectoryPath ++ "result.csv") resultTaxonomyRecordsCSVTable
-  resultSummary modelConstructionResults staticOptions
-  writeFile (temporaryDirectoryPath ++ "done") ""
+  if null inputFasta
+    then do
+      putStrLn "Input fasta file is empty."
+    else do
+      let iterationNumber = 0
+      let temporaryDirectoryPath = outputPath ++ sessionId ++ "/"            
+      createDirectoryIfMissing False temporaryDirectoryPath
+      -- create Log file
+      writeFile (temporaryDirectoryPath ++ "Log") ("RNAlien 1.0.0" ++ "\n")
+      logMessage ("Timestamp: " ++ (show timestamp) ++ "\n") temporaryDirectoryPath
+      logMessage ("Temporary Directory: " ++ temporaryDirectoryPath ++ "\n") temporaryDirectoryPath
+      logToolVersions temporaryDirectoryPath
+      let inputSequence = (head inputFasta)
+      initialTaxId <- setInitialTaxId inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
+      let inputInclusionThresholdRatio = (Just (0.25 :: Double))
+      let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputZScoreCutoff) (fromJust inputInclusionThresholdRatio) inputTaxId singleHitperTax lengthFilter threads inputBlastDatabase (setVerbose verboseLevel)
+      let initialization = ModelConstruction iterationNumber inputSequence [] initialTaxId Nothing Nothing (fromJust inputEvalueCutoff) False [] []
+      logMessage (show initialization) temporaryDirectoryPath
+      modelConstructionResults <- modelConstructer staticOptions initialization
+      let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults
+      writeFile (temporaryDirectoryPath ++ "result.csv") resultTaxonomyRecordsCSVTable
+      resultSummary modelConstructionResults staticOptions
+      writeFile (temporaryDirectoryPath ++ "done") ""
