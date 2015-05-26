@@ -479,24 +479,31 @@ alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultP
   let candidateSequences = extractCandidateSequences filteredCandidates 
   logVerboseMessage (verbositySwitch staticOptions) ("Alignment Mode Initial\n") (tempDirPath staticOptions)
   --write Fasta sequences
+  let inputFastaFilepath = iterationDirectory ++ "input.fa"
+  let inputFoldFilepath = iterationDirectory ++ "input.fold"
   writeFasta (iterationDirectory ++ "input.fa") ([inputFasta modelConstruction])
   V.mapM_ (\(number,_nucleotideSequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") [_nucleotideSequence]) candidateSequences
   ----mapM_ (\(number,_nucleotideSequence) -> runResourceT $ DB.sourceLbs (L.pack content) $$ DC.sinkFile (decodeString (iterationDirectory ++ (show number) ++ ".fa"))) indexedCandidateSequenceList
-  let inputFastaFilepath = V.toList (V.map (\_ ->  iterationDirectory ++ "input.fa") candidateSequences)
-  let candidateFastaFilepath = V.toList (V.map (\(number,_) -> iterationDirectory ++ (show number) ++ "." ++ "fa") candidateSequences)
+  let candidateFastaFilepath = V.toList (V.map (\(number,_) -> iterationDirectory ++ (show number) ++ ".fa") candidateSequences)
+  let candidateFoldFilepath = V.toList (V.map (\(number,_) -> iterationDirectory ++ (show number) ++ ".fold") candidateSequences)
   let locarnainClustalw2FormatFilepath =  V.toList (V.map (\(number,_) -> iterationDirectory ++ (show number) ++ "." ++ "clustalmlocarna") candidateSequences)
-  let locarnaFilepath =  V.toList (V.map (\(number,_) -> iterationDirectory ++ (show number) ++ "." ++ "mlocarna") candidateSequences)
-  alignSequences "locarna" (" --write-structure --free-endgaps=++-- ") inputFastaFilepath candidateFastaFilepath locarnainClustalw2FormatFilepath locarnaFilepath
+  let candidateAliFoldFilepath = V.toList (V.map (\(number,_) -> iterationDirectory ++ (show number) ++ ".alifold") candidateSequences)
+  let locarnaFilepath = V.toList (V.map (\(number,_) -> iterationDirectory ++ (show number) ++ "." ++ "mlocarna") candidateSequences)
+  alignSequences "locarna" (" --write-structure --free-endgaps=++-- ") (replicate (V.length candidateSequences) inputFastaFilepath) candidateFastaFilepath locarnainClustalw2FormatFilepath locarnaFilepath
   --compute SCI
-  let pairwiseLocarnaRNAzFilePaths = V.toList (V.map (\(iterator,_) -> iterationDirectory ++ (show iterator) ++ ".rnaz") candidateSequences)
-  computeAlignmentSCIs locarnainClustalw2FormatFilepath pairwiseLocarnaRNAzFilePaths
-  mlocarnaRNAzResult <- mapM readRNAz pairwiseLocarnaRNAzFilePaths
-  ----mlocarnaRNAzOutput <- mapM (\file -> runResourceT $ DB.sourceFile file $$ DC.sinkList) pairwiseLocarnaRNAzFilePaths
-  ----mlocarnaRNAzResult <- map parseRNAz mlocarnaRNAzOutput
-  mapM (\out -> logEither out (tempDirPath staticOptions)) mlocarnaRNAzResult
-  let locarnaSCI = map (\x -> show (structureConservationIndex x)) (rights mlocarnaRNAzResult)
-  let alignedCandidates = zip locarnaSCI filteredCandidates
-  let (selectedCandidates,rejectedCandidates) = partition (\(sci,_) -> (read sci ::Double) > (zScoreCutoff staticOptions)) alignedCandidates
+  systemRNAfold inputFastaFilepath inputFoldFilepath
+  inputfoldResult <- readRNAfold inputFoldFilepath
+  let inputFoldMFE = foldingEnergy (fromRight inputfoldResult)
+  mapM_ (\(fastapath,foldpath) -> systemRNAfold fastapath foldpath) (zip candidateFastaFilepath candidateFoldFilepath)
+  foldResults <- mapM readRNAfold candidateFoldFilepath
+  let candidateMFEs = map foldingEnergy (map fromRight foldResults)
+  let averageMFEs = map (\candidateMFE -> (candidateMFE + inputFoldMFE)/2) candidateMFEs
+  mapM_ (\(locarnaclustalw2path,aliFoldpath) -> systemRNAalifold "--cfactor 0.6 --nfactor 0.5" locarnaclustalw2path aliFoldpath) (zip locarnainClustalw2FormatFilepath candidateAliFoldFilepath)
+  alifoldResults <- mapM readRNAalifold candidateAliFoldFilepath
+  let consensusMFE = map alignmentConsensusMinimumFreeEnergy (map fromRight alifoldResults)
+  let structureConservationIndices = map (\(consMFE,averMFE) -> consMFE/averMFE) (zip consensusMFE averageMFEs)
+  let alignedCandidates = zip structureConservationIndices filteredCandidates
+  let (selectedCandidates,rejectedCandidates) = partition (\(sci,_) -> sci > (zScoreCutoff staticOptions)) alignedCandidates
   writeFile (iterationDirectory ++ "log" ++ "/11selectedCandidates") (showlines selectedCandidates)
   writeFile (iterationDirectory ++ "log" ++ "/12rejectedCandidates") (showlines rejectedCandidates)
   CE.evaluate (map snd selectedCandidates,[])
@@ -826,7 +833,7 @@ systemClustalo options (inputFilePath, outputFilePath) = system ("clustalo " ++ 
 
 --- | Run external RNAalifold command and read the output into the corresponding datatype
 systemRNAalifold :: String -> String -> String -> IO ExitCode
-systemRNAalifold options inputFilePath outputFilePath = system ("RNAalifold " ++ options  ++ " < " ++ outputFilePath  ++ " > " ++ inputIterationNumber ++ ".alifold")
+systemRNAalifold options inputFilePath outputFilePath = system ("RNAalifold " ++ options  ++ " < " ++ inputFilePath  ++ " > " ++ outputFilePath)
 
 -- | Run external RNAz command and read the output into the corresponding datatype
 systemRNAz :: (String,String) -> IO ExitCode
