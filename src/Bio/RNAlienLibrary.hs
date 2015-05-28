@@ -54,6 +54,7 @@ import Data.Conduit
 import Control.Monad.Trans.Resource
 import Bio.RNAfoldParser
 import Bio.RNAalifoldParser
+import Control.Monad
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 modelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
@@ -441,7 +442,8 @@ alignCandidates staticOptions modelConstruction multipleSearchResultPrefix searc
     then do return ([],[])
     else do
       --refilter for similarity 
-      let filteredCandidates = take 1000 (filterIdenticalSequencesWithOrigin (candidates searchResults) 99)
+      --let filteredCandidates = take 1000 (filterIdenticalSequencesWithOrigin (candidates searchResults) 99)
+      let filteredCandidates = filterIdenticalSequencesWithOrigin (candidates searchResults) 99
       if(alignmentModeInfernal modelConstruction)
         then do
           alignCandidatesInfernalMode staticOptions modelConstruction multipleSearchResultPrefix (blastDatabaseSize searchResults) filteredCandidates
@@ -457,14 +459,11 @@ alignCandidatesInfernalMode staticOptions modelConstruction multipleSearchResult
   let cmSearchFastaFilePaths = map (constructFastaFilePaths iterationDirectory) indexedCandidateSequenceList
   let cmSearchFilePaths = map (constructCMsearchFilePaths iterationDirectory) indexedCandidateSequenceList
   let covarianceModelPath = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction - 1)) ++ "/" ++ "model.cm"
-  mapM_ (\(number,_nucleotideSequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") [_nucleotideSequence]) indexedCandidateSequenceList
-  ----mapM_ (\(number,_nucleotideSequence) -> runResourceT $ DB.sourceLbs (L.pack content) $$ DC.sinkFile (decodeString (iterationDirectory ++ (show number) ++ ".fa"))) indexedCandidateSequenceList
+  mapM_ (\(number,_nucleotideSequence) -> CE.evaluate (writeFasta (iterationDirectory ++ (show number) ++ ".fa") [_nucleotideSequence])) indexedCandidateSequenceList
   let zippedFastaCMSearchResultPaths = zip cmSearchFastaFilePaths cmSearchFilePaths  
   --check with cmSearch
   mapM_ (\(fastaPath,resultPath) -> systemCMsearch (cpuThreads staticOptions) ("-Z " ++ show (fromJust blastDbSize)) covarianceModelPath fastaPath resultPath) zippedFastaCMSearchResultPaths
-  cmSearchResults <- mapM readCMSearch cmSearchFilePaths 
-  ---- cmSearchResultsOutput <- mapM (\file -> runResourceT $ DB.sourceFile file $$ DC.sinkList) cmSearchFilePaths 
-  ---- let cmSearchResults = map parseCMSearch cmSearchResultsOutput
+  cmSearchResults <- mapM (\filepath -> readCMSearch filepath) cmSearchFilePaths 
   writeFile (iterationDirectory ++ "cm_error") (concatMap show (lefts cmSearchResults))
   let rightCMSearchResults = rights cmSearchResults 
   let cmSearchCandidatesWithSequences = zip rightCMSearchResults filteredCandidates    
@@ -484,7 +483,6 @@ alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultP
   let inputFoldFilepath = iterationDirectory ++ "input.fold"
   writeFasta (iterationDirectory ++ "input.fa") ([inputFasta modelConstruction])
   V.mapM_ (\(number,_nucleotideSequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") [_nucleotideSequence]) candidateSequences
-  ----mapM_ (\(number,_nucleotideSequence) -> runResourceT $ DB.sourceLbs (L.pack content) $$ DC.sinkFile (decodeString (iterationDirectory ++ (show number) ++ ".fa"))) indexedCandidateSequenceList
   let candidateFastaFilepath = V.toList (V.map (\(number,_) -> iterationDirectory ++ (show number) ++ ".fa") candidateSequences)
   let candidateFoldFilepath = V.toList (V.map (\(number,_) -> iterationDirectory ++ (show number) ++ ".fold") candidateSequences)
   let locarnainClustalw2FormatFilepath =  V.toList (V.map (\(number,_) -> iterationDirectory ++ (show number) ++ "." ++ "clustalmlocarna") candidateSequences)
@@ -496,11 +494,11 @@ alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultP
   inputfoldResult <- readRNAfold inputFoldFilepath
   let inputFoldMFE = foldingEnergy (fromRight inputfoldResult)
   mapM_ (\(fastapath,foldpath) -> systemRNAfold fastapath foldpath) (zip candidateFastaFilepath candidateFoldFilepath)
-  foldResults <- mapM readRNAfold candidateFoldFilepath
+  foldResults <- mapM (\filepath -> readRNAfold filepath) candidateFoldFilepath
   let candidateMFEs = map foldingEnergy (map fromRight foldResults)
   let averageMFEs = map (\candidateMFE -> (candidateMFE + inputFoldMFE)/2) candidateMFEs
   mapM_ (\(locarnaclustalw2path,aliFoldpath) -> systemRNAalifold "--cfactor 0.6 --nfactor 0.5" locarnaclustalw2path aliFoldpath) (zip locarnainClustalw2FormatFilepath candidateAliFoldFilepath)
-  alifoldResults <- mapM readRNAalifold candidateAliFoldFilepath
+  alifoldResults <- mapM (\filepath -> readRNAalifold filepath) candidateAliFoldFilepath
   let consensusMFE = map alignmentConsensusMinimumFreeEnergy (map fromRight alifoldResults)
   let structureConservationIndices = map (\(consMFE,averMFE) -> consMFE/averMFE) (zip consensusMFE averageMFEs)
   let alignedCandidates = zip structureConservationIndices filteredCandidates
@@ -881,7 +879,9 @@ parseCMSearch input = parse genParserCMsearch "parseCMsearch" input
 
 -- | parse from input filePath                      
 readCMSearch :: String -> IO (Either ParseError CMsearch)             
-readCMSearch filePath = parseFromFile genParserCMsearch filePath
+readCMSearch filePath = do 
+  parsedFile <- parseFromFile genParserCMsearch filePath
+  CE.evaluate parsedFile 
                       
 genParserCMsearch :: GenParser Char st CMsearch
 genParserCMsearch = do
@@ -1171,7 +1171,7 @@ alignSequences program' options fastaFilepaths fastaFilepaths2 alignmentFilepath
     "mlocarna" -> mapM_ (systemMlocarna options) zippedFilepaths
     "mlocarnatimeout" -> mapM_ (systemMlocarnaWithTimeout timeout options) zippedFilepaths
     "clustalo" -> mapM_ (systemClustalo options) zippedFilepaths
-    _ -> mapM_ (systemClustalw2 options) zipped3Filepaths
+    _ -> mapM_ (systemClustalw2 options ) zipped3Filepaths
 
 constructFastaFilePaths :: String -> (Int, Sequence) -> String
 constructFastaFilePaths currentDirectory (fastaIdentifier, _) = currentDirectory ++ (show fastaIdentifier) ++".fa"
