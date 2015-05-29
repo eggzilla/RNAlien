@@ -459,7 +459,7 @@ alignCandidatesInfernalMode staticOptions modelConstruction multipleSearchResult
   let cmSearchFastaFilePaths = map (constructFastaFilePaths iterationDirectory) indexedCandidateSequenceList
   let cmSearchFilePaths = map (constructCMsearchFilePaths iterationDirectory) indexedCandidateSequenceList
   let covarianceModelPath = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction - 1)) ++ "/" ++ "model.cm"
-  mapM_ (\(number,_nucleotideSequence) -> CE.evaluate (writeFasta (iterationDirectory ++ (show number) ++ ".fa") [_nucleotideSequence])) indexedCandidateSequenceList
+  mapM_ (\(number,_nucleotideSequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") [_nucleotideSequence]) indexedCandidateSequenceList
   let zippedFastaCMSearchResultPaths = zip cmSearchFastaFilePaths cmSearchFilePaths  
   --check with cmSearch
   mapM_ (\(fastaPath,resultPath) -> systemCMsearch (cpuThreads staticOptions) ("-Z " ++ show (fromJust blastDbSize)) covarianceModelPath fastaPath resultPath) zippedFastaCMSearchResultPaths
@@ -468,6 +468,7 @@ alignCandidatesInfernalMode staticOptions modelConstruction multipleSearchResult
   let rightCMSearchResults = rights cmSearchResults 
   let cmSearchCandidatesWithSequences = zip rightCMSearchResults filteredCandidates    
   let (trimmedSelectedCandidates,potentialCandidates,rejectedCandidates) = evaluePartitionTrimCMsearchHits (evalueThreshold modelConstruction) cmSearchCandidatesWithSequences
+  createDirectoryIfMissing False (iterationDirectory ++ "log")
   writeFile (iterationDirectory ++ "log" ++ "/11selectedCandidates'") (showlines trimmedSelectedCandidates)
   writeFile (iterationDirectory ++ "log" ++ "/12potentialCandidates'") (showlines potentialCandidates)
   writeFile (iterationDirectory ++ "log" ++ "/13rejectedCandidates'") (showlines rejectedCandidates)                                               
@@ -502,7 +503,9 @@ alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultP
   let consensusMFE = map alignmentConsensusMinimumFreeEnergy (map fromRight alifoldResults)
   let structureConservationIndices = map (\(consMFE,averMFE) -> consMFE/averMFE) (zip consensusMFE averageMFEs)
   let alignedCandidates = zip structureConservationIndices filteredCandidates
+  writeFile (iterationDirectory ++ "log" ++ "/zscores") (showlines alignedCandidates)
   let (selectedCandidates,rejectedCandidates) = partition (\(sci,_) -> sci > (zScoreCutoff staticOptions)) alignedCandidates
+  createDirectoryIfMissing False (iterationDirectory ++ "log")
   writeFile (iterationDirectory ++ "log" ++ "/11selectedCandidates") (showlines selectedCandidates)
   writeFile (iterationDirectory ++ "log" ++ "/12rejectedCandidates") (showlines rejectedCandidates)
   CE.evaluate (map snd selectedCandidates,[])
@@ -576,7 +579,7 @@ constructModel modelConstruction staticOptions = do
   if (alignmentModeInfernal modelConstruction)
      then do
        logVerboseMessage (verbositySwitch staticOptions) ("Construct Model - infernal mode\n") (tempDirPath staticOptions)
-       _ <- systemCMalign (cpuThreads staticOptions) cmalignCMFilepath fastaFilepath stockholmFilepath
+       _ <- systemCMalign ("--cpus " ++ show (cpuThreads staticOptions)) cmalignCMFilepath fastaFilepath stockholmFilepath
        _ <- systemCMbuild stockholmFilepath cmFilepath cmBuildFilepath
        _ <- systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
        return cmFilepath
@@ -846,8 +849,8 @@ systemCMcalibrate mode cpus covarianceModelPath outputPath
 
 
 -- | Run CMcalibrate and return exitcode
-systemCMalign :: Int -> String -> String -> String -> IO ExitCode 
-systemCMalign cpus filePathCovarianceModel filePathSequence filePathAlignment = system ("cmalign --cpu " ++ (show cpus) ++ " " ++ filePathCovarianceModel ++ " " ++ filePathSequence ++ "> " ++ filePathAlignment)
+systemCMalign :: String -> String -> String -> String -> IO ExitCode 
+systemCMalign options filePathCovarianceModel filePathSequence filePathAlignment = system ("cmalign " ++ options ++ " " ++ filePathCovarianceModel ++ " " ++ filePathSequence ++ "> " ++ filePathAlignment)
 
 compareCM :: String -> String -> String -> IO Double
 compareCM rfamCMPath resultCMpath outputDirectory = do
