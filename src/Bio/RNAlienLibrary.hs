@@ -296,7 +296,7 @@ alignmentConstructionWithoutCandidates currentTaxonomicContext upperTaxLimit sta
         let previousIterationAlignmentPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber - 1)) ++ "/model.stockholm"
         let thisIterationFastaPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber)) ++ "/model.fa"
         let thisIterationAlignmentPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber)) ++ "/model.stockholm"
-        let thisIterationCMPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber)) ++ "/model.cm"                                              
+        let thisIterationCMPath = (tempDirPath staticOptions) ++ (show (currentIterationNumber)) ++ "/model.cm"
         copyFile previousIterationFastaPath thisIterationFastaPath
         copyFile previousIterationAlignmentPath thisIterationAlignmentPath
         copyFile previousIterationCMPath thisIterationCMPath
@@ -579,7 +579,7 @@ constructModel modelConstruction staticOptions = do
   if (alignmentModeInfernal modelConstruction)
      then do
        logVerboseMessage (verbositySwitch staticOptions) ("Construct Model - infernal mode\n") (tempDirPath staticOptions)
-       _ <- systemCMalign ("--cpus " ++ show (cpuThreads staticOptions)) cmalignCMFilepath fastaFilepath stockholmFilepath
+       _ <- systemCMalign ("--cpu " ++ show (cpuThreads staticOptions)) cmalignCMFilepath fastaFilepath stockholmFilepath
        _ <- systemCMbuild stockholmFilepath cmFilepath cmBuildFilepath
        _ <- systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
        return cmFilepath
