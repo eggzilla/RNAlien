@@ -49,12 +49,12 @@ import Data.Clustering.Hierarchical
 import System.Directory
 import System.Console.CmdArgs
 import qualified Control.Exception.Base as CE
-import Data.Conduit
+--import Data.Conduit
 --import Control.Monad.Trans
-import Control.Monad.Trans.Resource
+--import Control.Monad.Trans.Resource
 import Bio.RNAfoldParser
 import Bio.RNAalifoldParser
-import Control.Monad
+--import Control.Monad
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 modelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
@@ -213,20 +213,32 @@ reevaluatePotentialMembers staticOptions modelConstruction = do
   let resultCMPath = outputDirectory ++ "result.cm"
   let resultAlignmentPath = outputDirectory ++ "result.stockholm"
   let resultCMLogPath = outputDirectory ++ "reuslt.cm.log"
-  let lastIterationFastaPath = outputDirectory ++ show currentIterationNumber ++ "/model.fa"
-  let lastIterationAlignmentPath = outputDirectory ++ show currentIterationNumber  ++ "/model.stockholm"
-  let lastIterationCMPath = outputDirectory ++ show currentIterationNumber ++ "/model.cm"
-  logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - infernal mode\n") outputDirectory
-  let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults Nothing Nothing [] [] (alignmentModeInfernal modelConstruction)
-  cmFilepath <- constructModel nextModelConstructionInput staticOptions
-  copyFile lastIterationCMPath resultCMPath
-  copyFile lastIterationFastaPath resultFastaPath
-  copyFile lastIterationAlignmentPath resultAlignmentPath 
-  nextModelConstructionInputWithThreshold <- setInclusionThreshold nextModelConstructionInput staticOptions cmFilepath
-  logMessage (show nextModelConstructionInput) outputDirectory
-  _ <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath
-  writeFile (iterationDirectory ++ "done") ""
-  return nextModelConstructionInputWithThreshold
+  if null alignmentResults
+    then do
+      let lastIterationFastaPath = outputDirectory ++ show (currentIterationNumber - 1)++ "/model.fa"
+      let lastIterationAlignmentPath = outputDirectory ++ show (currentIterationNumber - 1)  ++ "/model.stockholm"
+      let lastIterationCMPath = outputDirectory ++ show (currentIterationNumber - 1)++ "/model.cm"
+      copyFile lastIterationCMPath resultCMPath
+      copyFile lastIterationFastaPath resultFastaPath
+      copyFile lastIterationAlignmentPath resultAlignmentPath 
+      _ <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath
+      writeFile (iterationDirectory ++ "done") ""
+      return modelConstruction
+    else do
+      let lastIterationFastaPath = outputDirectory ++ show currentIterationNumber ++ "/model.fa"
+      let lastIterationAlignmentPath = outputDirectory ++ show currentIterationNumber  ++ "/model.stockholm"
+      let lastIterationCMPath = outputDirectory ++ show currentIterationNumber ++ "/model.cm"
+      logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - infernal mode\n") outputDirectory
+      let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults Nothing Nothing [] [] (alignmentModeInfernal modelConstruction)
+      cmFilepath <- constructModel nextModelConstructionInput staticOptions
+      copyFile lastIterationCMPath resultCMPath
+      copyFile lastIterationFastaPath resultFastaPath
+      copyFile lastIterationAlignmentPath resultAlignmentPath 
+      nextModelConstructionInputWithThreshold <- setInclusionThreshold nextModelConstructionInput staticOptions cmFilepath
+      logMessage (show nextModelConstructionInput) outputDirectory
+      _ <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath
+      writeFile (iterationDirectory ++ "done") ""
+      return nextModelConstructionInputWithThreshold
   
 ---------------------------------------------------------
                   

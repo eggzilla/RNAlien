@@ -29,7 +29,7 @@ executable RNAlienStatistics
 Library
   Hs-Source-Dirs:      ./src/
   ghc-options:         -Wall -O2 -fno-warn-unused-do-bind
-  build-depends:       base >=4.5, cmdargs, ViennaRNAParser>=1.0.1, process, directory, blastxml>=0.3.2, biofasta, parsec, random, BlastHTTP, biocore, bytestring, Taxonomy, either-unwrap, containers, ClustalParser>=1.0.3, rosezipper, EntrezHTTP, split, Genbank, vector, edit-distance, cassava, matrix, hierarchical-clustering, filepath, mtl, conduit, resourcet
+  build-depends:       base >=4.5, cmdargs, ViennaRNAParser>=1.0.1, process, directory, blastxml>=0.3.2, biofasta, parsec, random, BlastHTTP, biocore, bytestring, Taxonomy, either-unwrap, containers, ClustalParser>=1.0.3, rosezipper, EntrezHTTP, split, Genbank, vector, edit-distance, cassava, matrix, hierarchical-clustering, filepath
   Exposed-Modules:     Bio.RNAlienData
                        Bio.RNAlienLibrary
 
