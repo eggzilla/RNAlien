@@ -34,7 +34,7 @@ if($type eq "structured"){
 	$alienresult_basename="/scr/kronos/egg/AlienResultsCollected" . "$currentresultnumber" . "/";
 	$rfammodel_basename = "/scr/kronos/egg/AlienTest/sRNAFamilies/all_models/";
 	$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyfasta/";
-	$RNAFamilyIdFile = "/scr/kronos/egg/sRNAFamiliesIdNameGatheringCutoffTagSorted";
+	$RNAFamilyIdFile = "/scr/kronos/egg/smallRNAtaggedfamiliesNameIDThresholdTagSorted.csv";
         $familyNumber = 374;
 	$resulttempdir = "/scr/kronos/egg/temp/AlienResultStatistics" . "$currentresultnumber" . "/";
 }
@@ -76,27 +76,27 @@ sub alienresultstatistic{
         if(-e $alienresult_basename.$counter."/done"){
             my $alienModelPath = $current_alienresult_folder."result.cm";
             my $alienFastaPath = $current_alienresult_folder."result.fa";
-            my $alienThresholdLogFile = $current_alienresult_folder."result.log";
-            if(! -e  $alienThresholdLogFile){
-                print "Does not exist: $alienThresholdLogFile ";
-            }
-            my @alienThresholdLog;
-            open(my $alienThresholdLogfh, "<", $alienThresholdLogFile)
-                or die "Failed to open file: $!\n";
-            while(<$alienThresholdLogfh>) {
-                chomp;
-                push @alienThresholdLog, $_;
-            }
-            close $RNAfamilyfh;
-            my @alienThresholdLogSplit = split (/,/,$alienThresholdLog[0]);
-            my $alienThresholdUnmodified = $alienThresholdLogSplit[2];
-            my $alienThreshold = $alienThresholdUnmodified * $gathering_score_multiplier;
+            #my $alienThresholdLogFile = $current_alienresult_folder."result.log";
+            #if(! -e  $alienThresholdLogFile){
+            #    print "Does not exist: $alienThresholdLogFile ";
+            #}
+            #my @alienThresholdLog;
+            #open(my $alienThresholdLogfh, "<", $alienThresholdLogFile)
+            #    or die "Failed to open file: $!\n";
+            #while(<$alienThresholdLogfh>) {
+            #    chomp;
+            #    push @alienThresholdLog, $_;
+            #}
+            #close $RNAfamilyfh;
+            #my @alienThresholdLogSplit = split (/,/,$alienThresholdLog[0]);
+            #my $alienThresholdUnmodified = $alienThresholdLogSplit[2];
+            #my $alienThreshold = $alienThresholdUnmodified * $gathering_score_multiplier;
             #if defined alienthreshold cannot be lower than lower bound value
-            if(defined $gathering_score_lower_bound){
-                if($alienThreshold < $gathering_score_lower_bound){
-                    $alienThreshold = $gathering_score_lower_bound;
-                }       
-            }
+            #if(defined $gathering_score_lower_bound){
+            #    if($alienThreshold < $gathering_score_lower_bound){
+            #        $alienThreshold = $gathering_score_lower_bound;
+            #    }       
+            #}
             my @rfamModelNameId = split(/\s+/,$RNAfamilies[($counter - 1)]);
             my $rfamModelName = $rfamModelNameId[0];
             my $rfamModelId = $rfamModelNameId[1];
@@ -123,7 +123,7 @@ sub alienresultstatistic{
                 }       
             }
             #print "RNAlienStatistics -n $rfamModelName -d $rfamModelId -b $counter -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -t $alienThreshold -x $rfamThreshold -o $resulttempdir\n";
-            $output = $output . `RNAlienStatistics -c 20 -n $rfamModelName -d $rfamModelId -b $counter -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -t $alienThreshold -x $rfamThreshold -o $resulttempdir`;
+            $output = $output . `RNAlienStatistics -c 20 -n $rfamModelName -d $rfamModelId -b $counter -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -t $rfamThreshold -x $rfamThreshold -o $resulttempdir`;
         }
     }
     open(my $outputfh, ">", $outputfilePath)

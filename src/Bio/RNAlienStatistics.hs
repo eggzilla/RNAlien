@@ -113,7 +113,7 @@ main = do
   let rfamFastaEntriesNumber = read rfamFastaEntries :: Int
   let alienFastaEntriesNumber = read alienFastaEntries :: Int
   rfamonAlienResults <- cmSearchFasta benchmarkIndex rfamThreshold threads rfamCovarianceModelPath outputDirectoryPath "rfamOnAlien" alienFastaFilePath 
-  alienonRfamResults <- cmSearchFasta benchmarkIndex rfamThreshold threads alienCovarianceModelPath outputDirectoryPath "alienOnRfam" rfamFastaFilePath  
+  alienonRfamResults <- cmSearchFasta benchmarkIndex alienThreshold threads alienCovarianceModelPath outputDirectoryPath "alienOnRfam" rfamFastaFilePath  
   let rfamonAlienResultsNumber = length rfamonAlienResults
   let alienonRfamResultsNumber = length alienonRfamResults
   let rfamonAlienRecovery = (fromIntegral rfamonAlienResultsNumber :: Double) / (fromIntegral alienFastaEntriesNumber :: Double)
