@@ -594,7 +594,7 @@ constructModel modelConstruction staticOptions = do
      then do
        logVerboseMessage (verbositySwitch staticOptions) ("Construct Model - infernal mode\n") (tempDirPath staticOptions)
        systemCMalign ("--cpu " ++ show (cpuThreads staticOptions)) cmalignCMFilepath fastaFilepath stockholmFilepath
-       systemCMalign ("-o Clustal --cpu " ++ show (cpuThreads staticOptions)) cmalignCMFilepath fastaFilepath clustalFilepath
+       systemCMalign ("--outformat Clustal --cpu " ++ show (cpuThreads staticOptions)) cmalignCMFilepath fastaFilepath clustalFilepath
        systemRNAalifold "--cfactor 0.6 --nfactor 0.5" clustalFilepath alifoldFilepath
        systemCMbuild stockholmFilepath cmFilepath cmBuildFilepath
        systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
