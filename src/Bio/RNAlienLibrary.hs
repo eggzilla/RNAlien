@@ -584,16 +584,20 @@ constructModel modelConstruction staticOptions = do
   let fastaFilepath = outputDirectory ++ "model" ++ ".fa"
   let locarnaFilepath = outputDirectory ++ "model" ++ ".mlocarna"
   let stockholmFilepath = outputDirectory ++ "model" ++ ".stockholm"
+  let clustalFilepath = outputDirectory ++ "model" ++ ".clustal"
   let cmalignCMFilepath = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction - 2)) ++ "/" ++ "model" ++ ".cm"
   let cmFilepath = outputDirectory ++ "model" ++ ".cm"
   let cmCalibrateFilepath = outputDirectory ++ "model" ++ ".cmcalibrate"
   let cmBuildFilepath = outputDirectory ++ "model" ++ ".cmbuild"
+  let alifoldFilepath = outputDirectory ++ "model" ++ ".alifold"
   if (alignmentModeInfernal modelConstruction)
      then do
        logVerboseMessage (verbositySwitch staticOptions) ("Construct Model - infernal mode\n") (tempDirPath staticOptions)
-       _ <- systemCMalign ("--cpu " ++ show (cpuThreads staticOptions)) cmalignCMFilepath fastaFilepath stockholmFilepath
-       _ <- systemCMbuild stockholmFilepath cmFilepath cmBuildFilepath
-       _ <- systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
+       systemCMalign ("--cpu " ++ show (cpuThreads staticOptions)) cmalignCMFilepath fastaFilepath stockholmFilepath
+       systemCMalign ("-o Clustal --cpu " ++ show (cpuThreads staticOptions)) cmalignCMFilepath fastaFilepath clustalFilepath
+       systemRNAalifold "--cfactor 0.6 --nfactor 0.5" clustalFilepath alifoldFilepath
+       systemCMbuild stockholmFilepath cmFilepath cmBuildFilepath
+       systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
        return cmFilepath
      else do
        logVerboseMessage (verbositySwitch staticOptions) ("Construct Model - initial mode\n") (tempDirPath staticOptions)
