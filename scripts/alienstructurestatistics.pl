@@ -46,7 +46,11 @@ if($type eq "structured"){
 }
 
 #Distance comparison between first stockholms of constructions with and without structureupdate
-normalizedDistanceBetweenFirstStockholms($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,"/scratch/egg/");
+#normalizedDistanceBetweenFirstStockholms($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,"/scratch/egg/");
+unless(-d "/scr/kronos/egg/iterationdistance$currentresultnumber/"){
+    mkdir "/scr/kronos/egg/iterationdistance$currentresultnumber/";
+}
+normalizedDistanceOverIterations($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,"/scr/kronos/egg/iterationdistance$currentresultnumber/");
 
 sub normalizedDistanceBetweenFirstStockholms{
     #retrieve common sequence identifier
@@ -96,6 +100,81 @@ sub normalizedDistanceBetweenFirstStockholms{
     print $outputfh $output;
     close $outputfh;
     return 1;
+}
+
+sub normalizedDistanceOverIterations{
+    #retrieve common sequence identifier
+    #compare stockholmstructre and parse result back
+    my $familyNumber = shift;
+    my $alienresult_basename = shift;
+    my $rfammodel_basename = shift;
+    my $rfamfasta_basename = shift;
+    my $RNAFamilyIdFile = shift;
+    my $resulttempdir = shift;
+    my $resultfolderpath = shift;
+    for(my $counter=1; $counter <= $familyNumber; $counter++){
+        my $output = "";
+        my $current_alienresult_folder= $alienresult_basename.$counter."/";
+        if(-e $alienresult_basename . $counter."/done"){
+            #print "$alienresult_basename$counter\n";
+            my $referenceStockholmPath = findStockholm("/scratch/egg/AlienStructuredResultsCollected13/$counter/");
+            my $inputFastaPath = findInputFasta($current_alienresult_folder);
+            my $iterationNumber = findIterationNumber($current_alienresult_folder);
+            if(-e $inputFastaPath){
+                my @fastacontent;
+                open(my $fastafh, "<", $inputFastaPath)
+                    or die "Failed to open file: $!\n";
+                while(<$fastafh>) {
+                    chomp;
+                    push @fastacontent, $_;
+                }
+                close $fastafh;
+                my $fasta_identifier = $fastacontent[0];
+                $fasta_identifier =~ s/>//;
+                $fasta_identifier =~ s/\\K.+$//;
+                if(-e $referenceStockholmPath){     
+                    for(my $iteration = 0; $iteration <= $iterationNumber; $iteration++){
+                        my $currentStockholmPath = $current_alienresult_folder . $iteration . "/model.stockholm";
+                        if(-e $currentStockholmPath){
+                            $output = $output . "$iteration\t" . `~egg/current/Projects/Haskell/StockholmTools/dist/build/CompareStockholmStructure/CompareStockholmStructure -i $fasta_identifier -a $referenceStockholmPath -r $currentStockholmPath -o /scratch/egg/temp/`;
+                        }else{
+                            #print "$currentStockholmPath\n";
+                            $output = $output . "$iteration\tNA\n"
+                        }
+                   }
+                }else{
+                    $output = $output . "no stockholm found\n";
+                }
+            }            
+        }else{
+            $output = $output . "no inputfasta found\n";
+        }
+        my $outputfilePath = $resultfolderpath . $counter . "_iterationstructure.dist"; 
+        open(my $outputfh, ">", $outputfilePath)
+            or die "Failed to open file: $!\n";
+        print $outputfh $output;
+        close $outputfh;
+    }
+    return 1;
+}
+
+sub findIterationNumber{
+    my $current_alienresult_folder = shift;
+    my $continue = 1;
+    my $iteration = 0;
+    while($continue){
+        my $currentpath = $current_alienresult_folder."/".$iteration;
+        #print $currentfastapath;
+        unless(-d $currentpath){
+            $continue = 0;
+            return $iteration;
+        }else{
+            $iteration++;
+        }
+        if($iteration>50){
+            $continue = 0;
+        }
+    }
 }
 
 sub findInputFasta{
