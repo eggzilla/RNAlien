@@ -1,4 +1,5 @@
 #!/usr/bin/perl
+#./scripts/alienstructurestatistics.pl structured 13
 # Computes and plots structure distance among alien benchmark sets and versus Rfam
 
 #  1. Computes the normalized distance changes over iterations
@@ -44,19 +45,10 @@ if($type eq "structured"){
 	$resulttempdir = "/scr/kronos/egg/temp/AlienResultStatistics" . "$currentresultnumber" . "/";
 }
 
-my @RNAfamilies;
-open(my $RNAfamilyfh, "<", $RNAFamilyIdFile)
-    or die "Failed to open file: $!\n";
-while(<$RNAfamilyfh>) {
-    chomp;
-    push @RNAfamilies, $_;
-}
-close $RNAfamilyfh;
+#Distance comparison between first stockholms of constructions with and without structureupdate
+normalizedDistanceBetweenFirstStockholms($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,"/scratch/egg/");
 
-
-normalizedDistanceChangeOverIterations($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,$gathering_score_multiplier,$gathering_score_lower_bound,"/scr/kronos/egg/structuredalienseedoutput$currentresultnumber-" . $gathering_score_multiplier . ".csv");
-
-sub normalizedDistanceChangeOverIterations{
+sub normalizedDistanceBetweenFirstStockholms{
     #retrieve common sequence identifier
     #compare stockholmstructre and parse result back
     my $familyNumber = shift;
@@ -65,61 +57,149 @@ sub normalizedDistanceChangeOverIterations{
     my $rfamfasta_basename = shift;
     my $RNAFamilyIdFile = shift;
     my $resulttempdir = shift;
-    my $gathering_score_multiplier = shift;
-    my $gathering_score_lower_bound = shift;
-    my $outputfilePath = shift;
-    my $output; 
+    my $resultfolderpath = shift;
+    my $outputfilePath= $resultfolderpath . "distancestructureupdatenone.dist"; 
+    my $output;
     for(my $counter=1; $counter <= $familyNumber; $counter++){
         my $current_alienresult_folder= $alienresult_basename.$counter."/";
         if(-e $alienresult_basename.$counter."/done"){
-            my $alienModelPath = $current_alienresult_folder."result.cm";
-            my $alienFastaPath = $current_alienresult_folder."result.fa";
-            my @rfamModelNameId = split(/\s+/,$RNAfamilies[($counter - 1)]);
-            my $rfamModelName = $rfamModelNameId[0];
-            my $rfamModelId = $rfamModelNameId[1];
-            my $rfamModelPath = $rfammodel_basename . $rfamModelId . ".cm";
-            my $rfamFastaPath =$rfamfasta_basename . $rfamModelId . ".fa";
-            if(! -e  $rfamModelPath){
-                print "Does not exist: $rfamModelPath ";
-            }
-            if(! -e  $rfamFastaPath){
-                print "Does not exist: $rfamFastaPath ";
-            }
+            #print "$alienresult_basename$counter\n";
+            my $fstStockholmPath = findStockholm("/scratch/egg/AlienStructuredResultsCollected12/$counter/");
+            my $sndStockholmPath = findStockholm("/scratch/egg/AlienStructuredResultsCollected13/$counter/");
+            my $inputFastaPath = findInputFasta($current_alienresult_folder);
+            if(-e $inputFastaPath){
+                my @fastacontent;
+                open(my $fastafh, "<", $inputFastaPath)
+                    or die "Failed to open file: $!\n";
+                while(<$fastafh>) {
+                    chomp;
+                    push @fastacontent, $_;
+                }
+                close $fastafh;
+                my $fasta_identifier = $fastacontent[0];
+                $fasta_identifier =~ s/>//;
+                $fasta_identifier =~ s/\\K.+$//;
+                if(-e $fstStockholmPath){
+                    $output = $output . `~egg/current/Projects/Haskell/StockholmTools/dist/build/CompareStockholmStructure/CompareStockholmStructure -i $fasta_identifier -a $fstStockholmPath -r $sndStockholmPath -o /scratch/egg/temp/`;
+                }else{
+                    $output = $output . "no stockholm found\n";
+                }
 
-            if(! -e  $alienModelPath){
-                print "Does not exist: $alienModelPath ";
             }
-            if(! -e  $alienFastaPath){
-                print "Does not exist: $alienFastaPath";
-            }
-            $output = $output . `RNAlienStatistics -c 20 -n $rfamModelName -d $rfamModelId -b $counter -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -t $rfamThreshold -x $rfamThreshold -o $resulttempdir`;
-            #~egg/current/Projects/Haskell/StockholmTools/dist/build/CompareStockholmStructure/CompareStockholmStructure -i AB001721.1 -a /scratch/egg/AlienStructuredResultsCollected13/1/1/model.stockholm -r /scratch/egg/AlienStructuredResultsCollected13/1/9/model.stockholm -o /scratch/egg/temp/
+        }else{
+            $output = $output . "no inputfasta found\n";
         }
     }
+    
     open(my $outputfh, ">", $outputfilePath)
-                or die "Failed to open file: $!\n";
+        or die "Failed to open file: $!\n";
     print $outputfh $output;
     close $outputfh;
     return 1;
 }
 
-sub averageNormalizedDistanceChangesOverIterations{
-    #summarize familywise results of NormalizedDistanceChangesOverIterations
-    return 1;
+sub findInputFasta{
+    my $current_alienresult_folder = shift;
+    my $continue = 1;
+    my $iteration = 0;
+    while($continue){
+        my $currentfastapath = $current_alienresult_folder."/".$iteration."/input.fa";
+        #print $currentfastapath;
+        if(-e $currentfastapath){
+            $continue = 0;
+            return $currentfastapath;
+        }else{
+            $iteration++;
+        }
+        if($iteration>50){
+            $continue = 0;
+        }
+    }
 }
 
-sub normalizedDistanceChangeOverIterations{
-    return 1;
+sub findStockholm{
+    my $current_alienresult_folder = shift;
+    my $continue = 1;
+    my $iteration = 0;
+    while($continue){
+        my $currentstockholmpath = $current_alienresult_folder."/".$iteration."/model.stockholm";
+        if(-e $currentstockholmpath){
+            $continue = 0;
+            return $currentstockholmpath;
+        }else{
+            $iteration++;
+        }
+        if($iteration>50){
+            $continue = 0;
+        }
+    }
+
 }
 
-sub normalizedDistanceChangeOverIterations{
-    return 1;
-}
+# sub normalizedDistanceChangeOverIterations{
+#     #retrieve common sequence identifier
+#     #compare stockholmstructre and parse result back
+#     my $familyNumber = shift;
+#     my $alienresult_basename = shift;
+#     my $rfammodel_basename = shift;
+#     my $rfamfasta_basename = shift;
+#     my $RNAFamilyIdFile = shift;
+#     my $resulttempdir = shift;
+#     my $gathering_score_multiplier = shift;
+#     my $gathering_score_lower_bound = shift;
+#     my $outputfilePath = shift;
+#     my $output; 
+#     for(my $counter=1; $counter <= $familyNumber; $counter++){
+#         my $current_alienresult_folder= $alienresult_basename.$counter."/";
+#         if(-e $alienresult_basename.$counter."/done"){
+#             my $alienModelPath = $current_alienresult_folder."result.cm";
+#             my $alienFastaPath = $current_alienresult_folder."result.fa";
+#             my @rfamModelNameId = split(/\s+/,$RNAfamilies[($counter - 1)]);
+#             my $rfamModelName = $rfamModelNameId[0];
+#             my $rfamModelId = $rfamModelNameId[1];
+#             my $rfamModelPath = $rfammodel_basename . $rfamModelId . ".cm";
+#             my $rfamFastaPath =$rfamfasta_basename . $rfamModelId . ".fa";
+#             if(! -e  $rfamModelPath){
+#                 print "Does not exist: $rfamModelPath ";
+#             }
+#             if(! -e  $rfamFastaPath){
+#                 print "Does not exist: $rfamFastaPath ";
+#             }
 
-sub normalizedDistanceChangeOverIterations{
-    return 1;
-}
+#             if(! -e  $alienModelPath){
+#                 print "Does not exist: $alienModelPath ";
+#             }
+#             if(! -e  $alienFastaPath){
+#                 print "Does not exist: $alienFastaPath";
+#             }
+#             $output = $output . `RNAlienStatistics -c 20 -n $rfamModelName -d $rfamModelId -b $counter -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -t $rfamThreshold -x $rfamThreshold -o $resulttempdir`;
+#             #~egg/current/Projects/Haskell/StockholmTools/dist/build/CompareStockholmStructure/CompareStockholmStructure -i AB001721.1 -a /scratch/egg/AlienStructuredResultsCollected13/1/1/model.stockholm -r /scratch/egg/AlienStructuredResultsCollected13/1/9/model.stockholm -o /scratch/egg/temp/
+#         }
+#     }
+#     open(my $outputfh, ">", $outputfilePath)
+#                 or die "Failed to open file: $!\n";
+#     print $outputfh $output;
+#     close $outputfh;
+#     return 1;
+# }
 
-sub normalizedDistanceChangeOverIterations{
-    return 1;
-}
+# sub averageNormalizedDistanceChangesOverIterations{
+#     #summarize familywise results of NormalizedDistanceChangesOverIterations
+#     return 1;
+# }
+
+# sub normalizedDistanceChangeOverIterations{
+#     return 1;
+# }
+
+# sub normalizedDistanceChangeOverIterations{
+#     return 1;
+# }
+
+# sub normalizedDistanceChangeOverIterations{
+#     return 1;
+# }
+
+# sub normalizedDistanceChangeOverIterations{
+#     return 1;
+# }
