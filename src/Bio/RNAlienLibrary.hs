@@ -208,7 +208,7 @@ reevaluatePotentialMembers staticOptions modelConstruction = do
   let resultFastaPath = outputDirectory  ++ "result.fa"
   let resultCMPath = outputDirectory ++ "result.cm"
   let resultAlignmentPath = outputDirectory ++ "result.stockholm"
-  let resultCMLogPath = outputDirectory ++ "reuslt.cm.log"
+  let resultCMLogPath = outputDirectory ++ "result.cm.log"
   if null alignmentResults
     then do
       let lastIterationFastaPath = outputDirectory ++ show (currentIterationNumber - 1)++ "/model.fa"
