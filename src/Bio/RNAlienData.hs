@@ -109,3 +109,20 @@ instance Show SearchResult where
   show (SearchResult _candidates _blastDatabaseSize) = a ++ b 
     where a = "SearchResults :\n " ++ concatMap show _candidates ++ "\n" 
           b = "BlastDb Size: " ++ show _blastDatabaseSize ++ "\n" 
+
+-- |  
+data CMstat = CMstat
+  { statIndex :: Int,
+    statName :: String,
+    statAccession :: String,
+    statSequenceNumber :: Int,
+    statEffectiveSequences :: Int,
+    statConsensusLength :: Int,
+    -- W The expected maximum length of a hit to the model.
+    statW : Int,
+    statBasepaires :: Int,
+    statBifurcations :: Int,
+    statModel :: String,
+    relativeEntropyCM :: Double,
+    relativeEntropyHMM :: Double
+  } deriving (Show, Eq, Read) 

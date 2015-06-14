@@ -216,7 +216,7 @@ reevaluatePotentialMembers staticOptions modelConstruction = do
       let lastIterationCMPath = outputDirectory ++ show (currentIterationNumber - 1)++ "/model.cm"
       copyFile lastIterationCMPath resultCMPath
       copyFile lastIterationFastaPath resultFastaPath
-      copyFile lastIterationAlignmentPath resultAlignmentPath 
+      copyFile lastIterationAlignmentPath resultAlignmentPath
       _ <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath
       writeFile (iterationDirectory ++ "done") ""
       return modelConstruction
@@ -890,9 +890,13 @@ systemCMbuild alignmentFilepath modelFilepath outputFilePath = system ("cmbuild 
 systemCMcompare ::  String -> String -> String -> IO ExitCode
 systemCMcompare model1path model2path outputFilePath = system ("CMCompare -q " ++ model1path ++ " " ++ model2path ++ " >" ++ outputFilePath)
 
--- | Run CMsearch and read the output into the corresponding datatype
+-- | Run CMsearch 
 systemCMsearch :: Int -> String -> String -> String -> String -> IO ExitCode
 systemCMsearch cpus options covarianceModelPath sequenceFilePath outputPath = system ("cmsearch --notrunc --cpu " ++ (show cpus) ++ " " ++ options ++ " -g " ++ covarianceModelPath ++ " " ++ sequenceFilePath ++ "> " ++ outputPath)
+
+-- | Run CMstat
+systemCMstat :: String -> String -> IO ExitCode
+systemCMstat covarianceModelPath outputPath = system ("cmstat " ++ covarianceModelPath ++ " > " ++ outputPath)
 
 -- | Run CMcalibrate and return exitcode
 systemCMcalibrate :: String -> Int -> String -> String -> IO ExitCode 
@@ -1061,6 +1065,22 @@ genParserCMsearchHitScore = do
   optional (try (string " ------ inclusion threshold ------"))
   optional (try newline)
   return $ CMsearchHitScore (readInt hitRank') hitSignificant' (readDouble hitEValue') (readDouble hitScore') (readDouble hitBias') (L.pack hitSequenceHeader') (readInt hitStart') (readInt hitEnd') hitStrand' (L.pack hitModel') (L.pack hitTruncation') (readDouble hitGCcontent') (L.pack hitDescription')
+
+-- | parse from input filePath              
+parseCMStat :: String -> Either ParseError CMStat
+parseCMStat input = parse genParserCMsearch "parseCMsearch" input
+
+-- | parse from input filePath                      
+readCMStat :: String -> IO (Either ParseError CMStat)             
+readCMStat filePath = do 
+  parsedFile <- parseFromFile genParserCMsearch filePath
+  CE.evaluate parsedFile 
+                      
+genParserCMStat :: GenParser Char st CMStat
+genParserCMStat = do
+  string "# cmsearch :: search CM(s) against a sequence database"
+  eof
+  return $ CMStat 
    
 extractCandidateSequences :: [(Sequence,Int,String,Char)] -> V.Vector (Int,Sequence)
 extractCandidateSequences candidates' = indexedSeqences
@@ -1455,3 +1475,15 @@ setVerbose :: Verbosity -> Bool
 setVerbose verbosityLevel
   | verbosityLevel == Loud = True
   | otherwise = False
+
+evaluateConstructionResult :: StaticOptions -> String
+evaluateConstructionResult staticOptions = do
+  let resultStockholm = (tempDir staticOptions) ++ "result.stockholm"
+  let resultRNAz = (tempDir staticOptions) ++ "result.rnaz"
+  systemRNAz resultStockholm resultRNAz
+  rnaZ <- readRNAz resultRNAz
+  let resultModelPath =  (tempDir staticOptions) ++ "result.stockholm"
+  let resultModelStatistics =  (tempDir staticOptions) ++ "result.cmstat"
+  systemCMstat resultModelPath resultModelStatistics
+  cmStat <- readCMstat resultModelStatistics
+  return (show cmStat ++ show cmStat)

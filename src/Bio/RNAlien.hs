@@ -71,6 +71,8 @@ main = do
       logMessage (show initialization) temporaryDirectoryPath
       modelConstructionResults <- modelConstructer staticOptions initialization
       let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults
+      resultEvaluation <- evaluateConstructionResult staticOptions
+      writeFile (temporaryDirectoryPath ++ "result.eval") resultEvaluation
       writeFile (temporaryDirectoryPath ++ "result.csv") resultTaxonomyRecordsCSVTable
       resultSummary modelConstructionResults staticOptions
       writeFile (temporaryDirectoryPath ++ "done") ""
