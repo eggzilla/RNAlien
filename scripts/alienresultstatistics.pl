@@ -20,6 +20,7 @@ my $rfamfasta_basename;
 my $RNAFamilyIdFile;
 my $familyNumber;
 my $resulttempdir;
+my $resultfileprefix;
 
 if($type eq "structured"){
 	$alienresult_basename="/scr/kronos/egg/AlienStructuredResultsCollected" . "$currentresultnumber" . "/";
@@ -29,6 +30,7 @@ if($type eq "structured"){
 	$RNAFamilyIdFile = "/scr/kronos/egg/structuredFamilyNameIdGatheringCutoffSorted";
 	$familyNumber = 56;
 	$resulttempdir = "/scr/kronos/egg/temp/AlienStructuredResultStatistics". "$currentresultnumber" . "/";
+        $resultfileprefix = "structuredalienseedoutput";
 }else{
 	#sRNA
 	$alienresult_basename="/scr/kronos/egg/AlienResultsCollected" . "$currentresultnumber" . "/";
@@ -37,6 +39,7 @@ if($type eq "structured"){
 	$RNAFamilyIdFile = "/scr/kronos/egg/smallRNAtaggedfamiliesNameIDThresholdTagSorted.csv";
         $familyNumber = 374;
 	$resulttempdir = "/scr/kronos/egg/temp/AlienResultStatistics" . "$currentresultnumber" . "/";
+        $resultfileprefix = "alienseedoutput";
 }
 
 my @RNAfamilies;
@@ -50,7 +53,7 @@ close $RNAfamilyfh;
 
 my $gathering_score_multiplier = 1.0; 
 my $gathering_score_lower_bound;
-alienresultstatistic($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,$gathering_score_multiplier,$gathering_score_lower_bound,"/scr/kronos/egg/structuredalienseedoutput$currentresultnumber-" . $gathering_score_multiplier . ".csv");
+alienresultstatistic($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,$gathering_score_multiplier,$gathering_score_lower_bound,"/scr/kronos/egg/$resultfileprefix$currentresultnumber-" . $gathering_score_multiplier . ".csv");
 
 #for(1..10){
 #     my $outputfilePath = "/scr/kronos/egg/structuredalienseedoutput$currentresultnumber-" . $gathering_score_multiplier . ".csv";

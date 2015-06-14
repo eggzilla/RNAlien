@@ -49,12 +49,8 @@ import Data.Clustering.Hierarchical
 import System.Directory
 import System.Console.CmdArgs
 import qualified Control.Exception.Base as CE
---import Data.Conduit
---import Control.Monad.Trans
---import Control.Monad.Trans.Resource
 import Bio.RNAfoldParser
 import Bio.RNAalifoldParser
---import Control.Monad
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 modelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
@@ -212,7 +208,7 @@ reevaluatePotentialMembers staticOptions modelConstruction = do
   let resultFastaPath = outputDirectory  ++ "result.fa"
   let resultCMPath = outputDirectory ++ "result.cm"
   let resultAlignmentPath = outputDirectory ++ "result.stockholm"
-  let resultCMLogPath = outputDirectory ++ "reuslt.cm.log"
+  let resultCMLogPath = outputDirectory ++ "result.cm.log"
   if null alignmentResults
     then do
       let lastIterationFastaPath = outputDirectory ++ show (currentIterationNumber - 1)++ "/model.fa"
@@ -584,17 +580,28 @@ constructModel modelConstruction staticOptions = do
   let fastaFilepath = outputDirectory ++ "model" ++ ".fa"
   let locarnaFilepath = outputDirectory ++ "model" ++ ".mlocarna"
   let stockholmFilepath = outputDirectory ++ "model" ++ ".stockholm"
+  let updatedStructureStockholmFilepath = outputDirectory ++ "newstructuremodel" ++ ".stockholm"
   let cmalignCMFilepath = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction - 2)) ++ "/" ++ "model" ++ ".cm"
   let cmFilepath = outputDirectory ++ "model" ++ ".cm"
   let cmCalibrateFilepath = outputDirectory ++ "model" ++ ".cmcalibrate"
   let cmBuildFilepath = outputDirectory ++ "model" ++ ".cmbuild"
+  let alifoldFilepath = outputDirectory ++ "model" ++ ".alifold"
   if (alignmentModeInfernal modelConstruction)
      then do
        logVerboseMessage (verbositySwitch staticOptions) ("Construct Model - infernal mode\n") (tempDirPath staticOptions)
-       _ <- systemCMalign ("--cpu " ++ show (cpuThreads staticOptions)) cmalignCMFilepath fastaFilepath stockholmFilepath
-       _ <- systemCMbuild stockholmFilepath cmFilepath cmBuildFilepath
-       _ <- systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
-       return cmFilepath
+       systemCMalign ("--cpu " ++ show (cpuThreads staticOptions)) cmalignCMFilepath fastaFilepath stockholmFilepath
+       systemRNAalifold "--cfactor 0.6 --nfactor 0.5" stockholmFilepath alifoldFilepath
+       replaceStatus <- replaceStockholmStructure stockholmFilepath alifoldFilepath updatedStructureStockholmFilepath
+       if (null replaceStatus)
+         then do
+           systemCMbuild updatedStructureStockholmFilepath cmFilepath cmBuildFilepath
+           systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
+           return cmFilepath
+         else do
+           logMessage ("A problem occured updating the secondary structure of our stockholm alignment: " ++ replaceStatus) (tempDirPath staticOptions)
+           systemCMbuild updatedStructureStockholmFilepath cmFilepath cmBuildFilepath
+           systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
+           return cmFilepath
      else do
        logVerboseMessage (verbositySwitch staticOptions) ("Construct Model - initial mode\n") (tempDirPath staticOptions)
        alignSequences "mlocarna" ("--threads=" ++ (show (cpuThreads staticOptions)) ++ " ") [fastaFilepath] [] [locarnaFilepath] []
@@ -605,7 +612,41 @@ constructModel modelConstruction staticOptions = do
        _ <- systemCMbuild stockholmFilepath cmFilepath cmBuildFilepath
        _ <- systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
        return cmFilepath
-              
+
+-- | Replaces structure of input stockholm file with the consensus structure of alifoldFilepath and outputs updated stockholmfile
+replaceStockholmStructure :: String -> String -> String -> IO String
+replaceStockholmStructure stockholmFilepath alifoldFilepath updatedStructureStockholmFilepath = do
+  inputAln <- readFile stockholmFilepath
+  inputRNAalifold <- readRNAalifold alifoldFilepath
+  if (isLeft inputRNAalifold)
+    then do
+     return (show (fromLeft inputRNAalifold))
+    else do
+     let alifoldstructure = alignmentConsensusDotBracket (fromRight inputRNAalifold)
+     let seedLinesVector = V.fromList (lines inputAln)
+     let structureIndices = V.toList (V.findIndices isStructureLine seedLinesVector)
+     let updatedStructureElements = updateStructureElements seedLinesVector alifoldstructure structureIndices
+     let newVector = seedLinesVector V.// updatedStructureElements
+     let newVectorString = concatMap (\line -> line ++ "\n") (V.toList newVector)
+     writeFile updatedStructureStockholmFilepath newVectorString
+     return []
+
+updateStructureElements :: V.Vector String -> String -> [Int] -> [(Int,String)]
+updateStructureElements inputVector structureString indices
+  | null indices = []
+  | otherwise = newElement ++ (updateStructureElements inputVector (drop structureLength structureString) (tail indices))
+  where currentIndex = head indices
+        currentElement = inputVector V.! currentIndex
+        elementLength = length currentElement
+        structureStartIndex = (maximum (elemIndices ' ' currentElement)) + 1
+        structureLength = elementLength - structureStartIndex
+        newElementHeader = take structureStartIndex currentElement
+        newElementStructure = take structureLength structureString
+        newElement = [(currentIndex,newElementHeader ++ newElementStructure)]
+
+isStructureLine :: String -> Bool
+isStructureLine line = isInfixOf "#=GC SS_cons" line
+             
 iterationSummary :: ModelConstruction -> StaticOptions -> IO()
 iterationSummary mC sO = do
   --iteration -- tax limit -- bitscore cutoff -- blastresult -- aligned seqs --queries --fa link --aln link --cm link
