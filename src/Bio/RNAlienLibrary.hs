@@ -15,7 +15,8 @@ module Bio.RNAlienLibrary (
                            compareCM,
                            parseCMSearch,
                            cmSearchsubString,
-                           setInitialTaxId                 
+                           setInitialTaxId,
+                           evaluateConstructionResult         
                            )
 where
    
@@ -51,6 +52,7 @@ import System.Console.CmdArgs
 import qualified Control.Exception.Base as CE
 import Bio.RNAfoldParser
 import Bio.RNAalifoldParser
+import Bio.RNAzParser
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 modelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
@@ -1067,17 +1069,17 @@ genParserCMsearchHitScore = do
   return $ CMsearchHitScore (readInt hitRank') hitSignificant' (readDouble hitEValue') (readDouble hitScore') (readDouble hitBias') (L.pack hitSequenceHeader') (readInt hitStart') (readInt hitEnd') hitStrand' (L.pack hitModel') (L.pack hitTruncation') (readDouble hitGCcontent') (L.pack hitDescription')
 
 -- | parse from input filePath              
-parseCMStat :: String -> Either ParseError CMStat
-parseCMStat input = parse genParserCMsearch "parseCMsearch" input
+parseCMstat :: String -> Either ParseError CMstat
+parseCMstat input = parse genParserCMstat "parseCMstat" input
 
 -- | parse from input filePath                      
-readCMStat :: String -> IO (Either ParseError CMStat)             
-readCMStat filePath = do 
-  parsedFile <- parseFromFile genParserCMsearch filePath
+readCMstat :: String -> IO (Either ParseError CMstat)             
+readCMstat filePath = do 
+  parsedFile <- parseFromFile genParserCMstat filePath
   CE.evaluate parsedFile 
                       
-genParserCMStat :: GenParser Char st CMStat
-genParserCMStat = do
+genParserCMstat :: GenParser Char st CMstat
+genParserCMstat = do
   string "# cmstat :: display summary statistics for CMs"
   newline
   string "# INFERNAL "
@@ -1156,7 +1158,7 @@ genParserCMStat = do
   newline
   char '#'
   eof  
-  return $ CMStat (readInt _statIndex) _statName _statAccession (readInt _statSequenceNumber) (readInt _statEffectiveSequences) (readInt _statConsensusLength) (readInt _statW) (readInt _statBasepaires) (readInt _statBifurcations) _statModel (readDouble _relativeEntropyCM) (readDouble _relativeEntropyHMM)
+  return $ CMstat (readInt _statIndex) _statName _statAccession (readInt _statSequenceNumber) (readInt _statEffectiveSequences) (readInt _statConsensusLength) (readInt _statW) (readInt _statBasepaires) (readInt _statBifurcations) _statModel (readDouble _relativeEntropyCM) (readDouble _relativeEntropyHMM)
    
 extractCandidateSequences :: [(Sequence,Int,String,Char)] -> V.Vector (Int,Sequence)
 extractCandidateSequences candidates' = indexedSeqences
@@ -1552,14 +1554,14 @@ setVerbose verbosityLevel
   | verbosityLevel == Loud = True
   | otherwise = False
 
-evaluateConstructionResult :: StaticOptions -> String
+evaluateConstructionResult :: StaticOptions -> IO String
 evaluateConstructionResult staticOptions = do
-  let resultStockholm = (tempDir staticOptions) ++ "result.stockholm"
-  let resultRNAz = (tempDir staticOptions) ++ "result.rnaz"
+  let resultStockholm = (tempDirPath staticOptions) ++ "result.stockholm"
+  let resultRNAz = (tempDirPath staticOptions) ++ "result.rnaz"
   systemRNAz resultStockholm resultRNAz
   rnaZ <- readRNAz resultRNAz
-  let resultModelPath =  (tempDir staticOptions) ++ "result.stockholm"
-  let resultModelStatistics =  (tempDir staticOptions) ++ "result.cmstat"
+  let resultModelPath =  (tempDirPath staticOptions) ++ "result.stockholm"
+  let resultModelStatistics =  (tempDirPath staticOptions) ++ "result.cmstat"
   systemCMstat resultModelPath resultModelStatistics
   cmStat <- readCMstat resultModelStatistics
-  return (show cmStat ++ show cmStat)
+  return (show cmStat ++ show rnaZ)

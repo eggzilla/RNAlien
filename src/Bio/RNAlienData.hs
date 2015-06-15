@@ -119,7 +119,7 @@ data CMstat = CMstat
     statEffectiveSequences :: Int,
     statConsensusLength :: Int,
     -- W The expected maximum length of a hit to the model.
-    statW : Int,
+    statW :: Int,
     statBasepaires :: Int,
     statBifurcations :: Int,
     statModel :: String,
