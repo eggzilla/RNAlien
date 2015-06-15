@@ -1078,9 +1078,85 @@ readCMStat filePath = do
                       
 genParserCMStat :: GenParser Char st CMStat
 genParserCMStat = do
-  string "# cmsearch :: search CM(s) against a sequence database"
+  string "# cmstat :: display summary statistics for CMs"
+  newline
+  string "# INFERNAL "
+  many1 (noneOf "\n")
+  newline       
+  string "# Copyright (C) 201"
+  many1 (noneOf "\n")
+  newline       
+  string "# Freely distributed under the GNU General Public License (GPLv3)."
+  newline       
+  string "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -"
   eof
-  return $ CMStat 
+  char '#'
+  many1 (char ' ')
+  string "rel entropy"
+  newline
+  char '#'
+  many1 (char ' ')
+  many1 (char '-')
+  newline
+  char '#'
+  many1 space 
+  string "idx"
+  many1 space        
+  string "name"
+  many1 space 
+  string "accession"
+  many1 space 
+  string "nseq"
+  many1 space  
+  string "eff_seq"
+  many1 space 
+  string "clen"
+  many1 space 
+  string "nseq"
+  many1 space 
+  string "W"
+  many1 space 
+  string "bps"
+  many1 space 
+  string "bifs"
+  many1 space 
+  string "model"
+  many1 space 
+  string "cm"
+  many1 space
+  string "hmm"
+  newline
+  string "#"
+  many1 (try (oneOf " -"))
+  newline
+  many1 space     
+  _statIndex <- many1 digit
+  many1 space
+  _statName <- many1 letter
+  many1 space                  
+  _statAccession <- many1 (noneOf " ")
+  many1 space             
+  _statSequenceNumber <- many1 digit
+  many1 space   
+  _statEffectiveSequences <- many1 (oneOf "0123456789.e-")
+  many1 space
+  _statConsensusLength <- many digit
+  many1 space                
+  _statW <- many1 digit
+  many1 space
+  _statBasepaires <- many1 digit
+  many1 space            
+  _statBifurcations <- many1 digit
+  many1 space              
+  _statModel <- many1 letter
+  many1 space          
+  _relativeEntropyCM <- many1 (oneOf "0123456789.e-")
+  many1 space                   
+  _relativeEntropyHMM <- many1 (oneOf "0123456789.e-")
+  newline
+  char '#'
+  eof  
+  return $ CMStat (readInt _statIndex) _statName _statAccession (readInt _statSequenceNumber) (readInt _statEffectiveSequences) (readInt _statConsensusLength) (readInt _statW) (readInt _statBasepaires) (readInt _statBifurcations) _statModel (readDouble _relativeEntropyCM) (readDouble _relativeEntropyHMM)
    
 extractCandidateSequences :: [(Sequence,Int,String,Char)] -> V.Vector (Int,Sequence)
 extractCandidateSequences candidates' = indexedSeqences
