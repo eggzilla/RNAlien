@@ -16,7 +16,9 @@ module Bio.RNAlienLibrary (
                            parseCMSearch,
                            cmSearchsubString,
                            setInitialTaxId,
-                           evaluateConstructionResult         
+                           evaluateConstructionResult,
+                           readCMstat,
+                           parseCMstat        
                            )
 where
    

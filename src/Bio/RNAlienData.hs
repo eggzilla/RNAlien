@@ -125,4 +125,20 @@ data CMstat = CMstat
     statModel :: String,
     relativeEntropyCM :: Double,
     relativeEntropyHMM :: Double
-  } deriving (Show, Eq, Read) 
+  } deriving (Eq, Read) 
+
+instance Show CMstat where
+  show (CMstat _statIndex _statName _statAccession _statSequenceNumber _statEffectiveSequences _statConsensusLength _statW _statBasepaires _statBifurcations _statModel _relativeEntropyCM _relativeEntropyHMM) = a ++ b ++ c ++ d ++ e ++ f ++ g ++ h ++ i ++ j ++ k ++ l
+    where a = "CMstat - covariance model statistics:\nIndex: " ++ show _statIndex ++ "\n" 
+          b = "Name: " ++ show _statName ++ "\n" 
+          c = "Accession: " ++ show _statAccession ++ "\n"
+          d = "Sequence Number: " ++ show _statSequenceNumber ++ "\n"
+          e = "Effective Sequences: " ++ show _statEffectiveSequences ++ "\n"
+          f = "Consensus length: " ++ show _statConsensusLength ++ "\n"
+          g = "Expected maximum hit-length: " ++ show _statW ++ "\n"
+          h = "Basepairs: " ++ show _statBasepaires ++ "\n"
+          i = "Bifurcations: " ++ show _statBifurcations ++ "\n"
+          j = "Modeltype: " ++ show _statModel ++ "\n"
+          k = "Relative Entropy CM: " ++ show _relativeEntropyCM ++ "\n"
+          l = "Realtive Entropy HMM: " ++ show _relativeEntropyHMM ++ "\n"
+       
