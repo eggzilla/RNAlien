@@ -1093,7 +1093,7 @@ genParserCMstat = do
   string "# Freely distributed under the GNU General Public License (GPLv3)."
   newline       
   string "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -"
-  eof
+  newline
   char '#'
   many1 (char ' ')
   string "rel entropy"
@@ -1112,11 +1112,9 @@ genParserCMstat = do
   many1 space 
   string "nseq"
   many1 space  
-  string "eff_seq"
+  string "eff_nseq"
   many1 space 
   string "clen"
-  many1 space 
-  string "nseq"
   many1 space 
   string "W"
   many1 space 
@@ -1159,8 +1157,9 @@ genParserCMstat = do
   _relativeEntropyHMM <- many1 (oneOf "0123456789.e-")
   newline
   char '#'
+  newline
   eof  
-  return $ CMstat (readInt _statIndex) _statName _statAccession (readInt _statSequenceNumber) (readInt _statEffectiveSequences) (readInt _statConsensusLength) (readInt _statW) (readInt _statBasepaires) (readInt _statBifurcations) _statModel (readDouble _relativeEntropyCM) (readDouble _relativeEntropyHMM)
+  return $ CMstat (readInt _statIndex) _statName _statAccession (readInt _statSequenceNumber) (readDouble _statEffectiveSequences) (readInt _statConsensusLength) (readInt _statW) (readInt _statBasepaires) (readInt _statBifurcations) _statModel (readDouble _relativeEntropyCM) (readDouble _relativeEntropyHMM)
    
 extractCandidateSequences :: [(Sequence,Int,String,Char)] -> V.Vector (Int,Sequence)
 extractCandidateSequences candidates' = indexedSeqences

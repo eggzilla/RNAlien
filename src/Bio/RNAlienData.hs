@@ -116,7 +116,7 @@ data CMstat = CMstat
     statName :: String,
     statAccession :: String,
     statSequenceNumber :: Int,
-    statEffectiveSequences :: Int,
+    statEffectiveSequences :: Double,
     statConsensusLength :: Int,
     -- W The expected maximum length of a hit to the model.
     statW :: Int,
