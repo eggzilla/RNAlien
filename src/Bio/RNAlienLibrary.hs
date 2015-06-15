@@ -1530,7 +1530,7 @@ logToolVersions temporaryDirectoryPath = do
   _ <- system ("clustalo --version >" ++ clustaloversionpath)
   _ <- system ("mlocarna --version >" ++ mlocarnaversionpath)
   _ <- system ("RNAfold --version >" ++ rnafoldversionpath)
-  _ <- system ("cmcalibrate -h >" ++ infernalversionpath)
+  _ <- system ("cmcalibrate -h >" ++ infernalversionpath)  
   clustaloversion <- readFile clustaloversionpath
   mlocarnaversion <- readFile mlocarnaversionpath
   rnafoldversion <- readFile rnafoldversionpath 
@@ -1557,12 +1557,37 @@ setVerbose verbosityLevel
 
 evaluateConstructionResult :: StaticOptions -> IO String
 evaluateConstructionResult staticOptions = do
-  let resultStockholm = (tempDirPath staticOptions) ++ "result.stockholm"
+  let fastaFilepath = (tempDirPath staticOptions) ++ "result.fasta"
+  let clustalFilepath = (tempDirPath staticOptions) ++ "result.clustal"
+  let reformatedClustalPath = (tempDirPath staticOptions) ++ "result.clustal.reformated"
+  let cmalignCMFilepath = (tempDirPath staticOptions) ++ "result.cm"
+  systemCMalign ("--outformat=Clustal --cpu " ++ show (cpuThreads staticOptions)) cmalignCMFilepath fastaFilepath clustalFilepath
   let resultRNAz = (tempDirPath staticOptions) ++ "result.rnaz"
-  systemRNAz resultStockholm resultRNAz
+  rnazClustalpath <- preprocessClustalForRNAz clustalFilepath reformatedClustalPath
+  systemRNAz rnazClustalpath resultRNAz 
   rnaZ <- readRNAz resultRNAz
   let resultModelPath =  (tempDirPath staticOptions) ++ "result.stockholm"
   let resultModelStatistics =  (tempDirPath staticOptions) ++ "result.cmstat"
   systemCMstat resultModelPath resultModelStatistics
   cmStat <- readCMstat resultModelStatistics
   return (show cmStat ++ show rnaZ)
+
+-- | RNAz can process 500 sequences at max. Using rnazSelectSeqs to isolated representative sample. rnazSelectSeqs only accepts - gap characters, alignment is reformatted accordingly.
+preprocessClustalForRNAz :: String -> String -> IO String
+preprocessClustalForRNAz clustalFilepath reformatedClustalPath = do
+  clustalString <- readFile clustalFilepath
+  if (length (lines clustalString) > 100)
+    then do 
+      --change clustal format for rnazSelectSeqs.pl
+      let reformatedClustalString = map replaceDotDash clustalString
+      writeFile reformatedClustalPath reformatedClustalString
+      --select representative entries from result.Clustal with select_sequences
+      let selectedClustalpath = clustalFilepath ++ ".selected"
+      system ("rnazSelectSeqs.pl --num-seqs=50 " ++ clustalFilepath ++ " >" ++ selectedClustalpath)
+      return selectedClustalpath
+    else return clustalFilepath
+     
+replaceDotDash :: Char -> Char 
+replaceDotDash c
+  | c == '.' = '-'
+  | otherwise = c
