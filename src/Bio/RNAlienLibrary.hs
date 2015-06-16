@@ -1557,7 +1557,7 @@ setVerbose verbosityLevel
 
 evaluateConstructionResult :: StaticOptions -> IO String
 evaluateConstructionResult staticOptions = do
-  let fastaFilepath = (tempDirPath staticOptions) ++ "result.fasta"
+  let fastaFilepath = (tempDirPath staticOptions) ++ "result.fa"
   let clustalFilepath = (tempDirPath staticOptions) ++ "result.clustal"
   let reformatedClustalPath = (tempDirPath staticOptions) ++ "result.clustal.reformated"
   let cmalignCMFilepath = (tempDirPath staticOptions) ++ "result.cm"
