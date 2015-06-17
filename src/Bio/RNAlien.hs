@@ -12,6 +12,7 @@ import Bio.Sequence.Fasta
 import Bio.RNAlienData
 import Bio.RNAlienLibrary
 import Data.Maybe
+import Data.Either.Unwrap
 import Data.Time
 
 data Options = Options            
@@ -62,17 +63,23 @@ main = do
       writeFile (temporaryDirectoryPath ++ "Log") ("RNAlien 1.0.0" ++ "\n")
       logMessage ("Timestamp: " ++ (show timestamp) ++ "\n") temporaryDirectoryPath
       logMessage ("Temporary Directory: " ++ temporaryDirectoryPath ++ "\n") temporaryDirectoryPath
-      logToolVersions temporaryDirectoryPath
-      let inputSequence = (head inputFasta)
-      initialTaxId <- setInitialTaxId inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
-      let inputInclusionThresholdRatio = (Just (0.25 :: Double))
-      let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputZScoreCutoff) (fromJust inputInclusionThresholdRatio) inputTaxId singleHitperTax lengthFilter threads inputBlastDatabase (setVerbose verboseLevel)
-      let initialization = ModelConstruction iterationNumber inputSequence [] initialTaxId Nothing Nothing (fromJust inputEvalueCutoff) False [] []
-      logMessage (show initialization) temporaryDirectoryPath
-      modelConstructionResults <- modelConstructer staticOptions initialization
-      let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults
-      resultEvaluation <- evaluateConstructionResult staticOptions
-      writeFile (temporaryDirectoryPath ++ "result.eval") resultEvaluation
-      writeFile (temporaryDirectoryPath ++ "result.csv") resultTaxonomyRecordsCSVTable
-      resultSummary modelConstructionResults staticOptions
-      writeFile (temporaryDirectoryPath ++ "done") ""
+      let tools = ["clustalo","mlocarna","RNAfold","RNAalifold","cmcalibrate","cmstat","cmbuild","RNAz,rnazSelectSeqs.pl"]
+      toolsCheck <- checkTools tools temporaryDirectoryPath
+      if isRight toolsCheck
+        then do 
+          logToolVersions temporaryDirectoryPath
+          let inputSequence = (head inputFasta)
+          initialTaxId <- setInitialTaxId inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
+          let inputInclusionThresholdRatio = (Just (0.25 :: Double))
+          let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputZScoreCutoff) (fromJust inputInclusionThresholdRatio) inputTaxId singleHitperTax lengthFilter threads inputBlastDatabase (setVerbose verboseLevel)
+          let initialization = ModelConstruction iterationNumber inputSequence [] initialTaxId Nothing Nothing (fromJust inputEvalueCutoff) False [] []
+          logMessage (show initialization) temporaryDirectoryPath
+          modelConstructionResults <- modelConstructer staticOptions initialization
+          let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults
+          resultEvaluation <- evaluateConstructionResult staticOptions
+          writeFile (temporaryDirectoryPath ++ "result.eval") resultEvaluation
+          writeFile (temporaryDirectoryPath ++ "result.csv") resultTaxonomyRecordsCSVTable
+          resultSummary modelConstructionResults staticOptions
+          writeFile (temporaryDirectoryPath ++ "done") ""
+        else do
+          print (fromLeft toolsCheck)

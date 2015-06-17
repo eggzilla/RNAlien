@@ -10,6 +10,7 @@ module Bio.RNAlienLibrary (
                            resultSummary,
                            setVerbose,
                            logToolVersions,
+                           checkTools,
                            systemCMsearch,
                            readCMSearch,
                            compareCM,
@@ -1521,26 +1522,43 @@ logEither :: (Show a) => Either a b -> String -> IO ()
 logEither (Left logoutput) temporaryDirectoryPath = appendFile (temporaryDirectoryPath ++ "Log") (show logoutput)
 logEither  _ _ = return ()
 
+checkTools :: [String] -> String -> IO (Either String String)
+checkTools tools temporaryDirectoryPath = do
+  -- check if all tools are available via PATH or Left
+  checks <- mapM checkTool tools
+  if (not (null (lefts checks)))
+    then return (Left (concat (lefts checks)))
+    else do  
+      logMessage ("Tools : " ++ (intercalate "," tools) ++ "\n") temporaryDirectoryPath
+      return (Right "Tools ok")
+
 logToolVersions :: String -> IO ()
 logToolVersions temporaryDirectoryPath = do
   let clustaloversionpath = temporaryDirectoryPath ++ "clustalo.version"
   let mlocarnaversionpath = temporaryDirectoryPath ++ "mlocarna.version"
   let rnafoldversionpath = temporaryDirectoryPath ++ "RNAfold.version"
-  let infernalversionpath =  temporaryDirectoryPath ++ "Infernal.version"
+  let infernalversionpath = temporaryDirectoryPath ++ "Infernal.version"
   _ <- system ("clustalo --version >" ++ clustaloversionpath)
   _ <- system ("mlocarna --version >" ++ mlocarnaversionpath)
   _ <- system ("RNAfold --version >" ++ rnafoldversionpath)
   _ <- system ("cmcalibrate -h >" ++ infernalversionpath)  
+  -- _ <- system ("RNAz" ++ rnazversionpath)
+  -- _ <- system ("CMCompare >" ++ infernalversionpath)
   clustaloversion <- readFile clustaloversionpath
   mlocarnaversion <- readFile mlocarnaversionpath
   rnafoldversion <- readFile rnafoldversionpath 
   infernalversionOutput <- readFile infernalversionpath
   let infernalversion = (lines infernalversionOutput) !! 1
-  logMessage ("Clustalo version: " ++ clustaloversion) temporaryDirectoryPath
-  logMessage ("mlocarna version: " ++ mlocarnaversion) temporaryDirectoryPath
-  logMessage ("rnafold version: " ++ rnafoldversion) temporaryDirectoryPath
-  logMessage ("infernalversion: " ++ infernalversion ++ "\n") temporaryDirectoryPath
+  let messageString = "Clustalo version: " ++ clustaloversion ++ "\n" ++ "mlocarna version: " ++ mlocarnaversion  ++ "\n" ++ "RNAfold version: " ++ rnafoldversion  ++ "\n" ++ "infernalversion: " ++ infernalversion ++ "\n"
+  logMessage messageString temporaryDirectoryPath
 
+checkTool :: String -> IO (Either String String)
+checkTool tool = do
+  toolcheck <- findExecutable "checkclustalo"
+  if isJust toolcheck
+    then return (Right (fromJust toolcheck))
+    else return (Left ("RNAlien could not find "++ tool ++ " in your $PATH and has to abort.\n"))
+  
 constructTaxonomyRecordsCSVTable :: ModelConstruction -> String
 constructTaxonomyRecordsCSVTable modelconstruction = csvtable
   where tableheader = "Taxonomy Id;Added in Iteration Step;Entry Header\n"
