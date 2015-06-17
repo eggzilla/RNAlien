@@ -372,7 +372,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
   let queryIndexString = "1"
   let entrezTaxFilter = buildTaxFilterQuery upperTaxLimit lowerTaxLimit 
   logVerboseMessage (verbositySwitch staticOptions) ("entrezTaxFilter" ++ show entrezTaxFilter ++ "\n") (tempDirPath staticOptions)
-  print ("entrezTaxFilter" ++ show entrezTaxFilter ++ "\n")
+  --print ("entrezTaxFilter" ++ show entrezTaxFilter ++ "\n")
   let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=2000&EXPECT=1" 
   let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
   --let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter ++ registrationInfo))
@@ -563,8 +563,8 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
       let dendrogramCutDistance' = findCutoffforClusterNumber clustaloDendrogram numberOfClusters dendrogramStartCutDistance
       logMessage ("dendrogramCutDistance': " ++ show dendrogramCutDistance' ++ "\n") (tempDirPath staticOptions)
       let cutDendrogram = cutAt clustaloDendrogram dendrogramCutDistance'
-      putStrLn "cutDendrogram: "
-      print cutDendrogram
+      --putStrLn "cutDendrogram: "
+      --print cutDendrogram
       let currentSelectedQueries = take 5 (concatMap (take 1) (map elements cutDendrogram))
       logVerboseMessage (verbositySwitch staticOptions) ("SelectedQueries: " ++ show currentSelectedQueries ++ "\n") (tempDirPath staticOptions)                       
       writeFile ((tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/log" ++ "/13selectedQueries") (showlines currentSelectedQueries)
@@ -1413,7 +1413,7 @@ retrieveTaxonomicContextEntrez inputTaxId = do
             return Nothing
           else do
             let taxon = head (readEntrezTaxonSet result)
-            print taxon
+            --print taxon
             if (null (lineageEx taxon))
               then do
                 error "Retrieved taxonomic context taxon from NCBI Entrez with empty lineage, cannot proceed."
