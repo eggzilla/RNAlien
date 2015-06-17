@@ -1557,18 +1557,19 @@ setVerbose verbosityLevel
 
 evaluateConstructionResult :: StaticOptions -> IO String
 evaluateConstructionResult staticOptions = do
+  let evaluationDirectoryFilepath = (tempDirPath staticOptions) ++ "evaluation/"
+  createDirectoryIfMissing False evaluationDirectoryFilepath
   let fastaFilepath = (tempDirPath staticOptions) ++ "result.fa"
-  let clustalFilepath = (tempDirPath staticOptions) ++ "result.clustal"
-  let reformatedClustalPath = (tempDirPath staticOptions) ++ "result.clustal.reformated"
-  let cmalignCMFilepath = (tempDirPath staticOptions) ++ "result.cm"
-  systemCMalign ("--outformat=Clustal --cpu " ++ show (cpuThreads staticOptions)) cmalignCMFilepath fastaFilepath clustalFilepath
+  let clustalFilepath = evaluationDirectoryFilepath ++ "result.clustal"
+  let reformatedClustalPath = evaluationDirectoryFilepath ++ "result.clustal.reformated"
+  let cmFilepath = (tempDirPath staticOptions) ++ "result.cm"
+  systemCMalign ("--outformat=Clustal --cpu " ++ show (cpuThreads staticOptions)) cmFilepath fastaFilepath clustalFilepath
   let resultRNAz = (tempDirPath staticOptions) ++ "result.rnaz"
   rnazClustalpath <- preprocessClustalForRNAz clustalFilepath reformatedClustalPath
   systemRNAz rnazClustalpath resultRNAz 
   rnaZ <- readRNAz resultRNAz
-  let resultModelPath =  (tempDirPath staticOptions) ++ "result.stockholm"
-  let resultModelStatistics =  (tempDirPath staticOptions) ++ "result.cmstat"
-  systemCMstat resultModelPath resultModelStatistics
+  let resultModelStatistics = (tempDirPath staticOptions) ++ "result.cmstat"
+  systemCMstat cmFilepath resultModelStatistics
   cmStat <- readCMstat resultModelStatistics
   return (show cmStat ++ show rnaZ)
 
