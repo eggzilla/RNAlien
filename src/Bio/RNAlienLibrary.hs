@@ -455,8 +455,8 @@ alignCandidates staticOptions modelConstruction multipleSearchResultPrefix searc
     then do return ([],[])
     else do
       --refilter for similarity 
-      --let filteredCandidates = take 1000 (filterIdenticalSequencesWithOrigin (candidates searchResults) 99)
-      let filteredCandidates = filterIdenticalSequencesWithOrigin (candidates searchResults) 99
+      let alignedSequences = map snd (V.toList (extractAlignedSequences (iterationNumber modelConstruction) modelConstruction))
+      let filteredCandidates = filterWithCollectedSequences (candidates searchResults) alignedSequences 99
       if(alignmentModeInfernal modelConstruction)
         then do
           alignCandidatesInfernalMode staticOptions modelConstruction multipleSearchResultPrefix (blastDatabaseSize searchResults) filteredCandidates
@@ -713,6 +713,14 @@ filterIdenticalSequences (headSequence:rest) identitycutoff = result
   where filteredSequences = filter (\x -> (sequenceIdentity (firstOfTriple headSequence) (firstOfTriple x)) < identitycutoff) rest 
         result = headSequence:(filterIdenticalSequences filteredSequences identitycutoff)
 filterIdenticalSequences [] _ = []
+
+-- | Filter sequences too similar to already aligned sequences
+filterWithCollectedSequences :: [(Sequence,Int,String,Char)] -> [Sequence] -> Double -> [(Sequence,Int,String,Char)]                            
+filterWithCollectedSequences inputCandidates collectedSequences identitycutoff = filter (\candidate -> isUnSimilarSequence collectedSequences identitycutoff (firstOfQuadruple candidate)) inputCandidates 
+--filterWithCollectedSequences [] [] _ = []
+
+isUnSimilarSequence :: [Sequence] -> Double -> Sequence -> Bool
+isUnSimilarSequence collectedSequences identitycutoff checkSequence = null (filter (\x -> (sequenceIdentity checkSequence x) > identitycutoff) collectedSequences)
                  
 firstOfTriple :: (t, t1, t2) -> t
 firstOfTriple (a,_,_) = a 
