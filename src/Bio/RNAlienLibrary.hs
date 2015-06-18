@@ -1562,7 +1562,7 @@ logToolVersions temporaryDirectoryPath = do
 
 checkTool :: String -> IO (Either String String)
 checkTool tool = do
-  toolcheck <- findExecutable "checkclustalo"
+  toolcheck <- findExecutable tool
   if isJust toolcheck
     then return (Right (fromJust toolcheck))
     else return (Left ("RNAlien could not find "++ tool ++ " in your $PATH and has to abort.\n"))

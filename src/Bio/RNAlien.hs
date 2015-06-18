@@ -63,7 +63,7 @@ main = do
       writeFile (temporaryDirectoryPath ++ "Log") ("RNAlien 1.0.0" ++ "\n")
       logMessage ("Timestamp: " ++ (show timestamp) ++ "\n") temporaryDirectoryPath
       logMessage ("Temporary Directory: " ++ temporaryDirectoryPath ++ "\n") temporaryDirectoryPath
-      let tools = ["clustalo","mlocarna","RNAfold","RNAalifold","cmcalibrate","cmstat","cmbuild","RNAz,rnazSelectSeqs.pl"]
+      let tools = ["clustalo","mlocarna","RNAfold","RNAalifold","cmcalibrate","cmstat","cmbuild","RNAz","rnazSelectSeqs.pl"]
       toolsCheck <- checkTools tools temporaryDirectoryPath
       if isRight toolsCheck
         then do 
