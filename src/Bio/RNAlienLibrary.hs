@@ -132,7 +132,8 @@ modelConstructionResult staticOptions modelConstruction = do
   candidates1 <- catchAll  (searchCandidates staticOptions (Just "archea") currentIterationNumber upperTaxLimit1 lowerTaxLimit1 queries)
                  (\e -> do logMessage ("searchResults iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                            return (SearchResult [] Nothing))
-  (alignmentResults1,potentialMembers1)<- catchAll (alignCandidates staticOptions modelConstruction "archea" candidates1)
+  let uniqueCandidates1 = filterDuplicates modelConstruction candidates1 
+  (alignmentResults1,potentialMembers1)<- catchAll (alignCandidates staticOptions modelConstruction "archea" uniqueCandidates1)
                        (\e -> do logMessage ("alignmentResults iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                  return  ([],[]))
   --taxonomic context bacteria
@@ -140,7 +141,8 @@ modelConstructionResult staticOptions modelConstruction = do
   candidates2 <- catchAll (searchCandidates staticOptions (Just "bacteria") currentIterationNumber upperTaxLimit2 lowerTaxLimit2 queries)
                  (\e -> do logMessage ("searchResults iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                            return (SearchResult [] Nothing))
-  (alignmentResults2,potentialMembers2)<- catchAll (alignCandidates staticOptions modelConstruction "bacteria" candidates2)
+  let uniqueCandidates2 = filterDuplicates modelConstruction candidates2
+  (alignmentResults2,potentialMembers2)<- catchAll (alignCandidates staticOptions modelConstruction "bacteria" uniqueCandidates2)
                        (\e -> do logMessage ("alignmentResults iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                  return  ([],[]))
   --taxonomic context eukaryia
@@ -148,7 +150,8 @@ modelConstructionResult staticOptions modelConstruction = do
   candidates3 <- catchAll (searchCandidates staticOptions (Just "eukaryia") currentIterationNumber upperTaxLimit3 lowerTaxLimit3 queries)
                  (\e -> do logMessage ("searchResults iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                            return (SearchResult [] Nothing))
-  (alignmentResults3,potentialMembers3) <- catchAll (alignCandidates staticOptions modelConstruction "eukaryia" candidates3)
+  let uniqueCandidates3 = filterDuplicates modelConstruction candidates3
+  (alignmentResults3,potentialMembers3) <- catchAll (alignCandidates staticOptions modelConstruction "eukaryia" uniqueCandidates3)
                        (\e -> do logMessage ("alignmentResults iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                  return  ([],[]))
   let alignmentResults = alignmentResults1 ++ alignmentResults2 ++ alignmentResults3
@@ -699,6 +702,14 @@ getDistanceMatrixElements ids distMatrix id1 id2 = distance
   where indexid1 = (fromJust (elemIndex id1 ids)) + 1
         indexid2 = (fromJust (elemIndex id2 ids)) + 1
         distance = getElem indexid1 indexid2 distMatrix
+
+-- | Filter duplicates removes hits in sequences that were already collected. This happens during revisiting the starting subtree.
+filterDuplicates :: ModelConstruction -> SearchResult -> SearchResult
+filterDuplicates modelConstruction inputSearchResult = uniqueSearchResult
+  where alignedSequences = map snd (V.toList (extractAlignedSequences (iterationNumber modelConstruction) modelConstruction))
+        collectedIdentifiers = map seqid alignedSequences
+        uniques = filter (\(s,_,_,_) -> notElem (seqid s) collectedIdentifiers) (candidates inputSearchResult)
+        uniqueSearchResult = SearchResult uniques (blastDatabaseSize inputSearchResult)
 
 -- | Filter a list of similar extended blast hits   
 filterIdenticalSequencesWithOrigin :: [(Sequence,Int,String,Char)] -> Double -> [(Sequence,Int,String,Char)]                            
@@ -1593,11 +1604,27 @@ evaluateConstructionResult staticOptions = do
   let resultRNAz = (tempDirPath staticOptions) ++ "result.rnaz"
   rnazClustalpath <- preprocessClustalForRNAz clustalFilepath reformatedClustalPath
   systemRNAz rnazClustalpath resultRNAz 
-  rnaZ <- readRNAz resultRNAz
+  inputRNAz <- readRNAz resultRNAz
   let resultModelStatistics = (tempDirPath staticOptions) ++ "result.cmstat"
   systemCMstat cmFilepath resultModelStatistics
-  cmStat <- readCMstat resultModelStatistics
-  return (show cmStat ++ show rnaZ)
+  inputcmStat <- readCMstat resultModelStatistics
+  let cmstatString = cmstatEvalOutput inputcmStat
+  let rnaZString = rnaZEvalOutput inputRNAz
+  return (cmstatString ++ show rnaZString)
+
+cmstatEvalOutput :: Either ParseError CMstat -> String 
+cmstatEvalOutput inputcmstat
+  | isRight inputcmstat = cmstatString
+  | otherwise = show (fromLeft inputcmstat)
+    where cmStat = fromRight inputcmstat  
+          cmstatString = "Sequence Number: " ++ show (statSequenceNumber cmStat)++ "\n" ++ "Effective Sequences: " ++ show (statEffectiveSequences cmStat)++ "\n" ++ "Consensus length: " ++ show (statConsensusLength cmStat) ++ "\n" ++ "Expected maximum hit-length: " ++ show (statW cmStat) ++ "\n" ++ "Basepairs: " ++ show (statBasepaires cmStat)++ "\n" ++ "Bifurcations: " ++ show (statBifurcations cmStat) ++ "\n" ++ "Modeltype: " ++ show (statModel cmStat) ++ "\n" ++ "Relative Entropy CM: " ++ show (relativeEntropyCM cmStat) ++ "\n" ++ "Relative Entropy HMM: " ++ show (relativeEntropyHMM cmStat) ++ "\n"
+
+rnaZEvalOutput :: Either ParseError RNAz -> String 
+rnaZEvalOutput inputRNAz 
+  | isRight inputRNAz = rnazString
+  | otherwise = show (fromLeft inputRNAz)
+    where rnaZ = fromRight inputRNAz
+          rnazString = "Mean pairwise identity: " ++ show (meanPairwiseIdentity rnaZ) ++ "\nShannon entropy: " ++ show (shannonEntropy rnaZ) ++  "\nGC content: " ++ show (gcContent rnaZ) ++ "\nMean single sequence minimum free energy: " ++ show (meanSingleSequenceMinimumFreeEnergy rnaZ) ++ "\nConsensus minimum free energy: " ++ show (consensusMinimumFreeEnergy rnaZ) ++ "\nEnergy contribution: " ++ show (energyContribution rnaZ) ++ "\nCovariance contribution: " ++ show (covarianceContribution rnaZ) ++ "\nCombinations pair: " ++ show (combinationsPair rnaZ) ++ "\nMean z-score: " ++ show (meanZScore rnaZ) ++ "\n Structure conservation index: " ++ show (structureConservationIndex rnaZ) ++ "\nBackground model" ++ backgroundModel rnaZ ++ "\nDecision model:" ++ decisionModel rnaZ ++ "\n SVM decision value: " ++ show (svmDecisionValue rnaZ) ++ "\nSVM class probapility: " ++ show (svmRNAClassProbability rnaZ) ++ "\nPrediction: " ++ (prediction rnaZ)     
 
 -- | RNAz can process 500 sequences at max. Using rnazSelectSeqs to isolated representative sample. rnazSelectSeqs only accepts - gap characters, alignment is reformatted accordingly.
 preprocessClustalForRNAz :: String -> String -> IO String

@@ -140,5 +140,5 @@ instance Show CMstat where
           i = "Bifurcations: " ++ show _statBifurcations ++ "\n"
           j = "Modeltype: " ++ show _statModel ++ "\n"
           k = "Relative Entropy CM: " ++ show _relativeEntropyCM ++ "\n"
-          l = "Realtive Entropy HMM: " ++ show _relativeEntropyHMM ++ "\n"
+          l = "Relative Entropy HMM: " ++ show _relativeEntropyHMM ++ "\n"
        
