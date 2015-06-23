@@ -77,7 +77,7 @@ main = do
           modelConstructionResults <- modelConstructer staticOptions initialization
           let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults
           resultEvaluation <- evaluateConstructionResult staticOptions
-          writeFile (temporaryDirectoryPath ++ "result.eval") resultEvaluation
+          appendFile (temporaryDirectoryPath ++ "Log") resultEvaluation
           writeFile (temporaryDirectoryPath ++ "result.csv") resultTaxonomyRecordsCSVTable
           resultSummary modelConstructionResults staticOptions
           writeFile (temporaryDirectoryPath ++ "done") ""
