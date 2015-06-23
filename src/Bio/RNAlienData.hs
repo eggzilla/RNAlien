@@ -109,3 +109,36 @@ instance Show SearchResult where
   show (SearchResult _candidates _blastDatabaseSize) = a ++ b 
     where a = "SearchResults :\n " ++ concatMap show _candidates ++ "\n" 
           b = "BlastDb Size: " ++ show _blastDatabaseSize ++ "\n" 
+
+-- |  
+data CMstat = CMstat
+  { statIndex :: Int,
+    statName :: String,
+    statAccession :: String,
+    statSequenceNumber :: Int,
+    statEffectiveSequences :: Double,
+    statConsensusLength :: Int,
+    -- W The expected maximum length of a hit to the model.
+    statW :: Int,
+    statBasepaires :: Int,
+    statBifurcations :: Int,
+    statModel :: String,
+    relativeEntropyCM :: Double,
+    relativeEntropyHMM :: Double
+  } deriving (Eq, Read) 
+
+instance Show CMstat where
+  show (CMstat _statIndex _statName _statAccession _statSequenceNumber _statEffectiveSequences _statConsensusLength _statW _statBasepaires _statBifurcations _statModel _relativeEntropyCM _relativeEntropyHMM) = a ++ b ++ c ++ d ++ e ++ f ++ g ++ h ++ i ++ j ++ k ++ l
+    where a = "CMstat - covariance model statistics:\nIndex: " ++ show _statIndex ++ "\n" 
+          b = "Name: " ++ show _statName ++ "\n" 
+          c = "Accession: " ++ show _statAccession ++ "\n"
+          d = "Sequence Number: " ++ show _statSequenceNumber ++ "\n"
+          e = "Effective Sequences: " ++ show _statEffectiveSequences ++ "\n"
+          f = "Consensus length: " ++ show _statConsensusLength ++ "\n"
+          g = "Expected maximum hit-length: " ++ show _statW ++ "\n"
+          h = "Basepairs: " ++ show _statBasepaires ++ "\n"
+          i = "Bifurcations: " ++ show _statBifurcations ++ "\n"
+          j = "Modeltype: " ++ show _statModel ++ "\n"
+          k = "Relative Entropy CM: " ++ show _relativeEntropyCM ++ "\n"
+          l = "Relative Entropy HMM: " ++ show _relativeEntropyHMM ++ "\n"
+       

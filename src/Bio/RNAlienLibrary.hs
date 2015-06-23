@@ -10,12 +10,16 @@ module Bio.RNAlienLibrary (
                            resultSummary,
                            setVerbose,
                            logToolVersions,
+                           checkTools,
                            systemCMsearch,
                            readCMSearch,
                            compareCM,
                            parseCMSearch,
                            cmSearchsubString,
-                           setInitialTaxId                 
+                           setInitialTaxId,
+                           evaluateConstructionResult,
+                           readCMstat,
+                           parseCMstat        
                            )
 where
    
@@ -51,12 +55,13 @@ import System.Console.CmdArgs
 import qualified Control.Exception.Base as CE
 import Bio.RNAfoldParser
 import Bio.RNAalifoldParser
+import Bio.RNAzParser
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 modelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
 modelConstructer staticOptions modelConstruction = do
   logMessage ("Iteration: " ++ show (iterationNumber modelConstruction) ++ "\n") (tempDirPath staticOptions)
-  logMessage ("Bitscore threshold: " ++ (maybe "not set" show (bitScoreThreshold modelConstruction)) ++ "\n") (tempDirPath staticOptions)
+  --logMessage ("Bitscore threshold: " ++ (maybe "not set" show (bitScoreThreshold modelConstruction)) ++ "\n") (tempDirPath staticOptions)
   iterationSummary modelConstruction staticOptions
   let currentIterationNumber = (iterationNumber modelConstruction)
   let foundSequenceNumber = length (concatMap sequenceRecords (taxRecords modelConstruction))
@@ -109,8 +114,8 @@ modelConstructionResult :: StaticOptions -> ModelConstruction -> IO ModelConstru
 modelConstructionResult staticOptions modelConstruction = do
   let currentIterationNumber = iterationNumber modelConstruction
   let outputDirectory = tempDirPath staticOptions
-  logMessage ("Final Iteration: " ++ show currentIterationNumber ++ "\n") outputDirectory
-  logMessage ("Bitscore threshold: " ++ (maybe "not set" show (bitScoreThreshold modelConstruction)) ++ "\n") outputDirectory
+  logMessage ("Global search iteration: " ++ show currentIterationNumber ++ "\n") outputDirectory
+  --logMessage ("Bitscore threshold: " ++ (maybe "not set" show (bitScoreThreshold modelConstruction)) ++ "\n") outputDirectory
   iterationSummary modelConstruction staticOptions
   let foundSequenceNumber = length (concatMap sequenceRecords (taxRecords modelConstruction))
   --extract queries
@@ -127,7 +132,8 @@ modelConstructionResult staticOptions modelConstruction = do
   candidates1 <- catchAll  (searchCandidates staticOptions (Just "archea") currentIterationNumber upperTaxLimit1 lowerTaxLimit1 queries)
                  (\e -> do logMessage ("searchResults iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                            return (SearchResult [] Nothing))
-  (alignmentResults1,potentialMembers1)<- catchAll (alignCandidates staticOptions modelConstruction "archea" candidates1)
+  let uniqueCandidates1 = filterDuplicates modelConstruction candidates1 
+  (alignmentResults1,potentialMembers1)<- catchAll (alignCandidates staticOptions modelConstruction "archea" uniqueCandidates1)
                        (\e -> do logMessage ("alignmentResults iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                  return  ([],[]))
   --taxonomic context bacteria
@@ -135,7 +141,8 @@ modelConstructionResult staticOptions modelConstruction = do
   candidates2 <- catchAll (searchCandidates staticOptions (Just "bacteria") currentIterationNumber upperTaxLimit2 lowerTaxLimit2 queries)
                  (\e -> do logMessage ("searchResults iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                            return (SearchResult [] Nothing))
-  (alignmentResults2,potentialMembers2)<- catchAll (alignCandidates staticOptions modelConstruction "bacteria" candidates2)
+  let uniqueCandidates2 = filterDuplicates modelConstruction candidates2
+  (alignmentResults2,potentialMembers2)<- catchAll (alignCandidates staticOptions modelConstruction "bacteria" uniqueCandidates2)
                        (\e -> do logMessage ("alignmentResults iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                  return  ([],[]))
   --taxonomic context eukaryia
@@ -143,7 +150,8 @@ modelConstructionResult staticOptions modelConstruction = do
   candidates3 <- catchAll (searchCandidates staticOptions (Just "eukaryia") currentIterationNumber upperTaxLimit3 lowerTaxLimit3 queries)
                  (\e -> do logMessage ("searchResults iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                            return (SearchResult [] Nothing))
-  (alignmentResults3,potentialMembers3) <- catchAll (alignCandidates staticOptions modelConstruction "eukaryia" candidates3)
+  let uniqueCandidates3 = filterDuplicates modelConstruction candidates3
+  (alignmentResults3,potentialMembers3) <- catchAll (alignCandidates staticOptions modelConstruction "eukaryia" uniqueCandidates3)
                        (\e -> do logMessage ("alignmentResults iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                  return  ([],[]))
   let alignmentResults = alignmentResults1 ++ alignmentResults2 ++ alignmentResults3
@@ -178,7 +186,8 @@ modelConstructionResult staticOptions modelConstruction = do
           cmFilepath <- constructModel nextModelConstructionInput staticOptions
           nextModelConstructionInputWithThreshold <- setInclusionThreshold nextModelConstructionInput staticOptions cmFilepath
           writeFile (iterationDirectory ++ "done") ""
-          logMessage (show nextModelConstructionInput) outputDirectory
+          logMessage (iterationSummaryLog nextModelConstructionInput) outputDirectory
+          logVerboseMessage (verbositySwitch staticOptions) (show nextModelConstructionInput) outputDirectory
           resultModelConstruction <- reevaluatePotentialMembers staticOptions nextModelConstructionInputWithThreshold
           return resultModelConstruction
         else do
@@ -186,7 +195,8 @@ modelConstructionResult staticOptions modelConstruction = do
           cmFilepath <- constructModel nextModelConstructionInput staticOptions
           nextModelConstructionInputWithThreshold <- setInclusionThreshold nextModelConstructionInput staticOptions cmFilepath
           let nextModelConstructionInputWithThresholdInfernalMode = nextModelConstructionInputWithThreshold {alignmentModeInfernal = True}
-          logMessage (show nextModelConstructionInputWithThresholdInfernalMode) outputDirectory
+          logMessage (iterationSummaryLog nextModelConstructionInputWithThresholdInfernalMode) outputDirectory
+          logVerboseMessage (verbositySwitch staticOptions) (show nextModelConstructionInputWithThresholdInfernalMode) outputDirectory
           writeFile (iterationDirectory ++ "done") ""
           resultModelConstruction <- reevaluatePotentialMembers staticOptions nextModelConstructionInput
           return resultModelConstruction
@@ -197,6 +207,7 @@ reevaluatePotentialMembers staticOptions modelConstruction = do
   let currentIterationNumber = iterationNumber modelConstruction
   let outputDirectory = tempDirPath staticOptions
   iterationSummary modelConstruction staticOptions
+  logMessage ("Reevaluation of potential members iteration: " ++ show currentIterationNumber ++ "\n") outputDirectory
   let iterationDirectory = outputDirectory ++ (show currentIterationNumber) ++ "/"
   createDirectory (iterationDirectory)
   let indexedPotentialMembers = V.indexed (V.fromList (potentialMembers modelConstruction))
@@ -216,7 +227,7 @@ reevaluatePotentialMembers staticOptions modelConstruction = do
       let lastIterationCMPath = outputDirectory ++ show (currentIterationNumber - 1)++ "/model.cm"
       copyFile lastIterationCMPath resultCMPath
       copyFile lastIterationFastaPath resultFastaPath
-      copyFile lastIterationAlignmentPath resultAlignmentPath 
+      copyFile lastIterationAlignmentPath resultAlignmentPath
       _ <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath
       writeFile (iterationDirectory ++ "done") ""
       return modelConstruction
@@ -231,7 +242,8 @@ reevaluatePotentialMembers staticOptions modelConstruction = do
       copyFile lastIterationFastaPath resultFastaPath
       copyFile lastIterationAlignmentPath resultAlignmentPath 
       nextModelConstructionInputWithThreshold <- setInclusionThreshold nextModelConstructionInput staticOptions cmFilepath
-      logMessage (show nextModelConstructionInput) outputDirectory
+      logMessage (iterationSummaryLog nextModelConstructionInputWithThreshold) outputDirectory
+      logVerboseMessage (verbositySwitch staticOptions) (show nextModelConstructionInput) outputDirectory
       _ <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath
       writeFile (iterationDirectory ++ "done") ""
       return nextModelConstructionInputWithThreshold
@@ -336,7 +348,7 @@ findTaxonomyStart inputBlastDatabase temporaryDirectory querySequence = do
   let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=10" 
   let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
   let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") inputBlastDatabase [querySequence] (Just (hitNumberQuery ++ registrationInfo)) (Just (5400000000 :: Int))
-  logMessage ("Sending find taxonomy start blast query \n") temporaryDirectory
+  logMessage ("No tax id provided - Sending find taxonomy start blast query \n") temporaryDirectory
   blastOutput <- CE.catch (blastHTTP blastQuery)
 	               (\e -> do let err = show (e :: CE.IOException)
                                  logMessage ("Warning: Blast attempt failed:" ++ " " ++ err) temporaryDirectory
@@ -368,10 +380,8 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
   let queryIndexString = "1"
   let entrezTaxFilter = buildTaxFilterQuery upperTaxLimit lowerTaxLimit 
   logVerboseMessage (verbositySwitch staticOptions) ("entrezTaxFilter" ++ show entrezTaxFilter ++ "\n") (tempDirPath staticOptions)
-  print ("entrezTaxFilter" ++ show entrezTaxFilter ++ "\n")
   let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=2000&EXPECT=1" 
   let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
-  --let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) (Just fastaSeqData) (Just (hitNumberQuery ++ entrezTaxFilter ++ registrationInfo))
   let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) querySequences'  (Just (hitNumberQuery ++ entrezTaxFilter ++ registrationInfo)) (Just (5400000000 :: Int))
   logVerboseMessage (verbositySwitch staticOptions) ("Sending blast query " ++ (show iterationnumber) ++ "\n") (tempDirPath staticOptions)
   blastOutput <- CE.catch (blastHTTP blastQuery)
@@ -450,8 +460,8 @@ alignCandidates staticOptions modelConstruction multipleSearchResultPrefix searc
     then do return ([],[])
     else do
       --refilter for similarity 
-      --let filteredCandidates = take 1000 (filterIdenticalSequencesWithOrigin (candidates searchResults) 99)
-      let filteredCandidates = filterIdenticalSequencesWithOrigin (candidates searchResults) 99
+      let alignedSequences = map snd (V.toList (extractAlignedSequences (iterationNumber modelConstruction) modelConstruction))
+      let filteredCandidates = filterWithCollectedSequences (candidates searchResults) alignedSequences 99
       if(alignmentModeInfernal modelConstruction)
         then do
           alignCandidatesInfernalMode staticOptions modelConstruction multipleSearchResultPrefix (blastDatabaseSize searchResults) filteredCandidates
@@ -551,16 +561,16 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
       logVerboseMessage (verbositySwitch staticOptions) ("Clustalid: " ++ (intercalate "," clustaloIds) ++ "\n") (tempDirPath staticOptions)
       logVerboseMessage (verbositySwitch staticOptions) ("Distmatrix: " ++ show clustaloDistMatrix ++ "\n") (tempDirPath staticOptions)
       let clustaloDendrogram = dendrogram UPGMA clustaloIds (getDistanceMatrixElements clustaloIds clustaloDistMatrix)
-      logMessage ("ClustaloDendrogram: " ++ show  clustaloDendrogram ++ "\n") (tempDirPath staticOptions)
+      logVerboseMessage (verbositySwitch staticOptions) ("ClustaloDendrogram: " ++ show  clustaloDendrogram ++ "\n") (tempDirPath staticOptions)
       logVerboseMessage (verbositySwitch staticOptions) ("ClustaloDendrogram: " ++ show clustaloDistMatrix ++ "\n") (tempDirPath staticOptions)
       let numberOfClusters = setClusterNumber (length alignmentSequences)
-      logMessage ("numberOfClusters: " ++ show numberOfClusters ++ "\n") (tempDirPath staticOptions)
+      logVerboseMessage (verbositySwitch staticOptions) ("numberOfClusters: " ++ show numberOfClusters ++ "\n") (tempDirPath staticOptions)
       let dendrogramStartCutDistance = 1 :: Double
       let dendrogramCutDistance' = findCutoffforClusterNumber clustaloDendrogram numberOfClusters dendrogramStartCutDistance
-      logMessage ("dendrogramCutDistance': " ++ show dendrogramCutDistance' ++ "\n") (tempDirPath staticOptions)
+      logVerboseMessage (verbositySwitch staticOptions) ("dendrogramCutDistance': " ++ show dendrogramCutDistance' ++ "\n") (tempDirPath staticOptions)
       let cutDendrogram = cutAt clustaloDendrogram dendrogramCutDistance'
-      putStrLn "cutDendrogram: "
-      print cutDendrogram
+      --putStrLn "cutDendrogram: "
+      --print cutDendrogram
       let currentSelectedQueries = take 5 (concatMap (take 1) (map elements cutDendrogram))
       logVerboseMessage (verbositySwitch staticOptions) ("SelectedQueries: " ++ show currentSelectedQueries ++ "\n") (tempDirPath staticOptions)                       
       writeFile ((tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/log" ++ "/13selectedQueries") (showlines currentSelectedQueries)
@@ -598,7 +608,7 @@ constructModel modelConstruction staticOptions = do
            systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
            return cmFilepath
          else do
-           logMessage ("A problem occured updating the secondary structure of our stockholm alignment: " ++ replaceStatus) (tempDirPath staticOptions)
+           logVerboseMessage (verbositySwitch staticOptions) ("A problem occured updating the secondary structure of our stockholm alignment: " ++ replaceStatus) (tempDirPath staticOptions)
            systemCMbuild updatedStructureStockholmFilepath cmFilepath cmBuildFilepath
            systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
            return cmFilepath
@@ -646,7 +656,14 @@ updateStructureElements inputVector structureString indices
 
 isStructureLine :: String -> Bool
 isStructureLine line = isInfixOf "#=GC SS_cons" line
+
+-- Generates iteration string for Log
+iterationSummaryLog :: ModelConstruction -> String
+iterationSummaryLog mC = output
+  where upperTaxonomyLimitOutput = maybe "not set" show (upperTaxonomyLimit mC)
+        output = "Upper taxonomy id limit: " ++ upperTaxonomyLimitOutput ++ ", Collected members: " ++ show (length (concatMap sequenceRecords (taxRecords mC))) ++ "\n"
              
+-- | Used for passing progress to Alien server 
 iterationSummary :: ModelConstruction -> StaticOptions -> IO()
 iterationSummary mC sO = do
   --iteration -- tax limit -- bitscore cutoff -- blastresult -- aligned seqs --queries --fa link --aln link --cm link
@@ -655,6 +672,7 @@ iterationSummary mC sO = do
   let output = show (iterationNumber mC) ++ "," ++ upperTaxonomyLimitOutput ++ "," ++ bitScoreThresholdOutput ++ "," ++ show (length (concatMap sequenceRecords (taxRecords mC)))
   writeFile ((tempDirPath sO) ++ show (iterationNumber mC) ++ ".log") output        
 
+-- | Used for passing progress to Alien server 
 resultSummary :: ModelConstruction -> StaticOptions -> IO()
 resultSummary mC sO = do
   --iteration -- tax limit -- bitscore cutoff -- blastresult -- aligned seqs --queries --fa link --aln link --cm link
@@ -695,12 +713,20 @@ getDistanceMatrixElements ids distMatrix id1 id2 = distance
         indexid2 = (fromJust (elemIndex id2 ids)) + 1
         distance = getElem indexid1 indexid2 distMatrix
 
+-- | Filter duplicates removes hits in sequences that were already collected. This happens during revisiting the starting subtree.
+filterDuplicates :: ModelConstruction -> SearchResult -> SearchResult
+filterDuplicates modelConstruction inputSearchResult = uniqueSearchResult
+  where alignedSequences = map snd (V.toList (extractAlignedSequences (iterationNumber modelConstruction) modelConstruction))
+        collectedIdentifiers = map seqid alignedSequences
+        uniques = filter (\(s,_,_,_) -> notElem (seqid s) collectedIdentifiers) (candidates inputSearchResult)
+        uniqueSearchResult = SearchResult uniques (blastDatabaseSize inputSearchResult)
+
 -- | Filter a list of similar extended blast hits   
-filterIdenticalSequencesWithOrigin :: [(Sequence,Int,String,Char)] -> Double -> [(Sequence,Int,String,Char)]                            
-filterIdenticalSequencesWithOrigin (headSequence:rest) identitycutoff = result
-  where filteredSequences = filter (\x -> (sequenceIdentity (firstOfQuadruple headSequence) (firstOfQuadruple x)) < identitycutoff) rest 
-        result = headSequence:(filterIdenticalSequencesWithOrigin filteredSequences identitycutoff)
-filterIdenticalSequencesWithOrigin [] _ = []
+--filterIdenticalSequencesWithOrigin :: [(Sequence,Int,String,Char)] -> Double -> [(Sequence,Int,String,Char)]                            
+--filterIdenticalSequencesWithOrigin (headSequence:rest) identitycutoff = result
+--  where filteredSequences = filter (\x -> (sequenceIdentity (firstOfQuadruple headSequence) (firstOfQuadruple x)) < identitycutoff) rest 
+--        result = headSequence:(filterIdenticalSequencesWithOrigin filteredSequences identitycutoff)
+--filterIdenticalSequencesWithOrigin [] _ = []
 
 -- | Filter a list of similar extended blast hits   
 filterIdenticalSequences :: [(Sequence,Int,String)] -> Double -> [(Sequence,Int,String)]                            
@@ -708,6 +734,14 @@ filterIdenticalSequences (headSequence:rest) identitycutoff = result
   where filteredSequences = filter (\x -> (sequenceIdentity (firstOfTriple headSequence) (firstOfTriple x)) < identitycutoff) rest 
         result = headSequence:(filterIdenticalSequences filteredSequences identitycutoff)
 filterIdenticalSequences [] _ = []
+
+-- | Filter sequences too similar to already aligned sequences
+filterWithCollectedSequences :: [(Sequence,Int,String,Char)] -> [Sequence] -> Double -> [(Sequence,Int,String,Char)]                            
+filterWithCollectedSequences inputCandidates collectedSequences identitycutoff = filter (\candidate -> isUnSimilarSequence collectedSequences identitycutoff (firstOfQuadruple candidate)) inputCandidates 
+--filterWithCollectedSequences [] [] _ = []
+
+isUnSimilarSequence :: [Sequence] -> Double -> Sequence -> Bool
+isUnSimilarSequence collectedSequences identitycutoff checkSequence = null (filter (\x -> (sequenceIdentity checkSequence x) > identitycutoff) collectedSequences)
                  
 firstOfTriple :: (t, t1, t2) -> t
 firstOfTriple (a,_,_) = a 
@@ -890,9 +924,13 @@ systemCMbuild alignmentFilepath modelFilepath outputFilePath = system ("cmbuild 
 systemCMcompare ::  String -> String -> String -> IO ExitCode
 systemCMcompare model1path model2path outputFilePath = system ("CMCompare -q " ++ model1path ++ " " ++ model2path ++ " >" ++ outputFilePath)
 
--- | Run CMsearch and read the output into the corresponding datatype
+-- | Run CMsearch 
 systemCMsearch :: Int -> String -> String -> String -> String -> IO ExitCode
 systemCMsearch cpus options covarianceModelPath sequenceFilePath outputPath = system ("cmsearch --notrunc --cpu " ++ (show cpus) ++ " " ++ options ++ " -g " ++ covarianceModelPath ++ " " ++ sequenceFilePath ++ "> " ++ outputPath)
+
+-- | Run CMstat
+systemCMstat :: String -> String -> IO ExitCode
+systemCMstat covarianceModelPath outputPath = system ("cmstat " ++ covarianceModelPath ++ " > " ++ outputPath)
 
 -- | Run CMcalibrate and return exitcode
 systemCMcalibrate :: String -> Int -> String -> String -> IO ExitCode 
@@ -1061,6 +1099,97 @@ genParserCMsearchHitScore = do
   optional (try (string " ------ inclusion threshold ------"))
   optional (try newline)
   return $ CMsearchHitScore (readInt hitRank') hitSignificant' (readDouble hitEValue') (readDouble hitScore') (readDouble hitBias') (L.pack hitSequenceHeader') (readInt hitStart') (readInt hitEnd') hitStrand' (L.pack hitModel') (L.pack hitTruncation') (readDouble hitGCcontent') (L.pack hitDescription')
+
+-- | parse from input filePath              
+parseCMstat :: String -> Either ParseError CMstat
+parseCMstat input = parse genParserCMstat "parseCMstat" input
+
+-- | parse from input filePath                      
+readCMstat :: String -> IO (Either ParseError CMstat)             
+readCMstat filePath = do 
+  parsedFile <- parseFromFile genParserCMstat filePath
+  CE.evaluate parsedFile 
+                      
+genParserCMstat :: GenParser Char st CMstat
+genParserCMstat = do
+  string "# cmstat :: display summary statistics for CMs"
+  newline
+  string "# INFERNAL "
+  many1 (noneOf "\n")
+  newline       
+  string "# Copyright (C) 201"
+  many1 (noneOf "\n")
+  newline       
+  string "# Freely distributed under the GNU General Public License (GPLv3)."
+  newline       
+  string "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -"
+  newline
+  char '#'
+  many1 (char ' ')
+  string "rel entropy"
+  newline
+  char '#'
+  many1 (char ' ')
+  many1 (char '-')
+  newline
+  char '#'
+  many1 space 
+  string "idx"
+  many1 space        
+  string "name"
+  many1 space 
+  string "accession"
+  many1 space 
+  string "nseq"
+  many1 space  
+  string "eff_nseq"
+  many1 space 
+  string "clen"
+  many1 space 
+  string "W"
+  many1 space 
+  string "bps"
+  many1 space 
+  string "bifs"
+  many1 space 
+  string "model"
+  many1 space 
+  string "cm"
+  many1 space
+  string "hmm"
+  newline
+  string "#"
+  many1 (try (oneOf " -"))
+  newline
+  many1 space     
+  _statIndex <- many1 digit
+  many1 space
+  _statName <- many1 letter
+  many1 space                  
+  _statAccession <- many1 (noneOf " ")
+  many1 space             
+  _statSequenceNumber <- many1 digit
+  many1 space   
+  _statEffectiveSequences <- many1 (oneOf "0123456789.e-")
+  many1 space
+  _statConsensusLength <- many digit
+  many1 space                
+  _statW <- many1 digit
+  many1 space
+  _statBasepaires <- many1 digit
+  many1 space            
+  _statBifurcations <- many1 digit
+  many1 space              
+  _statModel <- many1 letter
+  many1 space          
+  _relativeEntropyCM <- many1 (oneOf "0123456789.e-")
+  many1 space                   
+  _relativeEntropyHMM <- many1 (oneOf "0123456789.e-")
+  newline
+  char '#'
+  newline
+  eof  
+  return $ CMstat (readInt _statIndex) _statName _statAccession (readInt _statSequenceNumber) (readDouble _statEffectiveSequences) (readInt _statConsensusLength) (readInt _statW) (readInt _statBasepaires) (readInt _statBifurcations) _statModel (readDouble _relativeEntropyCM) (readDouble _relativeEntropyHMM)
    
 extractCandidateSequences :: [(Sequence,Int,String,Char)] -> V.Vector (Int,Sequence)
 extractCandidateSequences candidates' = indexedSeqences
@@ -1314,7 +1443,7 @@ retrieveTaxonomicContextEntrez inputTaxId = do
             return Nothing
           else do
             let taxon = head (readEntrezTaxonSet result)
-            print taxon
+            --print taxon
             if (null (lineageEx taxon))
               then do
                 error "Retrieved taxonomic context taxon from NCBI Entrez with empty lineage, cannot proceed."
@@ -1422,26 +1551,43 @@ logEither :: (Show a) => Either a b -> String -> IO ()
 logEither (Left logoutput) temporaryDirectoryPath = appendFile (temporaryDirectoryPath ++ "Log") (show logoutput)
 logEither  _ _ = return ()
 
+checkTools :: [String] -> String -> IO (Either String String)
+checkTools tools temporaryDirectoryPath = do
+  -- check if all tools are available via PATH or Left
+  checks <- mapM checkTool tools
+  if (not (null (lefts checks)))
+    then return (Left (concat (lefts checks)))
+    else do  
+      logMessage ("Tools : " ++ (intercalate "," tools) ++ "\n") temporaryDirectoryPath
+      return (Right "Tools ok")
+
 logToolVersions :: String -> IO ()
 logToolVersions temporaryDirectoryPath = do
   let clustaloversionpath = temporaryDirectoryPath ++ "clustalo.version"
   let mlocarnaversionpath = temporaryDirectoryPath ++ "mlocarna.version"
   let rnafoldversionpath = temporaryDirectoryPath ++ "RNAfold.version"
-  let infernalversionpath =  temporaryDirectoryPath ++ "Infernal.version"
+  let infernalversionpath = temporaryDirectoryPath ++ "Infernal.version"
   _ <- system ("clustalo --version >" ++ clustaloversionpath)
   _ <- system ("mlocarna --version >" ++ mlocarnaversionpath)
   _ <- system ("RNAfold --version >" ++ rnafoldversionpath)
-  _ <- system ("cmcalibrate -h >" ++ infernalversionpath)
+  _ <- system ("cmcalibrate -h >" ++ infernalversionpath)  
+  -- _ <- system ("RNAz" ++ rnazversionpath)
+  -- _ <- system ("CMCompare >" ++ infernalversionpath)
   clustaloversion <- readFile clustaloversionpath
   mlocarnaversion <- readFile mlocarnaversionpath
   rnafoldversion <- readFile rnafoldversionpath 
   infernalversionOutput <- readFile infernalversionpath
   let infernalversion = (lines infernalversionOutput) !! 1
-  logMessage ("Clustalo version: " ++ clustaloversion) temporaryDirectoryPath
-  logMessage ("mlocarna version: " ++ mlocarnaversion) temporaryDirectoryPath
-  logMessage ("rnafold version: " ++ rnafoldversion) temporaryDirectoryPath
-  logMessage ("infernalversion: " ++ infernalversion ++ "\n") temporaryDirectoryPath
+  let messageString = "Clustalo version: " ++ clustaloversion ++ "\n" ++ "mlocarna version: " ++ mlocarnaversion  ++ "\n" ++ "RNAfold version: " ++ rnafoldversion  ++ "\n" ++ "infernalversion: " ++ infernalversion ++ "\n"
+  logMessage messageString temporaryDirectoryPath
 
+checkTool :: String -> IO (Either String String)
+checkTool tool = do
+  toolcheck <- findExecutable tool
+  if isJust toolcheck
+    then return (Right (fromJust toolcheck))
+    else return (Left ("RNAlien could not find "++ tool ++ " in your $PATH and has to abort.\n"))
+  
 constructTaxonomyRecordsCSVTable :: ModelConstruction -> String
 constructTaxonomyRecordsCSVTable modelconstruction = csvtable
   where tableheader = "Taxonomy Id;Added in Iteration Step;Entry Header\n"
@@ -1455,3 +1601,57 @@ setVerbose :: Verbosity -> Bool
 setVerbose verbosityLevel
   | verbosityLevel == Loud = True
   | otherwise = False
+
+evaluateConstructionResult :: StaticOptions -> IO String
+evaluateConstructionResult staticOptions = do
+  let evaluationDirectoryFilepath = (tempDirPath staticOptions) ++ "evaluation/"
+  createDirectoryIfMissing False evaluationDirectoryFilepath
+  let fastaFilepath = (tempDirPath staticOptions) ++ "result.fa"
+  let clustalFilepath = evaluationDirectoryFilepath ++ "result.clustal"
+  let reformatedClustalPath = evaluationDirectoryFilepath ++ "result.clustal.reformated"
+  let cmFilepath = (tempDirPath staticOptions) ++ "result.cm"
+  systemCMalign ("--outformat=Clustal --cpu " ++ show (cpuThreads staticOptions)) cmFilepath fastaFilepath clustalFilepath
+  let resultRNAz = (tempDirPath staticOptions) ++ "result.rnaz"
+  rnazClustalpath <- preprocessClustalForRNAz clustalFilepath reformatedClustalPath
+  systemRNAz rnazClustalpath resultRNAz 
+  inputRNAz <- readRNAz resultRNAz
+  let resultModelStatistics = (tempDirPath staticOptions) ++ "result.cmstat"
+  systemCMstat cmFilepath resultModelStatistics
+  inputcmStat <- readCMstat resultModelStatistics
+  let cmstatString = cmstatEvalOutput inputcmStat
+  let rnaZString = rnaZEvalOutput inputRNAz
+  return ("\nEvaluation of RNAlien result :\n CMstat statistics for result.cm\n" ++ cmstatString ++ "\n RNAz statistics for result alignment: " ++ rnaZString)
+
+cmstatEvalOutput :: Either ParseError CMstat -> String 
+cmstatEvalOutput inputcmstat
+  | isRight inputcmstat = cmstatString
+  | otherwise = show (fromLeft inputcmstat)
+    where cmStat = fromRight inputcmstat  
+          cmstatString = "Sequence Number: " ++ show (statSequenceNumber cmStat)++ "\n" ++ "Effective Sequences: " ++ show (statEffectiveSequences cmStat)++ "\n" ++ "Consensus length: " ++ show (statConsensusLength cmStat) ++ "\n" ++ "Expected maximum hit-length: " ++ show (statW cmStat) ++ "\n" ++ "Basepairs: " ++ show (statBasepaires cmStat)++ "\n" ++ "Bifurcations: " ++ show (statBifurcations cmStat) ++ "\n" ++ "Modeltype: " ++ show (statModel cmStat) ++ "\n" ++ "Relative Entropy CM: " ++ show (relativeEntropyCM cmStat) ++ "\n" ++ "Relative Entropy HMM: " ++ show (relativeEntropyHMM cmStat) ++ "\n"
+
+rnaZEvalOutput :: Either ParseError RNAz -> String 
+rnaZEvalOutput inputRNAz 
+  | isRight inputRNAz = rnazString
+  | otherwise = show (fromLeft inputRNAz)
+    where rnaZ = fromRight inputRNAz
+          rnazString = "Mean pairwise identity: " ++ show (meanPairwiseIdentity rnaZ) ++ "\nShannon entropy: " ++ show (shannonEntropy rnaZ) ++  "\nGC content: " ++ show (gcContent rnaZ) ++ "\nMean single sequence minimum free energy: " ++ show (meanSingleSequenceMinimumFreeEnergy rnaZ) ++ "\nConsensus minimum free energy: " ++ show (consensusMinimumFreeEnergy rnaZ) ++ "\nEnergy contribution: " ++ show (energyContribution rnaZ) ++ "\nCovariance contribution: " ++ show (covarianceContribution rnaZ) ++ "\nCombinations pair: " ++ show (combinationsPair rnaZ) ++ "\nMean z-score: " ++ show (meanZScore rnaZ) ++ "\nStructure conservation index: " ++ show (structureConservationIndex rnaZ) ++ "\nBackground model: " ++ backgroundModel rnaZ ++ "\nDecision model: " ++ decisionModel rnaZ ++ "\nSVM decision value: " ++ show (svmDecisionValue rnaZ) ++ "\nSVM class propability: " ++ show (svmRNAClassProbability rnaZ) ++ "\nPrediction: " ++ (prediction rnaZ)     
+
+-- | RNAz can process 500 sequences at max. Using rnazSelectSeqs to isolated representative sample. rnazSelectSeqs only accepts - gap characters, alignment is reformatted accordingly.
+preprocessClustalForRNAz :: String -> String -> IO String
+preprocessClustalForRNAz clustalFilepath reformatedClustalPath = do
+  clustalString <- readFile clustalFilepath
+  if (length (lines clustalString) > 100)
+    then do 
+      --change clustal format for rnazSelectSeqs.pl
+      let reformatedClustalString = map replaceDotDash clustalString
+      writeFile reformatedClustalPath reformatedClustalString
+      --select representative entries from result.Clustal with select_sequences
+      let selectedClustalpath = clustalFilepath ++ ".selected"
+      system ("rnazSelectSeqs.pl --num-seqs=50 " ++ clustalFilepath ++ " >" ++ selectedClustalpath)
+      return selectedClustalpath
+    else return clustalFilepath
+     
+replaceDotDash :: Char -> Char 
+replaceDotDash c
+  | c == '.' = '-'
+  | otherwise = c
