@@ -1610,7 +1610,7 @@ evaluateConstructionResult staticOptions = do
   inputcmStat <- readCMstat resultModelStatistics
   let cmstatString = cmstatEvalOutput inputcmStat
   let rnaZString = rnaZEvalOutput inputRNAz
-  return (cmstatString ++ show rnaZString)
+  return (cmstatString ++ rnaZString)
 
 cmstatEvalOutput :: Either ParseError CMstat -> String 
 cmstatEvalOutput inputcmstat
@@ -1624,7 +1624,7 @@ rnaZEvalOutput inputRNAz
   | isRight inputRNAz = rnazString
   | otherwise = show (fromLeft inputRNAz)
     where rnaZ = fromRight inputRNAz
-          rnazString = "Mean pairwise identity: " ++ show (meanPairwiseIdentity rnaZ) ++ "\nShannon entropy: " ++ show (shannonEntropy rnaZ) ++  "\nGC content: " ++ show (gcContent rnaZ) ++ "\nMean single sequence minimum free energy: " ++ show (meanSingleSequenceMinimumFreeEnergy rnaZ) ++ "\nConsensus minimum free energy: " ++ show (consensusMinimumFreeEnergy rnaZ) ++ "\nEnergy contribution: " ++ show (energyContribution rnaZ) ++ "\nCovariance contribution: " ++ show (covarianceContribution rnaZ) ++ "\nCombinations pair: " ++ show (combinationsPair rnaZ) ++ "\nMean z-score: " ++ show (meanZScore rnaZ) ++ "\n Structure conservation index: " ++ show (structureConservationIndex rnaZ) ++ "\nBackground model" ++ backgroundModel rnaZ ++ "\nDecision model:" ++ decisionModel rnaZ ++ "\n SVM decision value: " ++ show (svmDecisionValue rnaZ) ++ "\nSVM class probapility: " ++ show (svmRNAClassProbability rnaZ) ++ "\nPrediction: " ++ (prediction rnaZ)     
+          rnazString = "Mean pairwise identity: " ++ show (meanPairwiseIdentity rnaZ) ++ "\nShannon entropy: " ++ show (shannonEntropy rnaZ) ++  "\nGC content: " ++ show (gcContent rnaZ) ++ "\nMean single sequence minimum free energy: " ++ show (meanSingleSequenceMinimumFreeEnergy rnaZ) ++ "\nConsensus minimum free energy: " ++ show (consensusMinimumFreeEnergy rnaZ) ++ "\nEnergy contribution: " ++ show (energyContribution rnaZ) ++ "\nCovariance contribution: " ++ show (covarianceContribution rnaZ) ++ "\nCombinations pair: " ++ show (combinationsPair rnaZ) ++ "\nMean z-score: " ++ show (meanZScore rnaZ) ++ "\nStructure conservation index: " ++ show (structureConservationIndex rnaZ) ++ "\nBackground model: " ++ backgroundModel rnaZ ++ "\nDecision model: " ++ decisionModel rnaZ ++ "\nSVM decision value: " ++ show (svmDecisionValue rnaZ) ++ "\nSVM class propability: " ++ show (svmRNAClassProbability rnaZ) ++ "\nPrediction: " ++ (prediction rnaZ)     
 
 -- | RNAz can process 500 sequences at max. Using rnazSelectSeqs to isolated representative sample. rnazSelectSeqs only accepts - gap characters, alignment is reformatted accordingly.
 preprocessClustalForRNAz :: String -> String -> IO String
