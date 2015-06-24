@@ -268,8 +268,9 @@ alignmentConstructionWithCandidates currentTaxonomicContext currentUpperTaxonomy
         --reusing previous modelconstruction with increased upperTaxonomyLimit but include found sequence
         --prepare next iteration
         let newTaxEntries = (taxRecords modelConstruction) ++ (buildTaxRecords alignmentResults currentIterationNumber)
-        let nextModelConstructionInputWithThreshold = modelConstruction  {iterationNumber = (currentIterationNumber + 1),upperTaxonomyLimit = currentUpperTaxonomyLimit, taxRecords = newTaxEntries,taxonomicContext = currentTaxonomicContext}
-        logMessage (show nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)     ----      
+        let nextModelConstructionInputWithThreshold = modelConstruction {iterationNumber = (currentIterationNumber + 1),upperTaxonomyLimit = currentUpperTaxonomyLimit, taxRecords = newTaxEntries,taxonomicContext = currentTaxonomicContext}
+        logMessage (iterationSummaryLog nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)
+        logVerboseMessage (verbositySwitch staticOptions)  (show nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)     ----      
         writeFile (iterationDirectory ++ "done") ""
         nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInputWithThreshold           
         return nextModelConstruction 
@@ -284,7 +285,8 @@ alignmentConstructionWithCandidates currentTaxonomicContext currentUpperTaxonomy
             cmFilepath <- constructModel nextModelConstructionInput staticOptions               
             nextModelConstructionInputWithThreshold <- setInclusionThreshold nextModelConstructionInput staticOptions cmFilepath
             writeFile (iterationDirectory ++ "done") ""
-            logMessage (show nextModelConstructionInput) (tempDirPath staticOptions)  ----
+            logMessage (iterationSummaryLog nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)
+            logVerboseMessage (verbositySwitch staticOptions)  (show nextModelConstructionInput) (tempDirPath staticOptions)  ----
             nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInputWithThreshold           
             return nextModelConstruction
           else do
@@ -295,7 +297,8 @@ alignmentConstructionWithCandidates currentTaxonomicContext currentUpperTaxonomy
             cmFilepath <- constructModel nextModelConstructionInput staticOptions               
             nextModelConstructionInputWithThreshold <- setInclusionThreshold nextModelConstructionInput staticOptions cmFilepath
             let nextModelConstructionInputWithThresholdInfernalMode = nextModelConstructionInputWithThreshold {alignmentModeInfernal = True}
-            logMessage (show nextModelConstructionInputWithThresholdInfernalMode) (tempDirPath staticOptions) ----
+            logMessage (iterationSummaryLog nextModelConstructionInputWithThresholdInfernalMode) (tempDirPath staticOptions)
+            logVerboseMessage (verbositySwitch staticOptions)  (show nextModelConstructionInputWithThresholdInfernalMode) (tempDirPath staticOptions) ----
             writeFile (iterationDirectory ++ "done") ""
             nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInputWithThresholdInfernalMode        
             return nextModelConstruction
@@ -320,13 +323,15 @@ alignmentConstructionWithoutCandidates currentTaxonomicContext upperTaxLimit sta
         copyFile previousIterationFastaPath thisIterationFastaPath
         copyFile previousIterationAlignmentPath thisIterationAlignmentPath
         copyFile previousIterationCMPath thisIterationCMPath
-        logMessage (show nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)  ----         
+        logMessage (iterationSummaryLog nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)
+        logVerboseMessage (verbositySwitch staticOptions) (show nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)
         writeFile (iterationDirectory ++ "done") ""
         nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInputWithThreshold           
         return nextModelConstruction
       else do
         logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction no candidates - no previous iteration cm\n") (tempDirPath staticOptions)
-        logMessage (show nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)    ----       
+        logMessage (iterationSummaryLog nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)
+        logVerboseMessage (verbositySwitch staticOptions) (show nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)    ----       
         writeFile (iterationDirectory ++ "done") ""
         nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInputWithThreshold           
         return nextModelConstruction
@@ -1620,7 +1625,7 @@ evaluateConstructionResult staticOptions = do
   inputcmStat <- readCMstat resultModelStatistics
   let cmstatString = cmstatEvalOutput inputcmStat
   let rnaZString = rnaZEvalOutput inputRNAz
-  return ("\nEvaluation of RNAlien result :\n CMstat statistics for result.cm\n" ++ cmstatString ++ "\n RNAz statistics for result alignment: " ++ rnaZString)
+  return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\n RNAz statistics for result alignment: " ++ rnaZString)
 
 cmstatEvalOutput :: Either ParseError CMstat -> String 
 cmstatEvalOutput inputcmstat
