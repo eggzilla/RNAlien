@@ -79,7 +79,7 @@ modelConstructer staticOptions modelConstruction = do
        logVerboseMessage (verbositySwitch staticOptions) ("Upper taxonomy limit: " ++ (show upperTaxLimit) ++ "\n " ++ "Lower taxonomy limit: "++ show lowerTaxLimit ++ "\n") (tempDirPath staticOptions)
        --search queries
        searchResults <- catchAll (searchCandidates staticOptions Nothing currentIterationNumber upperTaxLimit lowerTaxLimit queries) 
-                        (\e -> do logMessage ("searchResults iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
+                        (\e -> do logMessage ("Warning: Search results iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
                                   return (SearchResult [] Nothing))
        currentTaxonomicContext <- getTaxonomicContextEntrez upperTaxLimit (taxonomicContext modelConstruction)
        if null (candidates searchResults)
@@ -130,29 +130,29 @@ modelConstructionResult staticOptions modelConstruction = do
   --taxonomic context archea
   let (upperTaxLimit1,lowerTaxLimit1) = (Just (2157 :: Int), Nothing)
   candidates1 <- catchAll  (searchCandidates staticOptions (Just "archea") currentIterationNumber upperTaxLimit1 lowerTaxLimit1 queries)
-                 (\e -> do logMessage ("searchResults iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
+                 (\e -> do logMessage ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                            return (SearchResult [] Nothing))
   let uniqueCandidates1 = filterDuplicates modelConstruction candidates1 
   (alignmentResults1,potentialMembers1)<- catchAll (alignCandidates staticOptions modelConstruction "archea" uniqueCandidates1)
-                       (\e -> do logMessage ("alignmentResults iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
+                       (\e -> do logMessage ("Warning: Alignment results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                  return  ([],[]))
   --taxonomic context bacteria
   let (upperTaxLimit2,lowerTaxLimit2) = (Just (2 :: Int), Nothing)
   candidates2 <- catchAll (searchCandidates staticOptions (Just "bacteria") currentIterationNumber upperTaxLimit2 lowerTaxLimit2 queries)
-                 (\e -> do logMessage ("searchResults iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
+                 (\e -> do logMessage ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                            return (SearchResult [] Nothing))
   let uniqueCandidates2 = filterDuplicates modelConstruction candidates2
   (alignmentResults2,potentialMembers2)<- catchAll (alignCandidates staticOptions modelConstruction "bacteria" uniqueCandidates2)
-                       (\e -> do logMessage ("alignmentResults iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
+                       (\e -> do logMessage ("Warning: Alignment results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                  return  ([],[]))
   --taxonomic context eukaryia
   let (upperTaxLimit3,lowerTaxLimit3) = (Just (2759 :: Int), Nothing)
   candidates3 <- catchAll (searchCandidates staticOptions (Just "eukaryia") currentIterationNumber upperTaxLimit3 lowerTaxLimit3 queries)
-                 (\e -> do logMessage ("searchResults iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
+                 (\e -> do logMessage ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                            return (SearchResult [] Nothing))
   let uniqueCandidates3 = filterDuplicates modelConstruction candidates3
   (alignmentResults3,potentialMembers3) <- catchAll (alignCandidates staticOptions modelConstruction "eukaryia" uniqueCandidates3)
-                       (\e -> do logMessage ("alignmentResults iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
+                       (\e -> do logMessage ("Warning: Alignment results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                  return  ([],[]))
   let alignmentResults = alignmentResults1 ++ alignmentResults2 ++ alignmentResults3
   let currentPotentialMembers = [SearchResult potentialMembers1 (blastDatabaseSize candidates1), SearchResult potentialMembers2 (blastDatabaseSize candidates2), SearchResult potentialMembers3 (blastDatabaseSize candidates3)]
@@ -164,7 +164,7 @@ modelConstructionResult staticOptions modelConstruction = do
   if (length alignmentResults == 0) && (not (alignmentModeInfernal modelConstruction))
     then do
       logVerboseMessage (verbositySwitch staticOptions) ("Alignment result initial mode\n") outputDirectory
-      logMessage ("Message: No sequences found that statisfy filters. Reconstruct model with less strict cutoff parameters.") outputDirectory
+      logMessage ("Message: No sequences found that statisfy filters. Try to reconstruct model with less strict cutoff parameters.") outputDirectory
       let alignedSequences = extractAlignedSequences (iterationNumber modelConstruction) modelConstruction
       let alignmentSequences = map snd (V.toList (V.concat [alignedSequences]))
       writeFasta preliminaryFastaPath alignmentSequences
@@ -258,7 +258,7 @@ alignmentConstructionWithCandidates currentTaxonomicContext currentUpperTaxonomy
     --let usedUpperTaxonomyLimit = (snd (head candidates))                               
     --align search result
     (alignmentResults,potentialMemberEntries) <- catchAll (alignCandidates staticOptions modelConstruction "" searchResults)
-                        (\e -> do logMessage ("alignmentResults iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
+                        (\e -> do logMessage ("Warning: Alignment results iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
                                   return ([],[]))
     let currentPotentialMembers = [SearchResult potentialMemberEntries (blastDatabaseSize searchResults)]
     if (length alignmentResults == 0) && (not (alignmentModeInfernal modelConstruction))
@@ -1625,21 +1625,21 @@ evaluateConstructionResult staticOptions = do
   inputcmStat <- readCMstat resultModelStatistics
   let cmstatString = cmstatEvalOutput inputcmStat
   let rnaZString = rnaZEvalOutput inputRNAz
-  return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\n RNAz statistics for result alignment: " ++ rnaZString)
+  return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: " ++ rnaZString)
 
 cmstatEvalOutput :: Either ParseError CMstat -> String 
 cmstatEvalOutput inputcmstat
   | isRight inputcmstat = cmstatString
   | otherwise = show (fromLeft inputcmstat)
     where cmStat = fromRight inputcmstat  
-          cmstatString = "Sequence Number: " ++ show (statSequenceNumber cmStat)++ "\n" ++ "Effective Sequences: " ++ show (statEffectiveSequences cmStat)++ "\n" ++ "Consensus length: " ++ show (statConsensusLength cmStat) ++ "\n" ++ "Expected maximum hit-length: " ++ show (statW cmStat) ++ "\n" ++ "Basepairs: " ++ show (statBasepaires cmStat)++ "\n" ++ "Bifurcations: " ++ show (statBifurcations cmStat) ++ "\n" ++ "Modeltype: " ++ show (statModel cmStat) ++ "\n" ++ "Relative Entropy CM: " ++ show (relativeEntropyCM cmStat) ++ "\n" ++ "Relative Entropy HMM: " ++ show (relativeEntropyHMM cmStat) ++ "\n"
+          cmstatString = "  Sequence Number: " ++ show (statSequenceNumber cmStat)++ "\n" ++ "  Effective Sequences: " ++ show (statEffectiveSequences cmStat)++ "\n" ++ "  Consensus length: " ++ show (statConsensusLength cmStat) ++ "\n" ++ "  Expected maximum hit-length: " ++ show (statW cmStat) ++ "\n" ++ "  Basepairs: " ++ show (statBasepaires cmStat)++ "\n" ++ "  Bifurcations: " ++ show (statBifurcations cmStat) ++ "\n" ++ "  Modeltype: " ++ show (statModel cmStat) ++ "\n" ++ "  Relative Entropy CM: " ++ show (relativeEntropyCM cmStat) ++ "\n" ++ "  Relative Entropy HMM: " ++ show (relativeEntropyHMM cmStat) ++ "\n"
 
 rnaZEvalOutput :: Either ParseError RNAz -> String 
 rnaZEvalOutput inputRNAz 
   | isRight inputRNAz = rnazString
   | otherwise = show (fromLeft inputRNAz)
     where rnaZ = fromRight inputRNAz
-          rnazString = "Mean pairwise identity: " ++ show (meanPairwiseIdentity rnaZ) ++ "\nShannon entropy: " ++ show (shannonEntropy rnaZ) ++  "\nGC content: " ++ show (gcContent rnaZ) ++ "\nMean single sequence minimum free energy: " ++ show (meanSingleSequenceMinimumFreeEnergy rnaZ) ++ "\nConsensus minimum free energy: " ++ show (consensusMinimumFreeEnergy rnaZ) ++ "\nEnergy contribution: " ++ show (energyContribution rnaZ) ++ "\nCovariance contribution: " ++ show (covarianceContribution rnaZ) ++ "\nCombinations pair: " ++ show (combinationsPair rnaZ) ++ "\nMean z-score: " ++ show (meanZScore rnaZ) ++ "\nStructure conservation index: " ++ show (structureConservationIndex rnaZ) ++ "\nBackground model: " ++ backgroundModel rnaZ ++ "\nDecision model: " ++ decisionModel rnaZ ++ "\nSVM decision value: " ++ show (svmDecisionValue rnaZ) ++ "\nSVM class propability: " ++ show (svmRNAClassProbability rnaZ) ++ "\nPrediction: " ++ (prediction rnaZ)     
+          rnazString = "  Mean pairwise identity: " ++ show (meanPairwiseIdentity rnaZ) ++ "\n  Shannon entropy: " ++ show (shannonEntropy rnaZ) ++  "\n  GC content: " ++ show (gcContent rnaZ) ++ "\n  Mean single sequence minimum free energy: " ++ show (meanSingleSequenceMinimumFreeEnergy rnaZ) ++ "\n  Consensus minimum free energy: " ++ show (consensusMinimumFreeEnergy rnaZ) ++ "\n  Energy contribution: " ++ show (energyContribution rnaZ) ++ "\n  Covariance contribution: " ++ show (covarianceContribution rnaZ) ++ "\n  Combinations pair: " ++ show (combinationsPair rnaZ) ++ "\n  Mean z-score: " ++ show (meanZScore rnaZ) ++ "\n  Structure conservation index: " ++ show (structureConservationIndex rnaZ) ++ "\n  Background model: " ++ backgroundModel rnaZ ++ "\n  Decision model: " ++ decisionModel rnaZ ++ "\n  SVM decision value: " ++ show (svmDecisionValue rnaZ) ++ "\n  SVM class propability: " ++ show (svmRNAClassProbability rnaZ) ++ "\n  Prediction: " ++ (prediction rnaZ)     
 
 -- | RNAz can process 500 sequences at max. Using rnazSelectSeqs to isolated representative sample. rnazSelectSeqs only accepts - gap characters, alignment is reformatted accordingly.
 preprocessClustalForRNAz :: String -> String -> IO String
