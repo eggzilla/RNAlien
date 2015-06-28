@@ -19,7 +19,8 @@ module Bio.RNAlienLibrary (
                            setInitialTaxId,
                            evaluateConstructionResult,
                            readCMstat,
-                           parseCMstat        
+                           parseCMstat,
+                           checkNCBIConnection
                            )
 where
    
@@ -56,6 +57,7 @@ import qualified Control.Exception.Base as CE
 import Bio.RNAfoldParser
 import Bio.RNAalifoldParser
 import Bio.RNAzParser
+import Network.HTTP
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 modelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
@@ -1660,3 +1662,17 @@ replaceDotDash :: Char -> Char
 replaceDotDash c
   | c == '.' = '-'
   | otherwise = c
+
+
+-- | Check if alien can connect to NCBI
+checkNCBIConnection :: IO (Either [Char] [Char])
+checkNCBIConnection = do
+   response <- simpleHTTP (getRequest "www.ncbi.nlm.nih.gov")
+   if (isRight response)
+     then do
+       let rightResponse = fromRight response
+       if (rspCode rightResponse == (2,0,0))
+         then return (Right ("Network connection with NCBI server is ok: "  ++ show (rspCode rightResponse)))
+         else return (Left ("Could not connect to NCBI server \"http://www.ncbi.nlm.nih.gov\". Response Code: " ++ show (rspCode rightResponse)))
+     else return (Left ("Could not connect to NCBI server: \"http://www.ncbi.nlm.nih.gov\": " ++ show (fromLeft response)))
+ 
