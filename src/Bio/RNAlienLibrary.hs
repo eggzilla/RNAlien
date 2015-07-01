@@ -752,7 +752,7 @@ filterIdenticalAlignmentEntry :: [ClustalAlignmentEntry] -> Double -> [ClustalAl
 filterIdenticalAlignmentEntry (headEntry:rest) identitycutoff = result
   where filteredEntries = filter (\x -> (stringIdentity (entryAlignedSequence headEntry) (entryAlignedSequence x)) < identitycutoff) rest
         result = headEntry:(filterIdenticalAlignmentEntry filteredEntries identitycutoff)
-        filterIdenticalAlignmentEntry [] _ = []
+filterIdenticalAlignmentEntry [] _ = []
 
 
 isUnSimilarSequence :: [Sequence] -> Double -> Sequence -> Bool
