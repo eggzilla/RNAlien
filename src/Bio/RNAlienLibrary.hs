@@ -1701,7 +1701,7 @@ replaceDotDash c
 -- | Check if alien can connect to NCBI
 checkNCBIConnection :: IO (Either [Char] [Char])
 checkNCBIConnection = do
-   response <- simpleHTTP (getRequest "www.ncbi.nlm.nih.gov")
+   response <- simpleHTTP (getRequest "http://www.ncbi.nlm.nih.gov")
    if (isRight response)
      then do
        let rightResponse = fromRight response
