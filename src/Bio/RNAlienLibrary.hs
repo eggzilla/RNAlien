@@ -747,6 +747,14 @@ filterWithCollectedSequences :: [(Sequence,Int,String,Char)] -> [Sequence] -> Do
 filterWithCollectedSequences inputCandidates collectedSequences identitycutoff = filter (\candidate -> isUnSimilarSequence collectedSequences identitycutoff (firstOfQuadruple candidate)) inputCandidates 
 --filterWithCollectedSequences [] [] _ = []
 
+-- | Filter alignment entries by similiarity  
+filterIdenticalAlignmentEntry :: [ClustalAlignmentEntry] -> Double -> [ClustalAlignmentEntry]
+filterIdenticalAlignmentEntry (headEntry:rest) identitycutoff = result
+  where filteredEntries = filter (\x -> (stringIdentity (entryAlignedSequence headEntry) (entryAlignedSequence x)) < identitycutoff) rest
+        result = headEntry:(filterIdenticalAlignmentEntry filteredEntries identitycutoff)
+        filterIdenticalAlignmentEntry [] _ = []
+
+
 isUnSimilarSequence :: [Sequence] -> Double -> Sequence -> Bool
 isUnSimilarSequence collectedSequences identitycutoff checkSequence = null (filter (\x -> (sequenceIdentity checkSequence x) > identitycutoff) collectedSequences)
                  
@@ -763,6 +771,13 @@ blastMatchesPresent blastResult
   | otherwise = True
   where resultList = concat (map matches (concat (map hits (results blastResult))))
                                 
+-- | Compute identity of sequences
+stringIdentity :: String -> String -> Double
+stringIdentity string1 string2 = identityPercent
+   where distance = ED.levenshteinDistance ED.defaultEditCosts string1 string2
+         maximumDistance = maximum [(length string1),(length string2)]
+         identityPercent = 100 - ((fromIntegral distance/fromIntegral (maximumDistance)) * (read "100" ::Double))
+
 -- | Compute identity of sequences
 sequenceIdentity :: Sequence -> Sequence -> Double
 sequenceIdentity sequence1 sequence2 = identityPercent
@@ -1618,16 +1633,21 @@ evaluateConstructionResult staticOptions = do
   let reformatedClustalPath = evaluationDirectoryFilepath ++ "result.clustal.reformated"
   let cmFilepath = (tempDirPath staticOptions) ++ "result.cm"
   systemCMalign ("--outformat=Clustal --cpu " ++ show (cpuThreads staticOptions)) cmFilepath fastaFilepath clustalFilepath
-  let resultRNAz = (tempDirPath staticOptions) ++ "result.rnaz"
-  rnazClustalpath <- preprocessClustalForRNAz clustalFilepath reformatedClustalPath
-  systemRNAz rnazClustalpath resultRNAz 
-  inputRNAz <- readRNAz resultRNAz
   let resultModelStatistics = (tempDirPath staticOptions) ++ "result.cmstat"
   systemCMstat cmFilepath resultModelStatistics
   inputcmStat <- readCMstat resultModelStatistics
   let cmstatString = cmstatEvalOutput inputcmStat
-  let rnaZString = rnaZEvalOutput inputRNAz
-  return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: " ++ rnaZString)
+  let resultRNAz = (tempDirPath staticOptions) ++ "result.rnaz"
+  rnazClustalpath <- preprocessClustalForRNAz clustalFilepath reformatedClustalPath
+  if (isRight rnazClustalpath)
+    then do
+      systemRNAz (fromRight rnazClustalpath) resultRNAz 
+      inputRNAz <- readRNAz resultRNAz
+      let rnaZString = rnaZEvalOutput inputRNAz
+      return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: " ++ rnaZString)
+    else do
+      logMessage ("Running RNAz for result evalution encountered a problem:" ++ (fromLeft rnazClustalpath)) (tempDirPath staticOptions) 
+      return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: Running RNAz for result evalution encountered a problem\n" ++ (fromLeft rnazClustalpath))
 
 cmstatEvalOutput :: Either ParseError CMstat -> String 
 cmstatEvalOutput inputcmstat
@@ -1644,25 +1664,39 @@ rnaZEvalOutput inputRNAz
           rnazString = "  Mean pairwise identity: " ++ show (meanPairwiseIdentity rnaZ) ++ "\n  Shannon entropy: " ++ show (shannonEntropy rnaZ) ++  "\n  GC content: " ++ show (gcContent rnaZ) ++ "\n  Mean single sequence minimum free energy: " ++ show (meanSingleSequenceMinimumFreeEnergy rnaZ) ++ "\n  Consensus minimum free energy: " ++ show (consensusMinimumFreeEnergy rnaZ) ++ "\n  Energy contribution: " ++ show (energyContribution rnaZ) ++ "\n  Covariance contribution: " ++ show (covarianceContribution rnaZ) ++ "\n  Combinations pair: " ++ show (combinationsPair rnaZ) ++ "\n  Mean z-score: " ++ show (meanZScore rnaZ) ++ "\n  Structure conservation index: " ++ show (structureConservationIndex rnaZ) ++ "\n  Background model: " ++ backgroundModel rnaZ ++ "\n  Decision model: " ++ decisionModel rnaZ ++ "\n  SVM decision value: " ++ show (svmDecisionValue rnaZ) ++ "\n  SVM class propability: " ++ show (svmRNAClassProbability rnaZ) ++ "\n  Prediction: " ++ (prediction rnaZ)     
 
 -- | RNAz can process 500 sequences at max. Using rnazSelectSeqs to isolated representative sample. rnazSelectSeqs only accepts - gap characters, alignment is reformatted accordingly.
-preprocessClustalForRNAz :: String -> String -> IO String
+preprocessClustalForRNAz :: String -> String -> IO (Either String String)
 preprocessClustalForRNAz clustalFilepath reformatedClustalPath = do
   clustalString <- readFile clustalFilepath
-  if (length (lines clustalString) > 100)
+  if (length (lines clustalString) > 500)
     then do 
       --change clustal format for rnazSelectSeqs.pl
       let reformatedClustalString = map replaceDotDash clustalString
       writeFile reformatedClustalPath reformatedClustalString
       --select representative entries from result.Clustal with select_sequences
       let selectedClustalpath = clustalFilepath ++ ".selected"
-      system ("rnazSelectSeqs.pl --num-seqs=50 " ++ clustalFilepath ++ " >" ++ selectedClustalpath)
-      return selectedClustalpath
-    else return clustalFilepath
-     
+      parsedClustalInput <- readClustalAlignment clustalFilepath
+      if (isRight parsedClustalInput)
+        then do 
+          let filteredClustalInput = rnaZSelectSeqs (fromRight parsedClustalInput) 500 99
+          writeFile selectedClustalpath (show filteredClustalInput)
+          --system ("rnazSelectSeqs.pl --num-seqs=50 " ++ clustalFilepath ++ " >" ++ selectedClustalpath)
+          return (Right selectedClustalpath)
+        else return (Left (show (fromLeft parsedClustalInput)))
+    else return (Right clustalFilepath)
+
+-- Iteratively removes sequences with decreasing similarity until target number of alignment entries is reached.
+rnaZSelectSeqs :: ClustalAlignment -> Int -> Double -> ClustalAlignment
+rnaZSelectSeqs currentClustalAlignment targetEntries identityCutoff
+  | targetEntries > numberOfEntries = rnaZSelectSeqs filteredAlignment targetEntries (identityCutoff - 1)
+  | otherwise = currentClustalAlignment
+  where numberOfEntries =  length (alignmentEntries currentClustalAlignment) 
+        filteredEntries = filterIdenticalAlignmentEntry (alignmentEntries currentClustalAlignment) identityCutoff 
+        filteredAlignment = ClustalAlignment filteredEntries (conservationTrack currentClustalAlignment)
+ 
 replaceDotDash :: Char -> Char 
 replaceDotDash c
   | c == '.' = '-'
   | otherwise = c
-
 
 -- | Check if alien can connect to NCBI
 checkNCBIConnection :: IO (Either [Char] [Char])
