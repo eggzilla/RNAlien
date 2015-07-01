@@ -18,7 +18,7 @@ executable RNAlien
   Hs-Source-Dirs:      ./src/Bio/
   main-is:	       RNAlien.hs   
   ghc-options:         -Wall -O2
-  build-depends:       base >=4.5, cmdargs, ViennaRNAParser>=1.0.1, process, directory, blastxml>=0.3.2, biofasta, parsec, random, BlastHTTP, biocore, bytestring, containers, RNAlien, ClustalParser>=1.0.3, rosezipper, EntrezHTTP, split, vector, fgl, matrix, hierarchical-clustering, time, either-unwrap
+  build-depends:       base >=4.5, cmdargs, directory, biofasta, random, biocore, containers, RNAlien, time, either-unwrap
 
 executable RNAlienStatistics
   Hs-Source-Dirs:      ./src/Bio/
@@ -29,7 +29,7 @@ executable RNAlienStatistics
 Library
   Hs-Source-Dirs:      ./src/
   ghc-options:         -Wall -O2 -fno-warn-unused-do-bind
-  build-depends:       base >=4.5, cmdargs, ViennaRNAParser>=1.0.1, process, directory, blastxml>=0.3.2, biofasta, parsec, random, BlastHTTP, biocore, bytestring, Taxonomy, either-unwrap, containers, ClustalParser>=1.0.3, rosezipper, EntrezHTTP, split, Genbank, vector, edit-distance, cassava, matrix, hierarchical-clustering, filepath, HTTP
+  build-depends:       base >=4.5, cmdargs, ViennaRNAParser>=1.2.0, process, directory, blastxml>=0.3.2, biofasta, parsec, random, BlastHTTP, biocore, bytestring, Taxonomy, either-unwrap, containers, ClustalParser>=1.1.0, EntrezHTTP, split, vector, edit-distance, cassava, matrix, hierarchical-clustering, filepath, HTTP
   Exposed-Modules:     Bio.RNAlienData
                        Bio.RNAlienLibrary
 
