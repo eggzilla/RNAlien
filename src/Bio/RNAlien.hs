@@ -67,14 +67,13 @@ main = do
           writeFile (temporaryDirectoryPath ++ "log/warnings") ("")
           logMessage ("Timestamp: " ++ (show timestamp) ++ "\n") temporaryDirectoryPath
           logMessage ("Temporary Directory: " ++ temporaryDirectoryPath ++ "\n") temporaryDirectoryPath
-          let tools = ["clustalo","mlocarna","RNAfold","RNAalifold","cmcalibrate","cmstat","cmbuild","RNAz","rnazSelectSeqs.pl"]
+          let tools = ["clustalo","mlocarna","RNAfold","RNAalifold","cmcalibrate","cmstat","cmbuild","RNAz"]
           toolsCheck <- checkTools tools temporaryDirectoryPath
           if isRight toolsCheck
             then do 
               logToolVersions temporaryDirectoryPath
               let inputSequence = (head inputFasta)
               initialTaxId <- setInitialTaxId inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
-              let inputInclusionThresholdRatio = (Just (0.25 :: Double))
               let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputZScoreCutoff) inputTaxId singleHitperTax lengthFilter threads inputBlastDatabase (setVerbose verboseLevel)
               let initialization = ModelConstruction iterationNumber inputSequence [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] []
               logMessage (show initialization) temporaryDirectoryPath
