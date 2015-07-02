@@ -20,7 +20,6 @@ data Options = Options
     outputPath :: String,
     inputTaxId :: Maybe Int,
     inputZScoreCutoff :: Maybe Double,
---    inputInclusionThresholdRatio :: Maybe Double,
     inputEvalueCutoff :: Maybe Double,
     inputBlastDatabase :: Maybe String,
     lengthFilter :: Bool,
@@ -35,7 +34,6 @@ options = Options
     outputPath = def &= name "o" &= help "Path to output directory",
     inputTaxId = Nothing &= name "t" &= help "NCBI taxonomy ID number of input RNA organism",
     inputZScoreCutoff = (Just (0.8 :: Double)) &= name "z" &= help "RNAz score cutoff used in building first alignment. Default: 0.8",
---    inputInclusionThresholdRatio = (Just (0.25 :: Double)) &= name "r" &= help "Inclusion threshold ration",
     inputEvalueCutoff = (Just (0.001 :: Double)) &= name "e" &= help "Evalue cutoff for cmsearch filtering. Default: 1.0",
     inputBlastDatabase = Just "nt" &= name "b" &= help "Specify name of blast database to use. Default: nt",                    
     lengthFilter = True &= name "l" &= help "Filter blast hits per genomic length. Default: True",
@@ -75,8 +73,8 @@ main = do
               let inputSequence = (head inputFasta)
               initialTaxId <- setInitialTaxId inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
               let inputInclusionThresholdRatio = (Just (0.25 :: Double))
-              let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputZScoreCutoff) (fromJust inputInclusionThresholdRatio) inputTaxId singleHitperTax lengthFilter threads inputBlastDatabase (setVerbose verboseLevel)
-              let initialization = ModelConstruction iterationNumber inputSequence [] initialTaxId Nothing Nothing (fromJust inputEvalueCutoff) False [] []
+              let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputZScoreCutoff) inputTaxId singleHitperTax lengthFilter threads inputBlastDatabase (setVerbose verboseLevel)
+              let initialization = ModelConstruction iterationNumber inputSequence [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] []
               logMessage (show initialization) temporaryDirectoryPath
               modelConstructionResults <- modelConstructer staticOptions initialization
               let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults

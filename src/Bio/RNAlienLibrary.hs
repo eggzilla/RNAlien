@@ -186,21 +186,19 @@ modelConstructionResult staticOptions modelConstruction = do
         then do
           logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - infernal mode\n") outputDirectory
           cmFilepath <- constructModel nextModelConstructionInput staticOptions
-          nextModelConstructionInputWithThreshold <- setInclusionThreshold nextModelConstructionInput staticOptions cmFilepath
           writeFile (iterationDirectory ++ "done") ""
           logMessage (iterationSummaryLog nextModelConstructionInput) outputDirectory
           logVerboseMessage (verbositySwitch staticOptions) (show nextModelConstructionInput) outputDirectory
-          resultModelConstruction <- reevaluatePotentialMembers staticOptions nextModelConstructionInputWithThreshold
+          resultModelConstruction <- reevaluatePotentialMembers staticOptions nextModelConstructionInput
           return resultModelConstruction
         else do
           logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - initial mode\n") outputDirectory
           cmFilepath <- constructModel nextModelConstructionInput staticOptions
-          nextModelConstructionInputWithThreshold <- setInclusionThreshold nextModelConstructionInput staticOptions cmFilepath
-          let nextModelConstructionInputWithThresholdInfernalMode = nextModelConstructionInputWithThreshold {alignmentModeInfernal = True}
-          logMessage (iterationSummaryLog nextModelConstructionInputWithThresholdInfernalMode) outputDirectory
-          logVerboseMessage (verbositySwitch staticOptions) (show nextModelConstructionInputWithThresholdInfernalMode) outputDirectory
+          let nextModelConstructionInputInfernalMode = nextModelConstructionInput {alignmentModeInfernal = True}
+          logMessage (iterationSummaryLog nextModelConstructionInputInfernalMode) outputDirectory
+          logVerboseMessage (verbositySwitch staticOptions) (show nextModelConstructionInputInfernalMode) outputDirectory
           writeFile (iterationDirectory ++ "done") ""
-          resultModelConstruction <- reevaluatePotentialMembers staticOptions nextModelConstructionInput
+          resultModelConstruction <- reevaluatePotentialMembers staticOptions nextModelConstructionInputInfernalMode
           return resultModelConstruction
 
 -- | Reevaluate collected potential members for inclusion in the result model
@@ -243,12 +241,11 @@ reevaluatePotentialMembers staticOptions modelConstruction = do
       copyFile lastIterationCMPath resultCMPath
       copyFile lastIterationFastaPath resultFastaPath
       copyFile lastIterationAlignmentPath resultAlignmentPath 
-      nextModelConstructionInputWithThreshold <- setInclusionThreshold nextModelConstructionInput staticOptions cmFilepath
-      logMessage (iterationSummaryLog nextModelConstructionInputWithThreshold) outputDirectory
+      logMessage (iterationSummaryLog nextModelConstructionInput) outputDirectory
       logVerboseMessage (verbositySwitch staticOptions) (show nextModelConstructionInput) outputDirectory
       _ <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath
       writeFile (iterationDirectory ++ "done") ""
-      return nextModelConstructionInputWithThreshold
+      return nextModelConstructionInput
   
 ---------------------------------------------------------
                   
@@ -285,24 +282,22 @@ alignmentConstructionWithCandidates currentTaxonomicContext currentUpperTaxonomy
             --prepare next iteration
             let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults currentUpperTaxonomyLimit currentTaxonomicContext currentSelectedQueries currentPotentialMembers True        
             cmFilepath <- constructModel nextModelConstructionInput staticOptions               
-            nextModelConstructionInputWithThreshold <- setInclusionThreshold nextModelConstructionInput staticOptions cmFilepath
             writeFile (iterationDirectory ++ "done") ""
-            logMessage (iterationSummaryLog nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)
+            logMessage (iterationSummaryLog nextModelConstructionInput) (tempDirPath staticOptions)
             logVerboseMessage (verbositySwitch staticOptions)  (show nextModelConstructionInput) (tempDirPath staticOptions)  ----
-            nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInputWithThreshold           
+            nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInput           
             return nextModelConstruction
           else do
             logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - initial mode\n") (tempDirPath staticOptions)
-            --First round enough candidates are avialable for modelconstruction, alignmentModeInfernal is set to true after this iteration
+            --First round enough candidates are available for modelconstruction, alignmentModeInfernal is set to true after this iteration
             --prepare next iteration
             let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults currentUpperTaxonomyLimit currentTaxonomicContext currentSelectedQueries currentPotentialMembers False       
             cmFilepath <- constructModel nextModelConstructionInput staticOptions               
-            nextModelConstructionInputWithThreshold <- setInclusionThreshold nextModelConstructionInput staticOptions cmFilepath
-            let nextModelConstructionInputWithThresholdInfernalMode = nextModelConstructionInputWithThreshold {alignmentModeInfernal = True}
-            logMessage (iterationSummaryLog nextModelConstructionInputWithThresholdInfernalMode) (tempDirPath staticOptions)
-            logVerboseMessage (verbositySwitch staticOptions)  (show nextModelConstructionInputWithThresholdInfernalMode) (tempDirPath staticOptions) ----
+            let nextModelConstructionInputWithInfernalMode = nextModelConstructionInput {alignmentModeInfernal = True}
+            logMessage (iterationSummaryLog  nextModelConstructionInputWithInfernalMode) (tempDirPath staticOptions)
+            logVerboseMessage (verbositySwitch staticOptions)  (show  nextModelConstructionInputWithInfernalMode) (tempDirPath staticOptions) ----
             writeFile (iterationDirectory ++ "done") ""
-            nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInputWithThresholdInfernalMode        
+            nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInputWithInfernalMode        
             return nextModelConstruction
                
 alignmentConstructionWithoutCandidates :: Maybe Taxon -> Maybe Int ->  StaticOptions -> ModelConstruction -> IO ModelConstruction
@@ -338,17 +333,6 @@ alignmentConstructionWithoutCandidates currentTaxonomicContext upperTaxLimit sta
         nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInputWithThreshold           
         return nextModelConstruction
            
-setInclusionThreshold :: ModelConstruction -> StaticOptions -> String -> IO ModelConstruction 
-setInclusionThreshold nextModelConstruction staticOptions cmFilepath = do 
-  if (isNothing (bitScoreThreshold nextModelConstruction))
-    then do 
-      let iterationDirectory = (tempDirPath staticOptions) ++ (show ((iterationNumber nextModelConstruction) - 1)) ++ "/"
-      maxLinkScore <- compareCM cmFilepath cmFilepath iterationDirectory
-      let inclusionThreshold = (inclusionThresholdRatio staticOptions) * maxLinkScore
-      let nextModelConstructionWithThreshold = nextModelConstruction{bitScoreThreshold = (Just inclusionThreshold)}
-      return nextModelConstructionWithThreshold
-    else return nextModelConstruction
-
 findTaxonomyStart :: Maybe String -> String -> Sequence -> IO Int
 findTaxonomyStart inputBlastDatabase temporaryDirectory querySequence = do
   let queryIndexString = "1"
@@ -675,8 +659,7 @@ iterationSummary :: ModelConstruction -> StaticOptions -> IO()
 iterationSummary mC sO = do
   --iteration -- tax limit -- bitscore cutoff -- blastresult -- aligned seqs --queries --fa link --aln link --cm link
   let upperTaxonomyLimitOutput = maybe "not set" show (upperTaxonomyLimit mC)
-  let bitScoreThresholdOutput = maybe "not set" show (bitScoreThreshold mC)
-  let output = show (iterationNumber mC) ++ "," ++ upperTaxonomyLimitOutput ++ "," ++ bitScoreThresholdOutput ++ "," ++ show (length (concatMap sequenceRecords (taxRecords mC)))
+  let output = show (iterationNumber mC) ++ "," ++ upperTaxonomyLimitOutput ++ "," ++ show (length (concatMap sequenceRecords (taxRecords mC)))
   writeFile ((tempDirPath sO) ++ show (iterationNumber mC) ++ ".log") output        
 
 -- | Used for passing progress to Alien server 
@@ -684,8 +667,7 @@ resultSummary :: ModelConstruction -> StaticOptions -> IO()
 resultSummary mC sO = do
   --iteration -- tax limit -- bitscore cutoff -- blastresult -- aligned seqs --queries --fa link --aln link --cm link
   let upperTaxonomyLimitOutput = maybe "not set" show (upperTaxonomyLimit mC)
-  let bitScoreThresholdOutput = maybe "not set" show (bitScoreThreshold mC)
-  let output = show (iterationNumber mC) ++ "," ++ upperTaxonomyLimitOutput ++ "," ++ bitScoreThresholdOutput ++ "," ++ show (length (concatMap sequenceRecords (taxRecords mC)))
+  let output = show (iterationNumber mC) ++ "," ++ upperTaxonomyLimitOutput ++ "," ++ show (length (concatMap sequenceRecords (taxRecords mC)))
   writeFile ((tempDirPath sO) ++ "result" ++ ".log") output        
                        
 readClustaloDistMatrix :: String -> IO (Either ParseError ([String],Matrix Double))             
@@ -826,7 +808,7 @@ constructNext currentIterationNumber modelconstruction alignmentResults upperTax
         currentAlignmentMode = case toggleInfernalAlignmentModeTrue of
                                  True -> True
                                  False -> alignmentModeInfernal modelconstruction
-        nextModelConstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) taxEntries upperTaxLimit inputTaxonomicContext (bitScoreThreshold modelconstruction) (evalueThreshold modelconstruction) currentAlignmentMode inputSelectedQueries potMembers
+        nextModelConstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) taxEntries upperTaxLimit inputTaxonomicContext (evalueThreshold modelconstruction) currentAlignmentMode inputSelectedQueries potMembers
          
 buildTaxRecords :: [(Sequence,Int,String,Char)] -> Int -> [TaxonomyRecord]
 buildTaxRecords alignmentResults currentIterationNumber = taxonomyRecords

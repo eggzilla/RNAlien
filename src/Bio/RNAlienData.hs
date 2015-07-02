@@ -11,7 +11,6 @@ data StaticOptions = StaticOptions
   { tempDirPath :: String,
     sessionID :: String,
     zScoreCutoff :: Double,
-    inclusionThresholdRatio :: Double,
     userTaxId :: Maybe Int,
     singleHitperTaxToggle :: Bool,
     lengthFilterToggle :: Bool,
@@ -28,7 +27,6 @@ data ModelConstruction = ModelConstruction
     --Taxonomy ID of the highest node in taxonomic subtree used in search
     upperTaxonomyLimit :: Maybe Int,
     taxonomicContext :: Maybe Taxon,
-    bitScoreThreshold :: Maybe Double,
     evalueThreshold :: Double,                     
     alignmentModeInfernal :: Bool,
     selectedQueries :: [String],
@@ -36,13 +34,12 @@ data ModelConstruction = ModelConstruction
   } 
 
 instance Show ModelConstruction where
-  show (ModelConstruction _iterationNumber _inputFasta _taxRecords _upperTaxonomyLimit _taxonomicContext _bitScoreThreshold _evalueThreshold _alignmentModeInfernal _selectedQueries _potentialMembers) = a ++ b ++ c ++ d ++ e ++ f ++ g ++ h ++ i
+  show (ModelConstruction _iterationNumber _inputFasta _taxRecords _upperTaxonomyLimit _taxonomicContext _evalueThreshold _alignmentModeInfernal _selectedQueries _potentialMembers) = a ++ b ++ c ++ d ++ e ++ g ++ h ++ i
     where a = "Modelconstruction iteration: " ++ show _iterationNumber ++ "\n" 
           b = "Input fasta:\n" ++ show _inputFasta ++ "\n" 
           c = show _taxRecords
           d = "Upper taxonomy limit: " ++ maybe "not set" show _upperTaxonomyLimit ++ "\n"
           e = "Taxonomic Context: " ++  maybe "not set" show _taxonomicContext ++ "\n"
-          f = "Inclusion Threshold [bit]: " ++ maybe "not set" show _bitScoreThreshold ++ "\n"
           g = "Evalue cutoff: " ++ show _evalueThreshold ++ "\n"
           h = "Selected queries: \n" ++ concatMap (\x -> x ++ "\n") _selectedQueries
           i = "Potential Members: \n" ++ concatMap show _potentialMembers
