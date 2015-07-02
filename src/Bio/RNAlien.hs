@@ -61,8 +61,10 @@ main = do
           let iterationNumber = 0
           let temporaryDirectoryPath = outputPath ++ sessionId ++ "/"            
           createDirectoryIfMissing False temporaryDirectoryPath
+          createDirectoryIfMissing False (temporaryDirectoryPath ++ "log")
           -- create Log file
           writeFile (temporaryDirectoryPath ++ "Log") ("RNAlien 1.0.0" ++ "\n")
+          writeFile (temporaryDirectoryPath ++ "log/warnings") ("")
           logMessage ("Timestamp: " ++ (show timestamp) ++ "\n") temporaryDirectoryPath
           logMessage ("Temporary Directory: " ++ temporaryDirectoryPath ++ "\n") temporaryDirectoryPath
           let tools = ["clustalo","mlocarna","RNAfold","RNAalifold","cmcalibrate","cmstat","cmbuild","RNAz","rnazSelectSeqs.pl"]

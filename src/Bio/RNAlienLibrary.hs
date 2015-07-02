@@ -63,7 +63,6 @@ import Network.HTTP
 modelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
 modelConstructer staticOptions modelConstruction = do
   logMessage ("Iteration: " ++ show (iterationNumber modelConstruction) ++ "\n") (tempDirPath staticOptions)
-  --logMessage ("Bitscore threshold: " ++ (maybe "not set" show (bitScoreThreshold modelConstruction)) ++ "\n") (tempDirPath staticOptions)
   iterationSummary modelConstruction staticOptions
   let currentIterationNumber = (iterationNumber modelConstruction)
   let foundSequenceNumber = length (concatMap sequenceRecords (taxRecords modelConstruction))
@@ -81,7 +80,7 @@ modelConstructer staticOptions modelConstruction = do
        logVerboseMessage (verbositySwitch staticOptions) ("Upper taxonomy limit: " ++ (show upperTaxLimit) ++ "\n " ++ "Lower taxonomy limit: "++ show lowerTaxLimit ++ "\n") (tempDirPath staticOptions)
        --search queries
        searchResults <- catchAll (searchCandidates staticOptions Nothing currentIterationNumber upperTaxLimit lowerTaxLimit queries) 
-                        (\e -> do logMessage ("Warning: Search results iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
+                        (\e -> do logWarning ("Warning: Search results iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
                                   return (SearchResult [] Nothing))
        currentTaxonomicContext <- getTaxonomicContextEntrez upperTaxLimit (taxonomicContext modelConstruction)
        if null (candidates searchResults)
@@ -117,7 +116,6 @@ modelConstructionResult staticOptions modelConstruction = do
   let currentIterationNumber = iterationNumber modelConstruction
   let outputDirectory = tempDirPath staticOptions
   logMessage ("Global search iteration: " ++ show currentIterationNumber ++ "\n") outputDirectory
-  --logMessage ("Bitscore threshold: " ++ (maybe "not set" show (bitScoreThreshold modelConstruction)) ++ "\n") outputDirectory
   iterationSummary modelConstruction staticOptions
   let foundSequenceNumber = length (concatMap sequenceRecords (taxRecords modelConstruction))
   --extract queries
@@ -132,29 +130,29 @@ modelConstructionResult staticOptions modelConstruction = do
   --taxonomic context archea
   let (upperTaxLimit1,lowerTaxLimit1) = (Just (2157 :: Int), Nothing)
   candidates1 <- catchAll  (searchCandidates staticOptions (Just "archea") currentIterationNumber upperTaxLimit1 lowerTaxLimit1 queries)
-                 (\e -> do logMessage ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
+                 (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                            return (SearchResult [] Nothing))
   let uniqueCandidates1 = filterDuplicates modelConstruction candidates1 
   (alignmentResults1,potentialMembers1)<- catchAll (alignCandidates staticOptions modelConstruction "archea" uniqueCandidates1)
-                       (\e -> do logMessage ("Warning: Alignment results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
+                       (\e -> do logWarning ("Warning: Alignment results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                  return  ([],[]))
   --taxonomic context bacteria
   let (upperTaxLimit2,lowerTaxLimit2) = (Just (2 :: Int), Nothing)
   candidates2 <- catchAll (searchCandidates staticOptions (Just "bacteria") currentIterationNumber upperTaxLimit2 lowerTaxLimit2 queries)
-                 (\e -> do logMessage ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
+                 (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                            return (SearchResult [] Nothing))
   let uniqueCandidates2 = filterDuplicates modelConstruction candidates2
   (alignmentResults2,potentialMembers2)<- catchAll (alignCandidates staticOptions modelConstruction "bacteria" uniqueCandidates2)
-                       (\e -> do logMessage ("Warning: Alignment results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
+                       (\e -> do logWarning ("Warning: Alignment results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                  return  ([],[]))
   --taxonomic context eukaryia
   let (upperTaxLimit3,lowerTaxLimit3) = (Just (2759 :: Int), Nothing)
   candidates3 <- catchAll (searchCandidates staticOptions (Just "eukaryia") currentIterationNumber upperTaxLimit3 lowerTaxLimit3 queries)
-                 (\e -> do logMessage ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
+                 (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                            return (SearchResult [] Nothing))
   let uniqueCandidates3 = filterDuplicates modelConstruction candidates3
   (alignmentResults3,potentialMembers3) <- catchAll (alignCandidates staticOptions modelConstruction "eukaryia" uniqueCandidates3)
-                       (\e -> do logMessage ("Warning: Alignment results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
+                       (\e -> do logWarning ("Warning: Alignment results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                  return  ([],[]))
   let alignmentResults = alignmentResults1 ++ alignmentResults2 ++ alignmentResults3
   let currentPotentialMembers = [SearchResult potentialMembers1 (blastDatabaseSize candidates1), SearchResult potentialMembers2 (blastDatabaseSize candidates2), SearchResult potentialMembers3 (blastDatabaseSize candidates3)]
@@ -185,7 +183,7 @@ modelConstructionResult staticOptions modelConstruction = do
       if (alignmentModeInfernal modelConstruction)
         then do
           logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - infernal mode\n") outputDirectory
-          cmFilepath <- constructModel nextModelConstructionInput staticOptions
+          constructModel nextModelConstructionInput staticOptions
           writeFile (iterationDirectory ++ "done") ""
           logMessage (iterationSummaryLog nextModelConstructionInput) outputDirectory
           logVerboseMessage (verbositySwitch staticOptions) (show nextModelConstructionInput) outputDirectory
@@ -193,7 +191,7 @@ modelConstructionResult staticOptions modelConstruction = do
           return resultModelConstruction
         else do
           logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - initial mode\n") outputDirectory
-          cmFilepath <- constructModel nextModelConstructionInput staticOptions
+          constructModel nextModelConstructionInput staticOptions
           let nextModelConstructionInputInfernalMode = nextModelConstructionInput {alignmentModeInfernal = True}
           logMessage (iterationSummaryLog nextModelConstructionInputInfernalMode) outputDirectory
           logVerboseMessage (verbositySwitch staticOptions) (show nextModelConstructionInputInfernalMode) outputDirectory
@@ -219,7 +217,7 @@ reevaluatePotentialMembers staticOptions modelConstruction = do
   let resultFastaPath = outputDirectory  ++ "result.fa"
   let resultCMPath = outputDirectory ++ "result.cm"
   let resultAlignmentPath = outputDirectory ++ "result.stockholm"
-  let resultCMLogPath = outputDirectory ++ "result.cm.log"
+  let resultCMLogPath = outputDirectory ++ "log/result.cm.log"
   if null alignmentResults
     then do
       let lastIterationFastaPath = outputDirectory ++ show (currentIterationNumber - 1)++ "/model.fa"
@@ -237,7 +235,7 @@ reevaluatePotentialMembers staticOptions modelConstruction = do
       let lastIterationCMPath = outputDirectory ++ show currentIterationNumber ++ "/model.cm"
       logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - infernal mode\n") outputDirectory
       let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults Nothing Nothing [] [] (alignmentModeInfernal modelConstruction)
-      cmFilepath <- constructModel nextModelConstructionInput staticOptions
+      constructModel nextModelConstructionInput staticOptions
       copyFile lastIterationCMPath resultCMPath
       copyFile lastIterationFastaPath resultFastaPath
       copyFile lastIterationAlignmentPath resultAlignmentPath 
@@ -257,7 +255,7 @@ alignmentConstructionWithCandidates currentTaxonomicContext currentUpperTaxonomy
     --let usedUpperTaxonomyLimit = (snd (head candidates))                               
     --align search result
     (alignmentResults,potentialMemberEntries) <- catchAll (alignCandidates staticOptions modelConstruction "" searchResults)
-                        (\e -> do logMessage ("Warning: Alignment results iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
+                        (\e -> do logWarning ("Warning: Alignment results iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
                                   return ([],[]))
     let currentPotentialMembers = [SearchResult potentialMemberEntries (blastDatabaseSize searchResults)]
     if (length alignmentResults == 0) && (not (alignmentModeInfernal modelConstruction))
@@ -281,7 +279,7 @@ alignmentConstructionWithCandidates currentTaxonomicContext currentUpperTaxonomy
             logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - infernal mode\n") (tempDirPath staticOptions)
             --prepare next iteration
             let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults currentUpperTaxonomyLimit currentTaxonomicContext currentSelectedQueries currentPotentialMembers True        
-            cmFilepath <- constructModel nextModelConstructionInput staticOptions               
+            constructModel nextModelConstructionInput staticOptions               
             writeFile (iterationDirectory ++ "done") ""
             logMessage (iterationSummaryLog nextModelConstructionInput) (tempDirPath staticOptions)
             logVerboseMessage (verbositySwitch staticOptions)  (show nextModelConstructionInput) (tempDirPath staticOptions)  ----
@@ -292,7 +290,7 @@ alignmentConstructionWithCandidates currentTaxonomicContext currentUpperTaxonomy
             --First round enough candidates are available for modelconstruction, alignmentModeInfernal is set to true after this iteration
             --prepare next iteration
             let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults currentUpperTaxonomyLimit currentTaxonomicContext currentSelectedQueries currentPotentialMembers False       
-            cmFilepath <- constructModel nextModelConstructionInput staticOptions               
+            constructModel nextModelConstructionInput staticOptions               
             let nextModelConstructionInputWithInfernalMode = nextModelConstructionInput {alignmentModeInfernal = True}
             logMessage (iterationSummaryLog  nextModelConstructionInputWithInfernalMode) (tempDirPath staticOptions)
             logVerboseMessage (verbositySwitch staticOptions)  (show  nextModelConstructionInputWithInfernalMode) (tempDirPath staticOptions) ----
@@ -342,7 +340,7 @@ findTaxonomyStart inputBlastDatabase temporaryDirectory querySequence = do
   logMessage ("No tax id provided - Sending find taxonomy start blast query \n") temporaryDirectory
   blastOutput <- CE.catch (blastHTTP blastQuery)
 	               (\e -> do let err = show (e :: CE.IOException)
-                                 logMessage ("Warning: Blast attempt failed:" ++ " " ++ err) temporaryDirectory
+                                 logWarning ("Warning: Blast attempt failed:" ++ " " ++ err) temporaryDirectory
                                  error "findTaxonomyStart: Blast attempt failed"
                                  return (Left ""))
   
@@ -377,7 +375,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
   logVerboseMessage (verbositySwitch staticOptions) ("Sending blast query " ++ (show iterationnumber) ++ "\n") (tempDirPath staticOptions)
   blastOutput <- CE.catch (blastHTTP blastQuery)
 	               (\e -> do let err = show (e :: CE.IOException)
-                                 logMessage ("Warning: Blast attempt failed:" ++ " " ++ err) (tempDirPath staticOptions)
+                                 logWarning ("Warning: Blast attempt failed:" ++ " " ++ err) (tempDirPath staticOptions)
                                  return (Left ""))
   let logFileDirectoryPath = (tempDirPath staticOptions) ++ (show iterationnumber) ++ "/" ++ (fromMaybe "" finaliterationprefix) ++ "log"
   logDirectoryPresent <- doesDirectoryExist logFileDirectoryPath                      
@@ -660,7 +658,7 @@ iterationSummary mC sO = do
   --iteration -- tax limit -- bitscore cutoff -- blastresult -- aligned seqs --queries --fa link --aln link --cm link
   let upperTaxonomyLimitOutput = maybe "not set" show (upperTaxonomyLimit mC)
   let output = show (iterationNumber mC) ++ "," ++ upperTaxonomyLimitOutput ++ "," ++ show (length (concatMap sequenceRecords (taxRecords mC)))
-  writeFile ((tempDirPath sO) ++ show (iterationNumber mC) ++ ".log") output        
+  writeFile ((tempDirPath sO) ++ "/log/" ++ show (iterationNumber mC) ++ ".log") output        
 
 -- | Used for passing progress to Alien server 
 resultSummary :: ModelConstruction -> StaticOptions -> IO()
@@ -668,7 +666,7 @@ resultSummary mC sO = do
   --iteration -- tax limit -- bitscore cutoff -- blastresult -- aligned seqs --queries --fa link --aln link --cm link
   let upperTaxonomyLimitOutput = maybe "not set" show (upperTaxonomyLimit mC)
   let output = show (iterationNumber mC) ++ "," ++ upperTaxonomyLimitOutput ++ "," ++ show (length (concatMap sequenceRecords (taxRecords mC)))
-  writeFile ((tempDirPath sO) ++ "result" ++ ".log") output        
+  writeFile ((tempDirPath sO) ++ "/log/result" ++ ".log") output        
                        
 readClustaloDistMatrix :: String -> IO (Either ParseError ([String],Matrix Double))             
 readClustaloDistMatrix filePath = parseFromFile genParserClustaloDistMatrix filePath
@@ -1265,7 +1263,7 @@ retrieveFullSequence temporaryDirectoryPath (geneId,seqStart,seqStop,strand,_,ta
   let entrezQuery = EntrezHTTPQuery program' database' queryString 
   result <- CE.catch (entrezHTTP entrezQuery)
               (\e -> do let err = show (e :: CE.IOException)
-                        logMessage ("Warning: Full sequence retrieval failed:" ++ " " ++ err) temporaryDirectoryPath
+                        logWarning ("Warning: Full sequence retrieval failed:" ++ " " ++ err) temporaryDirectoryPath
                         return [])
   if (null result)
     then do
@@ -1546,6 +1544,9 @@ showlines input = concatMap (\x -> show x ++ "\n") input
 logMessage :: String -> String -> IO ()
 logMessage logoutput temporaryDirectoryPath = appendFile (temporaryDirectoryPath ++ "Log") (logoutput)
 
+logWarning :: String -> String -> IO ()
+logWarning logoutput temporaryDirectoryPath = appendFile (temporaryDirectoryPath ++ "log/warnings") (logoutput)
+
 logVerboseMessage :: Bool -> String -> String -> IO ()
 logVerboseMessage verboseTrue logoutput temporaryDirectoryPath 
   | verboseTrue = do appendFile (temporaryDirectoryPath ++ "Log") (show logoutput)
@@ -1567,10 +1568,10 @@ checkTools tools temporaryDirectoryPath = do
 
 logToolVersions :: String -> IO ()
 logToolVersions temporaryDirectoryPath = do
-  let clustaloversionpath = temporaryDirectoryPath ++ "clustalo.version"
-  let mlocarnaversionpath = temporaryDirectoryPath ++ "mlocarna.version"
-  let rnafoldversionpath = temporaryDirectoryPath ++ "RNAfold.version"
-  let infernalversionpath = temporaryDirectoryPath ++ "Infernal.version"
+  let clustaloversionpath = temporaryDirectoryPath ++ "log/clustalo.version"
+  let mlocarnaversionpath = temporaryDirectoryPath ++ "log/mlocarna.version"
+  let rnafoldversionpath = temporaryDirectoryPath ++ "log/RNAfold.version"
+  let infernalversionpath = temporaryDirectoryPath ++ "log/Infernal.version"
   _ <- system ("clustalo --version >" ++ clustaloversionpath)
   _ <- system ("mlocarna --version >" ++ mlocarnaversionpath)
   _ <- system ("RNAfold --version >" ++ rnafoldversionpath)
@@ -1582,7 +1583,7 @@ logToolVersions temporaryDirectoryPath = do
   rnafoldversion <- readFile rnafoldversionpath 
   infernalversionOutput <- readFile infernalversionpath
   let infernalversion = (lines infernalversionOutput) !! 1
-  let messageString = "Clustalo version: " ++ clustaloversion ++ "\n" ++ "mlocarna version: " ++ mlocarnaversion  ++ "\n" ++ "RNAfold version: " ++ rnafoldversion  ++ "\n" ++ "infernalversion: " ++ infernalversion ++ "\n"
+  let messageString = "Clustalo version: " ++ clustaloversion ++ "mlocarna version: " ++ mlocarnaversion  ++ "RNAfold version: " ++ rnafoldversion  ++ "infernalversion: " ++ infernalversion ++ "\n"
   logMessage messageString temporaryDirectoryPath
 
 checkTool :: String -> IO (Either String String)
