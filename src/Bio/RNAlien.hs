@@ -48,29 +48,36 @@ main = do
   verboseLevel <- getVerbosity
   -- Generate SessionID
   sessionId <- createSessionID sessionIdentificator
+  let temporaryDirectoryPath = outputPath ++ sessionId ++ "/"            
+  createDirectoryIfMissing False temporaryDirectoryPath
+  createDirectoryIfMissing False (temporaryDirectoryPath ++ "log")
+  -- Create Log files
+  writeFile (temporaryDirectoryPath ++ "Log") ("RNAlien 1.0.0" ++ "\n")
+  writeFile (temporaryDirectoryPath ++ "log/warnings") ("")
+  logMessage ("Timestamp: " ++ (show timestamp) ++ "\n") temporaryDirectoryPath
+  logMessage ("Temporary Directory: " ++ temporaryDirectoryPath ++ "\n") temporaryDirectoryPath
   timestamp <- getCurrentTime
   inputFasta <- readFasta inputFastaFilePath
   networkCheck <- checkNCBIConnection
   if isLeft networkCheck
-    then putStrLn (fromLeft networkCheck)
+    then do
+      putStrLn ("Error - Could not contact NCBI server: " ++ fromLeft networkCheck ++ "\n")
+      logMessage ("Error - Could not contact NCBI server: " ++ fromLeft networkCheck ++ "\n")
     else do
       if null inputFasta
         then do
-          putStrLn "Input fasta file is empty."
+          logMessage "Error: Input fasta file is empty.\n"
+          putStrLn "Error: Input fasta file is empty."
         else do
           let iterationNumber = 0
-          let temporaryDirectoryPath = outputPath ++ sessionId ++ "/"            
-          createDirectoryIfMissing False temporaryDirectoryPath
-          createDirectoryIfMissing False (temporaryDirectoryPath ++ "log")
-          -- create Log file
-          writeFile (temporaryDirectoryPath ++ "Log") ("RNAlien 1.0.0" ++ "\n")
-          writeFile (temporaryDirectoryPath ++ "log/warnings") ("")
-          logMessage ("Timestamp: " ++ (show timestamp) ++ "\n") temporaryDirectoryPath
-          logMessage ("Temporary Directory: " ++ temporaryDirectoryPath ++ "\n") temporaryDirectoryPath
           let tools = ["clustalo","mlocarna","RNAfold","RNAalifold","cmcalibrate","cmstat","cmbuild","RNAz"]
           toolsCheck <- checkTools tools temporaryDirectoryPath
-          if isRight toolsCheck
+          -- Check required commandline tools
+          if isLeft toolsCheck
             then do 
+              putStrLn ("Error - Not all required tools could be found in $PATH: " ++ fromLeft toolsCheck ++ "\n")
+              logMessage ("Error - Not all required tools could be found in $PATH: " ++ fromLeft toolsCheck ++ "\n")
+            else do
               logToolVersions temporaryDirectoryPath
               let inputSequence = (head inputFasta)
               initialTaxId <- setInitialTaxId inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
@@ -84,5 +91,3 @@ main = do
               writeFile (temporaryDirectoryPath ++ "result.csv") resultTaxonomyRecordsCSVTable
               resultSummary modelConstructionResults staticOptions
               writeFile (temporaryDirectoryPath ++ "done") ""
-            else do
-              print (fromLeft toolsCheck)

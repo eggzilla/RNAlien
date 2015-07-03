@@ -213,7 +213,7 @@ reevaluatePotentialMembers staticOptions modelConstruction = do
   let potentialMembersAlignmentResults = V.toList potentialMembersAlignmentResultVector
   let alignmentResults = concatMap fst potentialMembersAlignmentResults
   let discardedMembers = concatMap snd potentialMembersAlignmentResults
-  writeFile (outputDirectory  ++ "discarded") (concatMap show discardedMembers)
+  writeFile (outputDirectory  ++ "log/discarded") (concatMap show discardedMembers)
   let resultFastaPath = outputDirectory  ++ "result.fa"
   let resultCMPath = outputDirectory ++ "result.cm"
   let resultAlignmentPath = outputDirectory ++ "result.stockholm"
@@ -1249,7 +1249,7 @@ retrieveFullSequences staticOptions requestedSequences = do
       --we try to reretrieve failed entries once
       missingSequences <- mapM (retrieveFullSequence (tempDirPath staticOptions)) (map snd failedRetrievals)
       let (stillMissingSequences,reRetrievedSequences) = partition (\fullSequence -> isNothing (firstOfTriple fullSequence)) missingSequences
-      logMessage ("Sequence retrieval failed: \n" ++ (concatMap show stillMissingSequences) ++ "\n") (tempDirPath staticOptions)
+      logWarning ("Sequence retrieval failed: \n" ++ (concatMap show stillMissingSequences) ++ "\n") (tempDirPath staticOptions)
       let unwrappedRetrievals = map (\(x,y,z) -> (fromJust x,y,z))  ((map fst successfulRetrievals) ++ reRetrievedSequences)
       CE.evaluate unwrappedRetrievals
     else CE.evaluate (map (\(x,y,z) -> (fromJust x,y,z)) fullSequences)
