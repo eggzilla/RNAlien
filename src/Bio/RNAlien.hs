@@ -48,6 +48,7 @@ main = do
   verboseLevel <- getVerbosity
   -- Generate SessionID
   sessionId <- createSessionID sessionIdentificator
+  timestamp <- getCurrentTime
   let temporaryDirectoryPath = outputPath ++ sessionId ++ "/"            
   createDirectoryIfMissing False temporaryDirectoryPath
   createDirectoryIfMissing False (temporaryDirectoryPath ++ "log")
@@ -56,18 +57,17 @@ main = do
   writeFile (temporaryDirectoryPath ++ "log/warnings") ("")
   logMessage ("Timestamp: " ++ (show timestamp) ++ "\n") temporaryDirectoryPath
   logMessage ("Temporary Directory: " ++ temporaryDirectoryPath ++ "\n") temporaryDirectoryPath
-  timestamp <- getCurrentTime
   inputFasta <- readFasta inputFastaFilePath
   networkCheck <- checkNCBIConnection
   if isLeft networkCheck
     then do
       putStrLn ("Error - Could not contact NCBI server: " ++ fromLeft networkCheck ++ "\n")
-      logMessage ("Error - Could not contact NCBI server: " ++ fromLeft networkCheck ++ "\n")
+      logMessage ("Error - Could not contact NCBI server: " ++ fromLeft networkCheck ++ "\n") temporaryDirectoryPath
     else do
       if null inputFasta
         then do
-          logMessage "Error: Input fasta file is empty.\n"
           putStrLn "Error: Input fasta file is empty."
+          logMessage "Error: Input fasta file is empty.\n" temporaryDirectoryPath
         else do
           let iterationNumber = 0
           let tools = ["clustalo","mlocarna","RNAfold","RNAalifold","cmcalibrate","cmstat","cmbuild","RNAz"]
@@ -76,7 +76,7 @@ main = do
           if isLeft toolsCheck
             then do 
               putStrLn ("Error - Not all required tools could be found in $PATH: " ++ fromLeft toolsCheck ++ "\n")
-              logMessage ("Error - Not all required tools could be found in $PATH: " ++ fromLeft toolsCheck ++ "\n")
+              logMessage ("Error - Not all required tools could be found in $PATH: " ++ fromLeft toolsCheck ++ "\n") temporaryDirectoryPath
             else do
               logToolVersions temporaryDirectoryPath
               let inputSequence = (head inputFasta)
