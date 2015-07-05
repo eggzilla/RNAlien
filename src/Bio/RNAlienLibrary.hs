@@ -20,7 +20,9 @@ module Bio.RNAlienLibrary (
                            evaluateConstructionResult,
                            readCMstat,
                            parseCMstat,
-                           checkNCBIConnection
+                           checkNCBIConnection,
+                           preprocessClustalForRNAz,
+                           rnaZEvalOutput
                            )
 where
    
@@ -1659,10 +1661,9 @@ preprocessClustalForRNAz clustalFilepath reformatedClustalPath = do
       let selectedClustalpath = clustalFilepath ++ ".selected"
       parsedClustalInput <- readClustalAlignment clustalFilepath
       if (isRight parsedClustalInput)
-        then do 
-          let filteredClustalInput = rnaZSelectSeqs (fromRight parsedClustalInput) 500 99
+        then do
+          let filteredClustalInput = rnaZSelectSeqs (fromRight parsedClustalInput) 400 99
           writeFile selectedClustalpath (show filteredClustalInput)
-          --system ("rnazSelectSeqs.pl --num-seqs=50 " ++ clustalFilepath ++ " >" ++ selectedClustalpath)
           return (Right selectedClustalpath)
         else return (Left (show (fromLeft parsedClustalInput)))
     else return (Right clustalFilepath)
@@ -1670,7 +1671,7 @@ preprocessClustalForRNAz clustalFilepath reformatedClustalPath = do
 -- Iteratively removes sequences with decreasing similarity until target number of alignment entries is reached.
 rnaZSelectSeqs :: ClustalAlignment -> Int -> Double -> ClustalAlignment
 rnaZSelectSeqs currentClustalAlignment targetEntries identityCutoff
-  | targetEntries > numberOfEntries = rnaZSelectSeqs filteredAlignment targetEntries (identityCutoff - 1)
+  | targetEntries < numberOfEntries = rnaZSelectSeqs filteredAlignment targetEntries (identityCutoff - 1)
   | otherwise = currentClustalAlignment
   where numberOfEntries =  length (alignmentEntries currentClustalAlignment) 
         filteredEntries = filterIdenticalAlignmentEntry (alignmentEntries currentClustalAlignment) identityCutoff 
