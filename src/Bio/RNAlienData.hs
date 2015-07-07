@@ -3,6 +3,7 @@
 module Bio.RNAlienData where
 
 import qualified Data.ByteString.Lazy.Char8 as L
+import Bio.Core.Sequence
 import Bio.Sequence.Fasta 
 import Bio.Taxonomy
 
@@ -36,7 +37,7 @@ data ModelConstruction = ModelConstruction
 instance Show ModelConstruction where
   show (ModelConstruction _iterationNumber _inputFasta _taxRecords _upperTaxonomyLimit _taxonomicContext _evalueThreshold _alignmentModeInfernal _selectedQueries _potentialMembers) = a ++ b ++ c ++ d ++ e ++ g ++ h ++ i
     where a = "Modelconstruction iteration: " ++ show _iterationNumber ++ "\n" 
-          b = "Input fasta:\n" ++ show _inputFasta ++ "\n" 
+          b = "Input fasta:\n" ++ L.unpack (unSL (seqheader _inputFasta))  ++ "\n" ++ L.unpack (unSD (seqdata _inputFasta)) ++ "\n" 
           c = show _taxRecords
           d = "Upper taxonomy limit: " ++ maybe "not set" show _upperTaxonomyLimit ++ "\n"
           e = "Taxonomic Context: " ++  maybe "not set" show _taxonomicContext ++ "\n"
