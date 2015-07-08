@@ -581,6 +581,9 @@ constructModel modelConstruction staticOptions = do
   let fastaFilepath = outputDirectory ++ "model" ++ ".fa"
   let locarnaFilepath = outputDirectory ++ "model" ++ ".mlocarna"
   let stockholmFilepath = outputDirectory ++ "model" ++ ".stockholm"
+  let clustalFilepath = outputDirectory ++ "model" ++ ".clustal"
+  let reformatedClustalFilepath = outputDirectory ++ "model" ++ ".clustal.reformated"
+  let selectedClustalFilepath = outputDirectory ++ "model" ++ ".clustal.selected"
   let updatedStructureStockholmFilepath = outputDirectory ++ "newstructuremodel" ++ ".stockholm"
   let cmalignCMFilepath = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction - 2)) ++ "/" ++ "model" ++ ".cm"
   let cmFilepath = outputDirectory ++ "model" ++ ".cm"
@@ -591,16 +594,25 @@ constructModel modelConstruction staticOptions = do
      then do
        logVerboseMessage (verbositySwitch staticOptions) ("Construct Model - infernal mode\n") (tempDirPath staticOptions)
        systemCMalign ("--cpu " ++ show (cpuThreads staticOptions)) cmalignCMFilepath fastaFilepath stockholmFilepath
-       systemRNAalifold "--cfactor 0.6 --nfactor 0.5" stockholmFilepath alifoldFilepath
-       replaceStatus <- replaceStockholmStructure stockholmFilepath alifoldFilepath updatedStructureStockholmFilepath
-       if (null replaceStatus)
+       systemCMalign ("--outformat=Clustal --cpu " ++ show (cpuThreads staticOptions)) cmalignCMFilepath fastaFilepath clustalFilepath
+       selectedClustalFilepath <- preprocessClustalForRNAz clustalFilepath reformatedClustalFilepath
+       if (isRight selectedClustalFilepath)
          then do
-           systemCMbuild updatedStructureStockholmFilepath cmFilepath cmBuildFilepath
-           systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
-           return cmFilepath
+           systemRNAalifold "--cfactor 0.6 --nfactor 0.5" (fromRight selectedClustalFilepath) alifoldFilepath
+           replaceStatus <- replaceStockholmStructure stockholmFilepath alifoldFilepath updatedStructureStockholmFilepath
+           if (null replaceStatus)
+             then do
+               systemCMbuild updatedStructureStockholmFilepath cmFilepath cmBuildFilepath
+               systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
+               return cmFilepath
+             else do
+               logWarning ("Warning: A problem occured updating the secondary structure of iteration " ++ show (iterationNumber modelConstruction)  ++ " stockholm alignment: " ++ replaceStatus) (tempDirPath staticOptions)
+               systemCMbuild updatedStructureStockholmFilepath cmFilepath cmBuildFilepath
+               systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
+               return cmFilepath
          else do
-           logVerboseMessage (verbositySwitch staticOptions) ("A problem occured updating the secondary structure of our stockholm alignment: " ++ replaceStatus) (tempDirPath staticOptions)
-           systemCMbuild updatedStructureStockholmFilepath cmFilepath cmBuildFilepath
+           logWarning ("Warning: A problem occured updating the secondary structure of iteration " ++ show (iterationNumber modelConstruction) ++ "stockholm alignment:" ++ (fromLeft selectedClustalFilepath)) (tempDirPath staticOptions)
+           systemCMbuild stockholmFilepath cmFilepath cmBuildFilepath
            systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
            return cmFilepath
      else do
