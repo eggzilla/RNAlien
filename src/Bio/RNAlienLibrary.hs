@@ -1620,8 +1620,8 @@ setVerbose verbosityLevel
   | verbosityLevel == Loud = True
   | otherwise = False
 
-evaluateConstructionResult :: StaticOptions -> IO String
-evaluateConstructionResult staticOptions = do
+evaluateConstructionResult :: StaticOptions -> Int -> IO String
+evaluateConstructionResult staticOptions entryNumber = do
   let evaluationDirectoryFilepath = (tempDirPath staticOptions) ++ "evaluation/"
   createDirectoryIfMissing False evaluationDirectoryFilepath
   let fastaFilepath = (tempDirPath staticOptions) ++ "result.fa"
@@ -1633,17 +1633,23 @@ evaluateConstructionResult staticOptions = do
   systemCMstat cmFilepath resultModelStatistics
   inputcmStat <- readCMstat resultModelStatistics
   let cmstatString = cmstatEvalOutput inputcmStat
-  let resultRNAz = (tempDirPath staticOptions) ++ "result.rnaz"
-  rnazClustalpath <- preprocessClustalForRNAz clustalFilepath reformatedClustalPath
-  if (isRight rnazClustalpath)
-    then do
-      systemRNAz (fromRight rnazClustalpath) resultRNAz 
-      inputRNAz <- readRNAz resultRNAz
-      let rnaZString = rnaZEvalOutput inputRNAz
-      return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: " ++ rnaZString)
+  if (entryNumber > 1)
+    then do 
+      let resultRNAz = (tempDirPath staticOptions) ++ "result.rnaz"
+      rnazClustalpath <- preprocessClustalForRNAz clustalFilepath reformatedClustalPath
+      if (isRight rnazClustalpath)
+        then do
+          systemRNAz (fromRight rnazClustalpath) resultRNAz 
+          inputRNAz <- readRNAz resultRNAz
+          let rnaZString = rnaZEvalOutput inputRNAz
+          return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: " ++ rnaZString)
+        else do
+          logWarning ("Running RNAz for result evalution encountered a problem:" ++ (fromLeft rnazClustalpath)) (tempDirPath staticOptions) 
+          return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: Running RNAz for result evalution encountered a problem\n" ++ (fromLeft rnazClustalpath))
     else do
-      logMessage ("Running RNAz for result evalution encountered a problem:" ++ (fromLeft rnazClustalpath)) (tempDirPath staticOptions) 
-      return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: Running RNAz for result evalution encountered a problem\n" ++ (fromLeft rnazClustalpath))
+      logWarning ("Message: RNAlien could not find additional covariant sequences\n Could not run RNAz statistics. Could not run RNAz statistics with a single sequence.\n") (tempDirPath staticOptions) 
+      return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAlien could not find additional covariant sequences. Could not run RNAz statistics with a single sequence.\n")
+
 
 cmstatEvalOutput :: Either ParseError CMstat -> String 
 cmstatEvalOutput inputcmstat

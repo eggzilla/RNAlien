@@ -86,7 +86,8 @@ main = do
               logMessage (show initialization) temporaryDirectoryPath
               modelConstructionResults <- modelConstructer staticOptions initialization
               let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults
-              resultEvaluation <- evaluateConstructionResult staticOptions
+              let resultNumber = length (concatMap sequenceRecords (taxRecords modelConstructionResults))
+              resultEvaluation <- evaluateConstructionResult staticOptions resultNumber
               appendFile (temporaryDirectoryPath ++ "Log") resultEvaluation
               writeFile (temporaryDirectoryPath ++ "result.csv") resultTaxonomyRecordsCSVTable
               resultSummary modelConstructionResults staticOptions
