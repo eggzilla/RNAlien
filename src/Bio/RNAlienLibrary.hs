@@ -583,7 +583,6 @@ constructModel modelConstruction staticOptions = do
   let stockholmFilepath = outputDirectory ++ "model" ++ ".stockholm"
   let clustalFilepath = outputDirectory ++ "model" ++ ".clustal"
   let reformatedClustalFilepath = outputDirectory ++ "model" ++ ".clustal.reformated"
-  let selectedClustalFilepath = outputDirectory ++ "model" ++ ".clustal.selected"
   let updatedStructureStockholmFilepath = outputDirectory ++ "newstructuremodel" ++ ".stockholm"
   let cmalignCMFilepath = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction - 2)) ++ "/" ++ "model" ++ ".cm"
   let cmFilepath = outputDirectory ++ "model" ++ ".cm"

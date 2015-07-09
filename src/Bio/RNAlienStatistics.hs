@@ -17,9 +17,11 @@ import Data.List
 import qualified System.FilePath as FP
 import qualified Data.List.Split as DS
 import Text.Printf
+import Bio.RNAzParser
 
 data Options = Options            
   { alienCovarianceModelPath  :: String,
+    alienrnazPath :: String,
     rfamCovarianceModelPath :: String,
     rfamFastaFilePath :: String,
     alienFastaFilePath :: String,
@@ -35,6 +37,7 @@ data Options = Options
 options :: Options
 options = Options
   { alienCovarianceModelPath = def &= name "i" &= help "Path to alienCovarianceModelPath",
+    alienrnazPath = def &= name "z" &= help "Path to alienRNAzResult",
     rfamCovarianceModelPath = def &= name "r" &= help "Path to rfamCovarianceModelPath",
     rfamFastaFilePath = def &= name "g" &= help "Path to rfamFastaFile",
     rfamModelName = def &= name "n" &= help "Rfam model name",
@@ -118,6 +121,8 @@ main = do
   let alienonRfamResultsNumber = length alienonRfamResults
   let rfamonAlienRecovery = (fromIntegral rfamonAlienResultsNumber :: Double) / (fromIntegral alienFastaEntriesNumber :: Double)
   let alienonRfamRecovery = (fromIntegral alienonRfamResultsNumber :: Double) / (fromIntegral rfamFastaEntriesNumber :: Double)
+  inputRNAz <- readRNAz alienrnazPath
+  let rnaZ = (fromRight inputRNAz)
   verbose <- getVerbosity  
   if (verbose == Loud)
     then do
@@ -134,7 +139,8 @@ main = do
        putStrLn ("rfamonAlienResultsNumber: " ++ show rfamonAlienResultsNumber)
        putStrLn ("alienonRfamResultsNumber: " ++ show alienonRfamResultsNumber)
        putStrLn ("RfamonAlienRecovery: " ++ show rfamonAlienRecovery)   
-       putStrLn ("AlienonRfamRecovery: " ++ show alienonRfamRecovery) 
+       putStrLn ("AlienonRfamRecovery: " ++ show alienonRfamRecovery)
+       putStrLn ("Mean pairwise identity: " ++ show (meanPairwiseIdentity rnaZ) ++ "\n  Shannon entropy: " ++ show (shannonEntropy rnaZ) ++  "\n  GC content: " ++ show (gcContent rnaZ) ++ "\n  Mean single sequence minimum free energy: " ++ show (meanSingleSequenceMinimumFreeEnergy rnaZ) ++ "\n  Consensus minimum free energy: " ++ show (consensusMinimumFreeEnergy rnaZ) ++ "\n  Energy contribution: " ++ show (energyContribution rnaZ) ++ "\n  Covariance contribution: " ++ show (covarianceContribution rnaZ) ++ "\n  Combinations pair: " ++ show (combinationsPair rnaZ) ++ "\n  Mean z-score: " ++ show (meanZScore rnaZ) ++ "\n  Structure conservation index: " ++ show (structureConservationIndex rnaZ) ++ "\n  Background model: " ++ backgroundModel rnaZ ++ "\n  Decision model: " ++ decisionModel rnaZ ++ "\n  SVM decision value: " ++ show (svmDecisionValue rnaZ) ++ "\n  SVM class propability: " ++ show (svmRNAClassProbability rnaZ) ++ "\n  Prediction: " ++ (prediction rnaZ))
     else do
-       putStrLn (show benchmarkIndex ++ "\t" ++ rfamModelName ++ "\t" ++ rfamModelId ++ "\t" ++ show linkscore ++ "\t" ++ show rfamMaxLinkScore ++ "\t" ++ show alienMaxLinkscore ++ "\t" ++ show rfamThreshold ++ "\t" ++ show alienThreshold ++ "\t" ++ show rfamFastaEntriesNumber ++ "\t" ++ show alienFastaEntriesNumber ++ "\t" ++ show rfamonAlienResultsNumber ++ "\t" ++ show alienonRfamResultsNumber ++ "\t" ++ printf "%.2f" rfamonAlienRecovery  ++ "\t" ++ printf "%.2f" alienonRfamRecovery)
+       putStrLn (show benchmarkIndex ++ "\t" ++ rfamModelName ++ "\t" ++ rfamModelId ++ "\t" ++ show linkscore ++ "\t" ++ show rfamMaxLinkScore ++ "\t" ++ show alienMaxLinkscore ++ "\t" ++ show rfamThreshold ++ "\t" ++ show alienThreshold ++ "\t" ++ show rfamFastaEntriesNumber ++ "\t" ++ show alienFastaEntriesNumber ++ "\t" ++ show rfamonAlienResultsNumber ++ "\t" ++ show alienonRfamResultsNumber ++ "\t" ++ printf "%.2f" rfamonAlienRecovery  ++ "\t" ++ printf "%.2f" alienonRfamRecovery ++ "\t" ++ show (meanPairwiseIdentity rnaZ) ++ "\t" ++ show (shannonEntropy rnaZ) ++  "\t" ++ show (gcContent rnaZ) ++ "\t" ++ show (meanSingleSequenceMinimumFreeEnergy rnaZ) ++ "\t" ++ show (consensusMinimumFreeEnergy rnaZ) ++ "\t" ++ show (energyContribution rnaZ) ++ "\t" ++ show (covarianceContribution rnaZ) ++ "\t" ++ show (combinationsPair rnaZ) ++ "\t" ++ show (meanZScore rnaZ) ++ "\t" ++ show (structureConservationIndex rnaZ) ++ "\t" ++ show (svmDecisionValue rnaZ) ++ "\t" ++ show (svmRNAClassProbability rnaZ) ++ "\t" ++ (prediction rnaZ))
  
