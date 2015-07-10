@@ -121,26 +121,48 @@ main = do
   let alienonRfamResultsNumber = length alienonRfamResults
   let rfamonAlienRecovery = (fromIntegral rfamonAlienResultsNumber :: Double) / (fromIntegral alienFastaEntriesNumber :: Double)
   let alienonRfamRecovery = (fromIntegral alienonRfamResultsNumber :: Double) / (fromIntegral rfamFastaEntriesNumber :: Double)
-  inputRNAz <- readRNAz alienrnazPath
-  let rnaZ = (fromRight inputRNAz)
-  verbose <- getVerbosity  
-  if (verbose == Loud)
+  verbose <- getVerbosity
+  rnazPresent <- doesFileExist alienrnazPath
+  if rnazPresent
     then do
-       putStrLn ("BenchmarkIndex:" ++ show benchmarkIndex)
-       putStrLn ("RfamModelName: " ++ rfamModelName)
-       putStrLn ("RfamModelId: " ++ rfamModelId)
-       putStrLn ("Linkscore: " ++ show linkscore)
-       putStrLn ("rfamMaxLinkScore: " ++ show rfamMaxLinkScore)
-       putStrLn ("alienMaxLinkscore: " ++ show alienMaxLinkscore)    
-       putStrLn ("rfamGatheringThreshold: " ++ show rfamThreshold)
-       putStrLn ("alienGatheringThreshold: " ++ show alienThreshold) 
-       putStrLn ("rfamFastaEntriesNumber: " ++ show rfamFastaEntriesNumber)
-       putStrLn ("alienFastaEntriesNumber: " ++ show alienFastaEntriesNumber) 
-       putStrLn ("rfamonAlienResultsNumber: " ++ show rfamonAlienResultsNumber)
-       putStrLn ("alienonRfamResultsNumber: " ++ show alienonRfamResultsNumber)
-       putStrLn ("RfamonAlienRecovery: " ++ show rfamonAlienRecovery)   
-       putStrLn ("AlienonRfamRecovery: " ++ show alienonRfamRecovery)
-       putStrLn ("Mean pairwise identity: " ++ show (meanPairwiseIdentity rnaZ) ++ "\n  Shannon entropy: " ++ show (shannonEntropy rnaZ) ++  "\n  GC content: " ++ show (gcContent rnaZ) ++ "\n  Mean single sequence minimum free energy: " ++ show (meanSingleSequenceMinimumFreeEnergy rnaZ) ++ "\n  Consensus minimum free energy: " ++ show (consensusMinimumFreeEnergy rnaZ) ++ "\n  Energy contribution: " ++ show (energyContribution rnaZ) ++ "\n  Covariance contribution: " ++ show (covarianceContribution rnaZ) ++ "\n  Combinations pair: " ++ show (combinationsPair rnaZ) ++ "\n  Mean z-score: " ++ show (meanZScore rnaZ) ++ "\n  Structure conservation index: " ++ show (structureConservationIndex rnaZ) ++ "\n  Background model: " ++ backgroundModel rnaZ ++ "\n  Decision model: " ++ decisionModel rnaZ ++ "\n  SVM decision value: " ++ show (svmDecisionValue rnaZ) ++ "\n  SVM class propability: " ++ show (svmRNAClassProbability rnaZ) ++ "\n  Prediction: " ++ (prediction rnaZ))
-    else do
-       putStrLn (show benchmarkIndex ++ "\t" ++ rfamModelName ++ "\t" ++ rfamModelId ++ "\t" ++ show linkscore ++ "\t" ++ show rfamMaxLinkScore ++ "\t" ++ show alienMaxLinkscore ++ "\t" ++ show rfamThreshold ++ "\t" ++ show alienThreshold ++ "\t" ++ show rfamFastaEntriesNumber ++ "\t" ++ show alienFastaEntriesNumber ++ "\t" ++ show rfamonAlienResultsNumber ++ "\t" ++ show alienonRfamResultsNumber ++ "\t" ++ printf "%.2f" rfamonAlienRecovery  ++ "\t" ++ printf "%.2f" alienonRfamRecovery ++ "\t" ++ show (meanPairwiseIdentity rnaZ) ++ "\t" ++ show (shannonEntropy rnaZ) ++  "\t" ++ show (gcContent rnaZ) ++ "\t" ++ show (meanSingleSequenceMinimumFreeEnergy rnaZ) ++ "\t" ++ show (consensusMinimumFreeEnergy rnaZ) ++ "\t" ++ show (energyContribution rnaZ) ++ "\t" ++ show (covarianceContribution rnaZ) ++ "\t" ++ show (combinationsPair rnaZ) ++ "\t" ++ show (meanZScore rnaZ) ++ "\t" ++ show (structureConservationIndex rnaZ) ++ "\t" ++ show (svmDecisionValue rnaZ) ++ "\t" ++ show (svmRNAClassProbability rnaZ) ++ "\t" ++ (prediction rnaZ))
- 
+      inputRNAz <- readRNAz alienrnazPath
+      let rnaZ = (fromRight inputRNAz)
+      if (verbose == Loud)
+        then do
+          putStrLn ("BenchmarkIndex:" ++ show benchmarkIndex)
+          putStrLn ("RfamModelName: " ++ rfamModelName)
+          putStrLn ("RfamModelId: " ++ rfamModelId)
+          putStrLn ("Linkscore: " ++ show linkscore)
+          putStrLn ("rfamMaxLinkScore: " ++ show rfamMaxLinkScore)
+          putStrLn ("alienMaxLinkscore: " ++ show alienMaxLinkscore)    
+          putStrLn ("rfamGatheringThreshold: " ++ show rfamThreshold)
+          putStrLn ("alienGatheringThreshold: " ++ show alienThreshold) 
+          putStrLn ("rfamFastaEntriesNumber: " ++ show rfamFastaEntriesNumber)
+          putStrLn ("alienFastaEntriesNumber: " ++ show alienFastaEntriesNumber) 
+          putStrLn ("rfamonAlienResultsNumber: " ++ show rfamonAlienResultsNumber)
+          putStrLn ("alienonRfamResultsNumber: " ++ show alienonRfamResultsNumber)
+          putStrLn ("RfamonAlienRecovery: " ++ show rfamonAlienRecovery)   
+          putStrLn ("AlienonRfamRecovery: " ++ show alienonRfamRecovery)
+          putStrLn ("Mean pairwise identity: " ++ show (meanPairwiseIdentity rnaZ) ++ "\n  Shannon entropy: " ++ show (shannonEntropy rnaZ) ++  "\n  GC content: " ++ show (gcContent rnaZ) ++ "\n  Mean single sequence minimum free energy: " ++ show (meanSingleSequenceMinimumFreeEnergy rnaZ) ++ "\n  Consensus minimum free energy: " ++ show (consensusMinimumFreeEnergy rnaZ) ++ "\n  Energy contribution: " ++ show (energyContribution rnaZ) ++ "\n  Covariance contribution: " ++ show (covarianceContribution rnaZ) ++ "\n  Combinations pair: " ++ show (combinationsPair rnaZ) ++ "\n  Mean z-score: " ++ show (meanZScore rnaZ) ++ "\n  Structure conservation index: " ++ show (structureConservationIndex rnaZ) ++ "\n  Background model: " ++ backgroundModel rnaZ ++ "\n  Decision model: " ++ decisionModel rnaZ ++ "\n  SVM decision value: " ++ show (svmDecisionValue rnaZ) ++ "\n  SVM class propability: " ++ show (svmRNAClassProbability rnaZ) ++ "\n  Prediction: " ++ (prediction rnaZ))
+       else do
+          putStrLn (show benchmarkIndex ++ "\t" ++ rfamModelName ++ "\t" ++ rfamModelId ++ "\t" ++ show linkscore ++ "\t" ++ show rfamMaxLinkScore ++ "\t" ++ show alienMaxLinkscore ++ "\t" ++ show rfamThreshold ++ "\t" ++ show alienThreshold ++ "\t" ++ show rfamFastaEntriesNumber ++ "\t" ++ show alienFastaEntriesNumber ++ "\t" ++ show rfamonAlienResultsNumber ++ "\t" ++ show alienonRfamResultsNumber ++ "\t" ++ printf "%.2f" rfamonAlienRecovery  ++ "\t" ++ printf "%.2f" alienonRfamRecovery ++ "\t" ++ show (meanPairwiseIdentity rnaZ) ++ "\t" ++ show (shannonEntropy rnaZ) ++  "\t" ++ show (gcContent rnaZ) ++ "\t" ++ show (meanSingleSequenceMinimumFreeEnergy rnaZ) ++ "\t" ++ show (consensusMinimumFreeEnergy rnaZ) ++ "\t" ++ show (energyContribution rnaZ) ++ "\t" ++ show (covarianceContribution rnaZ) ++ "\t" ++ show (combinationsPair rnaZ) ++ "\t" ++ show (meanZScore rnaZ) ++ "\t" ++ show (structureConservationIndex rnaZ) ++ "\t" ++ show (svmDecisionValue rnaZ) ++ "\t" ++ show (svmRNAClassProbability rnaZ) ++ "\t" ++ (prediction rnaZ))
+     else do  
+       if (verbose == Loud)
+        then do
+          putStrLn ("BenchmarkIndex:" ++ show benchmarkIndex)
+          putStrLn ("RfamModelName: " ++ rfamModelName)
+          putStrLn ("RfamModelId: " ++ rfamModelId)
+          putStrLn ("Linkscore: " ++ show linkscore)
+          putStrLn ("rfamMaxLinkScore: " ++ show rfamMaxLinkScore)
+          putStrLn ("alienMaxLinkscore: " ++ show alienMaxLinkscore)    
+          putStrLn ("rfamGatheringThreshold: " ++ show rfamThreshold)
+          putStrLn ("alienGatheringThreshold: " ++ show alienThreshold) 
+          putStrLn ("rfamFastaEntriesNumber: " ++ show rfamFastaEntriesNumber)
+          putStrLn ("alienFastaEntriesNumber: " ++ show alienFastaEntriesNumber) 
+          putStrLn ("rfamonAlienResultsNumber: " ++ show rfamonAlienResultsNumber)
+          putStrLn ("alienonRfamResultsNumber: " ++ show alienonRfamResultsNumber)
+          putStrLn ("RfamonAlienRecovery: " ++ show rfamonAlienRecovery)   
+          putStrLn ("AlienonRfamRecovery: " ++ show alienonRfamRecovery)
+          putStrLn ("Mean pairwise identity: " ++ " - \n  Shannon entropy: " ++ " - \n  GC content: " ++ " - \n  Mean single sequence minimum free energy: " ++ " - \n  Consensus minimum free energy: " ++ " - \n  Energy contribution: " ++ " - \n  Covariance contribution: " ++ " - \n  Combinations pair: " ++ " - \n  Mean z-score: " ++ " - \n  Structure conservation index: " ++ " - \n  Background model: " ++ " - \n  Decision model: " ++ " - \n  SVM decision value: " ++ " - \n  SVM class propability: " ++ " - \n  Prediction: " ++ " - \n")
+        else do
+          putStrLn (show benchmarkIndex ++ "\t" ++ rfamModelName ++ "\t" ++ rfamModelId ++ "\t" ++ show linkscore ++ "\t" ++ show rfamMaxLinkScore ++ "\t" ++ show alienMaxLinkscore ++ "\t" ++ show rfamThreshold ++ "\t" ++ show alienThreshold ++ "\t" ++ show rfamFastaEntriesNumber ++ "\t" ++ show alienFastaEntriesNumber ++ "\t" ++ show rfamonAlienResultsNumber ++ "\t" ++ show alienonRfamResultsNumber ++ "\t" ++ printf "%.2f" rfamonAlienRecovery  ++ "\t" ++ printf "%.2f" alienonRfamRecovery ++ "\t" ++ "-" ++ "\t" ++ "-" ++  "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-")
