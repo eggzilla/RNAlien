@@ -22,6 +22,7 @@ module Bio.RNAlienLibrary (
                            parseCMstat,
                            checkNCBIConnection,
                            preprocessClustalForRNAz,
+                           preprocessClustalForRNAzExternal,
                            rnaZEvalOutput
                            )
 where
@@ -582,7 +583,7 @@ constructModel modelConstruction staticOptions = do
   let locarnaFilepath = outputDirectory ++ "model" ++ ".mlocarna"
   let stockholmFilepath = outputDirectory ++ "model" ++ ".stockholm"
   let clustalFilepath = outputDirectory ++ "model" ++ ".clustal"
-  let reformatedClustalFilepath = outputDirectory ++ "model" ++ ".clustal.reformated"
+  --- let reformatedClustalFilepath = outputDirectory ++ "model" ++ ".clustal.reformated"
   let updatedStructureStockholmFilepath = outputDirectory ++ "newstructuremodel" ++ ".stockholm"
   let cmalignCMFilepath = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction - 2)) ++ "/" ++ "model" ++ ".cm"
   let cmFilepath = outputDirectory ++ "model" ++ ".cm"
@@ -594,8 +595,10 @@ constructModel modelConstruction staticOptions = do
        logVerboseMessage (verbositySwitch staticOptions) ("Construct Model - infernal mode\n") (tempDirPath staticOptions)
        systemCMalign ("--cpu " ++ show (cpuThreads staticOptions)) cmalignCMFilepath fastaFilepath stockholmFilepath
        systemCMalign ("--outformat=Clustal --cpu " ++ show (cpuThreads staticOptions)) cmalignCMFilepath fastaFilepath clustalFilepath
-       selectedClustalFilepath <- preprocessClustalForRNAz clustalFilepath reformatedClustalFilepath
-       if (isRight selectedClustalFilepath)
+   --- deactivated preprocessing because results are different, maybe input format for ALifold (Stockholm/clustal) also involved?
+   --- selectedClustalFilepath <- preprocessClustalForRNAz clustalFilepath reformatedClustalFilepath
+       let selectedClustalFilepath = Right clustalFilepath
+       if (isRight selectedClustalFilepath)      
          then do
            systemRNAalifold "--cfactor 0.6 --nfactor 0.5" (fromRight selectedClustalFilepath) alifoldFilepath
            replaceStatus <- replaceStockholmStructure stockholmFilepath alifoldFilepath updatedStructureStockholmFilepath
@@ -1636,7 +1639,7 @@ evaluateConstructionResult staticOptions entryNumber = do
   if (entryNumber > 1)
     then do 
       let resultRNAz = (tempDirPath staticOptions) ++ "result.rnaz"
-      rnazClustalpath <- preprocessClustalForRNAz clustalFilepath reformatedClustalPath
+      rnazClustalpath <- preprocessClustalForRNAzExternal clustalFilepath reformatedClustalPath
       if (isRight rnazClustalpath)
         then do
           systemRNAz (fromRight rnazClustalpath) resultRNAz 
@@ -1665,21 +1668,33 @@ rnaZEvalOutput inputRNAz
     where rnaZ = fromRight inputRNAz
           rnazString = "  Mean pairwise identity: " ++ show (meanPairwiseIdentity rnaZ) ++ "\n  Shannon entropy: " ++ show (shannonEntropy rnaZ) ++  "\n  GC content: " ++ show (gcContent rnaZ) ++ "\n  Mean single sequence minimum free energy: " ++ show (meanSingleSequenceMinimumFreeEnergy rnaZ) ++ "\n  Consensus minimum free energy: " ++ show (consensusMinimumFreeEnergy rnaZ) ++ "\n  Energy contribution: " ++ show (energyContribution rnaZ) ++ "\n  Covariance contribution: " ++ show (covarianceContribution rnaZ) ++ "\n  Combinations pair: " ++ show (combinationsPair rnaZ) ++ "\n  Mean z-score: " ++ show (meanZScore rnaZ) ++ "\n  Structure conservation index: " ++ show (structureConservationIndex rnaZ) ++ "\n  Background model: " ++ backgroundModel rnaZ ++ "\n  Decision model: " ++ decisionModel rnaZ ++ "\n  SVM decision value: " ++ show (svmDecisionValue rnaZ) ++ "\n  SVM class propability: " ++ show (svmRNAClassProbability rnaZ) ++ "\n  Prediction: " ++ (prediction rnaZ)     
 
--- | RNAz can process 500 sequences at max. Using rnazSelectSeqs to isolated representative sample. rnazSelectSeqs only accepts - gap characters, alignment is reformatted accordingly.
+-- | Call for external preprocessClustalForRNAz
+preprocessClustalForRNAzExternal :: String -> String -> IO (Either String String)
+preprocessClustalForRNAzExternal clustalFilepath reformatedClustalPath = do
+  clustalString <- readFile clustalFilepath
+  --change clustal format for rnazSelectSeqs.pl
+  let reformatedClustalString = map reformatAln clustalString
+  writeFile reformatedClustalPath reformatedClustalString
+  --select representative entries from result.Clustal with select_sequences
+  let selectedClustalpath = clustalFilepath ++ ".selected"
+  system ("rnazSelectSeqs.pl " ++ reformatedClustalPath ++ " >" ++ selectedClustalpath)
+  return (Right selectedClustalpath)
+
+-- | RNAz can process 500 sequences at max. Using rnazSelectSeqs to isolate representative sample. rnazSelectSeqs only accepts - gap characters, alignment is reformatted accordingly.
 preprocessClustalForRNAz :: String -> String -> IO (Either String String)
 preprocessClustalForRNAz clustalFilepath reformatedClustalPath = do
   clustalString <- readFile clustalFilepath
   if (length (lines clustalString) > 500)
     then do 
       --change clustal format for rnazSelectSeqs.pl
-      let reformatedClustalString = map replaceDotDash clustalString
+      let reformatedClustalString = map reformatAln clustalString
       writeFile reformatedClustalPath reformatedClustalString
       --select representative entries from result.Clustal with select_sequences
       let selectedClustalpath = clustalFilepath ++ ".selected"
       parsedClustalInput <- readClustalAlignment clustalFilepath
       if (isRight parsedClustalInput)
         then do
-          let filteredClustalInput = rnaZSelectSeqs (fromRight parsedClustalInput) 400 99
+          let filteredClustalInput = rnaZSelectSeqs (fromRight parsedClustalInput) 500 99
           writeFile selectedClustalpath (show filteredClustalInput)
           return (Right selectedClustalpath)
         else return (Left (show (fromLeft parsedClustalInput)))
@@ -1694,9 +1709,16 @@ rnaZSelectSeqs currentClustalAlignment targetEntries identityCutoff
         filteredEntries = filterIdenticalAlignmentEntry (alignmentEntries currentClustalAlignment) identityCutoff 
         filteredAlignment = ClustalAlignment filteredEntries (conservationTrack currentClustalAlignment)
  
-replaceDotDash :: Char -> Char 
-replaceDotDash c
+reformatAln :: Char -> Char 
+reformatAln c
   | c == '.' = '-'
+  | c == '~' = '-'
+  | c == '_' = '-'
+  | c == 'u' = 'U'
+  | c == 't' = 'T'
+  | c == 'g' = 'G'
+  | c == 'c' = 'C'
+  | c == 'a' = 'A'
   | otherwise = c
 
 -- | Check if alien can connect to NCBI
