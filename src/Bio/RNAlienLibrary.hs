@@ -1642,7 +1642,7 @@ evaluateConstructionResult staticOptions entryNumber = do
       rnazClustalpath <- preprocessClustalForRNAzExternal clustalFilepath reformatedClustalPath
       if (isRight rnazClustalpath)
         then do
-          systemRNAz (fromRight rnazClustalpath) resultRNAz 
+          systemRNAz "-l" (fromRight rnazClustalpath) resultRNAz 
           inputRNAz <- readRNAz resultRNAz
           let rnaZString = rnaZEvalOutput inputRNAz
           return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: " ++ rnaZString)
