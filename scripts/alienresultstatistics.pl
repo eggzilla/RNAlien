@@ -28,7 +28,7 @@ if($type eq "structured"){
 	#$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyfasta/"; full fasta
 	$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyseedfasta/";
 	$RNAFamilyIdFile = "/scr/kronos/egg/structuredFamilyNameIdGatheringCutoffSorted";
-	$familyNumber = 56;
+	$familyNumber = 72;
 	$resulttempdir = "/scr/kronos/egg/temp/AlienStructuredResultStatistics". "$currentresultnumber" . "/";
         $resultfileprefix = "structuredalienseedoutput";
 }else{
@@ -53,7 +53,7 @@ close $RNAfamilyfh;
 
 my $gathering_score_multiplier = 1.0; 
 my $gathering_score_lower_bound;
-alienresultstatistic($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,$gathering_score_multiplier,$gathering_score_lower_bound,"/scr/kronos/egg/$resultfileprefix$currentresultnumber-" . $gathering_score_multiplier . ".csv");
+alienresultstatistic($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,$gathering_score_multiplier,$gathering_score_lower_bound,"/scr/kronos/egg/$resultfileprefix$currentresultnumber-" . $gathering_score_multiplier . ".tsv");
 
 #for(1..10){
 #     my $outputfilePath = "/scr/kronos/egg/structuredalienseedoutput$currentresultnumber-" . $gathering_score_multiplier . ".csv";
@@ -73,12 +73,14 @@ sub alienresultstatistic{
     my $gathering_score_multiplier = shift;
     my $gathering_score_lower_bound = shift;
     my $outputfilePath = shift;
-    my $output; 
+    #my $output="BenchmarkIndex\tRfamModelName\tRfamModelId\tLinkscore\trfamMaxLinkScore\talienMaxLinkscore\trfamGatheringThreshold\talienGatheringThreshold\trfamFastaEntriesNumber\talienFastaEntriesNumber\trfamonAlienResultsNumber\talienonRfamResultsNumber\tRfamonAlienRecovery\tAlienonRfamRecovery\tmeanPairwiseIdentity\tshannonEntropy\tgcContent\tmeanSingleSequenceMinimumFreeEnergy\tconsensusMinimumFreeEnergy\tenergyContribution\tcovarianceContribution\tcombinationsPair\tmeanZScore\tstructureConservationIndex\tsvmDecisionValue\tsvmRNAClassProbability\tprediction\n";
+    my $output="Index\tRfamName\tRfamId\tLinkscore\trfamMaxLS\talienMaxLS\trfamGatheringThreshold\talienGatheringThreshold\trfamFastaNumber\talienFastaNumber\trfamonAlienNumber\talienonRfamNumber\tRfamonAlienRecovery\tAlienonRfamRecovery\tmeanPairwiseIdentity\tshannonEntropy\tgcContent\tmeanSingleSequenceMFE\tconsensusMFE\tenergyContribution\tcovarianceContribution\tcombinationsPair\tmeanZScore\tSCI\tsvmDecisionValue\tsvmRNAClassProbability\tprediction\n"; 
     for(my $counter=1; $counter <= $familyNumber; $counter++){
         my $current_alienresult_folder= $alienresult_basename.$counter."/";
         if(-e $alienresult_basename.$counter."/done"){
             my $alienModelPath = $current_alienresult_folder."result.cm";
             my $alienFastaPath = $current_alienresult_folder."result.fa";
+            my $alienRNAzPath = $current_alienresult_folder."result.rnaz";
             #my $alienThresholdLogFile = $current_alienresult_folder."result.log";
             #if(! -e  $alienThresholdLogFile){
             #    print "Does not exist: $alienThresholdLogFile ";
@@ -119,14 +121,19 @@ sub alienresultstatistic{
                 print "Does not exist: $alienFastaPath";
             }
             my $rfamThresholdUnmodified = $rfamModelNameId[2];
-            my $rfamThreshold = $rfamThresholdUnmodified * $gathering_score_multiplier;
+            my $rfamThreshold;
+            unless ($rfamThresholdUnmodified eq "-"){
+                $rfamThreshold = $rfamThresholdUnmodified * $gathering_score_multiplier;
+            }else{
+                $rfamThreshold= "0";
+            }
             if(defined $gathering_score_lower_bound){
                 if($rfamThreshold < $gathering_score_lower_bound){
                     $rfamThreshold = $gathering_score_lower_bound;
                 }       
             }
             #print "RNAlienStatistics -n $rfamModelName -d $rfamModelId -b $counter -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -t $alienThreshold -x $rfamThreshold -o $resulttempdir\n";
-            $output = $output . `RNAlienStatistics -c 20 -n $rfamModelName -d $rfamModelId -b $counter -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -t $rfamThreshold -x $rfamThreshold -o $resulttempdir`;
+            $output = $output . `RNAlienStatistics -c 20 -n $rfamModelName -d $rfamModelId -b $counter -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -t $rfamThreshold -x $rfamThreshold -o $resulttempdir -z $alienRNAzPath`;
         }
     }
     open(my $outputfh, ">", $outputfilePath)

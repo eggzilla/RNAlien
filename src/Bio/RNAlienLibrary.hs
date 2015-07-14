@@ -22,6 +22,7 @@ module Bio.RNAlienLibrary (
                            parseCMstat,
                            checkNCBIConnection,
                            preprocessClustalForRNAz,
+                           preprocessClustalForRNAzExternal,
                            rnaZEvalOutput
                            )
 where
@@ -581,6 +582,8 @@ constructModel modelConstruction staticOptions = do
   let fastaFilepath = outputDirectory ++ "model" ++ ".fa"
   let locarnaFilepath = outputDirectory ++ "model" ++ ".mlocarna"
   let stockholmFilepath = outputDirectory ++ "model" ++ ".stockholm"
+  let clustalFilepath = outputDirectory ++ "model" ++ ".clustal"
+  --- let reformatedClustalFilepath = outputDirectory ++ "model" ++ ".clustal.reformated"
   let updatedStructureStockholmFilepath = outputDirectory ++ "newstructuremodel" ++ ".stockholm"
   let cmalignCMFilepath = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction - 2)) ++ "/" ++ "model" ++ ".cm"
   let cmFilepath = outputDirectory ++ "model" ++ ".cm"
@@ -591,16 +594,27 @@ constructModel modelConstruction staticOptions = do
      then do
        logVerboseMessage (verbositySwitch staticOptions) ("Construct Model - infernal mode\n") (tempDirPath staticOptions)
        systemCMalign ("--cpu " ++ show (cpuThreads staticOptions)) cmalignCMFilepath fastaFilepath stockholmFilepath
-       systemRNAalifold "--cfactor 0.6 --nfactor 0.5" stockholmFilepath alifoldFilepath
-       replaceStatus <- replaceStockholmStructure stockholmFilepath alifoldFilepath updatedStructureStockholmFilepath
-       if (null replaceStatus)
+       systemCMalign ("--outformat=Clustal --cpu " ++ show (cpuThreads staticOptions)) cmalignCMFilepath fastaFilepath clustalFilepath
+   --- deactivated preprocessing because results are different, maybe input format for ALifold (Stockholm/clustal) also involved?
+   --- selectedClustalFilepath <- preprocessClustalForRNAz clustalFilepath reformatedClustalFilepath
+       let selectedClustalFilepath = Right clustalFilepath
+       if (isRight selectedClustalFilepath)      
          then do
-           systemCMbuild updatedStructureStockholmFilepath cmFilepath cmBuildFilepath
-           systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
-           return cmFilepath
+           systemRNAalifold "--cfactor 0.6 --nfactor 0.5" (fromRight selectedClustalFilepath) alifoldFilepath
+           replaceStatus <- replaceStockholmStructure stockholmFilepath alifoldFilepath updatedStructureStockholmFilepath
+           if (null replaceStatus)
+             then do
+               systemCMbuild updatedStructureStockholmFilepath cmFilepath cmBuildFilepath
+               systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
+               return cmFilepath
+             else do
+               logWarning ("Warning: A problem occured updating the secondary structure of iteration " ++ show (iterationNumber modelConstruction)  ++ " stockholm alignment: " ++ replaceStatus) (tempDirPath staticOptions)
+               systemCMbuild updatedStructureStockholmFilepath cmFilepath cmBuildFilepath
+               systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
+               return cmFilepath
          else do
-           logVerboseMessage (verbositySwitch staticOptions) ("A problem occured updating the secondary structure of our stockholm alignment: " ++ replaceStatus) (tempDirPath staticOptions)
-           systemCMbuild updatedStructureStockholmFilepath cmFilepath cmBuildFilepath
+           logWarning ("Warning: A problem occured updating the secondary structure of iteration " ++ show (iterationNumber modelConstruction) ++ "stockholm alignment:" ++ (fromLeft selectedClustalFilepath)) (tempDirPath staticOptions)
+           systemCMbuild stockholmFilepath cmFilepath cmBuildFilepath
            systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
            return cmFilepath
      else do
@@ -1609,8 +1623,8 @@ setVerbose verbosityLevel
   | verbosityLevel == Loud = True
   | otherwise = False
 
-evaluateConstructionResult :: StaticOptions -> IO String
-evaluateConstructionResult staticOptions = do
+evaluateConstructionResult :: StaticOptions -> Int -> IO String
+evaluateConstructionResult staticOptions entryNumber = do
   let evaluationDirectoryFilepath = (tempDirPath staticOptions) ++ "evaluation/"
   createDirectoryIfMissing False evaluationDirectoryFilepath
   let fastaFilepath = (tempDirPath staticOptions) ++ "result.fa"
@@ -1622,17 +1636,23 @@ evaluateConstructionResult staticOptions = do
   systemCMstat cmFilepath resultModelStatistics
   inputcmStat <- readCMstat resultModelStatistics
   let cmstatString = cmstatEvalOutput inputcmStat
-  let resultRNAz = (tempDirPath staticOptions) ++ "result.rnaz"
-  rnazClustalpath <- preprocessClustalForRNAz clustalFilepath reformatedClustalPath
-  if (isRight rnazClustalpath)
-    then do
-      systemRNAz (fromRight rnazClustalpath) resultRNAz 
-      inputRNAz <- readRNAz resultRNAz
-      let rnaZString = rnaZEvalOutput inputRNAz
-      return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: " ++ rnaZString)
+  if (entryNumber > 1)
+    then do 
+      let resultRNAz = (tempDirPath staticOptions) ++ "result.rnaz"
+      rnazClustalpath <- preprocessClustalForRNAzExternal clustalFilepath reformatedClustalPath
+      if (isRight rnazClustalpath)
+        then do
+          systemRNAz (fromRight rnazClustalpath) resultRNAz 
+          inputRNAz <- readRNAz resultRNAz
+          let rnaZString = rnaZEvalOutput inputRNAz
+          return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: " ++ rnaZString)
+        else do
+          logWarning ("Running RNAz for result evalution encountered a problem:" ++ (fromLeft rnazClustalpath)) (tempDirPath staticOptions) 
+          return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: Running RNAz for result evalution encountered a problem\n" ++ (fromLeft rnazClustalpath))
     else do
-      logMessage ("Running RNAz for result evalution encountered a problem:" ++ (fromLeft rnazClustalpath)) (tempDirPath staticOptions) 
-      return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: Running RNAz for result evalution encountered a problem\n" ++ (fromLeft rnazClustalpath))
+      logWarning ("Message: RNAlien could not find additional covariant sequences\n Could not run RNAz statistics. Could not run RNAz statistics with a single sequence.\n") (tempDirPath staticOptions) 
+      return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAlien could not find additional covariant sequences. Could not run RNAz statistics with a single sequence.\n")
+
 
 cmstatEvalOutput :: Either ParseError CMstat -> String 
 cmstatEvalOutput inputcmstat
@@ -1648,21 +1668,33 @@ rnaZEvalOutput inputRNAz
     where rnaZ = fromRight inputRNAz
           rnazString = "  Mean pairwise identity: " ++ show (meanPairwiseIdentity rnaZ) ++ "\n  Shannon entropy: " ++ show (shannonEntropy rnaZ) ++  "\n  GC content: " ++ show (gcContent rnaZ) ++ "\n  Mean single sequence minimum free energy: " ++ show (meanSingleSequenceMinimumFreeEnergy rnaZ) ++ "\n  Consensus minimum free energy: " ++ show (consensusMinimumFreeEnergy rnaZ) ++ "\n  Energy contribution: " ++ show (energyContribution rnaZ) ++ "\n  Covariance contribution: " ++ show (covarianceContribution rnaZ) ++ "\n  Combinations pair: " ++ show (combinationsPair rnaZ) ++ "\n  Mean z-score: " ++ show (meanZScore rnaZ) ++ "\n  Structure conservation index: " ++ show (structureConservationIndex rnaZ) ++ "\n  Background model: " ++ backgroundModel rnaZ ++ "\n  Decision model: " ++ decisionModel rnaZ ++ "\n  SVM decision value: " ++ show (svmDecisionValue rnaZ) ++ "\n  SVM class propability: " ++ show (svmRNAClassProbability rnaZ) ++ "\n  Prediction: " ++ (prediction rnaZ)     
 
--- | RNAz can process 500 sequences at max. Using rnazSelectSeqs to isolated representative sample. rnazSelectSeqs only accepts - gap characters, alignment is reformatted accordingly.
+-- | Call for external preprocessClustalForRNAz
+preprocessClustalForRNAzExternal :: String -> String -> IO (Either String String)
+preprocessClustalForRNAzExternal clustalFilepath reformatedClustalPath = do
+  clustalString <- readFile clustalFilepath
+  --change clustal format for rnazSelectSeqs.pl
+  let reformatedClustalString = map reformatAln clustalString
+  writeFile reformatedClustalPath reformatedClustalString
+  --select representative entries from result.Clustal with select_sequences
+  let selectedClustalpath = clustalFilepath ++ ".selected"
+  system ("rnazSelectSeqs.pl " ++ reformatedClustalPath ++ " >" ++ selectedClustalpath)
+  return (Right selectedClustalpath)
+
+-- | RNAz can process 500 sequences at max. Using rnazSelectSeqs to isolate representative sample. rnazSelectSeqs only accepts - gap characters, alignment is reformatted accordingly.
 preprocessClustalForRNAz :: String -> String -> IO (Either String String)
 preprocessClustalForRNAz clustalFilepath reformatedClustalPath = do
   clustalString <- readFile clustalFilepath
   if (length (lines clustalString) > 500)
     then do 
       --change clustal format for rnazSelectSeqs.pl
-      let reformatedClustalString = map replaceDotDash clustalString
+      let reformatedClustalString = map reformatAln clustalString
       writeFile reformatedClustalPath reformatedClustalString
       --select representative entries from result.Clustal with select_sequences
       let selectedClustalpath = clustalFilepath ++ ".selected"
       parsedClustalInput <- readClustalAlignment clustalFilepath
       if (isRight parsedClustalInput)
         then do
-          let filteredClustalInput = rnaZSelectSeqs (fromRight parsedClustalInput) 400 99
+          let filteredClustalInput = rnaZSelectSeqs (fromRight parsedClustalInput) 500 99
           writeFile selectedClustalpath (show filteredClustalInput)
           return (Right selectedClustalpath)
         else return (Left (show (fromLeft parsedClustalInput)))
@@ -1677,9 +1709,16 @@ rnaZSelectSeqs currentClustalAlignment targetEntries identityCutoff
         filteredEntries = filterIdenticalAlignmentEntry (alignmentEntries currentClustalAlignment) identityCutoff 
         filteredAlignment = ClustalAlignment filteredEntries (conservationTrack currentClustalAlignment)
  
-replaceDotDash :: Char -> Char 
-replaceDotDash c
+reformatAln :: Char -> Char 
+reformatAln c
   | c == '.' = '-'
+  | c == '~' = '-'
+  | c == '_' = '-'
+  | c == 'u' = 'U'
+  | c == 't' = 'T'
+  | c == 'g' = 'G'
+  | c == 'c' = 'C'
+  | c == 'a' = 'A'
   | otherwise = c
 
 -- | Check if alien can connect to NCBI
