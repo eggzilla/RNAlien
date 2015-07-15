@@ -82,7 +82,8 @@ modelConstructer staticOptions modelConstruction = do
        let (upperTaxLimit,lowerTaxLimit) = setTaxonomicContextEntrez currentIterationNumber (taxonomicContext modelConstruction) (upperTaxonomyLimit modelConstruction)
        logVerboseMessage (verbositySwitch staticOptions) ("Upper taxonomy limit: " ++ (show upperTaxLimit) ++ "\n " ++ "Lower taxonomy limit: "++ show lowerTaxLimit ++ "\n") (tempDirPath staticOptions)
        --search queries
-       searchResults <- catchAll (searchCandidates staticOptions Nothing currentIterationNumber upperTaxLimit lowerTaxLimit queries) 
+       let expectThreshold = setBlastExpectThreshold modelConstruction
+       searchResults <- catchAll (searchCandidates staticOptions Nothing currentIterationNumber upperTaxLimit lowerTaxLimit expectThreshold queries) 
                         (\e -> do logWarning ("Warning: Search results iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
                                   return (SearchResult [] Nothing))
        currentTaxonomicContext <- getTaxonomicContextEntrez upperTaxLimit (taxonomicContext modelConstruction)
@@ -132,7 +133,8 @@ modelConstructionResult staticOptions modelConstruction = do
   createDirectoryIfMissing False logFileDirectoryPath
   --taxonomic context archea
   let (upperTaxLimit1,lowerTaxLimit1) = (Just (2157 :: Int), Nothing)
-  candidates1 <- catchAll  (searchCandidates staticOptions (Just "archea") currentIterationNumber upperTaxLimit1 lowerTaxLimit1 queries)
+  let expectThreshold = setBlastExpectThreshold modelConstruction
+  candidates1 <- catchAll  (searchCandidates staticOptions (Just "archea") currentIterationNumber upperTaxLimit1 lowerTaxLimit1 expectThreshold queries)
                  (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                            return (SearchResult [] Nothing))
   let uniqueCandidates1 = filterDuplicates modelConstruction candidates1 
@@ -141,7 +143,7 @@ modelConstructionResult staticOptions modelConstruction = do
                                  return  ([],[]))
   --taxonomic context bacteria
   let (upperTaxLimit2,lowerTaxLimit2) = (Just (2 :: Int), Nothing)
-  candidates2 <- catchAll (searchCandidates staticOptions (Just "bacteria") currentIterationNumber upperTaxLimit2 lowerTaxLimit2 queries)
+  candidates2 <- catchAll (searchCandidates staticOptions (Just "bacteria") currentIterationNumber upperTaxLimit2 lowerTaxLimit2 expectThreshold queries)
                  (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                            return (SearchResult [] Nothing))
   let uniqueCandidates2 = filterDuplicates modelConstruction candidates2
@@ -150,7 +152,7 @@ modelConstructionResult staticOptions modelConstruction = do
                                  return  ([],[]))
   --taxonomic context eukaryia
   let (upperTaxLimit3,lowerTaxLimit3) = (Just (2759 :: Int), Nothing)
-  candidates3 <- catchAll (searchCandidates staticOptions (Just "eukaryia") currentIterationNumber upperTaxLimit3 lowerTaxLimit3 queries)
+  candidates3 <- catchAll (searchCandidates staticOptions (Just "eukaryia") currentIterationNumber upperTaxLimit3 lowerTaxLimit3 expectThreshold queries)
                  (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                            return (SearchResult [] Nothing))
   let uniqueCandidates3 = filterDuplicates modelConstruction candidates3
@@ -346,7 +348,6 @@ findTaxonomyStart inputBlastDatabase temporaryDirectory querySequence = do
                                  logWarning ("Warning: Blast attempt failed:" ++ " " ++ err) temporaryDirectory
                                  error "findTaxonomyStart: Blast attempt failed"
                                  return (Left ""))
-  
   let logFileDirectoryPath =  temporaryDirectory ++ "taxonomystart" ++ "/" 
   createDirectory logFileDirectoryPath
   writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_1blastOutput") (show blastOutput)
@@ -364,15 +365,15 @@ findTaxonomyStart inputBlastDatabase temporaryDirectory querySequence = do
        CE.evaluate rightBestTaxIdResult
      else error "Find taxonomy start: Could not find blast hits to use as a taxonomic starting point"
 
-searchCandidates :: StaticOptions -> Maybe String -> Int ->  Maybe Int -> Maybe Int -> [Sequence] -> IO SearchResult
-searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimit lowerTaxLimit querySequences' = do
+searchCandidates :: StaticOptions -> Maybe String -> Int ->  Maybe Int -> Maybe Int -> Double -> [Sequence] -> IO SearchResult
+searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimit lowerTaxLimit expectThreshold querySequences' = do
   --let fastaSeqData = seqdata _querySequence
   if (null querySequences') then error "searchCandidates: - head: empty list of query sequences" else return ()
   let queryLength = fromIntegral (seqlength (head querySequences'))
   let queryIndexString = "1"
   let entrezTaxFilter = buildTaxFilterQuery upperTaxLimit lowerTaxLimit 
   logVerboseMessage (verbositySwitch staticOptions) ("entrezTaxFilter" ++ show entrezTaxFilter ++ "\n") (tempDirPath staticOptions)
-  let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=2000&EXPECT=1" 
+  let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=2000&EXPECT=" ++ show expectThreshold
   let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
   let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) querySequences'  (Just (hitNumberQuery ++ entrezTaxFilter ++ registrationInfo)) (Just (5400000000 :: Int))
   logVerboseMessage (verbositySwitch staticOptions) ("Sending blast query " ++ (show iterationnumber) ++ "\n") (tempDirPath staticOptions)
@@ -582,7 +583,6 @@ constructModel modelConstruction staticOptions = do
   let fastaFilepath = outputDirectory ++ "model" ++ ".fa"
   let locarnaFilepath = outputDirectory ++ "model" ++ ".mlocarna"
   let stockholmFilepath = outputDirectory ++ "model" ++ ".stockholm"
-  let clustalFilepath = outputDirectory ++ "model" ++ ".clustal"
   --- let reformatedClustalFilepath = outputDirectory ++ "model" ++ ".clustal.reformated"
   let updatedStructureStockholmFilepath = outputDirectory ++ "newstructuremodel" ++ ".stockholm"
   let cmalignCMFilepath = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction - 2)) ++ "/" ++ "model" ++ ".cm"
@@ -594,29 +594,19 @@ constructModel modelConstruction staticOptions = do
      then do
        logVerboseMessage (verbositySwitch staticOptions) ("Construct Model - infernal mode\n") (tempDirPath staticOptions)
        systemCMalign ("--cpu " ++ show (cpuThreads staticOptions)) cmalignCMFilepath fastaFilepath stockholmFilepath
-       systemCMalign ("--outformat=Clustal --cpu " ++ show (cpuThreads staticOptions)) cmalignCMFilepath fastaFilepath clustalFilepath
-   --- deactivated preprocessing because results are different, maybe input format for ALifold (Stockholm/clustal) also involved?
-   --- selectedClustalFilepath <- preprocessClustalForRNAz clustalFilepath reformatedClustalFilepath
-       let selectedClustalFilepath = Right clustalFilepath
-       if (isRight selectedClustalFilepath)      
+       systemRNAalifold "--cfactor 0.6 --nfactor 0.5" stockholmFilepath alifoldFilepath
+       replaceStatus <- replaceStockholmStructure stockholmFilepath alifoldFilepath updatedStructureStockholmFilepath
+       if (null replaceStatus)
          then do
-           systemRNAalifold "--cfactor 0.6 --nfactor 0.5" (fromRight selectedClustalFilepath) alifoldFilepath
-           replaceStatus <- replaceStockholmStructure stockholmFilepath alifoldFilepath updatedStructureStockholmFilepath
-           if (null replaceStatus)
-             then do
-               systemCMbuild updatedStructureStockholmFilepath cmFilepath cmBuildFilepath
-               systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
-               return cmFilepath
-             else do
-               logWarning ("Warning: A problem occured updating the secondary structure of iteration " ++ show (iterationNumber modelConstruction)  ++ " stockholm alignment: " ++ replaceStatus) (tempDirPath staticOptions)
-               systemCMbuild updatedStructureStockholmFilepath cmFilepath cmBuildFilepath
-               systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
-               return cmFilepath
-         else do
-           logWarning ("Warning: A problem occured updating the secondary structure of iteration " ++ show (iterationNumber modelConstruction) ++ "stockholm alignment:" ++ (fromLeft selectedClustalFilepath)) (tempDirPath staticOptions)
-           systemCMbuild stockholmFilepath cmFilepath cmBuildFilepath
+           systemCMbuild updatedStructureStockholmFilepath cmFilepath cmBuildFilepath
            systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
            return cmFilepath
+         else do
+           logWarning ("Warning: A problem occured updating the secondary structure of iteration " ++ show (iterationNumber modelConstruction)  ++ " stockholm alignment: " ++ replaceStatus) (tempDirPath staticOptions)
+           systemCMbuild updatedStructureStockholmFilepath cmFilepath cmBuildFilepath
+           systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
+           return cmFilepath
+  
      else do
        logVerboseMessage (verbositySwitch staticOptions) ("Construct Model - initial mode\n") (tempDirPath staticOptions)
        alignSequences "mlocarna" ("--threads=" ++ (show (cpuThreads staticOptions)) ++ " ") [fastaFilepath] [] [locarnaFilepath] []
@@ -1732,4 +1722,9 @@ checkNCBIConnection = do
          then return (Right ("Network connection with NCBI server is ok: "  ++ show (rspCode rightResponse)))
          else return (Left ("Could not connect to NCBI server \"http://www.ncbi.nlm.nih.gov\". Response Code: " ++ show (rspCode rightResponse)))
      else return (Left ("Could not connect to NCBI server: \"http://www.ncbi.nlm.nih.gov\": " ++ show (fromLeft response)))
- 
+
+-- | Blast evalue is set stricter in inital alignment mode
+setBlastExpectThreshold :: ModelConstruction -> Double
+setBlastExpectThreshold modelConstruction
+  | alignmentModeInfernal modelConstruction = 0.1 :: Double
+  | otherwise = 1 :: Double
