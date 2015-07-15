@@ -22,6 +22,7 @@ import Bio.RNAzParser
 data Options = Options            
   { alienCovarianceModelPath  :: String,
     alienrnazPath :: String,
+    aliencmstatPath :: String,
     rfamCovarianceModelPath :: String,
     rfamFastaFilePath :: String,
     alienFastaFilePath :: String,
@@ -38,6 +39,7 @@ options :: Options
 options = Options
   { alienCovarianceModelPath = def &= name "i" &= help "Path to alienCovarianceModelPath",
     alienrnazPath = def &= name "z" &= help "Path to alienRNAzResult",
+    aliencmstatPath = def &= name "m" &= help "Path to aliencmstatResult",
     rfamCovarianceModelPath = def &= name "r" &= help "Path to rfamCovarianceModelPath",
     rfamFastaFilePath = def &= name "g" &= help "Path to rfamFastaFile",
     rfamModelName = def &= name "n" &= help "Rfam model name",
@@ -106,6 +108,9 @@ main :: IO ()
 main = do
   Options{..} <- cmdArgs options
   rfamModelExists <- doesFileExist rfamCovarianceModelPath
+  verbose <- getVerbosity
+  rnazString <- rnazOutput verbose alienrnazPath 
+  cmStatString <- cmStatOutput verbose aliencmstatPath
   if rfamModelExists
     then do
       --compute linkscore
@@ -124,51 +129,26 @@ main = do
       let alienonRfamResultsNumber = length alienonRfamResults
       let rfamonAlienRecovery = (fromIntegral rfamonAlienResultsNumber :: Double) / (fromIntegral alienFastaEntriesNumber :: Double)
       let alienonRfamRecovery = (fromIntegral alienonRfamResultsNumber :: Double) / (fromIntegral rfamFastaEntriesNumber :: Double)
-      verbose <- getVerbosity
-      rnazPresent <- doesFileExist alienrnazPath
-      if rnazPresent
+      if (verbose == Loud)
         then do
-          inputRNAz <- readRNAz alienrnazPath
-          let rnaZ = (fromRight inputRNAz)
-          if (verbose == Loud)
-            then do
-              putStrLn ("BenchmarkIndex: " ++ show benchmarkIndex)
-              putStrLn ("RfamModelName: " ++ rfamModelName)
-              putStrLn ("RfamModelId: " ++ rfamModelId)
-              putStrLn ("Linkscore: " ++ show linkscore)
-              putStrLn ("rfamMaxLinkScore: " ++ show rfamMaxLinkScore)
-              putStrLn ("alienMaxLinkscore: " ++ show alienMaxLinkscore)    
-              putStrLn ("rfamGatheringThreshold: " ++ show rfamThreshold)
-              putStrLn ("alienGatheringThreshold: " ++ show alienThreshold) 
-              putStrLn ("rfamFastaEntriesNumber: " ++ show rfamFastaEntriesNumber)
-              putStrLn ("alienFastaEntriesNumber: " ++ show alienFastaEntriesNumber) 
-              putStrLn ("rfamonAlienResultsNumber: " ++ show rfamonAlienResultsNumber)
-              putStrLn ("alienonRfamResultsNumber: " ++ show alienonRfamResultsNumber)
-              putStrLn ("RfamonAlienRecovery: " ++ show rfamonAlienRecovery)   
-              putStrLn ("AlienonRfamRecovery: " ++ show alienonRfamRecovery)
-              putStrLn ("Mean pairwise identity: " ++ show (meanPairwiseIdentity rnaZ) ++ "\n  Shannon entropy: " ++ show (shannonEntropy rnaZ) ++  "\n  GC content: " ++ show (gcContent rnaZ) ++ "\n  Mean single sequence minimum free energy: " ++ show (meanSingleSequenceMinimumFreeEnergy rnaZ) ++ "\n  Consensus minimum free energy: " ++ show (consensusMinimumFreeEnergy rnaZ) ++ "\n  Energy contribution: " ++ show (energyContribution rnaZ) ++ "\n  Covariance contribution: " ++ show (covarianceContribution rnaZ) ++ "\n  Combinations pair: " ++ show (combinationsPair rnaZ) ++ "\n  Mean z-score: " ++ show (meanZScore rnaZ) ++ "\n  Structure conservation index: " ++ show (structureConservationIndex rnaZ) ++ "\n  Background model: " ++ backgroundModel rnaZ ++ "\n  Decision model: " ++ decisionModel rnaZ ++ "\n  SVM decision value: " ++ show (svmDecisionValue rnaZ) ++ "\n  SVM class propability: " ++ show (svmRNAClassProbability rnaZ) ++ "\n  Prediction: " ++ (prediction rnaZ))
-           else do
-              putStrLn (show benchmarkIndex ++ "\t" ++ rfamModelName ++ "\t" ++ rfamModelId ++ "\t" ++ show linkscore ++ "\t" ++ show rfamMaxLinkScore ++ "\t" ++ show alienMaxLinkscore ++ "\t" ++ show rfamThreshold ++ "\t" ++ show alienThreshold ++ "\t" ++ show rfamFastaEntriesNumber ++ "\t" ++ show alienFastaEntriesNumber ++ "\t" ++ show rfamonAlienResultsNumber ++ "\t" ++ show alienonRfamResultsNumber ++ "\t" ++ printf "%.2f" rfamonAlienRecovery  ++ "\t" ++ printf "%.2f" alienonRfamRecovery ++ "\t" ++ show (meanPairwiseIdentity rnaZ) ++ "\t" ++ show (shannonEntropy rnaZ) ++  "\t" ++ show (gcContent rnaZ) ++ "\t" ++ show (meanSingleSequenceMinimumFreeEnergy rnaZ) ++ "\t" ++ show (consensusMinimumFreeEnergy rnaZ) ++ "\t" ++ show (energyContribution rnaZ) ++ "\t" ++ show (covarianceContribution rnaZ) ++ "\t" ++ show (combinationsPair rnaZ) ++ "\t" ++ show (meanZScore rnaZ) ++ "\t" ++ show (structureConservationIndex rnaZ) ++ "\t" ++ show (svmDecisionValue rnaZ) ++ "\t" ++ show (svmRNAClassProbability rnaZ) ++ "\t" ++ (prediction rnaZ))
-         else do  
-           if (verbose == Loud)
-            then do
-              putStrLn ("BenchmarkIndex: " ++ show benchmarkIndex)
-              putStrLn ("RfamModelName: " ++ rfamModelName)
-              putStrLn ("RfamModelId: " ++ rfamModelId)
-              putStrLn ("Linkscore: " ++ show linkscore)
-              putStrLn ("rfamMaxLinkScore: " ++ show rfamMaxLinkScore)
-              putStrLn ("alienMaxLinkscore: " ++ show alienMaxLinkscore)    
-              putStrLn ("rfamGatheringThreshold: " ++ show rfamThreshold)
-              putStrLn ("alienGatheringThreshold: " ++ show alienThreshold) 
-              putStrLn ("rfamFastaEntriesNumber: " ++ show rfamFastaEntriesNumber)
-              putStrLn ("alienFastaEntriesNumber: " ++ show alienFastaEntriesNumber) 
-              putStrLn ("rfamonAlienResultsNumber: " ++ show rfamonAlienResultsNumber)
-              putStrLn ("alienonRfamResultsNumber: " ++ show alienonRfamResultsNumber)
-              putStrLn ("RfamonAlienRecovery: " ++ show rfamonAlienRecovery)   
-              putStrLn ("AlienonRfamRecovery: " ++ show alienonRfamRecovery)
-              putStrLn ("Mean pairwise identity: " ++ " - \n  Shannon entropy: " ++ " - \n  GC content: " ++ " - \n  Mean single sequence minimum free energy: " ++ " - \n  Consensus minimum free energy: " ++ " - \n  Energy contribution: " ++ " - \n  Covariance contribution: " ++ " - \n  Combinations pair: " ++ " - \n  Mean z-score: " ++ " - \n  Structure conservation index: " ++ " - \n  Background model: " ++ " - \n  Decision model: " ++ " - \n  SVM decision value: " ++ " - \n  SVM class propability: " ++ " - \n  Prediction: " ++ " - \n")
-            else do
-              putStrLn (show benchmarkIndex ++ "\t" ++ rfamModelName ++ "\t" ++ rfamModelId ++ "\t" ++ show linkscore ++ "\t" ++ show rfamMaxLinkScore ++ "\t" ++ show alienMaxLinkscore ++ "\t" ++ show rfamThreshold ++ "\t" ++ show alienThreshold ++ "\t" ++ show rfamFastaEntriesNumber ++ "\t" ++ show alienFastaEntriesNumber ++ "\t" ++ show rfamonAlienResultsNumber ++ "\t" ++ show alienonRfamResultsNumber ++ "\t" ++ printf "%.2f" rfamonAlienRecovery  ++ "\t" ++ printf "%.2f" alienonRfamRecovery ++ "\t" ++ "-" ++ "\t" ++ "-" ++  "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-")
+          putStrLn ("BenchmarkIndex: " ++ show benchmarkIndex)
+          putStrLn ("RfamModelName: " ++ rfamModelName)
+          putStrLn ("RfamModelId: " ++ rfamModelId)
+          putStrLn ("Linkscore: " ++ show linkscore)
+          putStrLn ("rfamMaxLinkScore: " ++ show rfamMaxLinkScore)
+          putStrLn ("alienMaxLinkscore: " ++ show alienMaxLinkscore)    
+          putStrLn ("rfamGatheringThreshold: " ++ show rfamThreshold)
+          putStrLn ("alienGatheringThreshold: " ++ show alienThreshold) 
+          putStrLn ("rfamFastaEntriesNumber: " ++ show rfamFastaEntriesNumber)
+          putStrLn ("alienFastaEntriesNumber: " ++ show alienFastaEntriesNumber) 
+          putStrLn ("rfamonAlienResultsNumber: " ++ show rfamonAlienResultsNumber)
+          putStrLn ("alienonRfamResultsNumber: " ++ show alienonRfamResultsNumber)
+          putStrLn ("RfamonAlienRecovery: " ++ show rfamonAlienRecovery)   
+          putStrLn ("AlienonRfamRecovery: " ++ show alienonRfamRecovery)
+          print rnazString
+          print cmStatString
+        else do
+          putStrLn (show benchmarkIndex ++ "\t" ++ rfamModelName ++ "\t" ++ rfamModelId ++ "\t" ++ show linkscore ++ "\t" ++ show rfamMaxLinkScore ++ "\t" ++ show alienMaxLinkscore ++ "\t" ++ show rfamThreshold ++ "\t" ++ show alienThreshold ++ "\t" ++ show rfamFastaEntriesNumber ++ "\t" ++ show alienFastaEntriesNumber ++ "\t" ++ show rfamonAlienResultsNumber ++ "\t" ++ show alienonRfamResultsNumber ++ "\t" ++ printf "%.2f" rfamonAlienRecovery  ++ "\t" ++ printf "%.2f" alienonRfamRecovery ++ "\t" ++ rnazString ++ "\t" ++ cmStatString)
     else do
       --compute linkscore
       --linkscore <- compareCM rfamCovarianceModelPath alienCovarianceModelPath outputDirectoryPath
@@ -185,49 +165,92 @@ main = do
       --let rfamonAlienResultsNumber = length rfamonAlienResults
       --let alienonRfamResultsNumber = length alienonRfamResults
       --let rfamonAlienRecovery = (fromIntegral rfamonAlienResultsNumber :: Double) / (fromIntegral alienFastaEntriesNumber :: Double)
-      --let alienonRfamRecovery = (fromIntegral alienonRfamResultsNumber :: Double) / (fromIntegral rfamFastaEntriesNumber :: Double)
-      verbose <- getVerbosity
-      rnazPresent <- doesFileExist alienrnazPath
-      if rnazPresent
+      --let alienonRfamRecovery = (fromIntegral alienonRfamResultsNumber :: Double) / (fromIntegral rfamFastaEntriesNumber :: Double)  
+      if (verbose == Loud)
         then do
-          inputRNAz <- readRNAz alienrnazPath
-          let rnaZ = (fromRight inputRNAz)
+          putStrLn ("BenchmarkIndex:")
+          putStrLn ("RfamModelName: -")
+          putStrLn ("RfamModelId: -")
+          putStrLn ("Linkscore: -")
+          putStrLn ("rfamMaxLinkScore: -")
+          putStrLn ("alienMaxLinkscore: " ++ show alienMaxLinkscore)    
+          putStrLn ("rfamGatheringThreshold: -")
+          putStrLn ("alienGatheringThreshold: -") 
+          putStrLn ("rfamFastaEntriesNumber: -")
+          putStrLn ("alienFastaEntriesNumber: " ++ show alienFastaEntriesNumber) 
+          putStrLn ("rfamonAlienResultsNumber: -")
+          putStrLn ("alienonRfamResultsNumber: -")
+          putStrLn ("RfamonAlienRecovery: -")   
+          putStrLn ("AlienonRfamRecovery: -")
+          print rnazString
+          print cmStatString
+        else do
+          putStrLn (show benchmarkIndex ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ show alienMaxLinkscore ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ show alienFastaEntriesNumber ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-"  ++ "\t" ++ "-" ++ "\t" ++ rnazString ++ "\t" ++ cmStatString)
+
+rnazOutput :: Verbosity -> String -> IO String
+rnazOutput verbose rnazPath = do
+  rnazPresent <- doesFileExist rnazPath
+  if rnazPresent
+    then do
+      inputRNAz <- readRNAz rnazPath
+      if isRight inputRNAz
+        then do
+          let rnaZ = fromRight inputRNAz
           if (verbose == Loud)
             then do
-              putStrLn ("BenchmarkIndex:")
-              putStrLn ("RfamModelName: -")
-              putStrLn ("RfamModelId: -")
-              putStrLn ("Linkscore: -")
-              putStrLn ("rfamMaxLinkScore: -")
-              putStrLn ("alienMaxLinkscore: " ++ show alienMaxLinkscore)    
-              putStrLn ("rfamGatheringThreshold: -")
-              putStrLn ("alienGatheringThreshold: -") 
-              putStrLn ("rfamFastaEntriesNumber: -")
-              putStrLn ("alienFastaEntriesNumber: " ++ show alienFastaEntriesNumber) 
-              putStrLn ("rfamonAlienResultsNumber: -")
-              putStrLn ("alienonRfamResultsNumber: -")
-              putStrLn ("RfamonAlienRecovery: -")   
-              putStrLn ("AlienonRfamRecovery: -")
-              putStrLn ("Mean pairwise identity: " ++ show (meanPairwiseIdentity rnaZ) ++ "\n  Shannon entropy: " ++ show (shannonEntropy rnaZ) ++  "\n  GC content: " ++ show (gcContent rnaZ) ++ "\n  Mean single sequence minimum free energy: " ++ show (meanSingleSequenceMinimumFreeEnergy rnaZ) ++ "\n  Consensus minimum free energy: " ++ show (consensusMinimumFreeEnergy rnaZ) ++ "\n  Energy contribution: " ++ show (energyContribution rnaZ) ++ "\n  Covariance contribution: " ++ show (covarianceContribution rnaZ) ++ "\n  Combinations pair: " ++ show (combinationsPair rnaZ) ++ "\n  Mean z-score: " ++ show (meanZScore rnaZ) ++ "\n  Structure conservation index: " ++ show (structureConservationIndex rnaZ) ++ "\n  Background model: " ++ backgroundModel rnaZ ++ "\n  Decision model: " ++ decisionModel rnaZ ++ "\n  SVM decision value: " ++ show (svmDecisionValue rnaZ) ++ "\n  SVM class propability: " ++ show (svmRNAClassProbability rnaZ) ++ "\n  Prediction: " ++ (prediction rnaZ))
-           else do
-              putStrLn (show benchmarkIndex ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ show alienMaxLinkscore ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ show alienFastaEntriesNumber ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-"  ++ "\t" ++ "-" ++ "\t" ++ show (meanPairwiseIdentity rnaZ) ++ "\t" ++ show (shannonEntropy rnaZ) ++  "\t" ++ show (gcContent rnaZ) ++ "\t" ++ show (meanSingleSequenceMinimumFreeEnergy rnaZ) ++ "\t" ++ show (consensusMinimumFreeEnergy rnaZ) ++ "\t" ++ show (energyContribution rnaZ) ++ "\t" ++ show (covarianceContribution rnaZ) ++ "\t" ++ show (combinationsPair rnaZ) ++ "\t" ++ show (meanZScore rnaZ) ++ "\t" ++ show (structureConservationIndex rnaZ) ++ "\t" ++ show (svmDecisionValue rnaZ) ++ "\t" ++ show (svmRNAClassProbability rnaZ) ++ "\t" ++ (prediction rnaZ))
-         else do  
+              let output = "Mean pairwise identity: " ++ show (meanPairwiseIdentity rnaZ) ++ "\n  Shannon entropy: " ++ show (shannonEntropy rnaZ) ++  "\n  GC content: " ++ show (gcContent rnaZ) ++ "\n  Mean single sequence minimum free energy: " ++ show (meanSingleSequenceMinimumFreeEnergy rnaZ) ++ "\n  Consensus minimum free energy: " ++ show (consensusMinimumFreeEnergy rnaZ) ++ "\n  Energy contribution: " ++ show (energyContribution rnaZ) ++ "\n  Covariance contribution: " ++ show (covarianceContribution rnaZ) ++ "\n  Combinations pair: " ++ show (combinationsPair rnaZ) ++ "\n  Mean z-score: " ++ show (meanZScore rnaZ) ++ "\n  Structure conservation index: " ++ show (structureConservationIndex rnaZ) ++ "\n  Background model: " ++ backgroundModel rnaZ ++ "\n  Decision model: " ++ decisionModel rnaZ ++ "\n  SVM decision value: " ++ show (svmDecisionValue rnaZ) ++ "\n  SVM class propability: " ++ show (svmRNAClassProbability rnaZ) ++ "\n  Prediction: " ++ (prediction rnaZ)
+              return output
+            else do
+              let output = show (meanPairwiseIdentity rnaZ) ++ "\t" ++ show (shannonEntropy rnaZ) ++  "\t" ++ show (gcContent rnaZ) ++ "\t" ++ show (meanSingleSequenceMinimumFreeEnergy rnaZ) ++ "\t" ++ show (consensusMinimumFreeEnergy rnaZ) ++ "\t" ++ show (energyContribution rnaZ) ++ "\t" ++ show (covarianceContribution rnaZ) ++ "\t" ++ show (combinationsPair rnaZ) ++ "\t" ++ show (meanZScore rnaZ) ++ "\t" ++ show (structureConservationIndex rnaZ) ++ "\t" ++ show (svmDecisionValue rnaZ) ++ "\t" ++ show (svmRNAClassProbability rnaZ) ++ "\t" ++ (prediction rnaZ)
+              return output
+         else do
            if (verbose == Loud)
             then do
-              putStrLn ("BenchmarkIndex:")
-              putStrLn ("RfamModelName: -")
-              putStrLn ("RfamModelId: -")
-              putStrLn ("Linkscore: -")
-              putStrLn ("rfamMaxLinkScore: -")
-              putStrLn ("alienMaxLinkscore: " ++ show alienMaxLinkscore)    
-              putStrLn ("rfamGatheringThreshold: -")
-              putStrLn ("alienGatheringThreshold: -") 
-              putStrLn ("rfamFastaEntriesNumber: -")
-              putStrLn ("alienFastaEntriesNumber: " ++ show alienFastaEntriesNumber) 
-              putStrLn ("rfamonAlienResultsNumber: -")
-              putStrLn ("alienonRfamResultsNumber: -")
-              putStrLn ("RfamonAlienRecovery: -")   
-              putStrLn ("AlienonRfamRecovery: -")
-              putStrLn ("Mean pairwise identity: " ++ " - \n  Shannon entropy: " ++ " - \n  GC content: " ++ " - \n  Mean single sequence minimum free energy: " ++ " - \n  Consensus minimum free energy: " ++ " - \n  Energy contribution: " ++ " - \n  Covariance contribution: " ++ " - \n  Combinations pair: " ++ " - \n  Mean z-score: " ++ " - \n  Structure conservation index: " ++ " - \n  Background model: " ++ " - \n  Decision model: " ++ " - \n  SVM decision value: " ++ " - \n  SVM class propability: " ++ " - \n  Prediction: " ++ " - \n")
+              let output = "Mean pairwise identity: " ++ " - \n  Shannon entropy: " ++ " - \n  GC content: " ++ " - \n  Mean single sequence minimum free energy: " ++ " - \n  Consensus minimum free energy: " ++ " - \n  Energy contribution: " ++ " - \n  Covariance contribution: " ++ " - \n  Combinations pair: " ++ " - \n  Mean z-score: " ++ " - \n  Structure conservation index: " ++ " - \n  Background model: " ++ " - \n  Decision model: " ++ " - \n  SVM decision value: " ++ " - \n  SVM class propability: " ++ " - \n  Prediction: " ++ " - \n"
+              return output
             else do
-              putStrLn (show benchmarkIndex ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ show alienMaxLinkscore ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ show alienFastaEntriesNumber ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-"  ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++  "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-")
+              let output = "-" ++ "\t" ++ "-" ++  "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-"
+              return output
+    else do
+       if (verbose == Loud)
+         then do
+           let output = "Mean pairwise identity: " ++ " - \n  Shannon entropy: " ++ " - \n  GC content: " ++ " - \n  Mean single sequence minimum free energy: " ++ " - \n  Consensus minimum free energy: " ++ " - \n  Energy contribution: " ++ " - \n  Covariance contribution: " ++ " - \n  Combinations pair: " ++ " - \n  Mean z-score: " ++ " - \n  Structure conservation index: " ++ " - \n  Background model: " ++ " - \n  Decision model: " ++ " - \n  SVM decision value: " ++ " - \n  SVM class propability: " ++ " - \n  Prediction: " ++ " - \n"
+           return output
+         else do
+           let output = "-" ++ "\t" ++ "-" ++  "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-"
+           return output
+
+cmStatOutput :: Verbosity -> String -> IO String
+cmStatOutput verbose cmstatPath = do
+  cmstatPresent <- doesFileExist cmstatPath
+  if cmstatPresent
+    then do
+      inputCMstat <- readCMstat cmstatPath
+      if isRight inputCMstat
+        then do
+          let cmStat = fromRight inputCMstat
+          if (verbose == Loud)
+            then do
+              let output = "statSequenceNumber: " ++ (show (statSequenceNumber cmStat)) ++ "\nstatEffectiveSequences: " ++ (show (statEffectiveSequences cmStat)) ++ "\nstatConsensusLength: " ++ (show (statConsensusLength cmStat)) ++ "\nstatW: " ++ show (statW cmStat) ++ "\nstatBasepairs: " ++ show (statBasepairs cmStat) ++ "\nstatBifurcations: " ++ (show (statBifurcations cmStat)) ++ "\nstatModel: " ++ (statModel cmStat) ++ "\nrelativeEntropyCM: " ++ show (relativeEntropyCM cmStat) ++ "\nrelativeEntropyHMM: " ++ show (relativeEntropyHMM cmStat)
+              return output
+            else do
+              let output = (show (statSequenceNumber cmStat)) ++ "\t" ++ (show (statEffectiveSequences cmStat)) ++ "\t" ++ (show (statConsensusLength cmStat)) ++ "\t" ++ show (statW cmStat) ++ "\t" ++ show (statBasepairs cmStat) ++ "\t" ++ (show (statBifurcations cmStat)) ++ "\t" ++ (statModel cmStat) ++ "\t" ++ show (relativeEntropyCM cmStat) ++ "\t" ++ show (relativeEntropyHMM cmStat)
+              return output
+         else do
+           if (verbose == Loud)
+            then do
+              let output = "statSequenceNumber: -" ++ "\nstatEffectiveSequences: -" ++ "\nstatConsensusLength: -" ++ "\nstatW: -" ++ "\nstatBasepairs: -" ++ "\nstatBifurcations: -" ++ "\nstatModel: -" ++ "\nrelativeEntropyCM: -" ++ "\nrelativeEntropyHMM: -"
+              return output
+            else do
+              let output = "-\t" ++ "-\t" ++ "-\t" ++ "-\t" ++ "-\t" ++ "-\t" ++ "-\t" ++ "-\t" ++ "-"
+              return output
+    else do
+       if (verbose == Loud)
+         then do
+           let output = "statSequenceNumber: -" ++ "\nstatEffectiveSequences: -" ++ "\nstatConsensusLength: -" ++ "\nstatW: -" ++ "\nstatBasepairs: -" ++ "\nstatBifurcations: -" ++ "\nstatModel: -" ++ "\nrelativeEntropyCM: -" ++ "\nrelativeEntropyHMM: -"
+           return output
+         else do
+           let output = "-\t" ++ "-\t" ++ "-\t" ++ "-\t" ++ "-\t" ++ "-\t" ++ "-\t" ++ "-\t" ++ "-"
+           return output
+
+      

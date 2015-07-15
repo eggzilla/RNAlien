@@ -1659,7 +1659,7 @@ cmstatEvalOutput inputcmstat
   | isRight inputcmstat = cmstatString
   | otherwise = show (fromLeft inputcmstat)
     where cmStat = fromRight inputcmstat  
-          cmstatString = "  Sequence Number: " ++ show (statSequenceNumber cmStat)++ "\n" ++ "  Effective Sequences: " ++ show (statEffectiveSequences cmStat)++ "\n" ++ "  Consensus length: " ++ show (statConsensusLength cmStat) ++ "\n" ++ "  Expected maximum hit-length: " ++ show (statW cmStat) ++ "\n" ++ "  Basepairs: " ++ show (statBasepaires cmStat)++ "\n" ++ "  Bifurcations: " ++ show (statBifurcations cmStat) ++ "\n" ++ "  Modeltype: " ++ show (statModel cmStat) ++ "\n" ++ "  Relative Entropy CM: " ++ show (relativeEntropyCM cmStat) ++ "\n" ++ "  Relative Entropy HMM: " ++ show (relativeEntropyHMM cmStat) ++ "\n"
+          cmstatString = "  Sequence Number: " ++ show (statSequenceNumber cmStat)++ "\n" ++ "  Effective Sequences: " ++ show (statEffectiveSequences cmStat)++ "\n" ++ "  Consensus length: " ++ show (statConsensusLength cmStat) ++ "\n" ++ "  Expected maximum hit-length: " ++ show (statW cmStat) ++ "\n" ++ "  Basepairs: " ++ show (statBasepairs cmStat)++ "\n" ++ "  Bifurcations: " ++ show (statBifurcations cmStat) ++ "\n" ++ "  Modeltype: " ++ show (statModel cmStat) ++ "\n" ++ "  Relative Entropy CM: " ++ show (relativeEntropyCM cmStat) ++ "\n" ++ "  Relative Entropy HMM: " ++ show (relativeEntropyHMM cmStat) ++ "\n"
 
 rnaZEvalOutput :: Either ParseError RNAz -> String 
 rnaZEvalOutput inputRNAz 
