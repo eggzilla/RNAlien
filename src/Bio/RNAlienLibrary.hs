@@ -1726,5 +1726,5 @@ checkNCBIConnection = do
 -- | Blast evalue is set stricter in inital alignment mode
 setBlastExpectThreshold :: ModelConstruction -> Double
 setBlastExpectThreshold modelConstruction
-  | alignmentModeInfernal modelConstruction = 0.1 :: Double
-  | otherwise = 1 :: Double
+  | alignmentModeInfernal modelConstruction = 1 :: Double
+  | otherwise = 0.1 :: Double
