@@ -1403,8 +1403,8 @@ convertFastaFoldStockholm fastasequence foldedStructure = stockholmOutput
         --(L.unpack (unSL (seqheader inputFasta')))) ++ "\n" ++ (map toUpper (L.unpack (unSD (seqdata inputFasta')))) ++ "\n"
         seqIdentifier = L.unpack (unSL (seqheader fastasequence))
         seqSequence = L.unpack (unSD (seqdata fastasequence))
-        identifierLength = maximum [12,length seqIdentifier]
-        spacerLength' = identifierLength + 2
+        identifierLength = length seqIdentifier
+        spacerLength' = maximum [14,(identifierLength + 2)]
         spacer = replicate (spacerLength' - identifierLength) ' '
         entrystring = seqIdentifier ++ spacer ++ seqSequence ++ "\n"
         structureString = "#=GC SS_cons" ++ (replicate (spacerLength' - 12) ' ') ++ foldedStructure ++ "\n"
