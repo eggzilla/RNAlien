@@ -501,6 +501,8 @@ alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultP
   let candidateAliFoldFilepath = V.toList (V.map (\(number,_) -> iterationDirectory ++ (show number) ++ ".alifold") candidateSequences)
   let locarnaFilepath = V.toList (V.map (\(number,_) -> iterationDirectory ++ (show number) ++ "." ++ "mlocarna") candidateSequences)
   alignSequences "locarna" (" --write-structure --free-endgaps=++-- ") (replicate (V.length candidateSequences) inputFastaFilepath) candidateFastaFilepath locarnainClustalw2FormatFilepath locarnaFilepath
+  --compute SequenceIdentities
+  let sequenceIdentities = V.map (\(_,seq) -> sequenceIdentity (inputFasta modelConstruction) seq) candidateSequences
   --compute SCI
   systemRNAfold inputFastaFilepath inputFoldFilepath
   inputfoldResult <- readRNAfold inputFoldFilepath
@@ -509,11 +511,11 @@ alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultP
   foldResults <- mapM (\filepath -> readRNAfold filepath) candidateFoldFilepath
   let candidateMFEs = map foldingEnergy (map fromRight foldResults)
   let averageMFEs = map (\candidateMFE -> (candidateMFE + inputFoldMFE)/2) candidateMFEs
-  mapM_ (\(locarnaclustalw2path,aliFoldpath) -> systemRNAalifold "--cfactor 0.6 --nfactor 0.5" locarnaclustalw2path aliFoldpath) (zip locarnainClustalw2FormatFilepath candidateAliFoldFilepath)
+  mapM_ (\(locarnaclustalw2path,aliFoldpath) -> systemRNAalifold "-r --cfactor 0.5 --nfactor 0.5" locarnaclustalw2path aliFoldpath) (zip locarnainClustalw2FormatFilepath candidateAliFoldFilepath)
   alifoldResults <- mapM (\filepath -> readRNAalifold filepath) candidateAliFoldFilepath
   let consensusMFE = map alignmentConsensusMinimumFreeEnergy (map fromRight alifoldResults)
-  let structureConservationIndices = map (\(consMFE,averMFE) -> consMFE/averMFE) (zip consensusMFE averageMFEs)
-  let alignedCandidates = zip structureConservationIndices filteredCandidates
+  let sciidfraction = map (\(consMFE,averMFE,seqId) -> (consMFE/averMFE)/seqId) (zip3 consensusMFE averageMFEs (V.toList sequenceIdentities))
+  let alignedCandidates = zip sciidfraction filteredCandidates
   writeFile (iterationDirectory ++ "log" ++ "/zscores") (showlines alignedCandidates)
   let (selectedCandidates,rejectedCandidates) = partition (\(sci,_) -> sci > (zScoreCutoff staticOptions)) alignedCandidates
   createDirectoryIfMissing False (iterationDirectory ++ "log")
