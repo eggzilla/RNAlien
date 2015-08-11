@@ -33,7 +33,7 @@ options = Options
   { inputFastaFilePath = def &= name "i" &= help "Path to input fasta file",                       
     outputPath = def &= name "o" &= help "Path to output directory",
     inputTaxId = Nothing &= name "t" &= help "NCBI taxonomy ID number of input RNA organism",
-    inputZScoreCutoff = (Just (0.8 :: Double)) &= name "z" &= help "RNAz score cutoff used in building first alignment. Default: 0.8",
+    inputZScoreCutoff = (Just (1 :: Double)) &= name "z" &= help "RNAz score cutoff used in building first alignment. Default: 0.8",
     inputEvalueCutoff = (Just (0.001 :: Double)) &= name "e" &= help "Evalue cutoff for cmsearch filtering. Default: 0.001",
     inputBlastDatabase = Just "nt" &= name "b" &= help "Specify name of blast database to use. Default: nt",                    
     lengthFilter = True &= name "l" &= help "Filter blast hits per genomic length. Default: True",

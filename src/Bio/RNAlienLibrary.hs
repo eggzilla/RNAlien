@@ -502,7 +502,7 @@ alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultP
   let locarnaFilepath = V.toList (V.map (\(number,_) -> iterationDirectory ++ (show number) ++ "." ++ "mlocarna") candidateSequences)
   alignSequences "locarna" (" --write-structure --free-endgaps=++-- ") (replicate (V.length candidateSequences) inputFastaFilepath) candidateFastaFilepath locarnainClustalw2FormatFilepath locarnaFilepath
   --compute SequenceIdentities
-  let sequenceIdentities = V.map (\(_,seq) -> sequenceIdentity (inputFasta modelConstruction) seq) candidateSequences
+  let sequenceIdentities = V.map (\(_,s) -> sequenceIdentity (inputFasta modelConstruction) s) candidateSequences
   --compute SCI
   systemRNAfold inputFastaFilepath inputFoldFilepath
   inputfoldResult <- readRNAfold inputFoldFilepath
@@ -596,7 +596,7 @@ constructModel modelConstruction staticOptions = do
      then do
        logVerboseMessage (verbositySwitch staticOptions) ("Construct Model - infernal mode\n") (tempDirPath staticOptions)
        systemCMalign ("--cpu " ++ show (cpuThreads staticOptions)) cmalignCMFilepath fastaFilepath stockholmFilepath
-       systemRNAalifold "--cfactor 0.6 --nfactor 0.5" stockholmFilepath alifoldFilepath
+       systemRNAalifold "-r --cfactor 0.5 --nfactor 0.5" stockholmFilepath alifoldFilepath
        replaceStatus <- replaceStockholmStructure stockholmFilepath alifoldFilepath updatedStructureStockholmFilepath
        if (null replaceStatus)
          then do
