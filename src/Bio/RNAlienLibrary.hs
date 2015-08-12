@@ -502,7 +502,7 @@ alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultP
   let locarnaFilepath = V.toList (V.map (\(number,_) -> iterationDirectory ++ (show number) ++ "." ++ "mlocarna") candidateSequences)
   alignSequences "locarna" (" --write-structure --free-endgaps=++-- ") (replicate (V.length candidateSequences) inputFastaFilepath) candidateFastaFilepath locarnainClustalw2FormatFilepath locarnaFilepath
   --compute SequenceIdentities
-  let sequenceIdentities = V.map (\(_,s) -> sequenceIdentity (inputFasta modelConstruction) s) candidateSequences
+  let sequenceIdentities = V.map (\(_,s) -> (sequenceIdentity (inputFasta modelConstruction) s)/(100 :: Double)) candidateSequences
   --compute SCI
   systemRNAfold inputFastaFilepath inputFoldFilepath
   inputfoldResult <- readRNAfold inputFoldFilepath
