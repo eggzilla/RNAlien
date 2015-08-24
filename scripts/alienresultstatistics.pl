@@ -21,24 +21,25 @@ my $RNAFamilyIdFile;
 my $familyNumber;
 my $resulttempdir;
 my $resultfileprefix;
+my $cpu_cores = 20;
 
 if($type eq "structured"){
-	$alienresult_basename="/scr/kronos/egg/AlienStructuredResultsCollected" . "$currentresultnumber" . "/";
+	$alienresult_basename="/scr/coridan/egg/AlienStructuredResultsCollected" . "$currentresultnumber" . "/";
 	$rfammodel_basename = "/scr/kronos/egg/AlienTest/sRNAFamilies/all_models/";
 	#$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyfasta/"; full fasta
 	$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyseedfasta/";
 	$RNAFamilyIdFile = "/scr/kronos/egg/structuredFamilyNameIdGatheringCutoffSorted";
 	$familyNumber = 72;
-	$resulttempdir = "/scr/kronos/egg/temp/AlienStructuredResultStatistics". "$currentresultnumber" . "/";
+	$resulttempdir = "/scr/coridan/egg/temp/AlienStructuredResultStatistics". "$currentresultnumber" . "/";
         $resultfileprefix = "structuredalienseedoutput";
 }else{
 	#sRNA
-	$alienresult_basename="/scr/kronos/egg/AlienResultsCollected" . "$currentresultnumber" . "/";
+	$alienresult_basename="/scr/coridan/egg/AlienResultsCollected" . "$currentresultnumber" . "/";
 	$rfammodel_basename = "/scr/kronos/egg/AlienTest/sRNAFamilies/all_models/";
 	$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyfasta/";
 	$RNAFamilyIdFile = "/scr/kronos/egg/smallRNAtaggedfamiliesNameIDThresholdTagSorted.csv";
         $familyNumber = 374;
-	$resulttempdir = "/scr/kronos/egg/temp/AlienResultStatistics" . "$currentresultnumber" . "/";
+	$resulttempdir = "/scr/coridan/egg/temp/AlienResultStatistics" . "$currentresultnumber" . "/";
         $resultfileprefix = "alienseedoutput";
 }
 
@@ -53,7 +54,7 @@ close $RNAfamilyfh;
 
 my $gathering_score_multiplier = 1.0; 
 my $gathering_score_lower_bound;
-alienresultstatistic($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,$gathering_score_multiplier,$gathering_score_lower_bound,"/scr/kronos/egg/$resultfileprefix$currentresultnumber-" . $gathering_score_multiplier . ".tsv");
+alienresultstatistic($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,$gathering_score_multiplier,$gathering_score_lower_bound,"/scr/kronos/egg/$resultfileprefix$currentresultnumber-" . $gathering_score_multiplier . ".tsv",$cpu_cores);
 
 #for(1..10){
 #     my $outputfilePath = "/scr/kronos/egg/structuredalienseedoutput$currentresultnumber-" . $gathering_score_multiplier . ".csv";
@@ -73,6 +74,7 @@ sub alienresultstatistic{
     my $gathering_score_multiplier = shift;
     my $gathering_score_lower_bound = shift;
     my $outputfilePath = shift;
+    my $cpu_cores = shift;
     #my $output="BenchmarkIndex\tRfamModelName\tRfamModelId\tLinkscore\trfamMaxLinkScore\talienMaxLinkscore\trfamGatheringThreshold\talienGatheringThreshold\trfamFastaEntriesNumber\talienFastaEntriesNumber\trfamonAlienResultsNumber\talienonRfamResultsNumber\tRfamonAlienRecovery\tAlienonRfamRecovery\tmeanPairwiseIdentity\tshannonEntropy\tgcContent\tmeanSingleSequenceMinimumFreeEnergy\tconsensusMinimumFreeEnergy\tenergyContribution\tcovarianceContribution\tcombinationsPair\tmeanZScore\tstructureConservationIndex\tsvmDecisionValue\tsvmRNAClassProbability\tprediction\n";
     my $output="Index\tRfamName\tRfamId\tLinkscore\trfamMaxLS\talienMaxLS\trfamGatheringThreshold\talienGatheringThreshold\trfamFastaNumber\talienFastaNumber\trfamonAlienNumber\talienonRfamNumber\tRfamonAlienRecovery\tAlienonRfamRecovery\tmeanPairwiseIdentity\tshannonEntropy\tgcContent\tmeanSingleSequenceMFE\tconsensusMFE\tenergyContribution\tcovarianceContribution\tcombinationsPair\tmeanZScore\tSCI\tsvmDecisionValue\tsvmRNAClassProbability\tprediction\tstatSequenceNumber\tstatEffectiveSequences\tstatConsensusLength\tstatW\tstatBasepairs\tstatBifurcations\tstatModel\trelativeEntropyCM\trelativeEntropyHMM\n"; 
     for(my $counter=1; $counter <= $familyNumber; $counter++){
@@ -134,7 +136,7 @@ sub alienresultstatistic{
                 }       
             }
             #print "RNAlienStatistics -n $rfamModelName -d $rfamModelId -b $counter -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -t $alienThreshold -x $rfamThreshold -o $resulttempdir\n";
-            $output = $output . `RNAlienStatistics -c 20 -n $rfamModelName -d $rfamModelId -b $counter -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -t $rfamThreshold -x $rfamThreshold -o $resulttempdir -z $alienRNAzPath -m $aliencmstatPath`;
+            $output = $output . `RNAlienStatistics -c $cpu_cores -n $rfamModelName -d $rfamModelId -b $counter -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -t $rfamThreshold -x $rfamThreshold -o $resulttempdir -z $alienRNAzPath -m $aliencmstatPath`;
         }
     }
     open(my $outputfh, ">", $outputfilePath)
