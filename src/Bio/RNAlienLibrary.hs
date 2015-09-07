@@ -344,7 +344,7 @@ findTaxonomyStart inputBlastDatabase temporaryDirectory querySequence = do
   let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") inputBlastDatabase [querySequence] (Just (hitNumberQuery ++ registrationInfo)) (Just (5400000000 :: Int))
   logMessage ("No tax id provided - Sending find taxonomy start blast query \n") temporaryDirectory
   blastOutput <- CE.catch (blastHTTP blastQuery)
-	               (\e -> do let err = show (e :: CE.IOException)
+                       (\e -> do let err = show (e :: CE.IOException)
                                  logWarning ("Warning: Blast attempt failed:" ++ " " ++ err) temporaryDirectory
                                  error "findTaxonomyStart: Blast attempt failed"
                                  return (Left ""))
@@ -378,7 +378,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
   let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) querySequences'  (Just (hitNumberQuery ++ entrezTaxFilter ++ registrationInfo)) (Just (5400000000 :: Int))
   logVerboseMessage (verbositySwitch staticOptions) ("Sending blast query " ++ (show iterationnumber) ++ "\n") (tempDirPath staticOptions)
   blastOutput <- CE.catch (blastHTTP blastQuery)
-	               (\e -> do let err = show (e :: CE.IOException)
+                       (\e -> do let err = show (e :: CE.IOException)
                                  logWarning ("Warning: Blast attempt failed:" ++ " " ++ err) (tempDirPath staticOptions)
                                  return (Left ""))
   let logFileDirectoryPath = (tempDirPath staticOptions) ++ (show iterationnumber) ++ "/" ++ (fromMaybe "" finaliterationprefix) ++ "log"
