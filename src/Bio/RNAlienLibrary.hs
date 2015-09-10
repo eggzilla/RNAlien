@@ -519,6 +519,7 @@ alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultP
   writeFile (iterationDirectory ++ "log" ++ "/zscores") (showlines alignedCandidates)
   let (selectedCandidates,rejectedCandidates) = partition (\(sci,_) -> sci > (zScoreCutoff staticOptions)) alignedCandidates
   createDirectoryIfMissing False (iterationDirectory ++ "log")
+  mapM_ print (zip3 consensusMFE averageMFEs (V.toList sequenceIdentities))
   writeFile (iterationDirectory ++ "log" ++ "/11selectedCandidates") (showlines selectedCandidates)
   writeFile (iterationDirectory ++ "log" ++ "/12rejectedCandidates") (showlines rejectedCandidates)
   CE.evaluate (map snd selectedCandidates,[])
@@ -885,9 +886,6 @@ buildHitNumberQuery :: String -> String
 buildHitNumberQuery hitNumber
   | hitNumber == "" = ""
   | otherwise = "&ALIGNMENTS=" ++ hitNumber
-
-buildRegistration :: String -> String -> String
-buildRegistration toolname developeremail = "&tool=" ++ toolname ++ "&email=" ++ developeremail
 
 encodedTaxIDQuery :: Int -> String
 encodedTaxIDQuery taxID = "txid" ++ (show taxID) ++ "%20%5BORGN%5D&EQ_OP"
