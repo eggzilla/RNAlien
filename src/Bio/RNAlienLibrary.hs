@@ -1261,11 +1261,11 @@ retrieveFullSequences staticOptions requestedSequences = do
     else CE.evaluate (map (\(x,y,z) -> (fromJust x,y,z)) fullSequences)
         
 retrieveFullSequence :: String -> (String,Int,Int,String,String,Int,String) -> IO (Maybe Sequence,Int,String)
-retrieveFullSequence temporaryDirectoryPath (geneId,seqStart,seqStop,strand,_,taxid,subject') = do
+retrieveFullSequence temporaryDirectoryPath (nucleotideId,seqStart,seqStop,strand,_,taxid,subject') = do
   let program' = Just "efetch"
   let database' = Just "nucleotide"
   let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
-  let queryString = "id=" ++ geneId ++ "&seq_start=" ++ (show seqStart) ++ "&seq_stop=" ++ (show seqStop) ++ "&rettype=fasta" ++ "&strand=" ++ strand ++ registrationInfo
+  let queryString = "id=" ++ nucleotideId ++ "&seq_start=" ++ (show seqStart) ++ "&seq_stop=" ++ (show seqStop) ++ "&rettype=fasta" ++ "&strand=" ++ strand ++ registrationInfo
   let entrezQuery = EntrezHTTPQuery program' database' queryString 
   result <- CE.catch (entrezHTTP entrezQuery)
               (\e -> do let err = show (e :: CE.IOException)
@@ -1281,10 +1281,8 @@ retrieveFullSequence temporaryDirectoryPath (geneId,seqStart,seqStop,strand,_,ta
         else do
           let parsedFasta = head ((mkSeqs . L.lines) (L.pack result))
           if (L.null (unSD (seqdata parsedFasta)))
-            then do 
-              return (Nothing,taxid,subject')
-            else do
-              CE.evaluate (Just parsedFasta,taxid,subject')
+            then (return (Nothing,taxid,subject'))
+            else (CE.evaluate (Just parsedFasta,taxid,subject'))
  
 getRequestedSequenceElement :: Int -> (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
 getRequestedSequenceElement queryLength (blastHit,taxid) 
@@ -1306,9 +1304,9 @@ getForwardRequestedSequenceElement queryLength (blastHit,taxid) = (geneIdentifie
             blastMatches = matches blastHit
             blastHitOriginSequenceLength = slength blastHit
             minHfrom = minimum (map h_from blastMatches)
-            minHfromHSP = fromJust (find (\hsp -> minHfrom == (h_from hsp)) blastMatches)
+            minHfromHSP = fromJust (find (\hsp -> minHfrom == h_from hsp) blastMatches)
             maxHto = maximum (map h_to blastMatches)
-            maxHtoHSP = fromJust (find (\hsp -> maxHto == (h_to hsp)) blastMatches)
+            maxHtoHSP = fromJust (find (\hsp -> maxHto == h_to hsp) blastMatches)
             minHonQuery = q_from minHfromHSP
             maxHonQuery = q_to maxHtoHSP
             --unsafe coordinates may exeed length of avialable sequence
@@ -1336,9 +1334,9 @@ getReverseRequestedSequenceElement queryLength (blastHit,taxid) = (geneIdentifie
            blastMatches = matches blastHit
            blastHitOriginSequenceLength = slength blastHit               
            maxHfrom = maximum (map h_from blastMatches)
-           maxHfromHSP = fromJust (find (\hsp -> maxHfrom == (h_from hsp)) blastMatches)     
+           maxHfromHSP = fromJust (find (\hsp -> maxHfrom == h_from hsp) blastMatches)     
            minHto = minimum (map h_to blastMatches)
-           minHtoHSP = fromJust (find (\hsp -> minHto == (h_to hsp)) blastMatches)
+           minHtoHSP = fromJust (find (\hsp -> minHto == h_to hsp) blastMatches)
            minHonQuery = q_from maxHfromHSP
            maxHonQuery = q_to minHtoHSP
            --unsafe coordinates may exeed length of avialable sequence
@@ -1367,18 +1365,18 @@ alignSequences program' options fastaFilepaths fastaFilepaths2 alignmentFilepath
     _ -> mapM_ (systemClustalw2 options ) zipped3Filepaths
 
 constructFastaFilePaths :: String -> (Int, Sequence) -> String
-constructFastaFilePaths currentDirectory (fastaIdentifier, _) = currentDirectory ++ (show fastaIdentifier) ++".fa"
+constructFastaFilePaths currentDirectory (fastaIdentifier, _) = currentDirectory ++ show fastaIdentifier ++".fa"
 
 constructCMsearchFilePaths :: String -> (Int, Sequence) -> String
-constructCMsearchFilePaths currentDirectory (fastaIdentifier, _) = currentDirectory ++ (show fastaIdentifier) ++".cmsearch"
+constructCMsearchFilePaths currentDirectory (fastaIdentifier, _) = currentDirectory ++ show fastaIdentifier ++".cmsearch"
                                                                                   
 -- Smaller e-Values are greater, the maximum function is applied
 compareHitEValue :: (BlastHit,Int) -> (BlastHit,Int) -> Ordering                    
 compareHitEValue (hit1,_) (hit2,_)
-  | (hitEValue hit1) > (hitEValue hit2) = LT
-  | (hitEValue hit1) < (hitEValue hit2) = GT
+  | hitEValue hit1 > hitEValue hit2 = LT
+  | hitEValue hit1 < hitEValue hit2 = GT
   -- in case of equal evalues the first hit is selected
-  | (hitEValue hit1) == (hitEValue hit2) = GT                                           
+  | hitEValue hit1 == hitEValue hit2 = GT                                           
 -- comparing (hitEValue . Down . fst)
 compareHitEValue (_,_) (_,_) = EQ 
 
@@ -1404,10 +1402,10 @@ convertFastaFoldStockholm fastasequence foldedStructure = stockholmOutput
         seqIdentifier = L.unpack (unSL (seqheader fastasequence))
         seqSequence = L.unpack (unSD (seqdata fastasequence))
         identifierLength = length seqIdentifier
-        spacerLength' = maximum [14,(identifierLength + 2)]
+        spacerLength' = maximum [14,identifierLength + 2]
         spacer = replicate (spacerLength' - identifierLength) ' '
         entrystring = seqIdentifier ++ spacer ++ seqSequence ++ "\n"
-        structureString = "#=GC SS_cons" ++ (replicate (spacerLength' - 12) ' ') ++ foldedStructure ++ "\n"
+        structureString = "#=GC SS_cons" ++ replicate (spacerLength' - 12) ' ' ++ foldedStructure ++ "\n"
         bottom = "//"
         stockholmOutput = alnHeader ++ entrystring ++ structureString ++ bottom
                    
@@ -1417,24 +1415,24 @@ convertClustaltoStockholm parsedMlocarnaAlignment = stockholmOutput
         clustalAlignment = structuralAlignmentEntries parsedMlocarnaAlignment
         uniqueIds = nub (map entrySequenceIdentifier clustalAlignment)
         mergedEntries = map (mergeEntry clustalAlignment) uniqueIds
-        maxIdentifierLenght = maximum (map length (map entrySequenceIdentifier clustalAlignment))
+        maxIdentifierLenght = maximum (map (length . entrySequenceIdentifier) clustalAlignment)
         spacerLength' = maxIdentifierLenght + 2
         stockholmEntries = concatMap (buildStockholmAlignmentEntries spacerLength') mergedEntries
-        structureString = "#=GC SS_cons" ++ (replicate (spacerLength' - 12) ' ') ++ (secondaryStructureTrack parsedMlocarnaAlignment) ++ "\n"
+        structureString = "#=GC SS_cons" ++ replicate (spacerLength' - 12) ' ' ++ secondaryStructureTrack parsedMlocarnaAlignment ++ "\n"
         bottom = "//"
         stockholmOutput = alnHeader ++ stockholmEntries ++ structureString ++ bottom
 
 mergeEntry :: [ClustalAlignmentEntry] -> String -> ClustalAlignmentEntry
 mergeEntry clustalAlignment uniqueId = mergedEntry
   where idEntries = filter (\entry -> entrySequenceIdentifier entry==uniqueId) clustalAlignment
-        mergedSeq = foldr (++) "" (map entryAlignedSequence idEntries)
+        mergedSeq = foldr ((++) . entryAlignedSequence) "" idEntries
         mergedEntry = ClustalAlignmentEntry uniqueId mergedSeq
 
 buildStockholmAlignmentEntries :: Int -> ClustalAlignmentEntry -> String
 buildStockholmAlignmentEntries inputSpacerLength entry = entrystring
   where idLength = length (filter (/= '\n') (entrySequenceIdentifier entry))
         spacer = replicate (inputSpacerLength - idLength) ' '
-        entrystring = (entrySequenceIdentifier entry) ++ spacer ++ (entryAlignedSequence entry) ++ "\n"
+        entrystring = entrySequenceIdentifier entry ++ spacer ++ entryAlignedSequence entry ++ "\n"
 
 retrieveTaxonomicContextEntrez :: Int -> IO (Maybe Taxon)
 retrieveTaxonomicContextEntrez inputTaxId = do
@@ -1445,18 +1443,16 @@ retrieveTaxonomicContextEntrez inputTaxId = do
        let queryString = "id=" ++ taxIdString ++ registrationInfo
        let entrezQuery = EntrezHTTPQuery program' database' queryString 
        result <- entrezHTTP entrezQuery
-       if (null result)
+       if null result
           then do
             error "Could not retrieve taxonomic context from NCBI Entrez, cannot proceed."
             return Nothing
           else do
             let taxon = head (readEntrezTaxonSet result)
             --print taxon
-            if (null (lineageEx taxon))
-              then do
-                error "Retrieved taxonomic context taxon from NCBI Entrez with empty lineage, cannot proceed."
-              else do
-                CE.evaluate (Just taxon)
+            if null (lineageEx taxon)
+              then (error "Retrieved taxonomic context taxon from NCBI Entrez with empty lineage, cannot proceed.")
+              else (CE.evaluate (Just taxon))
 
 retrieveParentTaxIdEntrez :: [(BlastHit,Int)] -> IO [(BlastHit,Int)]
 retrieveParentTaxIdEntrez blastHitsWithHitTaxids = do
@@ -1473,11 +1469,9 @@ retrieveParentTaxIdEntrez blastHitsWithHitTaxids = do
        let entrezQuery = EntrezHTTPQuery program' database' queryString 
        result <- entrezHTTP entrezQuery
        let parentTaxIds = readEntrezParentIds result
-       if (null parentTaxIds) 
-         then do
-           return []
-         else do
-           CE.evaluate (zip extractedBlastHits parentTaxIds)
+       if null parentTaxIds
+         then return []
+         else CE.evaluate (zip extractedBlastHits parentTaxIds)
     else return []
 
 -- | Wrapper functions that ensures that only 20 queries are sent per request
@@ -1491,8 +1485,8 @@ retrieveParentTaxIdsEntrez taxIdwithBlastHits = do
 retrieveBlastHitsTaxIdEntrez :: [BlastHit] -> IO [([BlastHit],String)]
 retrieveBlastHitsTaxIdEntrez blastHits = do
   let splits = portionListElements blastHits 20
-  taxIdsOutput <- mapM retrieveBlastHitTaxIdEntrez splits
-  return taxIdsOutput
+  mapM retrieveBlastHitTaxIdEntrez splits
+  
 
 retrieveBlastHitTaxIdEntrez :: [BlastHit] -> IO ([BlastHit],String)
 retrieveBlastHitTaxIdEntrez blastHits = do
@@ -1525,13 +1519,13 @@ extractAccession currentBlastHit = accession'
         accession' =  L.pack (splitedFields !! 3) 
         
 extractGeneId :: BlastHit -> String
-extractGeneId currentBlastHit = geneId
-  where truncatedId = (drop 3 (L.unpack (hitId currentBlastHit)))
-        pipeSymbolIndex =  (fromJust (elemIndex '|' truncatedId)) 
-        geneId = take pipeSymbolIndex truncatedId
+extractGeneId currentBlastHit = nucleotideId
+  where truncatedId = drop 3 (L.unpack (hitId currentBlastHit))
+        pipeSymbolIndex = fromJust (elemIndex '|' truncatedId)
+        nucleotideId = take pipeSymbolIndex truncatedId
 
 extractTaxIdfromDocumentSummary :: EntrezDocSum -> String
-extractTaxIdfromDocumentSummary documentSummary = itemContent (fromJust (find (\item -> "TaxId" == (itemName item)) (summaryItems (documentSummary))))
+extractTaxIdfromDocumentSummary documentSummary = itemContent (fromJust (find (\item -> "TaxId" == itemName item) (summaryItems documentSummary)))
 
 getBestHit :: BlastResult -> BlastHit
 getBestHit blastResult 
@@ -1542,20 +1536,20 @@ getBestHit blastResult
 getHitWithFractionEvalue :: BlastResult -> Maybe BlastMatch
 getHitWithFractionEvalue blastResult 
   | null (concatMap hits (results blastResult)) = Nothing
-  | otherwise = find (\match -> (e_val match) /= (0 ::Double)) (concatMap matches (concatMap hits (results blastResult)))
+  | otherwise = find (\match -> e_val match /= (0 ::Double)) (concatMap matches (concatMap hits (results blastResult)))
 
-showlines :: Show a => [a] -> [Char]
-showlines input = concatMap (\x -> show x ++ "\n") input
+showlines :: Show a => [a] -> String
+showlines = concatMap (\x -> show x ++ "\n") 
 
 logMessage :: String -> String -> IO ()
-logMessage logoutput temporaryDirectoryPath = appendFile (temporaryDirectoryPath ++ "Log") (logoutput)
+logMessage logoutput temporaryDirectoryPath = appendFile (temporaryDirectoryPath ++ "Log") logoutput
 
 logWarning :: String -> String -> IO ()
-logWarning logoutput temporaryDirectoryPath = appendFile (temporaryDirectoryPath ++ "log/warnings") (logoutput)
+logWarning logoutput temporaryDirectoryPath = appendFile (temporaryDirectoryPath ++ "log/warnings") logoutput
 
 logVerboseMessage :: Bool -> String -> String -> IO ()
 logVerboseMessage verboseTrue logoutput temporaryDirectoryPath 
-  | verboseTrue = do appendFile (temporaryDirectoryPath ++ "Log") (show logoutput)
+  | verboseTrue = appendFile (temporaryDirectoryPath ++ "Log") (show logoutput)
   | otherwise = return ()
                   
 logEither :: (Show a) => Either a b -> String -> IO ()
@@ -1566,10 +1560,10 @@ checkTools :: [String] -> String -> IO (Either String String)
 checkTools tools temporaryDirectoryPath = do
   -- check if all tools are available via PATH or Left
   checks <- mapM checkTool tools
-  if (not (null (lefts checks)))
+  if not (null (lefts checks))
     then return (Left (concat (lefts checks)))
     else do  
-      logMessage ("Tools : " ++ (intercalate "," tools) ++ "\n") temporaryDirectoryPath
+      logMessage ("Tools : " ++ intercalate "," tools ++ "\n") temporaryDirectoryPath
       return (Right "Tools ok")
 
 logToolVersions :: String -> IO ()
@@ -1588,7 +1582,7 @@ logToolVersions temporaryDirectoryPath = do
   mlocarnaversion <- readFile mlocarnaversionpath
   rnafoldversion <- readFile rnafoldversionpath 
   infernalversionOutput <- readFile infernalversionpath
-  let infernalversion = (lines infernalversionOutput) !! 1
+  let infernalversion = lines infernalversionOutput !! 1
   let messageString = "Clustalo version: " ++ clustaloversion ++ "mlocarna version: " ++ mlocarnaversion  ++ "RNAfold version: " ++ rnafoldversion  ++ "infernalversion: " ++ infernalversion ++ "\n"
   logMessage messageString temporaryDirectoryPath
 
@@ -1606,7 +1600,7 @@ constructTaxonomyRecordsCSVTable modelconstruction = csvtable
         csvtable = tableheader ++ tablebody
 
 constructTaxonomyRecordCSVEntries :: TaxonomyRecord -> String
-constructTaxonomyRecordCSVEntries taxRecord = concatMap (\seqrec -> show (recordTaxonomyId taxRecord) ++ ";" ++ show (aligned seqrec) ++ ";" ++ (filter (\c -> c /= ';') (L.unpack (unSL (seqheader (nucleotideSequence seqrec))))) ++ "\n") (sequenceRecords taxRecord)
+constructTaxonomyRecordCSVEntries taxRecord = concatMap (\seqrec -> show (recordTaxonomyId taxRecord) ++ ";" ++ show (aligned seqrec) ++ ";" ++ filter (/= ';') (L.unpack (unSL (seqheader (nucleotideSequence seqrec)))) ++ "\n") (sequenceRecords taxRecord)
 
 setVerbose :: Verbosity -> Bool
 setVerbose verbosityLevel
@@ -1615,32 +1609,32 @@ setVerbose verbosityLevel
 
 evaluateConstructionResult :: StaticOptions -> Int -> IO String
 evaluateConstructionResult staticOptions entryNumber = do
-  let evaluationDirectoryFilepath = (tempDirPath staticOptions) ++ "evaluation/"
+  let evaluationDirectoryFilepath = tempDirPath staticOptions ++ "evaluation/"
   createDirectoryIfMissing False evaluationDirectoryFilepath
-  let fastaFilepath = (tempDirPath staticOptions) ++ "result.fa"
+  let fastaFilepath = tempDirPath staticOptions ++ "result.fa"
   let clustalFilepath = evaluationDirectoryFilepath ++ "result.clustal"
   let reformatedClustalPath = evaluationDirectoryFilepath ++ "result.clustal.reformated"
-  let cmFilepath = (tempDirPath staticOptions) ++ "result.cm"
+  let cmFilepath = tempDirPath staticOptions ++ "result.cm"
   systemCMalign ("--outformat=Clustal --cpu " ++ show (cpuThreads staticOptions)) cmFilepath fastaFilepath clustalFilepath
-  let resultModelStatistics = (tempDirPath staticOptions) ++ "result.cmstat"
+  let resultModelStatistics = tempDirPath staticOptions ++ "result.cmstat"
   systemCMstat cmFilepath resultModelStatistics
   inputcmStat <- readCMstat resultModelStatistics
   let cmstatString = cmstatEvalOutput inputcmStat
-  if (entryNumber > 1)
+  if entryNumber > 1
     then do 
-      let resultRNAz = (tempDirPath staticOptions) ++ "result.rnaz"
+      let resultRNAz = tempDirPath staticOptions ++ "result.rnaz"
       rnazClustalpath <- preprocessClustalForRNAzExternal clustalFilepath reformatedClustalPath
-      if (isRight rnazClustalpath)
+      if isRight rnazClustalpath
         then do
           systemRNAz "-l" (fromRight rnazClustalpath) resultRNAz 
           inputRNAz <- readRNAz resultRNAz
           let rnaZString = rnaZEvalOutput inputRNAz
           return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: " ++ rnaZString)
         else do
-          logWarning ("Running RNAz for result evalution encountered a problem:" ++ (fromLeft rnazClustalpath)) (tempDirPath staticOptions) 
-          return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: Running RNAz for result evalution encountered a problem\n" ++ (fromLeft rnazClustalpath))
+          logWarning ("Running RNAz for result evalution encountered a problem:" ++ fromLeft rnazClustalpath) (tempDirPath staticOptions) 
+          return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: Running RNAz for result evalution encountered a problem\n" ++ fromLeft rnazClustalpath)
     else do
-      logWarning ("Message: RNAlien could not find additional covariant sequences\n Could not run RNAz statistics. Could not run RNAz statistics with a single sequence.\n") (tempDirPath staticOptions) 
+      logWarning "Message: RNAlien could not find additional covariant sequences\n Could not run RNAz statistics. Could not run RNAz statistics with a single sequence.\n" (tempDirPath staticOptions) 
       return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAlien could not find additional covariant sequences. Could not run RNAz statistics with a single sequence.\n")
 
 
@@ -1656,7 +1650,7 @@ rnaZEvalOutput inputRNAz
   | isRight inputRNAz = rnazString
   | otherwise = show (fromLeft inputRNAz)
     where rnaZ = fromRight inputRNAz
-          rnazString = "  Mean pairwise identity: " ++ show (meanPairwiseIdentity rnaZ) ++ "\n  Shannon entropy: " ++ show (shannonEntropy rnaZ) ++  "\n  GC content: " ++ show (gcContent rnaZ) ++ "\n  Mean single sequence minimum free energy: " ++ show (meanSingleSequenceMinimumFreeEnergy rnaZ) ++ "\n  Consensus minimum free energy: " ++ show (consensusMinimumFreeEnergy rnaZ) ++ "\n  Energy contribution: " ++ show (energyContribution rnaZ) ++ "\n  Covariance contribution: " ++ show (covarianceContribution rnaZ) ++ "\n  Combinations pair: " ++ show (combinationsPair rnaZ) ++ "\n  Mean z-score: " ++ show (meanZScore rnaZ) ++ "\n  Structure conservation index: " ++ show (structureConservationIndex rnaZ) ++ "\n  Background model: " ++ backgroundModel rnaZ ++ "\n  Decision model: " ++ decisionModel rnaZ ++ "\n  SVM decision value: " ++ show (svmDecisionValue rnaZ) ++ "\n  SVM class propability: " ++ show (svmRNAClassProbability rnaZ) ++ "\n  Prediction: " ++ (prediction rnaZ)     
+          rnazString = "  Mean pairwise identity: " ++ show (meanPairwiseIdentity rnaZ) ++ "\n  Shannon entropy: " ++ show (shannonEntropy rnaZ) ++  "\n  GC content: " ++ show (gcContent rnaZ) ++ "\n  Mean single sequence minimum free energy: " ++ show (meanSingleSequenceMinimumFreeEnergy rnaZ) ++ "\n  Consensus minimum free energy: " ++ show (consensusMinimumFreeEnergy rnaZ) ++ "\n  Energy contribution: " ++ show (energyContribution rnaZ) ++ "\n  Covariance contribution: " ++ show (covarianceContribution rnaZ) ++ "\n  Combinations pair: " ++ show (combinationsPair rnaZ) ++ "\n  Mean z-score: " ++ show (meanZScore rnaZ) ++ "\n  Structure conservation index: " ++ show (structureConservationIndex rnaZ) ++ "\n  Background model: " ++ backgroundModel rnaZ ++ "\n  Decision model: " ++ decisionModel rnaZ ++ "\n  SVM decision value: " ++ show (svmDecisionValue rnaZ) ++ "\n  SVM class propability: " ++ show (svmRNAClassProbability rnaZ) ++ "\n  Prediction: " ++ prediction rnaZ
 
 -- | Call for external preprocessClustalForRNAz
 preprocessClustalForRNAzExternal :: String -> String -> IO (Either String String)
@@ -1674,7 +1668,7 @@ preprocessClustalForRNAzExternal clustalFilepath reformatedClustalPath = do
 preprocessClustalForRNAz :: String -> String -> IO (Either String String)
 preprocessClustalForRNAz clustalFilepath reformatedClustalPath = do
   clustalString <- readFile clustalFilepath
-  if (length (lines clustalString) > 500)
+  if length (lines clustalString) > 500
     then do 
       --change clustal format for rnazSelectSeqs.pl
       let reformatedClustalString = map reformatAln clustalString
@@ -1682,7 +1676,7 @@ preprocessClustalForRNAz clustalFilepath reformatedClustalPath = do
       --select representative entries from result.Clustal with select_sequences
       let selectedClustalpath = clustalFilepath ++ ".selected"
       parsedClustalInput <- readClustalAlignment clustalFilepath
-      if (isRight parsedClustalInput)
+      if isRight parsedClustalInput
         then do
           let filteredClustalInput = rnaZSelectSeqs (fromRight parsedClustalInput) 500 99
           writeFile selectedClustalpath (show filteredClustalInput)
@@ -1712,13 +1706,13 @@ reformatAln c
   | otherwise = c
 
 -- | Check if alien can connect to NCBI
-checkNCBIConnection :: IO (Either [Char] [Char])
+checkNCBIConnection :: IO (Either String String)
 checkNCBIConnection = do
    response <- simpleHTTP (getRequest "http://www.ncbi.nlm.nih.gov")
-   if (isRight response)
+   if isRight response
      then do
        let rightResponse = fromRight response
-       if (rspCode rightResponse == (2,0,0))
+       if rspCode rightResponse == (2,0,0)
          then return (Right ("Network connection with NCBI server is ok: "  ++ show (rspCode rightResponse)))
          else return (Left ("Could not connect to NCBI server \"http://www.ncbi.nlm.nih.gov\". Response Code: " ++ show (rspCode rightResponse)))
      else return (Left ("Could not connect to NCBI server: \"http://www.ncbi.nlm.nih.gov\": " ++ show (fromLeft response)))
