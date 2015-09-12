@@ -387,8 +387,8 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
     then createDirectory (logFileDirectoryPath) else return ()
   writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_1blastOutput") (show blastOutput)
   logEither blastOutput (tempDirPath staticOptions) 
-  let blastHitsArePresent = either (\_ -> False) blastMatchesPresent blastOutput
-  if (blastHitsArePresent)
+  let blastHitsArePresent = either (const False) blastMatchesPresent blastOutput
+  if blastHitsArePresent
      then do
        let rightBlast = fromRight blastOutput
       -- bestBlastHitTaxIdOutput <- retrieveBlastHitTaxIdEntrez [bestHit]
@@ -396,7 +396,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
       -- if (null taxIdFromEntrySummaries) then (error "searchCandidates: - head: empty list of taxonomy entry summary for best hit")  else return ()
       -- let rightBestTaxIdResult = head taxIdFromEntrySummaries
       -- logVerboseMessage (verbositySwitch staticOptions) ("rightbestTaxIdResult: " ++ (show rightBestTaxIdResult) ++ "\n") (tempDirPath staticOptions)
-       let blastHits = concat (map hits (results rightBlast))
+       let blastHits = concatMap hits (results rightBlast)
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_2blastHits") (showlines blastHits)
        --filter by length
        let blastHitsFilteredByLength = filterByHitLength blastHits queryLength (lengthFilterToggle staticOptions)
@@ -406,7 +406,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
        let uncheckedBlastHitsWithTaxIdList = map (\(blasthits,taxIdout) -> (blasthits,extractTaxIdFromEntrySummaries taxIdout)) blastHitsWithTaxIdOutput
        let checkedBlastHitsWithTaxId = filter (\(_,taxids) -> not (null taxids)) uncheckedBlastHitsWithTaxIdList
        --todo checked blasthittaxidswithblasthits need to be merged as taxid blasthit pairs
-       let blastHitsWithTaxId = zip (concatMap (\(a,_) -> a) checkedBlastHitsWithTaxId) (concatMap (\(_,b) -> b) checkedBlastHitsWithTaxId)
+       let blastHitsWithTaxId = zip (concatMap fst checkedBlastHitsWithTaxId) (concatMap snd checkedBlastHitsWithTaxId)
        blastHitsWithParentTaxIdOutput <- retrieveParentTaxIdsEntrez blastHitsWithTaxId
        --let blastHitsWithParentTaxId = concat blastHitsWithParentTaxIdOutput
        -- filter by ParentTaxId (only one hit per TaxId)
@@ -424,9 +424,9 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
        -- Retrieval of full sequences from entrez
        --fullSequencesWithSimilars <- retrieveFullSequences requestedSequenceElements
        fullSequencesWithSimilars <- retrieveFullSequences staticOptions requestedSequenceElements
-       if (null fullSequencesWithSimilars)
+       if null fullSequencesWithSimilars
          then do
-           writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10afullSequencesWithSimilars") ("No sequences retrieved")
+           writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10afullSequencesWithSimilars") "No sequences retrieved"
            CE.evaluate (SearchResult [] Nothing)
          else do
            writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10afullSequencesWithSimilars") (showlines fullSequencesWithSimilars)
@@ -434,9 +434,8 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
            let fullSequencesWithOrigin = map (\(parsedFasta,taxid,seqSubject) -> (parsedFasta,taxid,seqSubject,'B')) fullSequences
            writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10fullSequences") (showlines fullSequences)
            let maybeFractionEvalueMatch = getHitWithFractionEvalue rightBlast
-           if (isNothing maybeFractionEvalueMatch)
-             then do
-               CE.evaluate (SearchResult [] Nothing) 
+           if isNothing maybeFractionEvalueMatch
+             then CE.evaluate (SearchResult [] Nothing) 
              else do
                let fractionEvalueMatch = fromJust maybeFractionEvalueMatch
                let dbSize = computeDataBaseSize (e_val fractionEvalueMatch) (bits fractionEvalueMatch) (fromIntegral queryLength ::Double)
@@ -449,32 +448,30 @@ computeDataBaseSize evalue bitscore querylength = ((evalue * 2 ** bitscore) / qu
 
 alignCandidates :: StaticOptions -> ModelConstruction -> String -> SearchResult -> IO ([(Sequence,Int,String,Char)],[(Sequence,Int,String,Char)])
 alignCandidates staticOptions modelConstruction multipleSearchResultPrefix searchResults = do
-  if (null (candidates searchResults))
-    then do return ([],[])
+  if null (candidates searchResults)
+    then return ([],[])
     else do
       --refilter for similarity 
       let alignedSequences = map snd (V.toList (extractAlignedSequences (iterationNumber modelConstruction) modelConstruction))
       let filteredCandidates = filterWithCollectedSequences (candidates searchResults) alignedSequences 99
-      if(alignmentModeInfernal modelConstruction)
-        then do
-          alignCandidatesInfernalMode staticOptions modelConstruction multipleSearchResultPrefix (blastDatabaseSize searchResults) filteredCandidates
-        else do
-          alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultPrefix filteredCandidates
+      if alignmentModeInfernal modelConstruction
+        then alignCandidatesInfernalMode staticOptions modelConstruction multipleSearchResultPrefix (blastDatabaseSize searchResults) filteredCandidates
+        else alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultPrefix filteredCandidates
 
 alignCandidatesInfernalMode :: StaticOptions -> ModelConstruction -> String -> Maybe Double -> [(Sequence,Int,String,Char)] -> IO ([(Sequence,Int,String,Char)],[(Sequence,Int,String,Char)])
 alignCandidatesInfernalMode staticOptions modelConstruction multipleSearchResultPrefix blastDbSize filteredCandidates = do
-  let iterationDirectory = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/" ++ multipleSearchResultPrefix
+  let iterationDirectory = tempDirPath staticOptions ++ show (iterationNumber modelConstruction) ++ "/" ++ multipleSearchResultPrefix
   let candidateSequences = extractCandidateSequences filteredCandidates 
-  logVerboseMessage (verbositySwitch staticOptions) ("Alignment Mode Infernal\n") (tempDirPath staticOptions)
+  logVerboseMessage (verbositySwitch staticOptions) "Alignment Mode Infernal\n" (tempDirPath staticOptions)
   let indexedCandidateSequenceList = (V.toList candidateSequences)
   let cmSearchFastaFilePaths = map (constructFastaFilePaths iterationDirectory) indexedCandidateSequenceList
   let cmSearchFilePaths = map (constructCMsearchFilePaths iterationDirectory) indexedCandidateSequenceList
-  let covarianceModelPath = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction - 1)) ++ "/" ++ "model.cm"
-  mapM_ (\(number,_nucleotideSequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") [_nucleotideSequence]) indexedCandidateSequenceList
+  let covarianceModelPath = tempDirPath staticOptions ++ show (iterationNumber modelConstruction - 1) ++ "/" ++ "model.cm"
+  mapM_ (\(number,_nucleotideSequence) -> writeFasta (iterationDirectory ++ show number ++ ".fa") [_nucleotideSequence]) indexedCandidateSequenceList
   let zippedFastaCMSearchResultPaths = zip cmSearchFastaFilePaths cmSearchFilePaths  
   --check with cmSearch
-  mapM_ (\(fastaPath,resultPath) -> systemCMsearch (cpuThreads staticOptions) ("-Z " ++ show (fromJust blastDbSize)) covarianceModelPath fastaPath resultPath) zippedFastaCMSearchResultPaths
-  cmSearchResults <- mapM (\filepath -> readCMSearch filepath) cmSearchFilePaths 
+  mapM_ (uncurry (systemCMsearch (cpuThreads staticOptions) ("-Z " ++ show (fromJust blastDbSize)) covarianceModelPath)) zippedFastaCMSearchResultPaths
+  cmSearchResults <- mapM readCMSearch cmSearchFilePaths 
   writeFile (iterationDirectory ++ "cm_error") (concatMap show (lefts cmSearchResults))
   let rightCMSearchResults = rights cmSearchResults 
   let cmSearchCandidatesWithSequences = zip rightCMSearchResults filteredCandidates    
@@ -487,37 +484,37 @@ alignCandidatesInfernalMode staticOptions modelConstruction multipleSearchResult
 
 alignCandidatesInitialMode :: StaticOptions -> ModelConstruction -> String -> [(Sequence,Int,String,Char)] -> IO ([(Sequence,Int,String,Char)],[(Sequence,Int,String,Char)])
 alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultPrefix filteredCandidates = do
-  let iterationDirectory = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/" ++ multipleSearchResultPrefix
+  let iterationDirectory = tempDirPath staticOptions ++ show (iterationNumber modelConstruction) ++ "/" ++ multipleSearchResultPrefix
   let candidateSequences = extractCandidateSequences filteredCandidates 
-  logVerboseMessage (verbositySwitch staticOptions) ("Alignment Mode Initial\n") (tempDirPath staticOptions)
+  logVerboseMessage (verbositySwitch staticOptions) "Alignment Mode Initial\n" (tempDirPath staticOptions)
   --write Fasta sequences
   let inputFastaFilepath = iterationDirectory ++ "input.fa"
   let inputFoldFilepath = iterationDirectory ++ "input.fold"
   writeFasta (iterationDirectory ++ "input.fa") ([inputFasta modelConstruction])
-  V.mapM_ (\(number,_nucleotideSequence) -> writeFasta (iterationDirectory ++ (show number) ++ ".fa") [_nucleotideSequence]) candidateSequences
-  let candidateFastaFilepath = V.toList (V.map (\(number,_) -> iterationDirectory ++ (show number) ++ ".fa") candidateSequences)
-  let candidateFoldFilepath = V.toList (V.map (\(number,_) -> iterationDirectory ++ (show number) ++ ".fold") candidateSequences)
-  let locarnainClustalw2FormatFilepath =  V.toList (V.map (\(number,_) -> iterationDirectory ++ (show number) ++ "." ++ "clustalmlocarna") candidateSequences)
-  let candidateAliFoldFilepath = V.toList (V.map (\(number,_) -> iterationDirectory ++ (show number) ++ ".alifold") candidateSequences)
-  let locarnaFilepath = V.toList (V.map (\(number,_) -> iterationDirectory ++ (show number) ++ "." ++ "mlocarna") candidateSequences)
-  alignSequences "locarna" (" --write-structure --free-endgaps=++-- ") (replicate (V.length candidateSequences) inputFastaFilepath) candidateFastaFilepath locarnainClustalw2FormatFilepath locarnaFilepath
+  V.mapM_ (\(number,_nucleotideSequence) -> writeFasta (iterationDirectory ++ show number ++ ".fa") [_nucleotideSequence]) candidateSequences
+  let candidateFastaFilepath = V.toList (V.map (\(number,_) -> iterationDirectory ++ show number ++ ".fa") candidateSequences)
+  let candidateFoldFilepath = V.toList (V.map (\(number,_) -> iterationDirectory ++ show number ++ ".fold") candidateSequences)
+  let locarnainClustalw2FormatFilepath =  V.toList (V.map (\(number,_) -> iterationDirectory ++ show number ++ "." ++ "clustalmlocarna") candidateSequences)
+  let candidateAliFoldFilepath = V.toList (V.map (\(number,_) -> iterationDirectory ++ show number ++ ".alifold") candidateSequences)
+  let locarnaFilepath = V.toList (V.map (\(number,_) -> iterationDirectory ++ show number ++ "." ++ "mlocarna") candidateSequences)
+  alignSequences "locarna" " --write-structure --free-endgaps=++-- " (replicate (V.length candidateSequences) inputFastaFilepath) candidateFastaFilepath locarnainClustalw2FormatFilepath locarnaFilepath
   --compute SequenceIdentities
-  let sequenceIdentities = V.map (\(_,s) -> (sequenceIdentity (inputFasta modelConstruction) s)/(100 :: Double)) candidateSequences
+  let sequenceIdentities = V.map (\(_,s) -> sequenceIdentity (inputFasta modelConstruction) s/(100 :: Double)) candidateSequences
   --compute SCI
   systemRNAfold inputFastaFilepath inputFoldFilepath
   inputfoldResult <- readRNAfold inputFoldFilepath
   let inputFoldMFE = foldingEnergy (fromRight inputfoldResult)
-  mapM_ (\(fastapath,foldpath) -> systemRNAfold fastapath foldpath) (zip candidateFastaFilepath candidateFoldFilepath)
-  foldResults <- mapM (\filepath -> readRNAfold filepath) candidateFoldFilepath
-  let candidateMFEs = map foldingEnergy (map fromRight foldResults)
+  mapM_ (uncurry systemRNAfold) (zip candidateFastaFilepath candidateFoldFilepath)
+  foldResults <- mapM readRNAfold candidateFoldFilepath
+  let candidateMFEs = map (foldingEnergy . fromRight) foldResults
   let averageMFEs = map (\candidateMFE -> (candidateMFE + inputFoldMFE)/2) candidateMFEs
-  mapM_ (\(locarnaclustalw2path,aliFoldpath) -> systemRNAalifold "-r --cfactor 0.5 --nfactor 0.5" locarnaclustalw2path aliFoldpath) (zip locarnainClustalw2FormatFilepath candidateAliFoldFilepath)
-  alifoldResults <- mapM (\filepath -> readRNAalifold filepath) candidateAliFoldFilepath
-  let consensusMFE = map alignmentConsensusMinimumFreeEnergy (map fromRight alifoldResults)
+  mapM_ (uncurry (systemRNAalifold "-r --cfactor 0.5 --nfactor 0.5")) (zip locarnainClustalw2FormatFilepath candidateAliFoldFilepath)
+  alifoldResults <- mapM readRNAalifold candidateAliFoldFilepath
+  let consensusMFE = map (alignmentConsensusMinimumFreeEnergy . fromRight) alifoldResults
   let sciidfraction = map (\(consMFE,averMFE,seqId) -> (consMFE/averMFE)/seqId) (zip3 consensusMFE averageMFEs (V.toList sequenceIdentities))
   let alignedCandidates = zip sciidfraction filteredCandidates
   writeFile (iterationDirectory ++ "log" ++ "/zscores") (showlines alignedCandidates)
-  let (selectedCandidates,rejectedCandidates) = partition (\(sci,_) -> sci > (zScoreCutoff staticOptions)) alignedCandidates
+  let (selectedCandidates,rejectedCandidates) = partition (\(sci,_) -> sci > zScoreCutoff staticOptions) alignedCandidates
   createDirectoryIfMissing False (iterationDirectory ++ "log")
   mapM_ print (zip3 consensusMFE averageMFEs (V.toList sequenceIdentities))
   writeFile (iterationDirectory ++ "log" ++ "/11selectedCandidates") (showlines selectedCandidates)
@@ -537,13 +534,13 @@ findCutoffforClusterNumber clustaloDendrogram numberOfClusters currentCutoff
                 
 selectQueries :: StaticOptions -> ModelConstruction -> [(Sequence,Int,String,Char)] -> IO [String]
 selectQueries staticOptions modelConstruction selectedCandidates = do
-  logVerboseMessage (verbositySwitch staticOptions) ("SelectQueries\n") (tempDirPath staticOptions)
+  logVerboseMessage (verbositySwitch staticOptions) "SelectQueries\n" (tempDirPath staticOptions)
   --Extract sequences from modelconstruction
   let alignedSequences = extractAlignedSequences (iterationNumber modelConstruction) modelConstruction 
   let candidateSequences = extractQueryCandidates selectedCandidates
-  let iterationDirectory = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/"
+  let iterationDirectory = tempDirPath staticOptions ++ show (iterationNumber modelConstruction) ++ "/"
   let alignmentSequences = map snd (V.toList (V.concat [candidateSequences,alignedSequences]))
-  if(length alignmentSequences > 3)
+  if length alignmentSequences > 3
     then do
       --write Fasta sequences
       writeFasta (iterationDirectory ++ "query" ++ ".fa") alignmentSequences
@@ -554,7 +551,7 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
       idsDistancematrix <- readClustaloDistMatrix clustaloDistMatrixPath
       logEither idsDistancematrix (tempDirPath staticOptions)
       let (clustaloIds,clustaloDistMatrix) = fromRight idsDistancematrix
-      logVerboseMessage (verbositySwitch staticOptions) ("Clustalid: " ++ (intercalate "," clustaloIds) ++ "\n") (tempDirPath staticOptions)
+      logVerboseMessage (verbositySwitch staticOptions) ("Clustalid: " ++ intercalate "," clustaloIds ++ "\n") (tempDirPath staticOptions)
       logVerboseMessage (verbositySwitch staticOptions) ("Distmatrix: " ++ show clustaloDistMatrix ++ "\n") (tempDirPath staticOptions)
       let clustaloDendrogram = dendrogram UPGMA clustaloIds (getDistanceMatrixElements clustaloIds clustaloDistMatrix)
       logVerboseMessage (verbositySwitch staticOptions) ("ClustaloDendrogram: " ++ show  clustaloDendrogram ++ "\n") (tempDirPath staticOptions)
@@ -567,19 +564,18 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
       let cutDendrogram = cutAt clustaloDendrogram dendrogramCutDistance'
       --putStrLn "cutDendrogram: "
       --print cutDendrogram
-      let currentSelectedQueries = take 5 (concatMap (take 1) (map elements cutDendrogram))
+      let currentSelectedQueries = take 5 (concatMap (take 1 . elements) cutDendrogram)
       logVerboseMessage (verbositySwitch staticOptions) ("SelectedQueries: " ++ show currentSelectedQueries ++ "\n") (tempDirPath staticOptions)                       
-      writeFile ((tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction)) ++ "/log" ++ "/13selectedQueries") (showlines currentSelectedQueries)
-      CE.evaluate (currentSelectedQueries)
-    else do
-      return []
+      writeFile (tempDirPath staticOptions ++ show (iterationNumber modelConstruction) ++ "/log" ++ "/13selectedQueries") (showlines currentSelectedQueries)
+      CE.evaluate currentSelectedQueries
+    else return []
 
 constructModel :: ModelConstruction -> StaticOptions -> IO String
 constructModel modelConstruction staticOptions = do
   --Extract sequences from modelconstruction
   let alignedSequences = extractAlignedSequences (iterationNumber modelConstruction) modelConstruction
   --The CM resides in the iteration directory where its input alignment originates from 
-  let outputDirectory = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction - 1)) ++ "/"
+  let outputDirectory = tempDirPath staticOptions ++ show (iterationNumber modelConstruction - 1) ++ "/"
   let alignmentSequences = map snd (V.toList (V.concat [alignedSequences]))
   --write Fasta sequences
   writeFasta (outputDirectory ++ "model" ++ ".fa") alignmentSequences
@@ -588,18 +584,18 @@ constructModel modelConstruction staticOptions = do
   let stockholmFilepath = outputDirectory ++ "model" ++ ".stockholm"
   --- let reformatedClustalFilepath = outputDirectory ++ "model" ++ ".clustal.reformated"
   let updatedStructureStockholmFilepath = outputDirectory ++ "newstructuremodel" ++ ".stockholm"
-  let cmalignCMFilepath = (tempDirPath staticOptions) ++ (show (iterationNumber modelConstruction - 2)) ++ "/" ++ "model" ++ ".cm"
+  let cmalignCMFilepath = (tempDirPath staticOptions) ++ show (iterationNumber modelConstruction - 2) ++ "/" ++ "model" ++ ".cm"
   let cmFilepath = outputDirectory ++ "model" ++ ".cm"
   let cmCalibrateFilepath = outputDirectory ++ "model" ++ ".cmcalibrate"
   let cmBuildFilepath = outputDirectory ++ "model" ++ ".cmbuild"
   let alifoldFilepath = outputDirectory ++ "model" ++ ".alifold"
-  if (alignmentModeInfernal modelConstruction)
+  if alignmentModeInfernal modelConstruction
      then do
-       logVerboseMessage (verbositySwitch staticOptions) ("Construct Model - infernal mode\n") (tempDirPath staticOptions)
+       logVerboseMessage (verbositySwitch staticOptions) "Construct Model - infernal mode\n" (tempDirPath staticOptions)
        systemCMalign ("--cpu " ++ show (cpuThreads staticOptions)) cmalignCMFilepath fastaFilepath stockholmFilepath
        systemRNAalifold "-r --cfactor 0.5 --nfactor 0.5" stockholmFilepath alifoldFilepath
        replaceStatus <- replaceStockholmStructure stockholmFilepath alifoldFilepath updatedStructureStockholmFilepath
-       if (null replaceStatus)
+       if null replaceStatus
          then do
            systemCMbuild updatedStructureStockholmFilepath cmFilepath cmBuildFilepath
            systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
@@ -611,8 +607,8 @@ constructModel modelConstruction staticOptions = do
            return cmFilepath
   
      else do
-       logVerboseMessage (verbositySwitch staticOptions) ("Construct Model - initial mode\n") (tempDirPath staticOptions)
-       alignSequences "mlocarna" ("--threads=" ++ (show (cpuThreads staticOptions)) ++ " ") [fastaFilepath] [] [locarnaFilepath] []
+       logVerboseMessage (verbositySwitch staticOptions) "Construct Model - initial mode\n" (tempDirPath staticOptions)
+       alignSequences "mlocarna" ("--threads=" ++ show (cpuThreads staticOptions) ++ " ") [fastaFilepath] [] [locarnaFilepath] []
        mlocarnaAlignment <- readStructuralClustalAlignment locarnaFilepath
        logEither mlocarnaAlignment (tempDirPath staticOptions)
        let stockholAlignment = convertClustaltoStockholm (fromRight mlocarnaAlignment)
@@ -626,7 +622,7 @@ replaceStockholmStructure :: String -> String -> String -> IO String
 replaceStockholmStructure stockholmFilepath alifoldFilepath updatedStructureStockholmFilepath = do
   inputAln <- readFile stockholmFilepath
   inputRNAalifold <- readRNAalifold alifoldFilepath
-  if (isLeft inputRNAalifold)
+  if isLeft inputRNAalifold
     then do
      return (show (fromLeft inputRNAalifold))
     else do
@@ -635,25 +631,25 @@ replaceStockholmStructure stockholmFilepath alifoldFilepath updatedStructureStoc
      let structureIndices = V.toList (V.findIndices isStructureLine seedLinesVector)
      let updatedStructureElements = updateStructureElements seedLinesVector alifoldstructure structureIndices
      let newVector = seedLinesVector V.// updatedStructureElements
-     let newVectorString = concatMap (\line -> line ++ "\n") (V.toList newVector)
+     let newVectorString = concatMap (++ "\n") (V.toList newVector)
      writeFile updatedStructureStockholmFilepath newVectorString
      return []
 
 updateStructureElements :: V.Vector String -> String -> [Int] -> [(Int,String)]
 updateStructureElements inputVector structureString indices
   | null indices = []
-  | otherwise = newElement ++ (updateStructureElements inputVector (drop structureLength structureString) (tail indices))
+  | otherwise = newElement ++ updateStructureElements inputVector (drop structureLength structureString) (tail indices)
   where currentIndex = head indices
         currentElement = inputVector V.! currentIndex
         elementLength = length currentElement
-        structureStartIndex = (maximum (elemIndices ' ' currentElement)) + 1
+        structureStartIndex = maximum (elemIndices ' ' currentElement) + 1
         structureLength = elementLength - structureStartIndex
         newElementHeader = take structureStartIndex currentElement
         newElementStructure = take structureLength structureString
         newElement = [(currentIndex,newElementHeader ++ newElementStructure)]
 
 isStructureLine :: String -> Bool
-isStructureLine line = isInfixOf "#=GC SS_cons" line
+isStructureLine input = "#=GC SS_cons" `isInfixOf` input
 
 -- Generates iteration string for Log
 iterationSummaryLog :: ModelConstruction -> String
@@ -675,10 +671,10 @@ resultSummary mC sO = do
   --iteration -- tax limit -- bitscore cutoff -- blastresult -- aligned seqs --queries --fa link --aln link --cm link
   let upperTaxonomyLimitOutput = maybe "not set" show (upperTaxonomyLimit mC)
   let output = show (iterationNumber mC) ++ "," ++ upperTaxonomyLimitOutput ++ "," ++ show (length (concatMap sequenceRecords (taxRecords mC)))
-  writeFile ((tempDirPath sO) ++ "/log/result" ++ ".log") output        
+  writeFile (tempDirPath sO ++ "/log/result" ++ ".log") output        
                        
 readClustaloDistMatrix :: String -> IO (Either ParseError ([String],Matrix Double))             
-readClustaloDistMatrix filePath = parseFromFile genParserClustaloDistMatrix filePath
+readClustaloDistMatrix = parseFromFile genParserClustaloDistMatrix 
                       
 genParserClustaloDistMatrix :: GenParser Char st ([String],Matrix Double)
 genParserClustaloDistMatrix = do
@@ -686,7 +682,7 @@ genParserClustaloDistMatrix = do
   newline
   clustaloDistRow <- many1 (try genParserClustaloDistRow) 
   eof
-  return $ ((map fst clustaloDistRow),(fromLists (map snd clustaloDistRow)))
+  return (map fst clustaloDistRow,fromLists (map snd clustaloDistRow))
 
 genParserClustaloDistRow :: GenParser Char st (String,[Double])
 genParserClustaloDistRow = do
@@ -705,8 +701,8 @@ genParserClustaloDistance = do
 getDistanceMatrixElements :: [String] -> Matrix Double -> String -> String -> Double
 getDistanceMatrixElements ids distMatrix id1 id2 = distance
   -- Data.Matrix is indexed starting with 1
-  where indexid1 = (fromJust (elemIndex id1 ids)) + 1
-        indexid2 = (fromJust (elemIndex id2 ids)) + 1
+  where indexid1 = fromJust (elemIndex id1 ids) + 1
+        indexid2 = fromJust (elemIndex id2 ids) + 1
         distance = getElem indexid1 indexid2 distMatrix
 
 -- | Filter duplicates removes hits in sequences that were already collected. This happens during revisiting the starting subtree.
@@ -727,25 +723,26 @@ filterDuplicates modelConstruction inputSearchResult = uniqueSearchResult
 -- | Filter a list of similar extended blast hits   
 filterIdenticalSequences :: [(Sequence,Int,String)] -> Double -> [(Sequence,Int,String)]                            
 filterIdenticalSequences (headSequence:rest) identitycutoff = result
-  where filteredSequences = filter (\x -> (sequenceIdentity (firstOfTriple headSequence) (firstOfTriple x)) < identitycutoff) rest 
-        result = headSequence:(filterIdenticalSequences filteredSequences identitycutoff)
+  where filteredSequences = filter (\x -> sequenceIdentity (firstOfTriple headSequence) (firstOfTriple x) < identitycutoff) rest 
+        result = headSequence:filterIdenticalSequences filteredSequences identitycutoff
 filterIdenticalSequences [] _ = []
 
 -- | Filter sequences too similar to already aligned sequences
 filterWithCollectedSequences :: [(Sequence,Int,String,Char)] -> [Sequence] -> Double -> [(Sequence,Int,String,Char)]                            
-filterWithCollectedSequences inputCandidates collectedSequences identitycutoff = filter (\candidate -> isUnSimilarSequence collectedSequences identitycutoff (firstOfQuadruple candidate)) inputCandidates 
+filterWithCollectedSequences inputCandidates collectedSequences identitycutoff = filter (isUnSimilarSequence collectedSequences identitycutoff . firstOfQuadruple) inputCandidates 
 --filterWithCollectedSequences [] [] _ = []
 
 -- | Filter alignment entries by similiarity  
 filterIdenticalAlignmentEntry :: [ClustalAlignmentEntry] -> Double -> [ClustalAlignmentEntry]
 filterIdenticalAlignmentEntry (headEntry:rest) identitycutoff = result
   where filteredEntries = filter (\x -> (stringIdentity (entryAlignedSequence headEntry) (entryAlignedSequence x)) < identitycutoff) rest
-        result = headEntry:(filterIdenticalAlignmentEntry filteredEntries identitycutoff)
+        result = headEntry:filterIdenticalAlignmentEntry filteredEntries identitycutoff
 filterIdenticalAlignmentEntry [] _ = []
 
 
 isUnSimilarSequence :: [Sequence] -> Double -> Sequence -> Bool
-isUnSimilarSequence collectedSequences identitycutoff checkSequence = null (filter (\x -> (sequenceIdentity checkSequence x) > identitycutoff) collectedSequences)
+isUnSimilarSequence collectedSequences identitycutoff checkSequence = any (\ x -> (sequenceIdentity checkSequence x) > identitycutoff) collectedSequences
+
                  
 firstOfTriple :: (t, t1, t2) -> t
 firstOfTriple (a,_,_) = a 
@@ -756,16 +753,16 @@ firstOfQuadruple (a,_,_,_) = a
 -- | Check if the result field of BlastResult is filled and if hits are present
 blastMatchesPresent :: BlastResult -> Bool
 blastMatchesPresent blastResult 
-  | (null resultList) = False
+  | null resultList = False
   | otherwise = True
-  where resultList = concat (map matches (concat (map hits (results blastResult))))
+  where resultList = concatMap matches (concatMap hits (results blastResult))
                                 
 -- | Compute identity of sequences
 stringIdentity :: String -> String -> Double
 stringIdentity string1 string2 = identityPercent
    where distance = ED.levenshteinDistance ED.defaultEditCosts string1 string2
-         maximumDistance = maximum [(length string1),(length string2)]
-         identityPercent = 100 - ((fromIntegral distance/fromIntegral (maximumDistance)) * (read "100" ::Double))
+         maximumDistance = maximum [length string1,length string2]
+         identityPercent = 100 - ((fromIntegral distance/fromIntegral maximumDistance) * (read "100" ::Double))
 
 -- | Compute identity of sequences
 sequenceIdentity :: Sequence -> Sequence -> Double
@@ -773,19 +770,16 @@ sequenceIdentity sequence1 sequence2 = identityPercent
   where distance = ED.levenshteinDistance ED.defaultEditCosts sequence1string sequence2string
         sequence1string = L.unpack (unSD (seqdata sequence1))
         sequence2string = L.unpack (unSD (seqdata sequence2))
-        maximumDistance = maximum [(length sequence1string),(length sequence2string)]
-        identityPercent = 100 - ((fromIntegral distance/fromIntegral (maximumDistance)) * (read "100" ::Double))
+        maximumDistance = maximum [length sequence1string,length sequence2string]
+        identityPercent = 100 - ((fromIntegral distance/fromIntegral maximumDistance) * (read "100" ::Double))
 
 getTaxonomicContextEntrez :: Maybe Int -> Maybe Taxon -> IO (Maybe Taxon)
 getTaxonomicContextEntrez upperTaxLimit currentTaxonomicContext = do
-  if (isJust upperTaxLimit)
-    then do
-      if (isJust currentTaxonomicContext)
-        then do
-          return currentTaxonomicContext
-        else do 
-          retrievedTaxonomicContext <- retrieveTaxonomicContextEntrez (fromJust upperTaxLimit)
-          return retrievedTaxonomicContext
+  if isJust upperTaxLimit
+      then if isJust currentTaxonomicContext
+        then return currentTaxonomicContext
+        else retrieveTaxonomicContextEntrez (fromJust upperTaxLimit)
+          --return retrievedTaxonomicContext
     else return Nothing
 
 setTaxonomicContextEntrez :: Int -> Maybe Taxon -> Maybe Int -> (Maybe Int, Maybe Int)
@@ -801,20 +795,18 @@ setUpperLowerTaxLimitEntrez subTreeTaxId currentTaxonomicContext = (upperLimit,l
 
 raiseTaxIdLimitEntrez :: Int -> Taxon -> Maybe Int
 raiseTaxIdLimitEntrez subTreeTaxId taxon = parentNodeTaxId
-  where lastUpperBoundNodeIndex = fromJust (V.findIndex  (\node -> (lineageTaxId node == subTreeTaxId)) lineageExVector)
+  where lastUpperBoundNodeIndex = fromJust (V.findIndex  (\node -> lineageTaxId node == subTreeTaxId) lineageExVector)
         linageNodeTaxId = Just (lineageTaxId (lineageExVector V.! (lastUpperBoundNodeIndex -1)))
         lineageExVector = V.fromList (lineageEx taxon)
         --the input taxid is not part of the lineage, therefor we look for further taxids in the lineage after we used the parent tax id of the input node
-        parentNodeTaxId = if (subTreeTaxId == (taxonTaxId taxon)) then Just (taxonParentTaxId taxon) else linageNodeTaxId
+        parentNodeTaxId = if subTreeTaxId == taxonTaxId taxon then Just (taxonParentTaxId taxon) else linageNodeTaxId
        
 constructNext :: Int -> ModelConstruction -> [(Sequence, Int, String, Char)] -> Maybe Int -> Maybe Taxon  -> [String] -> [SearchResult] -> Bool -> ModelConstruction
 constructNext currentIterationNumber modelconstruction alignmentResults upperTaxLimit inputTaxonomicContext inputSelectedQueries inputPotentialMembers toggleInfernalAlignmentModeTrue = nextModelConstruction
   where newIterationNumber = currentIterationNumber + 1
-        taxEntries = (taxRecords modelconstruction) ++ (buildTaxRecords alignmentResults currentIterationNumber)
-        potMembers = (potentialMembers modelconstruction) ++ inputPotentialMembers
-        currentAlignmentMode = case toggleInfernalAlignmentModeTrue of
-                                 True -> True
-                                 False -> alignmentModeInfernal modelconstruction
+        taxEntries = taxRecords modelconstruction ++ buildTaxRecords alignmentResults currentIterationNumber
+        potMembers = potentialMembers modelconstruction ++ inputPotentialMembers
+        currentAlignmentMode = toggleInfernalAlignmentModeTrue || alignmentModeInfernal modelconstruction
         nextModelConstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) taxEntries upperTaxLimit inputTaxonomicContext (evalueThreshold modelconstruction) currentAlignmentMode inputSelectedQueries potMembers
          
 buildTaxRecords :: [(Sequence,Int,String,Char)] -> Int -> [TaxonomyRecord]
@@ -827,7 +819,7 @@ sameTaxIdAlignmentResult (_,taxId1,_,_) (_,taxId2,_,_) = taxId1 == taxId2
 
 buildTaxRecord :: Int -> [(Sequence,Int,String,Char)] -> TaxonomyRecord
 buildTaxRecord currentIterationNumber entries = taxRecord
-  where recordTaxId = (\(_,currentTaxonomyId,_,_) -> currentTaxonomyId) $ (head entries)
+  where recordTaxId = (\(_,currentTaxonomyId,_,_) -> currentTaxonomyId) (head entries)
         seqRecords = map (buildSeqRecord currentIterationNumber)  entries
         taxRecord = TaxonomyRecord recordTaxId seqRecords
 
@@ -838,9 +830,9 @@ buildSeqRecord currentIterationNumber (parsedFasta,_,seqSubject,seqOrigin) = Seq
 evaluePartitionTrimCMsearchHits :: Double -> [(CMsearch,(Sequence, Int, String, Char))] -> ([(CMsearch,(Sequence, Int, String, Char))],[(CMsearch,(Sequence, Int, String, Char))],[(CMsearch,(Sequence, Int, String, Char))])
 evaluePartitionTrimCMsearchHits eValueThreshold cmSearchCandidatesWithSequences = (trimmedSelectedCandidates,potentialCandidates,rejectedCandidates)
   where potentialMemberseValueThreshold = eValueThreshold * 1000
-        (prefilteredCandidates,rejectedCandidates) = partition (\(cmSearchResult,_) -> any (\hitScore' -> (potentialMemberseValueThreshold >= (hitEvalue hitScore'))) (hitScores cmSearchResult)) cmSearchCandidatesWithSequences
-        (selectedCandidates,potentialCandidates) = partition (\(cmSearchResult,_) -> any (\hitScore' -> (eValueThreshold >= (hitEvalue hitScore'))) (hitScores cmSearchResult)) prefilteredCandidates
-        trimmedSelectedCandidates = map (\(cmSearchResult,inputSequence) -> (cmSearchResult,(trimCMsearchHit cmSearchResult inputSequence))) selectedCandidates
+        (prefilteredCandidates,rejectedCandidates) = partition (\(cmSearchResult,_) -> any (\hitScore' -> potentialMemberseValueThreshold >= hitEvalue hitScore') (hitScores cmSearchResult)) cmSearchCandidatesWithSequences
+        (selectedCandidates,potentialCandidates) = partition (\(cmSearchResult,_) -> any (\hitScore' -> eValueThreshold >= hitEvalue hitScore') (hitScores cmSearchResult)) prefilteredCandidates
+        trimmedSelectedCandidates = map (\(cmSearchResult,inputSequence) -> (cmSearchResult,trimCMsearchHit cmSearchResult inputSequence)) selectedCandidates
         
         
 trimCMsearchHit :: CMsearch -> (Sequence, Int, String, Char) -> (Sequence, Int, String, Char)
@@ -849,7 +841,7 @@ trimCMsearchHit cmSearchResult (inputSequence,b,c,d) = (subSequence,b,c,d)
         sequenceString = L.unpack (unSD (seqdata inputSequence))
         sequenceSubstring = cmSearchsubString (hitStart hitScoreEntry) (hitEnd hitScoreEntry) sequenceString
         --extend original seqheader
-        newSequenceHeader =  L.pack ((L.unpack (unSL (seqheader inputSequence))) ++ "cmS_" ++ (show (hitStart hitScoreEntry)) ++ "_" ++ (show (hitEnd hitScoreEntry)) ++ "_" ++ (show (hitStrand hitScoreEntry)))
+        newSequenceHeader =  L.pack (L.unpack (unSL (seqheader inputSequence)) ++ "cmS_" ++ show (hitStart hitScoreEntry) ++ "_" ++ show (hitEnd hitScoreEntry) ++ "_" ++ show (hitStrand hitScoreEntry))
         subSequence = Seq (SeqLabel newSequenceHeader) (SeqData (L.pack sequenceSubstring)) Nothing
 
 -- | Extract a substring with coordinates from cmsearch, first nucleotide has index 1
@@ -868,19 +860,19 @@ extractQueries foundSequenceNumber modelconstruction
   | otherwise = querySequences' 
   where fastaSeqData = inputFasta modelconstruction
         querySeqIds = selectedQueries modelconstruction
-        alignedSequences = fastaSeqData:(map nucleotideSequence (concatMap sequenceRecords (taxRecords modelconstruction))) 
-        querySequences' = concatMap (\querySeqId -> filter (\alignedSeq -> ((L.unpack (unSL (seqid alignedSeq)))) == querySeqId) alignedSequences) querySeqIds
+        alignedSequences = fastaSeqData:map nucleotideSequence (concatMap sequenceRecords (taxRecords modelconstruction)) 
+        querySequences' = concatMap (\querySeqId -> filter (\alignedSeq -> L.unpack (unSL (seqid alignedSeq)) == querySeqId) alignedSequences) querySeqIds
         
 extractQueryCandidates :: [(Sequence,Int,String,Char)] -> V.Vector (Int,Sequence)
 extractQueryCandidates querycandidates = indexedSeqences
   where sequences = map (\(candidateSequence,_,_,_) -> candidateSequence) querycandidates
-        indexedSeqences = V.map (\(number,candidateSequence) -> (number + 1,candidateSequence))(V.indexed (V.fromList (sequences)))
+        indexedSeqences = V.map (\(number,candidateSequence) -> (number + 1,candidateSequence))(V.indexed (V.fromList sequences))
 
 buildTaxFilterQuery :: Maybe Int -> Maybe Int -> String
 buildTaxFilterQuery upperTaxLimit lowerTaxLimit
-  | (isNothing upperTaxLimit) = ""
-  | (isNothing lowerTaxLimit) =  "&ENTREZ_QUERY=" ++ encodedTaxIDQuery (fromJust upperTaxLimit)
-  | otherwise = "&ENTREZ_QUERY=" ++ "%28txid" ++ (show (fromJust upperTaxLimit))  ++ "%5BORGN%5D%29" ++ "NOT" ++ "%28txid" ++ (show (fromJust lowerTaxLimit)) ++ "%5BORGN%5D&EQ_OP%29"
+  | isNothing upperTaxLimit = ""
+  | isNothing lowerTaxLimit =  "&ENTREZ_QUERY=" ++ encodedTaxIDQuery (fromJust upperTaxLimit)
+  | otherwise = "&ENTREZ_QUERY=" ++ "%28txid" ++ show (fromJust upperTaxLimit)  ++ "%5BORGN%5D%29" ++ "NOT" ++ "%28txid" ++ show (fromJust lowerTaxLimit) ++ "%5BORGN%5D&EQ_OP%29"
  
 buildHitNumberQuery :: String -> String
 buildHitNumberQuery hitNumber
@@ -888,17 +880,16 @@ buildHitNumberQuery hitNumber
   | otherwise = "&ALIGNMENTS=" ++ hitNumber
 
 encodedTaxIDQuery :: Int -> String
-encodedTaxIDQuery taxID = "txid" ++ (show taxID) ++ "%20%5BORGN%5D&EQ_OP"
+encodedTaxIDQuery taxID = "txid" ++ show taxID ++ "%20%5BORGN%5D&EQ_OP"
 
 -- | Adds cm prefix to pseudo random number
 randomid :: Int16 -> String
-randomid number = "cm" ++ (show number)
+randomid number = "cm" ++ show number
 
 createSessionID :: Maybe String -> IO String
 createSessionID sessionIdentificator = do
-  if (isJust sessionIdentificator)
-    then do
-      return (fromJust sessionIdentificator)
+  if isJust sessionIdentificator
+    then return (fromJust sessionIdentificator)
     else do
       randomNumber <- randomIO :: IO Int16
       let sessionId = randomid randomNumber
@@ -934,7 +925,7 @@ systemCMcompare model1path model2path outputFilePath = system ("CMCompare -q " +
 
 -- | Run CMsearch 
 systemCMsearch :: Int -> String -> String -> String -> String -> IO ExitCode
-systemCMsearch cpus options covarianceModelPath sequenceFilePath outputPath = system ("cmsearch --notrunc --cpu " ++ (show cpus) ++ " " ++ options ++ " -g " ++ covarianceModelPath ++ " " ++ sequenceFilePath ++ "> " ++ outputPath)
+systemCMsearch cpus options covarianceModelPath sequenceFilePath outputPath = system ("cmsearch --notrunc --cpu " ++ show cpus ++ " " ++ options ++ " -g " ++ covarianceModelPath ++ " " ++ sequenceFilePath ++ "> " ++ outputPath)
 
 -- | Run CMstat
 systemCMstat :: String -> String -> IO ExitCode
@@ -943,8 +934,8 @@ systemCMstat covarianceModelPath outputPath = system ("cmstat " ++ covarianceMod
 -- | Run CMcalibrate and return exitcode
 systemCMcalibrate :: String -> Int -> String -> String -> IO ExitCode 
 systemCMcalibrate mode cpus covarianceModelPath outputPath 
-  | mode == "fast" = system ("cmcalibrate --beta 1E-4 --cpu " ++ (show cpus) ++ " " ++ covarianceModelPath ++ "> " ++ outputPath)
-  | otherwise = system ("cmcalibrate --cpu " ++ (show cpus) ++ " " ++ covarianceModelPath ++ "> " ++ outputPath)
+  | mode == "fast" = system ("cmcalibrate --beta 1E-4 --cpu " ++ show cpus ++ " " ++ covarianceModelPath ++ "> " ++ outputPath)
+  | otherwise = system ("cmcalibrate --cpu " ++ show cpus ++ " " ++ covarianceModelPath ++ "> " ++ outputPath)
 
 
 -- | Run CMcalibrate and return exitcode
@@ -961,11 +952,11 @@ compareCM rfamCMPath resultCMpath outputDirectory = do
   let cmcompareResultPath = outputDirectory ++ rfamCMFileName ++ resultCMFileName ++ ".cmcompare"
   _ <- systemCMcompare rfamCMPath resultCMpath cmcompareResultPath
   inputCMcompare <- readFile cmcompareResultPath
-  let singlespaceCMcompare = (unwords(words inputCMcompare))
+  let singlespaceCMcompare = unwords(words inputCMcompare)
   let decodedCmCompareOutput = head (V.toList (fromRight (decodeWith myOptions NoHeader (L.pack singlespaceCMcompare) :: Either String (V.Vector [String]))))
   --two.cm   three.cm     27.996     19.500 CCCAAAGGGCCCAAAGGG (((...)))(((...))) (((...)))(((...))) [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17] [11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27]
-  let bitscore1 = read (head (drop 2 decodedCmCompareOutput)) :: Double
-  let bitscore2 = read (head (drop 3 decodedCmCompareOutput)) :: Double
+  let bitscore1 = read (decodedCmCompareOutput !! 2) :: Double
+  let bitscore2 = read (decodedCmCompareOutput !! 3) :: Double
   let minmax = minimum [bitscore1,bitscore2]
   return minmax
                                                                  
@@ -977,7 +968,7 @@ readDouble = read
  
 -- | parse from input filePath              
 parseCMSearch :: String -> Either ParseError CMsearch
-parseCMSearch input = parse genParserCMsearch "parseCMsearch" input
+parseCMSearch = parse genParserCMsearch "parseCMsearch" 
 
 -- | parse from input filePath                      
 readCMSearch :: String -> IO (Either ParseError CMsearch)             
@@ -1110,7 +1101,7 @@ genParserCMsearchHitScore = do
 
 -- | parse from input filePath              
 parseCMstat :: String -> Either ParseError CMstat
-parseCMstat input = parse genParserCMstat "parseCMstat" input
+parseCMstat = parse genParserCMstat "parseCMstat"
 
 -- | parse from input filePath                      
 readCMstat :: String -> IO (Either ParseError CMstat)             
@@ -1202,17 +1193,17 @@ genParserCMstat = do
 extractCandidateSequences :: [(Sequence,Int,String,Char)] -> V.Vector (Int,Sequence)
 extractCandidateSequences candidates' = indexedSeqences
   where sequences = map (\(inputSequence,_,_,_) -> inputSequence) candidates'
-        indexedSeqences = V.map (\(number,inputSequence) -> (number + 1,inputSequence))(V.indexed (V.fromList (sequences)))
+        indexedSeqences = V.map (\(number,inputSequence) -> (number + 1,inputSequence))(V.indexed (V.fromList sequences))
         
 extractAlignedSequences :: Int -> ModelConstruction ->  V.Vector (Int,Sequence)
 extractAlignedSequences iterationnumber modelconstruction
-  | iterationnumber == 0 =  V.map (\(number,seq') -> (number + 1,seq')) (V.indexed (V.fromList ([inputSequence])))
+  | iterationnumber == 0 =  V.map (\(number,seq') -> (number + 1,seq')) (V.indexed (V.fromList [inputSequence]))
   | otherwise = indexedSeqRecords
-  where inputSequence = (inputFasta modelconstruction)
+  where inputSequence = inputFasta modelconstruction
         seqRecordsperTaxrecord = map sequenceRecords (taxRecords modelconstruction)
-        seqRecords = (concat seqRecordsperTaxrecord)
+        seqRecords = concat seqRecordsperTaxrecord
         --alignedSeqRecords = filter (\seqRec -> (aligned seqRec) > 0) seqRecords 
-        indexedSeqRecords = V.map (\(number,seq') -> (number + 1,seq')) (V.indexed (V.fromList (inputSequence : (map nucleotideSequence seqRecords))))
+        indexedSeqRecords = V.map (\(number,seq') -> (number + 1,seq')) (V.indexed (V.fromList (inputSequence : map nucleotideSequence seqRecords)))
 
 filterByParentTaxId :: [(BlastHit,Int)] -> Bool -> [(BlastHit,Int)]
 filterByParentTaxId blastHitsWithParentTaxId singleHitPerParentTaxId   
@@ -1226,16 +1217,16 @@ filterByHitLength :: [BlastHit] -> Int -> Bool -> [BlastHit]
 filterByHitLength blastHits queryLength filterOn 
   | filterOn = filteredBlastHits
   | otherwise = blastHits
-  where filteredBlastHits = filter (\hit -> hitLengthCheck queryLength hit) blastHits
+  where filteredBlastHits = filter (hitLengthCheck queryLength) blastHits
 
 -- | Hits should have a compareable length to query
 hitLengthCheck :: Int -> BlastHit -> Bool
 hitLengthCheck queryLength blastHit = lengthStatus
   where  blastMatches = matches blastHit
          minHfrom = minimum (map h_from blastMatches)
-         minHfromHSP = fromJust (find (\hsp -> minHfrom == (h_from hsp)) blastMatches)
+         minHfromHSP = fromJust (find (\hsp -> minHfrom == h_from hsp) blastMatches)
          maxHto = maximum (map h_to blastMatches)
-         maxHtoHSP = fromJust (find (\hsp -> maxHto == (h_to hsp)) blastMatches)
+         maxHtoHSP = fromJust (find (\hsp -> maxHto == h_to hsp) blastMatches)
          minHonQuery = q_from minHfromHSP
          maxHonQuery = q_to maxHtoHSP
          startCoordinate = minHfrom - minHonQuery 
@@ -1247,16 +1238,16 @@ hitLengthCheck queryLength blastHit = lengthStatus
 retrieveFullSequences :: StaticOptions -> [(String,Int,Int,String,String,Int,String)] -> IO [(Sequence,Int,String)]
 retrieveFullSequences staticOptions requestedSequences = do
   fullSequences <- mapM (retrieveFullSequence (tempDirPath staticOptions)) requestedSequences
-  if (any (\x -> isNothing (firstOfTriple x)) fullSequences)
+  if any (isNothing . firstOfTriple) fullSequences
     then do
       let fullSequencesWithRequestedSequences = zip fullSequences requestedSequences
       --let (failedRetrievals, successfulRetrievals) = partition (\x -> L.null (unSD (seqdata (firstOfTriple (fst x))))) fullSequencesWithRequestedSequences
-      let (failedRetrievals, successfulRetrievals) = partition (\x -> isNothing (firstOfTriple (fst x))) fullSequencesWithRequestedSequences
+      let (failedRetrievals, successfulRetrievals) = partition (isNothing . firstOfTriple . fst) fullSequencesWithRequestedSequences
       --we try to reretrieve failed entries once
-      missingSequences <- mapM (retrieveFullSequence (tempDirPath staticOptions)) (map snd failedRetrievals)
-      let (stillMissingSequences,reRetrievedSequences) = partition (\fullSequence -> isNothing (firstOfTriple fullSequence)) missingSequences
-      logWarning ("Sequence retrieval failed: \n" ++ (concatMap show stillMissingSequences) ++ "\n") (tempDirPath staticOptions)
-      let unwrappedRetrievals = map (\(x,y,z) -> (fromJust x,y,z))  ((map fst successfulRetrievals) ++ reRetrievedSequences)
+      missingSequences <- mapM (retrieveFullSequence (tempDirPath staticOptions) .snd) failedRetrievals
+      let (stillMissingSequences,reRetrievedSequences) = partition (isNothing . firstOfTriple) missingSequences
+      logWarning ("Sequence retrieval failed: \n" ++ concatMap show stillMissingSequences ++ "\n") (tempDirPath staticOptions)
+      let unwrappedRetrievals = map (\(x,y,z) -> (fromJust x,y,z))  (map fst successfulRetrievals ++ reRetrievedSequences)
       CE.evaluate unwrappedRetrievals
     else CE.evaluate (map (\(x,y,z) -> (fromJust x,y,z)) fullSequences)
         
@@ -1265,24 +1256,22 @@ retrieveFullSequence temporaryDirectoryPath (nucleotideId,seqStart,seqStop,stran
   let program' = Just "efetch"
   let database' = Just "nucleotide"
   let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
-  let queryString = "id=" ++ nucleotideId ++ "&seq_start=" ++ (show seqStart) ++ "&seq_stop=" ++ (show seqStop) ++ "&rettype=fasta" ++ "&strand=" ++ strand ++ registrationInfo
+  let queryString = "id=" ++ nucleotideId ++ "&seq_start=" ++ show seqStart ++ "&seq_stop=" ++ show seqStop ++ "&rettype=fasta" ++ "&strand=" ++ strand ++ registrationInfo
   let entrezQuery = EntrezHTTPQuery program' database' queryString 
   result <- CE.catch (entrezHTTP entrezQuery)
               (\e -> do let err = show (e :: CE.IOException)
                         logWarning ("Warning: Full sequence retrieval failed:" ++ " " ++ err) temporaryDirectoryPath
                         return [])
-  if (null result)
-    then do
-      return (Nothing,taxid,subject')
+  if null result
+    then return (Nothing,taxid,subject')
     else do
-      if (null ((mkSeqs . L.lines) (L.pack result)))
-        then do
-          return (Nothing,taxid,subject')
+      if null ((mkSeqs . L.lines) (L.pack result))
+        then return (Nothing,taxid,subject')
         else do
           let parsedFasta = head ((mkSeqs . L.lines) (L.pack result))
-          if (L.null (unSD (seqdata parsedFasta)))
-            then (return (Nothing,taxid,subject'))
-            else (CE.evaluate (Just parsedFasta,taxid,subject'))
+          if L.null (unSD (seqdata parsedFasta))
+            then return (Nothing,taxid,subject')
+            else CE.evaluate (Just parsedFasta,taxid,subject')
  
 getRequestedSequenceElement :: Int -> (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
 getRequestedSequenceElement queryLength (blastHit,taxid) 
@@ -1451,8 +1440,8 @@ retrieveTaxonomicContextEntrez inputTaxId = do
             let taxon = head (readEntrezTaxonSet result)
             --print taxon
             if null (lineageEx taxon)
-              then (error "Retrieved taxonomic context taxon from NCBI Entrez with empty lineage, cannot proceed.")
-              else (CE.evaluate (Just taxon))
+              then error "Retrieved taxonomic context taxon from NCBI Entrez with empty lineage, cannot proceed."
+              else CE.evaluate (Just taxon)
 
 retrieveParentTaxIdEntrez :: [(BlastHit,Int)] -> IO [(BlastHit,Int)]
 retrieveParentTaxIdEntrez blastHitsWithHitTaxids = do
