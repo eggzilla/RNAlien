@@ -448,12 +448,18 @@ computeDataBaseSize evalue bitscore querylength = ((evalue * 2 ** bitscore) / qu
 
 alignCandidates :: StaticOptions -> ModelConstruction -> String -> SearchResult -> IO ([(Sequence,Int,String,Char)],[(Sequence,Int,String,Char)])
 alignCandidates staticOptions modelConstruction multipleSearchResultPrefix searchResults = do
+  let iterationDirectory = tempDirPath staticOptions ++ show (iterationNumber modelConstruction) ++ "/" ++ multipleSearchResultPrefix
+  createDirectoryIfMissing False (iterationDirectory ++ "log")
   if null (candidates searchResults)
-    then return ([],[])
+    then do
+      writeFile (iterationDirectory ++ "log" ++ "/11candidates") ("No candidates to align")
+      return ([],[])
     else do
-      --refilter for similarity 
+      --refilter for similarity
+      writeFile (iterationDirectory ++ "log" ++ "/11candidates") (showlines (candidates searchResults))
       let alignedSequences = map snd (V.toList (extractAlignedSequences (iterationNumber modelConstruction) modelConstruction))
       let filteredCandidates = filterWithCollectedSequences (candidates searchResults) alignedSequences 99
+      writeFile (iterationDirectory ++ "log" ++ "/12candidatesFilteredByCollected") (showlines filteredCandidates)
       if alignmentModeInfernal modelConstruction
         then alignCandidatesInfernalMode staticOptions modelConstruction multipleSearchResultPrefix (blastDatabaseSize searchResults) filteredCandidates
         else alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultPrefix filteredCandidates
@@ -477,21 +483,25 @@ alignCandidatesInfernalMode staticOptions modelConstruction multipleSearchResult
   let cmSearchCandidatesWithSequences = zip rightCMSearchResults filteredCandidates    
   let (trimmedSelectedCandidates,potentialCandidates,rejectedCandidates) = evaluePartitionTrimCMsearchHits (evalueThreshold modelConstruction) cmSearchCandidatesWithSequences
   createDirectoryIfMissing False (iterationDirectory ++ "log")
-  writeFile (iterationDirectory ++ "log" ++ "/11selectedCandidates'") (showlines trimmedSelectedCandidates)
-  writeFile (iterationDirectory ++ "log" ++ "/12potentialCandidates'") (showlines potentialCandidates)
-  writeFile (iterationDirectory ++ "log" ++ "/13rejectedCandidates'") (showlines rejectedCandidates)                                               
+  writeFile (iterationDirectory ++ "log" ++ "/13selectedCandidates'") (showlines trimmedSelectedCandidates)
+  writeFile (iterationDirectory ++ "log" ++ "/14rejectedCandidates'") (showlines rejectedCandidates)
+  writeFile (iterationDirectory ++ "log" ++ "/15potentialCandidates'") (showlines potentialCandidates)                                         
   CE.evaluate (map snd trimmedSelectedCandidates,map snd potentialCandidates)
 
 alignCandidatesInitialMode :: StaticOptions -> ModelConstruction -> String -> [(Sequence,Int,String,Char)] -> IO ([(Sequence,Int,String,Char)],[(Sequence,Int,String,Char)])
 alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultPrefix filteredCandidates = do
   let iterationDirectory = tempDirPath staticOptions ++ show (iterationNumber modelConstruction) ++ "/" ++ multipleSearchResultPrefix
-  let candidateSequences = extractCandidateSequences filteredCandidates 
+  --writeFile (iterationDirectory ++ "log" ++ "/11bcandidates") (showlines filteredCandidates)
+  createDirectoryIfMissing False (iterationDirectory ++ "log")
+  let candidateSequences = extractCandidateSequences filteredCandidates
+  --writeFile (iterationDirectory ++ "log" ++ "/11ccandidates") (showlines (V.toList candidateSequences))
   logVerboseMessage (verbositySwitch staticOptions) "Alignment Mode Initial\n" (tempDirPath staticOptions)
   --write Fasta sequences
   let inputFastaFilepath = iterationDirectory ++ "input.fa"
   let inputFoldFilepath = iterationDirectory ++ "input.fold"
   writeFasta (iterationDirectory ++ "input.fa") ([inputFasta modelConstruction])
-  V.mapM_ (\(number,_nucleotideSequence) -> writeFasta (iterationDirectory ++ show number ++ ".fa") [_nucleotideSequence]) candidateSequences
+  logMessage (showlines (V.toList candidateSequences)) (tempDirPath staticOptions)
+  V.mapM_ (\(number,nucleotideSequence') -> writeFasta (iterationDirectory ++ show number ++ ".fa") [nucleotideSequence']) candidateSequences
   let candidateFastaFilepath = V.toList (V.map (\(number,_) -> iterationDirectory ++ show number ++ ".fa") candidateSequences)
   let candidateFoldFilepath = V.toList (V.map (\(number,_) -> iterationDirectory ++ show number ++ ".fold") candidateSequences)
   let locarnainClustalw2FormatFilepath =  V.toList (V.map (\(number,_) -> iterationDirectory ++ show number ++ "." ++ "clustalmlocarna") candidateSequences)
@@ -512,13 +522,14 @@ alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultP
   alifoldResults <- mapM readRNAalifold candidateAliFoldFilepath
   let consensusMFE = map (alignmentConsensusMinimumFreeEnergy . fromRight) alifoldResults
   let sciidfraction = map (\(consMFE,averMFE,seqId) -> (consMFE/averMFE)/seqId) (zip3 consensusMFE averageMFEs (V.toList sequenceIdentities))
+  let idlog = concatMap (\(sciidfraction',consMFE,averMFE,seqId) -> show sciidfraction' ++ "," ++ show consMFE ++ "," ++ show averMFE ++ "," ++ show seqId ++ "\n")(zip4 sciidfraction consensusMFE averageMFEs (V.toList sequenceIdentities))
+  writeFile (iterationDirectory ++ "log" ++ "/idlog") (idlog)
   let alignedCandidates = zip sciidfraction filteredCandidates
   writeFile (iterationDirectory ++ "log" ++ "/zscores") (showlines alignedCandidates)
-  let (selectedCandidates,rejectedCandidates) = partition (\(sci,_) -> sci > zScoreCutoff staticOptions) alignedCandidates
-  createDirectoryIfMissing False (iterationDirectory ++ "log")
+  let (selectedCandidates,rejectedCandidates) = partition (\(sciidfraction',_) -> sciidfraction' > zScoreCutoff staticOptions) alignedCandidates
   mapM_ print (zip3 consensusMFE averageMFEs (V.toList sequenceIdentities))
-  writeFile (iterationDirectory ++ "log" ++ "/11selectedCandidates") (showlines selectedCandidates)
-  writeFile (iterationDirectory ++ "log" ++ "/12rejectedCandidates") (showlines rejectedCandidates)
+  writeFile (iterationDirectory ++ "log" ++ "/13selectedCandidates") (showlines selectedCandidates)
+  writeFile (iterationDirectory ++ "log" ++ "/14rejectedCandidates") (showlines rejectedCandidates)
   CE.evaluate (map snd selectedCandidates,[])
 
 setClusterNumber :: Int -> Int
@@ -741,7 +752,7 @@ filterIdenticalAlignmentEntry [] _ = []
 
 
 isUnSimilarSequence :: [Sequence] -> Double -> Sequence -> Bool
-isUnSimilarSequence collectedSequences identitycutoff checkSequence = any (\ x -> (sequenceIdentity checkSequence x) > identitycutoff) collectedSequences
+isUnSimilarSequence collectedSequences identitycutoff checkSequence = any (\ x -> (sequenceIdentity checkSequence x) < identitycutoff) collectedSequences
 
                  
 firstOfTriple :: (t, t1, t2) -> t
@@ -1298,7 +1309,7 @@ getForwardRequestedSequenceElement queryLength (blastHit,taxid) = (geneIdentifie
             maxHtoHSP = fromJust (find (\hsp -> maxHto == h_to hsp) blastMatches)
             minHonQuery = q_from minHfromHSP
             maxHonQuery = q_to maxHtoHSP
-            --unsafe coordinates may exeed length of avialable sequence
+            --unsafe coordinates may exeed length of available sequence
             unsafestartcoordinate = minHfrom - minHonQuery 
             unsafeendcoordinate = maxHto + (queryLength - maxHonQuery) 
             startcoordinate = lowerBoundryCoordinateSetter 0 unsafestartcoordinate
@@ -1331,8 +1342,8 @@ getReverseRequestedSequenceElement queryLength (blastHit,taxid) = (geneIdentifie
            --unsafe coordinates may exeed length of avialable sequence
            unsafestartcoordinate = maxHfrom + minHonQuery 
            unsafeendcoordinate = minHto - (queryLength - maxHonQuery) 
-           startcoordinate = upperBoundryCoordinateSetter blastHitOriginSequenceLength unsafestartcoordinate
-           endcoordinate = lowerBoundryCoordinateSetter 0 unsafeendcoordinate 
+           startcoordinate = lowerBoundryCoordinateSetter 0 unsafeendcoordinate 
+           endcoordinate = upperBoundryCoordinateSetter blastHitOriginSequenceLength unsafestartcoordinate 
            strand = "2"
 
 --computeAlignmentSCIs :: [String] -> [String] -> IO ()
