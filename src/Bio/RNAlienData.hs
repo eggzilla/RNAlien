@@ -15,6 +15,7 @@ data StaticOptions = StaticOptions
     userTaxId :: Maybe Int,
     singleHitperTaxToggle :: Bool,
     lengthFilterToggle :: Bool,
+    coverageFilterToggle :: Bool,
     cpuThreads :: Int,
     blastDatabase :: Maybe String,
     verbositySwitch :: Bool

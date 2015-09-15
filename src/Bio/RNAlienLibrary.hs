@@ -401,6 +401,8 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
        --filter by length
        let blastHitsFilteredByLength = filterByHitLength blastHits queryLength (lengthFilterToggle staticOptions)
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_3blastHitsFilteredByLength") (showlines blastHitsFilteredByLength)
+       let blastHitsFilteredByCoverage = filterByCoverage blastHitsFilteredByLength queryLength (coverageFilterToggle staticOptions)
+       writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_3ablastHitsFilteredByLength") (showlines blastHitsFilteredByCoverage)
        --tag BlastHits with TaxId
        blastHitsWithTaxIdOutput <- retrieveBlastHitsTaxIdEntrez blastHitsFilteredByLength
        let uncheckedBlastHitsWithTaxIdList = map (\(blasthits,taxIdout) -> (blasthits,extractTaxIdFromEntrySummaries taxIdout)) blastHitsWithTaxIdOutput
@@ -1244,6 +1246,20 @@ hitLengthCheck queryLength blastHit = lengthStatus
          endCoordinate = maxHto + (queryLength - maxHonQuery) 
          fullSeqLength = endCoordinate - startCoordinate
          lengthStatus = fullSeqLength < (queryLength * 3)
+
+filterByCoverage :: [BlastHit] -> Int -> Bool -> [BlastHit]
+filterByCoverage blastHits queryLength filterOn 
+  | filterOn = filteredBlastHits
+  | otherwise = blastHits
+  where filteredBlastHits = filter (coverageCheck queryLength) blastHits
+
+-- | Hits should have a compareable length to query
+coverageCheck :: Int -> BlastHit -> Bool
+coverageCheck queryLength blastHit = coverageStatus
+  where  blastMatches = matches blastHit
+         maxIdentity = fromIntegral (maximum (map (snd . Bio.BlastXML.identity) blastMatches))
+         coverageStatus = (maxIdentity/(fromIntegral queryLength))* (100 :: Double) >= (80 :: Double)
+         
   
 -- | Wrapper for retrieveFullSequence that rerequests incomplete return sequees
 retrieveFullSequences :: StaticOptions -> [(String,Int,Int,String,String,Int,String)] -> IO [(Sequence,Int,String)]
