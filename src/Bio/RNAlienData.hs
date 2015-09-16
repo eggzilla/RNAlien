@@ -11,7 +11,7 @@ import Bio.Taxonomy
 data StaticOptions = StaticOptions
   { tempDirPath :: String,
     sessionID :: String,
-    zScoreCutoff :: Double,
+    nSCICutoff :: Double,
     userTaxId :: Maybe Int,
     singleHitperTaxToggle :: Bool,
     lengthFilterToggle :: Bool,

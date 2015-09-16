@@ -19,7 +19,7 @@ data Options = Options
   { inputFastaFilePath :: String,     
     outputPath :: String,
     inputTaxId :: Maybe Int,
-    inputZScoreCutoff :: Maybe Double,
+    inputnSCICutoff :: Maybe Double,
     inputEvalueCutoff :: Maybe Double,
     inputBlastDatabase :: Maybe String,
     lengthFilter :: Bool,
@@ -34,7 +34,7 @@ options = Options
   { inputFastaFilePath = def &= name "i" &= help "Path to input fasta file",                       
     outputPath = def &= name "o" &= help "Path to output directory",
     inputTaxId = Nothing &= name "t" &= help "NCBI taxonomy ID number of input RNA organism",
-    inputZScoreCutoff = (Just (1 :: Double)) &= name "z" &= help "RNAz score cutoff used in building first alignment. Default: 0.8",
+    inputnSCICutoff = (Just (1 :: Double)) &= name "z" &= help "Only candidate sequences with a normalized structure conservation index (nSCI) higher than this value are accepted. Default: 1",
     inputEvalueCutoff = (Just (0.001 :: Double)) &= name "e" &= help "Evalue cutoff for cmsearch filtering. Default: 0.001",
     inputBlastDatabase = Just "nt" &= name "b" &= help "Specify name of blast database to use. Default: nt",                    
     lengthFilter = True &= name "l" &= help "Filter blast hits per genomic length. Default: True",
@@ -83,7 +83,7 @@ main = do
               logToolVersions temporaryDirectoryPath
               let inputSequence = (head inputFasta)
               initialTaxId <- setInitialTaxId inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
-              let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputZScoreCutoff) inputTaxId singleHitperTax lengthFilter coverageFilter threads inputBlastDatabase (setVerbose verboseLevel)
+              let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) inputTaxId singleHitperTax lengthFilter coverageFilter threads inputBlastDatabase (setVerbose verboseLevel)
               let initialization = ModelConstruction iterationNumber inputSequence [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] []
               logMessage (show initialization) temporaryDirectoryPath
               modelConstructionResults <- modelConstructer staticOptions initialization

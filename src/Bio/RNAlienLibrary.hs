@@ -528,7 +528,7 @@ alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultP
   writeFile (iterationDirectory ++ "log" ++ "/idlog") (idlog)
   let alignedCandidates = zip sciidfraction filteredCandidates
   writeFile (iterationDirectory ++ "log" ++ "/zscores") (showlines alignedCandidates)
-  let (selectedCandidates,rejectedCandidates) = partition (\(sciidfraction',_) -> sciidfraction' > zScoreCutoff staticOptions) alignedCandidates
+  let (selectedCandidates,rejectedCandidates) = partition (\(sciidfraction',_) -> sciidfraction' > nSCICutoff staticOptions) alignedCandidates
   mapM_ print (zip3 consensusMFE averageMFEs (V.toList sequenceIdentities))
   writeFile (iterationDirectory ++ "log" ++ "/13selectedCandidates") (showlines selectedCandidates)
   writeFile (iterationDirectory ++ "log" ++ "/14rejectedCandidates") (showlines rejectedCandidates)
