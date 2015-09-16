@@ -19,10 +19,11 @@ data Options = Options
   { inputFastaFilePath :: String,     
     outputPath :: String,
     inputTaxId :: Maybe Int,
-    inputZScoreCutoff :: Maybe Double,
+    inputnSCICutoff :: Maybe Double,
     inputEvalueCutoff :: Maybe Double,
     inputBlastDatabase :: Maybe String,
     lengthFilter :: Bool,
+    coverageFilter :: Bool,
     singleHitperTax :: Bool,
     threads :: Int,
     sessionIdentificator :: Maybe String
@@ -33,10 +34,11 @@ options = Options
   { inputFastaFilePath = def &= name "i" &= help "Path to input fasta file",                       
     outputPath = def &= name "o" &= help "Path to output directory",
     inputTaxId = Nothing &= name "t" &= help "NCBI taxonomy ID number of input RNA organism",
-    inputZScoreCutoff = (Just (0.8 :: Double)) &= name "z" &= help "RNAz score cutoff used in building first alignment. Default: 0.8",
+    inputnSCICutoff = (Just (1 :: Double)) &= name "z" &= help "Only candidate sequences with a normalized structure conservation index (nSCI) higher than this value are accepted. Default: 1",
     inputEvalueCutoff = (Just (0.001 :: Double)) &= name "e" &= help "Evalue cutoff for cmsearch filtering. Default: 0.001",
     inputBlastDatabase = Just "nt" &= name "b" &= help "Specify name of blast database to use. Default: nt",                    
     lengthFilter = True &= name "l" &= help "Filter blast hits per genomic length. Default: True",
+    coverageFilter = True &= name "a" &= help "Filter blast hits by coverage of at least 80%. Default: True",
     singleHitperTax = True &= name "s" &= help "Only the best blast hit per taxonomic entry is considered. Default: True",
     threads = 1 &= name "c" &= help "Number of available cpu slots/cores. Default: 1",
     sessionIdentificator = Nothing &= name "d" &= help "Optional session id that is used instead of automatically generated one."
@@ -81,7 +83,7 @@ main = do
               logToolVersions temporaryDirectoryPath
               let inputSequence = (head inputFasta)
               initialTaxId <- setInitialTaxId inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
-              let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputZScoreCutoff) inputTaxId singleHitperTax lengthFilter threads inputBlastDatabase (setVerbose verboseLevel)
+              let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) inputTaxId singleHitperTax lengthFilter coverageFilter threads inputBlastDatabase (setVerbose verboseLevel)
               let initialization = ModelConstruction iterationNumber inputSequence [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] []
               logMessage (show initialization) temporaryDirectoryPath
               modelConstructionResults <- modelConstructer staticOptions initialization
