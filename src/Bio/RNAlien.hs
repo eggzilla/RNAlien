@@ -82,7 +82,7 @@ main = do
               logMessage ("Error - Not all required tools could be found in $PATH: " ++ fromLeft toolsCheck ++ "\n") temporaryDirectoryPath
             else do
               logToolVersions temporaryDirectoryPath
-              let inputSequence = (head inputFasta)
+              let inputSequence = reformatFasta (head inputFasta)
               initialTaxId <- setInitialTaxId inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
               let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) inputTaxId singleHitperTax lengthFilter coverageFilter threads inputBlastDatabase (setVerbose verboseLevel)
               let initialization = ModelConstruction iterationNumber inputSequence [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] []

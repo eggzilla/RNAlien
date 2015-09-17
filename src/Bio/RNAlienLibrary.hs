@@ -23,7 +23,8 @@ module Bio.RNAlienLibrary (
                            checkNCBIConnection,
                            preprocessClustalForRNAz,
                            preprocessClustalForRNAzExternal,
-                           rnaZEvalOutput
+                           rnaZEvalOutput,
+                           reformatFasta
                            )
 where
    
@@ -373,7 +374,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
   let queryIndexString = "1"
   let entrezTaxFilter = buildTaxFilterQuery upperTaxLimit lowerTaxLimit 
   logVerboseMessage (verbositySwitch staticOptions) ("entrezTaxFilter" ++ show entrezTaxFilter ++ "\n") (tempDirPath staticOptions)
-  let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=2000&EXPECT=" ++ show expectThreshold
+  let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=5000&EXPECT=" ++ show expectThreshold
   let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
   let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) querySequences'  (Just (hitNumberQuery ++ entrezTaxFilter ++ registrationInfo)) (Just (5400000000 :: Int))
   logVerboseMessage (verbositySwitch staticOptions) ("Sending blast query " ++ (show iterationnumber) ++ "\n") (tempDirPath staticOptions)
@@ -1737,3 +1738,20 @@ setBlastExpectThreshold :: ModelConstruction -> Double
 setBlastExpectThreshold modelConstruction
   | alignmentModeInfernal modelConstruction = 1 :: Double
   | otherwise = 0.1 :: Double
+
+reformatFasta :: Sequence -> Sequence
+reformatFasta input = Seq (seqheader input) updatedSequence Nothing
+  where updatedSequence = SeqData (L.pack (map reformatFastaSequence (L.unpack (unSD (seqdata input)))))
+
+reformatFastaSequence :: Char -> Char 
+reformatFastaSequence c
+  | c == '.' = '-'
+  | c == '~' = '-'
+  | c == '_' = '-'
+  | c == 'u' = 'T'
+  | c == 't' = 'T'
+  | c == 'g' = 'G'
+  | c == 'c' = 'C'
+  | c == 'a' = 'A'
+  | c == 'U' = 'T'
+  | otherwise = c
