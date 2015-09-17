@@ -615,10 +615,9 @@ constructModel modelConstruction staticOptions = do
            return cmFilepath
          else do
            logWarning ("Warning: A problem occured updating the secondary structure of iteration " ++ show (iterationNumber modelConstruction)  ++ " stockholm alignment: " ++ replaceStatus) (tempDirPath staticOptions)
-           systemCMbuild updatedStructureStockholmFilepath cmFilepath cmBuildFilepath
+           systemCMbuild stockholmFilepath cmFilepath cmBuildFilepath
            systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
            return cmFilepath
-  
      else do
        logVerboseMessage (verbositySwitch staticOptions) "Construct Model - initial mode\n" (tempDirPath staticOptions)
        alignSequences "mlocarna" ("--threads=" ++ show (cpuThreads staticOptions) ++ " ") [fastaFilepath] [] [locarnaFilepath] []
