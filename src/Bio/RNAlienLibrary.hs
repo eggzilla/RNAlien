@@ -905,7 +905,7 @@ createSessionID sessionIdentificator = do
     then return (fromJust sessionIdentificator)
     else do
       randomNumber <- randomIO :: IO Int16
-      let sessionId = randomid randomNumber
+      let sessionId = randomid (abs (randomNumber))
       return sessionId
                            
 -- | Run external locarna command and read the output into the corresponding datatype
