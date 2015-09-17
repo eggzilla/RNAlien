@@ -14,6 +14,7 @@ import Bio.RNAlienLibrary
 import Data.Maybe
 import Data.Either.Unwrap
 import Data.Time
+import qualified System.FilePath as FP
 
 data Options = Options            
   { inputFastaFilePath :: String,     
@@ -51,7 +52,7 @@ main = do
   -- Generate SessionID
   sessionId <- createSessionID sessionIdentificator
   timestamp <- getCurrentTime
-  let temporaryDirectoryPath = outputPath ++ sessionId ++ "/"            
+  let temporaryDirectoryPath = FP.addTrailingPathSeparator outputPath ++ sessionId ++ "/"            
   createDirectoryIfMissing False temporaryDirectoryPath
   createDirectoryIfMissing False (temporaryDirectoryPath ++ "log")
   -- Create Log files

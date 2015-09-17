@@ -18,7 +18,7 @@ executable RNAlien
   Hs-Source-Dirs:      ./src/Bio/
   main-is:	       RNAlien.hs   
   ghc-options:         -Wall -O2
-  build-depends:       base >=4.5 && <5, cmdargs, directory, biofasta, random, biocore, containers, RNAlien, time, either-unwrap
+  build-depends:       base >=4.5 && <5, cmdargs, directory, biofasta, random, biocore, containers, RNAlien, time, either-unwrap, filepath
 
 executable RNAlienStatistics
   Hs-Source-Dirs:      ./src/Bio/
