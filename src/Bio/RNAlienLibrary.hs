@@ -24,7 +24,8 @@ module Bio.RNAlienLibrary (
                            preprocessClustalForRNAz,
                            preprocessClustalForRNAzExternal,
                            rnaZEvalOutput,
-                           reformatFasta
+                           reformatFasta,
+                           evaluePartitionTrimCMsearchHits
                            )
 where
    
@@ -843,14 +844,14 @@ buildSeqRecord currentIterationNumber (parsedFasta,_,seqSubject,seqOrigin) = Seq
 evaluePartitionTrimCMsearchHits :: Double -> [(CMsearch,(Sequence, Int, String, Char))] -> ([(CMsearch,(Sequence, Int, String, Char))],[(CMsearch,(Sequence, Int, String, Char))],[(CMsearch,(Sequence, Int, String, Char))])
 evaluePartitionTrimCMsearchHits eValueThreshold cmSearchCandidatesWithSequences = (trimmedSelectedCandidates,potentialCandidates,rejectedCandidates)
   where potentialMemberseValueThreshold = eValueThreshold * 1000
-        (prefilteredCandidates,rejectedCandidates) = partition (\(cmSearchResult,_) -> any (\hitScore' -> potentialMemberseValueThreshold >= hitEvalue hitScore') (hitScores cmSearchResult)) cmSearchCandidatesWithSequences
-        (selectedCandidates,potentialCandidates) = partition (\(cmSearchResult,_) -> any (\hitScore' -> eValueThreshold >= hitEvalue hitScore') (hitScores cmSearchResult)) prefilteredCandidates
+        (prefilteredCandidates,rejectedCandidates) = partition (\(cmSearchResult,_) -> any (\hitScore' -> potentialMemberseValueThreshold >= hitEvalue hitScore') (cmsearchHits cmSearchResult)) cmSearchCandidatesWithSequences
+        (selectedCandidates,potentialCandidates) = partition (\(cmSearchResult,_) -> any (\hitScore' -> eValueThreshold >= hitEvalue hitScore') (cmsearchHits cmSearchResult)) prefilteredCandidates
         trimmedSelectedCandidates = map (\(cmSearchResult,inputSequence) -> (cmSearchResult,trimCMsearchHit cmSearchResult inputSequence)) selectedCandidates
         
         
 trimCMsearchHit :: CMsearch -> (Sequence, Int, String, Char) -> (Sequence, Int, String, Char)
 trimCMsearchHit cmSearchResult (inputSequence,b,c,d) = (subSequence,b,c,d)
-  where hitScoreEntry = head (hitScores cmSearchResult)
+  where hitScoreEntry = head (cmsearchHits cmSearchResult)
         sequenceString = L.unpack (unSD (seqdata inputSequence))
         sequenceSubstring = cmSearchsubString (hitStart hitScoreEntry) (hitEnd hitScoreEntry) sequenceString
         --extend original seqheader
@@ -1028,7 +1029,7 @@ genParserCMsearch = do
   optional (try (genParserCMsearchHeaderField "Description"))
   string "Hit scores:"
   newline
-  choice  [try (string " rank"), try (string "  rank") , try (string "   rank"), try (string "    rank"),try (string "     rank")]
+  choice  [try (string " rank"), try (string "  rank") , try (string "   rank"), try (string "    rank"),try (string "     rank"),try (string "      rank")]
   many1 space 
   string "E-value"
   many1 space        
@@ -1055,8 +1056,8 @@ genParserCMsearch = do
   newline
   optional (try (string " ------ inclusion threshold ------"))
   many newline
-  hitScores' <- many (try genParserCMsearchHitScore) --`endBy` (try (string "Hit alignments:"))
-  optional (try genParserCMsearchEmptyHitScore)
+  hitScores' <- many (try genParserCMsearchHit) --`endBy` (try (string "Hit alignments:"))
+  optional (try genParserCMsearchEmptyHit)
   -- this is followed by hit alignments and internal cmsearch statistics which are not parsed
   many anyChar
   eof
@@ -1070,15 +1071,15 @@ genParserCMsearchHeaderField fieldname = do
   newline
   return []
 
-genParserCMsearchEmptyHitScore :: GenParser Char st [CMsearchHitScore]
-genParserCMsearchEmptyHitScore = do
+genParserCMsearchEmptyHit :: GenParser Char st [CMsearchHit]
+genParserCMsearchEmptyHit = do
   string "   [No hits detected that satisfy reporting thresholds]"
   newline
   optional (try newline)
   return []
 
-genParserCMsearchHitScore :: GenParser Char st CMsearchHitScore
-genParserCMsearchHitScore = do
+genParserCMsearchHit :: GenParser Char st CMsearchHit
+genParserCMsearchHit = do
   many1 space
   string "("     
   hitRank' <- many1 digit
@@ -1110,7 +1111,7 @@ genParserCMsearchHitScore = do
   newline
   optional (try (string " ------ inclusion threshold ------"))
   optional (try newline)
-  return $ CMsearchHitScore (readInt hitRank') hitSignificant' (readDouble hitEValue') (readDouble hitScore') (readDouble hitBias') (L.pack hitSequenceHeader') (readInt hitStart') (readInt hitEnd') hitStrand' (L.pack hitModel') (L.pack hitTruncation') (readDouble hitGCcontent') (L.pack hitDescription')
+  return $ CMsearchHit (readInt hitRank') hitSignificant' (readDouble hitEValue') (readDouble hitScore') (readDouble hitBias') (L.pack hitSequenceHeader') (readInt hitStart') (readInt hitEnd') hitStrand' (L.pack hitModel') (L.pack hitTruncation') (readDouble hitGCcontent') (L.pack hitDescription')
 
 -- | parse from input filePath              
 parseCMstat :: String -> Either ParseError CMstat

@@ -53,7 +53,7 @@ options = Options
   } &= summary "RNAlienStatistics devel version" &= help "Florian Eggenhofer - >2013" &= verbosity       
 
 --cmSearchFasta threads rfamCovarianceModelPath outputDirectoryPath "Rfam" False genomesDirectoryPath
-cmSearchFasta :: Int -> Double -> Int -> String -> String -> String -> String -> IO [CMsearchHitScore]
+cmSearchFasta :: Int -> Double -> Int -> String -> String -> String -> String -> IO [CMsearchHit]
 cmSearchFasta benchmarkIndex thresholdScore cpuThreads covarianceModelPath outputDirectory modelType fastapath = do
   createDirectoryIfMissing False (outputDirectory ++ "/" ++ modelType)
   _ <- systemCMsearch cpuThreads "" covarianceModelPath fastapath (outputDirectory ++ "/" ++ modelType ++ "/" ++ (show benchmarkIndex) ++ ".cmsearch")
@@ -68,9 +68,9 @@ cmSearchFasta benchmarkIndex thresholdScore cpuThreads covarianceModelPath outpu
        let organismUniquesignificantHits = nubBy cmSearchSameOrganism significantHits
        return organismUniquesignificantHits
 
-partitionCMsearchHitsByScore :: Double -> CMsearch -> ([CMsearchHitScore],[CMsearchHitScore])
+partitionCMsearchHitsByScore :: Double -> CMsearch -> ([CMsearchHit],[CMsearchHit])
 partitionCMsearchHitsByScore thresholdScore cmSearchResult = (selected,rejected)
-  where (selected,rejected) = partition (\hit -> hitScore hit >= thresholdScore) (hitScores cmSearchResult)
+  where (selected,rejected) = partition (\hit -> hitScore hit >= thresholdScore) (cmsearchHits cmSearchResult)
 
 trimCMsearchFastaFile :: String -> String -> String -> CMsearch -> String -> IO ()
 trimCMsearchFastaFile genomesDirectory outputFolder modelType cmsearch fastafile  = do
@@ -82,13 +82,13 @@ trimCMsearchFastaFile genomesDirectory outputFolder modelType cmsearch fastafile
    
 trimCMsearchSequence :: CMsearch -> Sequence -> Sequence
 trimCMsearchSequence cmSearchResult inputSequence = subSequence
-  where hitScoreEntry = head (hitScores cmSearchResult)
+  where hitScoreEntry = head (cmsearchHits cmSearchResult)
         sequenceString = L.unpack (unSD (seqdata inputSequence))
         sequenceSubstring = cmSearchsubString (hitStart hitScoreEntry) (hitEnd hitScoreEntry) sequenceString
         newSequenceHeader =  L.pack ((L.unpack (unSL (seqheader inputSequence))) ++ "cmS_" ++ (show (hitStart hitScoreEntry)) ++ "_" ++ (show (hitEnd hitScoreEntry)) ++ "_" ++ (show (hitStrand hitScoreEntry)))
         subSequence = Seq (SeqLabel newSequenceHeader) (SeqData (L.pack sequenceSubstring)) Nothing     
 
-cmSearchSameOrganism :: CMsearchHitScore -> CMsearchHitScore -> Bool
+cmSearchSameOrganism :: CMsearchHit -> CMsearchHit -> Bool
 cmSearchSameOrganism hitscore1 hitscore2
   | hitOrganism1 == hitOrganism2 = True
   | otherwise = False

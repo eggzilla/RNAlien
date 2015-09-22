@@ -77,13 +77,13 @@ data CMsearch = CMsearch
   { queryCMfile :: String,
     targetSequenceDatabase :: String,
     numberOfWorkerThreads :: String,
-    hitScores :: [CMsearchHitScore]
+    cmsearchHits :: [CMsearchHit]
 --    hitAlignments :: [CMsearchHitAlignment]
 --    internalCMPipelineStatisticsSummary                 
   } deriving (Show, Eq, Read) 
 
 -- |  
-data CMsearchHitScore = CMsearchHitScore
+data CMsearchHit = CMsearchHit
   { hitRank :: Int,
     hitSignificance :: Char,
     hitEvalue :: Double,
