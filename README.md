@@ -6,8 +6,12 @@ It is available as a commandline tool, for testing or construction of few sequen
 
 The source code of RNAlien, as well as the webserver is open source and available via GitHub and Hackage (License GPL-3):
 
-*   [![GitHub](https://img.shields.io/github/downloads/eggzilla/RNAlien/latest/total.svg)](https://github.com/eggzilla/RNAlien)[![Build Status](https://travis-ci.org/eggzilla/RNAlien.svg?branch=master)] (https://travis-ci.org/eggzilla/RNAlien) [![Hackage](https://img.shields.io/hackage/v/RNAlien.svg)](https://img.shields.io/hackage/v/RNAlien.svg)
-*   [![GitHub](https://img.shields.io/github/downloads/eggzilla/AlienServer/latest/total.svg)](https://github.com/eggzilla/AlienServer) [![Build Status](https://travis-ci.org/eggzilla/AlienServer.svg?branch=master)](https://travis-ci.org/eggzilla/AlienServer) [![Hackage](https://img.shields.io/hackage/v/AlienServer.svg)](https://img.shields.io/hackage/v/AlienServer.svg)
+*   [![GitHub](https://img.shields.io/github/tag/eggzilla/RNAlien.svg)](https://github.com/eggzilla/RNAlien)[![Build Status](https://travis-ci.org/eggzilla/RNAlien.svg?branch=master)] (https://travis-ci.org/eggzilla/RNAlien) [![Hackage](https://img.shields.io/hackage/v/RNAlien.svg)](https://img.shields.io/hackage/v/RNAlien.svg)
+*   [![GitHub](https://img.shields.io/github/tag/eggzilla/AlienServer.svg)](https://github.com/eggzilla/AlienServer) [![Build Status](https://travis-ci.org/eggzilla/AlienServer.svg?branch=master)](https://travis-ci.org/eggzilla/AlienServer) [![Hackage](https://img.shields.io/hackage/v/AlienServer.svg)](https://img.shields.io/hackage/v/AlienServer.svg)
+
+TaxonomyTools which can be used to visualise the organisms included in a RNAlien result can be found here (License GPL-3):
+
+*   [![GitHub](https://img.shields.io/github/tag/eggzilla/TaxonomyTools.svg)](https://github.com/eggzilla/TaxonomyTools) [![Build Status](https://travis-ci.org/eggzilla/TaxonomyTools.svg?branch=master)](https://travis-ci.org/eggzilla/TaxonomyTools) [![Hackage](https://img.shields.io/hackage/v/TaxonomyTools.svg)](https://img.shields.io/hackage/v/TaxonomyTools.svg)
 
     For instruction how to use RNAlien please see the [Help page.](http://rna.tbi.univie.ac.at/rnalien/help)
 
