@@ -25,6 +25,7 @@ module Bio.RNAlienLibrary (
                            preprocessClustalForRNAzExternal,
                            rnaZEvalOutput,
                            reformatFasta,
+                           checkTaxonomyRestriction,
                            evaluePartitionTrimCMsearchHits
                            )
 where
@@ -133,36 +134,51 @@ modelConstructionResult staticOptions modelConstruction = do
   createDirectory (iterationDirectory)
   let logFileDirectoryPath = iterationDirectory ++ "log"
   createDirectoryIfMissing False logFileDirectoryPath
-  --taxonomic context archea
-  let (upperTaxLimit1,lowerTaxLimit1) = (Just (2157 :: Int), Nothing)
   let expectThreshold = setBlastExpectThreshold modelConstruction
-  candidates1 <- catchAll  (searchCandidates staticOptions (Just "archea") currentIterationNumber upperTaxLimit1 lowerTaxLimit1 expectThreshold queries)
-                 (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
-                           return (SearchResult [] Nothing))
-  let uniqueCandidates1 = filterDuplicates modelConstruction candidates1 
-  (alignmentResults1,potentialMembers1)<- catchAll (alignCandidates staticOptions modelConstruction "archea" uniqueCandidates1)
-                       (\e -> do logWarning ("Warning: Alignment results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
-                                 return  ([],[]))
-  --taxonomic context bacteria
-  let (upperTaxLimit2,lowerTaxLimit2) = (Just (2 :: Int), Nothing)
-  candidates2 <- catchAll (searchCandidates staticOptions (Just "bacteria") currentIterationNumber upperTaxLimit2 lowerTaxLimit2 expectThreshold queries)
-                 (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
-                           return (SearchResult [] Nothing))
-  let uniqueCandidates2 = filterDuplicates modelConstruction candidates2
-  (alignmentResults2,potentialMembers2)<- catchAll (alignCandidates staticOptions modelConstruction "bacteria" uniqueCandidates2)
-                       (\e -> do logWarning ("Warning: Alignment results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
-                                 return  ([],[]))
-  --taxonomic context eukaryia
-  let (upperTaxLimit3,lowerTaxLimit3) = (Just (2759 :: Int), Nothing)
-  candidates3 <- catchAll (searchCandidates staticOptions (Just "eukaryia") currentIterationNumber upperTaxLimit3 lowerTaxLimit3 expectThreshold queries)
-                 (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
-                           return (SearchResult [] Nothing))
-  let uniqueCandidates3 = filterDuplicates modelConstruction candidates3
-  (alignmentResults3,potentialMembers3) <- catchAll (alignCandidates staticOptions modelConstruction "eukaryia" uniqueCandidates3)
-                       (\e -> do logWarning ("Warning: Alignment results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
-                                 return  ([],[]))
-  let alignmentResults = alignmentResults1 ++ alignmentResults2 ++ alignmentResults3
-  let currentPotentialMembers = [SearchResult potentialMembers1 (blastDatabaseSize candidates1), SearchResult potentialMembers2 (blastDatabaseSize candidates2), SearchResult potentialMembers3 (blastDatabaseSize candidates3)]
+  (alignmentResults,currentPotentialMembers) <- if isJust (taxRestriction staticOptions)
+    then do
+      --taxonomic restriction
+      let (upperTaxLimit,lowerTaxLimit) = setRestrictedTaxonomyLimits (fromJust (taxRestriction staticOptions))
+      candidates <- catchAll (searchCandidates staticOptions (taxRestriction staticOptions) currentIterationNumber upperTaxLimit lowerTaxLimit expectThreshold queries)
+                     (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
+                               return (SearchResult [] Nothing))
+      let uniqueCandidates = filterDuplicates modelConstruction candidates
+      (alignmentResults,potentialMembers) <- catchAll (alignCandidates staticOptions modelConstruction (fromJust (taxRestriction staticOptions)) uniqueCandidates)
+                           (\e -> do logWarning ("Warning: Alignment results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
+                                     return  ([],[]))
+      let currentPotentialMembers = [SearchResult potentialMembers (blastDatabaseSize candidates)]
+      return (alignmentResults,currentPotentialMembers)
+    else do
+      --taxonomic context archea
+      let (upperTaxLimit1,lowerTaxLimit1) = (Just (2157 :: Int), Nothing)
+      candidates1 <- catchAll  (searchCandidates staticOptions (Just "archea") currentIterationNumber upperTaxLimit1 lowerTaxLimit1 expectThreshold queries)
+                     (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
+                               return (SearchResult [] Nothing))
+      let uniqueCandidates1 = filterDuplicates modelConstruction candidates1 
+      (alignmentResults1,potentialMembers1) <- catchAll (alignCandidates staticOptions modelConstruction "archea" uniqueCandidates1)
+                           (\e -> do logWarning ("Warning: Alignment results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
+                                     return  ([],[]))
+      --taxonomic context bacteria
+      let (upperTaxLimit2,lowerTaxLimit2) = (Just (2 :: Int), Nothing)
+      candidates2 <- catchAll (searchCandidates staticOptions (Just "bacteria") currentIterationNumber upperTaxLimit2 lowerTaxLimit2 expectThreshold queries)
+                     (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
+                               return (SearchResult [] Nothing))
+      let uniqueCandidates2 = filterDuplicates modelConstruction candidates2
+      (alignmentResults2,potentialMembers2) <- catchAll (alignCandidates staticOptions modelConstruction "bacteria" uniqueCandidates2)
+                           (\e -> do logWarning ("Warning: Alignment results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
+                                     return  ([],[]))
+      --taxonomic context eukaryia
+      let (upperTaxLimit3,lowerTaxLimit3) = (Just (2759 :: Int), Nothing)
+      candidates3 <- catchAll (searchCandidates staticOptions (Just "eukaryia") currentIterationNumber upperTaxLimit3 lowerTaxLimit3 expectThreshold queries)
+                     (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
+                               return (SearchResult [] Nothing))
+      let uniqueCandidates3 = filterDuplicates modelConstruction candidates3
+      (alignmentResults3,potentialMembers3) <- catchAll (alignCandidates staticOptions modelConstruction "eukaryia" uniqueCandidates3)
+                           (\e -> do logWarning ("Warning: Alignment results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
+                                     return  ([],[]))
+      let alignmentResults = alignmentResults1 ++ alignmentResults2 ++ alignmentResults3
+      let currentPotentialMembers = [SearchResult potentialMembers1 (blastDatabaseSize candidates1), SearchResult potentialMembers2 (blastDatabaseSize candidates2), SearchResult potentialMembers3 (blastDatabaseSize candidates3)]
+      return (alignmentResults,currentPotentialMembers)
   let preliminaryFastaPath = iterationDirectory ++ "model.fa"
   let preliminaryCMPath = iterationDirectory ++ "model.cm"
   let preliminaryAlignmentPath = iterationDirectory ++ "model.stockholm"
@@ -1756,3 +1772,22 @@ reformatFastaSequence c
   | c == 'a' = 'A'
   | c == 'U' = 'T'
   | otherwise = c
+
+setRestrictedTaxonomyLimits :: String -> (Maybe Int,Maybe Int)
+setRestrictedTaxonomyLimits taxRestriction 
+  | taxRestriction == "bacteria" = (Just (2 :: Int), Nothing)
+  | taxRestriction == "archea" = (Just (2157 :: Int), Nothing)
+  | taxRestriction == "eukaryia" = (Just (2759 :: Int), Nothing)
+  | otherwise = (Nothing, Nothing)
+
+checkTaxonomyRestriction :: Maybe String -> Maybe String
+checkTaxonomyRestriction taxonomyRestriction
+  | isJust taxonomyRestriction = checkTaxonomyRestrictionString (fromJust taxonomyRestriction)
+  | otherwise = Nothing
+
+checkTaxonomyRestrictionString :: String -> Maybe String
+checkTaxonomyRestrictionString restrictionString
+  | restrictionString == "archea" = Just "archea"
+  | restrictionString == "bacteria" = Just "bacteria"
+  | restrictionString == "eukaryia" = Just "eukaryia"
+  | otherwise = Nothing

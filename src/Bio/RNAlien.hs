@@ -43,7 +43,7 @@ options = Options
     coverageFilter = True &= name "a" &= help "Filter blast hits by coverage of at least 80%. Default: True",
     singleHitperTax = True &= name "s" &= help "Only the best blast hit per taxonomic entry is considered. Default: True",
     threads = 1 &= name "c" &= help "Number of available cpu slots/cores. Default: 1",
-    taxonomyRestriction = Nothing &= name "r" &= help "Restrict search space to taxonomic kingdom, e.g. bacteria. Default: not set",
+    taxonomyRestriction = Nothing &= name "r" &= help "Restrict search space to taxonomic kingdom (bacteria,archea,eukaryia). Default: not set",
     sessionIdentificator = Nothing &= name "d" &= help "Optional session id that is used instead of automatically generated one."
   } &= summary "RNAlien version 1.0.0" &= help "Florian Eggenhofer, Ivo L. Hofacker, Christian Höner zu Siederdissen - 2013 - 2015" &= verbosity       
                 
@@ -86,7 +86,8 @@ main = do
               logToolVersions temporaryDirectoryPath
               let inputSequence = reformatFasta (head inputFasta)
               initialTaxId <- setInitialTaxId inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
-              let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) inputTaxId singleHitperTax lengthFilter coverageFilter threads inputBlastDatabase taxonomyRestriction (setVerbose verboseLevel)
+              let checkedTaxonomyRestriction = checkTaxonomyRestriction taxonomyRestriction
+              let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) inputTaxId singleHitperTax lengthFilter coverageFilter threads inputBlastDatabase checkedTaxonomyRestriction (setVerbose verboseLevel)
               let initialization = ModelConstruction iterationNumber inputSequence [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] []
               logMessage (show initialization) temporaryDirectoryPath
               modelConstructionResults <- modelConstructer staticOptions initialization
