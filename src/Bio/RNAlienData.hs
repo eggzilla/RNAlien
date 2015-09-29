@@ -18,6 +18,7 @@ data StaticOptions = StaticOptions
     coverageFilterToggle :: Bool,
     cpuThreads :: Int,
     blastDatabase :: Maybe String,
+    taxRestriction :: Maybe String,
     verbositySwitch :: Bool
   } deriving (Show)  
 
