@@ -139,15 +139,15 @@ modelConstructionResult staticOptions modelConstruction = do
     then do
       --taxonomic restriction
       let (upperTaxLimit,lowerTaxLimit) = setRestrictedTaxonomyLimits (fromJust (taxRestriction staticOptions))
-      candidates <- catchAll (searchCandidates staticOptions (taxRestriction staticOptions) currentIterationNumber upperTaxLimit lowerTaxLimit expectThreshold queries)
+      restrictedCandidates <- catchAll (searchCandidates staticOptions (taxRestriction staticOptions) currentIterationNumber upperTaxLimit lowerTaxLimit expectThreshold queries)
                      (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                return (SearchResult [] Nothing))
-      let uniqueCandidates = filterDuplicates modelConstruction candidates
-      (alignmentResults,potentialMembers) <- catchAll (alignCandidates staticOptions modelConstruction (fromJust (taxRestriction staticOptions)) uniqueCandidates)
+      let uniqueCandidates = filterDuplicates modelConstruction restrictedCandidates
+      (restrictedAlignmentResults,restrictedPotentialMembers) <- catchAll (alignCandidates staticOptions modelConstruction (fromJust (taxRestriction staticOptions)) uniqueCandidates)
                            (\e -> do logWarning ("Warning: Alignment results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                      return  ([],[]))
-      let currentPotentialMembers = [SearchResult potentialMembers (blastDatabaseSize candidates)]
-      return (alignmentResults,currentPotentialMembers)
+      let currentPotentialMembers = [SearchResult restrictedPotentialMembers (blastDatabaseSize restrictedCandidates)]
+      return (restrictedAlignmentResults,currentPotentialMembers)
     else do
       --taxonomic context archea
       let (upperTaxLimit1,lowerTaxLimit1) = (Just (2157 :: Int), Nothing)
@@ -1333,21 +1333,34 @@ getForwardRequestedSequenceElement :: Int -> (BlastHit,Int) -> (String,Int,Int,S
 getForwardRequestedSequenceElement queryLength (blastHit,taxid) = (geneIdentifier',startcoordinate,endcoordinate,strand,accession',taxid,subjectBlast)
    where    accession' = L.unpack (extractAccession blastHit)
             subjectBlast = L.unpack (unSL (subject blastHit))
-            geneIdentifier' = extractGeneId blastHit
-            blastMatches = matches blastHit
+            geneIdentifier' = extractGeneId blastHit--
+            blastMatch = head (matches blastHit)
             blastHitOriginSequenceLength = slength blastHit
-            minHfrom = minimum (map h_from blastMatches)
-            minHfromHSP = fromJust (find (\hsp -> minHfrom == h_from hsp) blastMatches)
-            maxHto = maximum (map h_to blastMatches)
-            maxHtoHSP = fromJust (find (\hsp -> maxHto == h_to hsp) blastMatches)
-            minHonQuery = q_from minHfromHSP
-            maxHonQuery = q_to maxHtoHSP
-            --unsafe coordinates may exeed length of available sequence
+            minHfrom = h_from blastMatch
+            maxHto = h_to blastMatch
+            minHonQuery = q_from blastMatch
+            maxHonQuery = q_to blastMatch
+            --unsafe coordinates may exceed length of available sequence
             unsafestartcoordinate = minHfrom - minHonQuery 
             unsafeendcoordinate = maxHto + (queryLength - maxHonQuery) 
             startcoordinate = lowerBoundryCoordinateSetter 0 unsafestartcoordinate
             endcoordinate = upperBoundryCoordinateSetter blastHitOriginSequenceLength unsafeendcoordinate 
             strand = "1"
+            ---- 
+            --blastMatches = matches blastHit
+            --blastHitOriginSequenceLength = slength blastHit
+            --minHfrom = minimum (map h_from blastMatches)
+            --minHfromHSP = fromJust (find (\hsp -> minHfrom == h_from hsp) blastMatches)
+            --maxHto = maximum (map h_to blastMatches)
+            --maxHtoHSP = fromJust (find (\hsp -> maxHto == h_to hsp) blastMatches)
+            --minHonQuery = q_from minHfromHSP
+            --maxHonQuery = q_to maxHtoHSP
+            --unsafe coordinates may exceed length of available sequence
+            --unsafestartcoordinate = minHfrom - minHonQuery 
+            --unsafeendcoordinate = maxHto + (queryLength - maxHonQuery) 
+            --startcoordinate = lowerBoundryCoordinateSetter 0 unsafestartcoordinate
+            --endcoordinate = upperBoundryCoordinateSetter blastHitOriginSequenceLength unsafeendcoordinate 
+            --strand = "1"
 
 lowerBoundryCoordinateSetter :: Int -> Int -> Int
 lowerBoundryCoordinateSetter lowerBoundry currentValue
@@ -1364,20 +1377,33 @@ getReverseRequestedSequenceElement queryLength (blastHit,taxid) = (geneIdentifie
    where   accession' = L.unpack (extractAccession blastHit)
            subjectBlast = L.unpack (unSL (subject blastHit))           
            geneIdentifier' = extractGeneId blastHit
-           blastMatches = matches blastHit
+           blastMatch = head (matches blastHit)
            blastHitOriginSequenceLength = slength blastHit               
-           maxHfrom = maximum (map h_from blastMatches)
-           maxHfromHSP = fromJust (find (\hsp -> maxHfrom == h_from hsp) blastMatches)     
-           minHto = minimum (map h_to blastMatches)
-           minHtoHSP = fromJust (find (\hsp -> minHto == h_to hsp) blastMatches)
-           minHonQuery = q_from maxHfromHSP
-           maxHonQuery = q_to minHtoHSP
-           --unsafe coordinates may exeed length of avialable sequence
+           maxHfrom = h_from blastMatch      
+           minHto = h_to blastMatch
+           minHonQuery = q_from blastMatch
+           maxHonQuery = q_to blastMatch
+           --unsafe coordinates may exceed length of avialable sequence
            unsafestartcoordinate = maxHfrom + minHonQuery 
            unsafeendcoordinate = minHto - (queryLength - maxHonQuery) 
            startcoordinate = lowerBoundryCoordinateSetter 0 unsafeendcoordinate 
            endcoordinate = upperBoundryCoordinateSetter blastHitOriginSequenceLength unsafestartcoordinate 
            strand = "2"
+           --
+           --blastMatches = matches blastHit
+           --blastHitOriginSequenceLength = slength blastHit               
+           --maxHfrom = maximum (map h_from blastMatches)
+           --maxHfromHSP = fromJust (find (\hsp -> maxHfrom == h_from hsp) blastMatches)     
+           --minHto = minimum (map h_to blastMatches)
+           --minHtoHSP = fromJust (find (\hsp -> minHto == h_to hsp) blastMatches)
+           --minHonQuery = q_from maxHfromHSP
+           --maxHonQuery = q_to minHtoHSP
+           --unsafe coordinates may exeed length of avialable sequence
+           --unsafestartcoordinate = maxHfrom + minHonQuery 
+           --unsafeendcoordinate = minHto - (queryLength - maxHonQuery) 
+           --startcoordinate = lowerBoundryCoordinateSetter 0 unsafeendcoordinate 
+           --endcoordinate = upperBoundryCoordinateSetter blastHitOriginSequenceLength unsafestartcoordinate 
+           --strand = "2"
 
 --computeAlignmentSCIs :: [String] -> [String] -> IO ()
 --computeAlignmentSCIs alignmentFilepaths rnazOutputFilepaths = do
@@ -1774,10 +1800,10 @@ reformatFastaSequence c
   | otherwise = c
 
 setRestrictedTaxonomyLimits :: String -> (Maybe Int,Maybe Int)
-setRestrictedTaxonomyLimits taxRestriction 
-  | taxRestriction == "bacteria" = (Just (2 :: Int), Nothing)
-  | taxRestriction == "archea" = (Just (2157 :: Int), Nothing)
-  | taxRestriction == "eukaryia" = (Just (2759 :: Int), Nothing)
+setRestrictedTaxonomyLimits trestriction 
+  | trestriction == "bacteria" = (Just (2 :: Int), Nothing)
+  | trestriction == "archea" = (Just (2157 :: Int), Nothing)
+  | trestriction == "eukaryia" = (Just (2759 :: Int), Nothing)
   | otherwise = (Nothing, Nothing)
 
 checkTaxonomyRestriction :: Maybe String -> Maybe String
