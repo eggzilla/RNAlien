@@ -538,7 +538,7 @@ alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultP
   foldResults <- mapM readRNAfold candidateFoldFilepath
   let candidateMFEs = map (foldingEnergy . fromRight) foldResults
   let averageMFEs = map (\candidateMFE -> (candidateMFE + inputFoldMFE)/2) candidateMFEs
-  mapM_ (uncurry (systemRNAalifold "-r --cfactor 0.5 --nfactor 0.5")) (zip locarnainClustalw2FormatFilepath candidateAliFoldFilepath)
+  mapM_ (uncurry (systemRNAalifold "-r --cfactor 0.6 --nfactor 0.5")) (zip locarnainClustalw2FormatFilepath candidateAliFoldFilepath)
   alifoldResults <- mapM readRNAalifold candidateAliFoldFilepath
   let consensusMFE = map (alignmentConsensusMinimumFreeEnergy . fromRight) alifoldResults
   let sciidfraction = map (\(consMFE,averMFE,seqId) -> (consMFE/averMFE)/seqId) (zip3 consensusMFE averageMFEs (V.toList sequenceIdentities))
