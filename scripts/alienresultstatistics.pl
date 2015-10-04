@@ -26,15 +26,15 @@ my $cpu_cores = 20;
 if($type eq "structured"){
 	$alienresult_basename="/scr/coridan/egg/AlienStructuredResultsCollected" . "$currentresultnumber" . "/";
 	$rfammodel_basename = "/scr/kronos/egg/AlienTest/sRNAFamilies/all_models/";
-	#$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyfasta/"; full fasta
-	$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyseedfasta/";
+	#$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyfasta/"; #full fasta
+	$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyseedfasta/"; #seed fasta
 	$RNAFamilyIdFile = "/scr/kronos/egg/structuredFamilyNameIdGatheringCutoffSorted";
 	$familyNumber = 72;
 	$resulttempdir = "/scr/coridan/egg/temp/AlienStructuredResultStatistics". "$currentresultnumber" . "/";
         $resultfileprefix = "structuredalienseedoutput";
 }else{
 	#sRNA
-	$alienresult_basename="/scr/coridan/egg/AlienResultsCollected" . "$currentresultnumber" . "/";
+	$alienresult_basename="/scr/kronos/egg/AlienResultsCollected" . "$currentresultnumber" . "/";
 	$rfammodel_basename = "/scr/kronos/egg/AlienTest/sRNAFamilies/all_models/";
 	$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyfasta/";
 	$RNAFamilyIdFile = "/scr/kronos/egg/smallRNAtaggedfamiliesNameIDThresholdTagSorted.csv";
