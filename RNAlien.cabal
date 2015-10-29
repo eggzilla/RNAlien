@@ -4,7 +4,40 @@
 name:                RNAlien
 version:             1.0.0
 synopsis:            Unsupervized construction of RNA family models
--- description:         
+description:         RNAlien is a tool for automatic construction of RNAfamily models from a single sequence.
+                     .
+                     It is available as a commandline tool, for testing or construction of few sequences the webservice can be used.
+                     .
+                     The source code of RNAlien, as well as the webserver is open source and available via GitHub (License GPL-3):
+		     .
+		     * <https://github.com/eggzilla/RNAlien RNAlien>
+		     .
+		     * <https://github.com/eggzilla/AlienServer AlienServer>
+                     .
+                     TaxonomyTools which can be used to visualise the organisms included in a RNAlien result can be found here (License GPL-3):
+		     .
+		     * <https://github.com/eggzilla/TaxonomyTools TaxonomyTools-Github>
+		     .
+		     * <https://hackage.haskell.org/package/Taxonomy TaxonomyTools-Hackage>
+                     .
+                     For instruction how to use RNAlien please see the <http://rna.tbi.univie.ac.at/rnalien/help Help page>.
+                     .
+                     Dependencies:
+		     .
+                     * <http://infernal.janelia.org/ Infernal>
+		     .
+                     * <http://www.clustal.org/omega/#Download clustal-omega>
+		     .
+		     * <http://www.bioinf.uni-freiburg.de/Software/LocARNA/#download Locarna>
+		     .
+		     * <https://www.tbi.univie.ac.at/~wash/RNAz/ RNAz>
+		     .
+		     * <http://www.tbi.univie.ac.at/RNA/index.html#download ViennaRNA package>
+                     .
+                     Installation via cabal-install:
+                     .
+                     > cabal install RNAlien
+		     
 license:             GPL-3
 license-file:        LICENSE
 author:              Florian Eggenhofer
