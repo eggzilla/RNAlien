@@ -916,6 +916,7 @@ encodedTaxIDQuery taxID = "txid" ++ show taxID ++ "%20%5BORGN%5D&EQ_OP"
 randomid :: Int16 -> String
 randomid number = "cm" ++ show number
 
+-- | Create session id for RNAlien
 createSessionID :: Maybe String -> IO String
 createSessionID sessionIdentificator = do
   if isJust sessionIdentificator
