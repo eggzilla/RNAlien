@@ -45,7 +45,7 @@ options = Options
     threads = 1 &= name "c" &= help "Number of available cpu slots/cores. Default: 1",
     taxonomyRestriction = Nothing &= name "r" &= help "Restrict search space to taxonomic kingdom (bacteria,archea,eukaryia). Default: not set",
     sessionIdentificator = Nothing &= name "d" &= help "Optional session id that is used instead of automatically generated one."
-  } &= summary "RNAlien version 1.0.0" &= help "Florian Eggenhofer, Ivo L. Hofacker, Christian Höner zu Siederdissen - 2013 - 2015" &= verbosity       
+  } &= summary "RNAlien version 1.0.0" &= help "Florian Eggenhofer, Ivo L. Hofacker, Christian Höner zu Siederdissen - 2013 - 2016" &= verbosity       
                 
 main :: IO ()
 main = do
@@ -75,7 +75,7 @@ main = do
           logMessage "Error: Input fasta file is empty.\n" temporaryDirectoryPath
         else do
           let iterationNumber = 0
-          let tools = ["clustalo","mlocarna","RNAfold","RNAalifold","cmcalibrate","cmstat","cmbuild","RNAz"]
+          let tools = ["clustalo","mlocarna","RNAfold","RNAalifold","cmcalibrate","cmstat","cmbuild","RNAz","RNAcode"]
           toolsCheck <- checkTools tools temporaryDirectoryPath
           -- Check required commandline tools
           if isLeft toolsCheck

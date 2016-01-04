@@ -31,6 +31,8 @@ description:         RNAlien is a tool for automatic construction of RNAfamily m
 		     * <http://www.bioinf.uni-freiburg.de/Software/LocARNA/#download Locarna>
 		     .
 		     * <https://www.tbi.univie.ac.at/~wash/RNAz/ RNAz>
+                     .
+                     * <http://wash.github.io/rnacode/ RNAcode>                        
 		     .
 		     * <http://www.tbi.univie.ac.at/RNA/index.html#download ViennaRNA package>
                      .
@@ -68,7 +70,7 @@ executable SelectSequences
 Library
   Hs-Source-Dirs:      ./src/
   ghc-options:         -Wall -O2 -fno-warn-unused-do-bind
-  build-depends:       base >=4.5 && <5, cmdargs, ViennaRNAParser>=1.2.6, process, directory, blastxml>=0.3.2, biofasta, parsec, random, BlastHTTP, biocore, bytestring, Taxonomy >= 1.0.1, either-unwrap, containers, ClustalParser>=1.1.0, EntrezHTTP>=1.0.0, split, vector, edit-distance, cassava, matrix, hierarchical-clustering, filepath, HTTP
+  build-depends:       base >=4.5 && <5, cmdargs, ViennaRNAParser>=1.2.7, process, directory, blastxml>=0.3.2, biofasta, parsec, random, BlastHTTP, biocore, bytestring, Taxonomy >= 1.0.1, either-unwrap, containers, ClustalParser>=1.1.0, EntrezHTTP>=1.0.0, split, vector, edit-distance, cassava, matrix, hierarchical-clustering, filepath, HTTP
   Exposed-Modules:     Bio.RNAlienData
                        Bio.RNAlienLibrary
 
