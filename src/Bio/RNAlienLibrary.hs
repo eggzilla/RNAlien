@@ -1698,7 +1698,7 @@ evaluateConstructionResult staticOptions entryNumber = do
           RC.systemRNAcode " -t " (fromRight rnazClustalpath) resultRNAcode
           inputRNAcode <- RC.readRNAcodeTabular resultRNAcode
           let rnaCodeString = rnaCodeEvalOutput inputRNAcode
-          return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: " ++ rnaZString ++ "\nRNAcode output for result alignment: rnaCodeString")
+          return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: " ++ rnaZString ++ "\nRNAcode output for result alignment:\n" ++ rnaCodeString)
         else do
           logWarning ("Running RNAz for result evalution encountered a problem:" ++ fromLeft rnazClustalpath) (tempDirPath staticOptions) 
           return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: Running RNAz for result evalution encountered a problem\n" ++ fromLeft rnazClustalpath)
