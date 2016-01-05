@@ -574,34 +574,42 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
   let candidateSequences = extractQueryCandidates selectedCandidates
   let iterationDirectory = tempDirPath staticOptions ++ show (iterationNumber modelConstruction) ++ "/"
   let alignmentSequences = map snd (V.toList (V.concat [candidateSequences,alignedSequences]))
+  let queryselectionbyclustering = False
   if length alignmentSequences > 3
     then do
-      --write Fasta sequences
-      writeFasta (iterationDirectory ++ "query" ++ ".fa") alignmentSequences
-      let fastaFilepath = iterationDirectory ++ "query" ++ ".fa"
-      let clustaloFilepath = iterationDirectory ++ "query" ++ ".clustalo"
-      let clustaloDistMatrixPath = iterationDirectory ++ "query" ++ ".matrix" 
-      alignSequences "clustalo" ("--full --distmat-out=" ++ clustaloDistMatrixPath ++ " ") [fastaFilepath] [] [clustaloFilepath] []
-      idsDistancematrix <- readClustaloDistMatrix clustaloDistMatrixPath
-      logEither idsDistancematrix (tempDirPath staticOptions)
-      let (clustaloIds,clustaloDistMatrix) = fromRight idsDistancematrix
-      logVerboseMessage (verbositySwitch staticOptions) ("Clustalid: " ++ intercalate "," clustaloIds ++ "\n") (tempDirPath staticOptions)
-      logVerboseMessage (verbositySwitch staticOptions) ("Distmatrix: " ++ show clustaloDistMatrix ++ "\n") (tempDirPath staticOptions)
-      let clustaloDendrogram = dendrogram UPGMA clustaloIds (getDistanceMatrixElements clustaloIds clustaloDistMatrix)
-      logVerboseMessage (verbositySwitch staticOptions) ("ClustaloDendrogram: " ++ show  clustaloDendrogram ++ "\n") (tempDirPath staticOptions)
-      logVerboseMessage (verbositySwitch staticOptions) ("ClustaloDendrogram: " ++ show clustaloDistMatrix ++ "\n") (tempDirPath staticOptions)
-      let numberOfClusters = setClusterNumber (length alignmentSequences)
-      logVerboseMessage (verbositySwitch staticOptions) ("numberOfClusters: " ++ show numberOfClusters ++ "\n") (tempDirPath staticOptions)
-      let dendrogramStartCutDistance = 1 :: Double
-      let dendrogramCutDistance' = findCutoffforClusterNumber clustaloDendrogram numberOfClusters dendrogramStartCutDistance
-      logVerboseMessage (verbositySwitch staticOptions) ("dendrogramCutDistance': " ++ show dendrogramCutDistance' ++ "\n") (tempDirPath staticOptions)
-      let cutDendrogram = cutAt clustaloDendrogram dendrogramCutDistance'
-      --putStrLn "cutDendrogram: "
-      --print cutDendrogram
-      let currentSelectedQueries = take 5 (concatMap (take 1 . elements) cutDendrogram)
-      logVerboseMessage (verbositySwitch staticOptions) ("SelectedQueries: " ++ show currentSelectedQueries ++ "\n") (tempDirPath staticOptions)                       
-      writeFile (tempDirPath staticOptions ++ show (iterationNumber modelConstruction) ++ "/log" ++ "/13selectedQueries") (showlines currentSelectedQueries)
-      CE.evaluate currentSelectedQueries
+      if queryselectionbyclustering
+        then do
+          --write Fasta sequences
+          writeFasta (iterationDirectory ++ "query" ++ ".fa") alignmentSequences
+          let fastaFilepath = iterationDirectory ++ "query" ++ ".fa"
+          let clustaloFilepath = iterationDirectory ++ "query" ++ ".clustalo"
+          let clustaloDistMatrixPath = iterationDirectory ++ "query" ++ ".matrix" 
+          alignSequences "clustalo" ("--full --distmat-out=" ++ clustaloDistMatrixPath ++ " ") [fastaFilepath] [] [clustaloFilepath] []
+          idsDistancematrix <- readClustaloDistMatrix clustaloDistMatrixPath
+          logEither idsDistancematrix (tempDirPath staticOptions)
+          let (clustaloIds,clustaloDistMatrix) = fromRight idsDistancematrix
+          logVerboseMessage (verbositySwitch staticOptions) ("Clustalid: " ++ intercalate "," clustaloIds ++ "\n") (tempDirPath staticOptions)
+          logVerboseMessage (verbositySwitch staticOptions) ("Distmatrix: " ++ show clustaloDistMatrix ++ "\n") (tempDirPath staticOptions)
+          let clustaloDendrogram = dendrogram UPGMA clustaloIds (getDistanceMatrixElements clustaloIds clustaloDistMatrix)
+          logVerboseMessage (verbositySwitch staticOptions) ("ClustaloDendrogram: " ++ show  clustaloDendrogram ++ "\n") (tempDirPath staticOptions)
+          logVerboseMessage (verbositySwitch staticOptions) ("ClustaloDendrogram: " ++ show clustaloDistMatrix ++ "\n") (tempDirPath staticOptions)
+          let numberOfClusters = setClusterNumber (length alignmentSequences)
+          logVerboseMessage (verbositySwitch staticOptions) ("numberOfClusters: " ++ show numberOfClusters ++ "\n") (tempDirPath staticOptions)
+          let dendrogramStartCutDistance = 1 :: Double
+          let dendrogramCutDistance' = findCutoffforClusterNumber clustaloDendrogram numberOfClusters dendrogramStartCutDistance
+          logVerboseMessage (verbositySwitch staticOptions) ("dendrogramCutDistance': " ++ show dendrogramCutDistance' ++ "\n") (tempDirPath staticOptions)
+          let cutDendrogram = cutAt clustaloDendrogram dendrogramCutDistance'
+          --putStrLn "cutDendrogram: "
+          --print cutDendrogram
+          let currentSelectedQueries = take 5 (concatMap (take 1 . elements) cutDendrogram)
+          logVerboseMessage (verbositySwitch staticOptions) ("SelectedQueries: " ++ show currentSelectedQueries ++ "\n") (tempDirPath staticOptions)                       
+          writeFile (tempDirPath staticOptions ++ show (iterationNumber modelConstruction) ++ "/log" ++ "/13selectedQueries") (showlines currentSelectedQueries)
+          CE.evaluate currentSelectedQueries
+        else do
+          let currentSelectedSequences = filterIdenticalSequences' alignmentSequences (95 :: Double)
+          let currentSelectedQueries = map show currentSelectedSequences
+          CE.evaluate currentSelectedQueries
+          
     else return []
 
 constructModel :: ModelConstruction -> StaticOptions -> IO String
@@ -766,6 +774,13 @@ filterIdenticalSequences [] _ = []
 filterWithCollectedSequences :: [(Sequence,Int,String,Char)] -> [Sequence] -> Double -> [(Sequence,Int,String,Char)]                            
 filterWithCollectedSequences inputCandidates collectedSequences identitycutoff = filter (isUnSimilarSequence collectedSequences identitycutoff . firstOfQuadruple) inputCandidates 
 --filterWithCollectedSequences [] [] _ = []
+
+-- | Filter alignment entries by similiarity  
+filterIdenticalSequences' :: [Sequence] -> Double -> [Sequence]
+filterIdenticalSequences' (headEntry:rest) identitycutoff = result
+  where filteredEntries = filter (\ x -> (sequenceIdentity headEntry x) < identitycutoff) rest
+        result = headEntry:filterIdenticalSequences' filteredEntries identitycutoff
+filterIdenticalSequences' [] _ = []
 
 -- | Filter alignment entries by similiarity  
 filterIdenticalAlignmentEntry :: [ClustalAlignmentEntry] -> Double -> [ClustalAlignmentEntry]
