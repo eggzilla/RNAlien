@@ -64,6 +64,7 @@ import Bio.RNAfoldParser
 import Bio.RNAalifoldParser
 import Bio.RNAzParser
 import Network.HTTP
+import qualified Bio.RNAcodeParser as RC
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 modelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
@@ -1687,13 +1688,17 @@ evaluateConstructionResult staticOptions entryNumber = do
   if entryNumber > 1
     then do 
       let resultRNAz = tempDirPath staticOptions ++ "result.rnaz"
+      let resultRNAcode = tempDirPath staticOptions ++ "result.rnacode"
       rnazClustalpath <- preprocessClustalForRNAzExternal clustalFilepath reformatedClustalPath
       if isRight rnazClustalpath
         then do
           systemRNAz "-l" (fromRight rnazClustalpath) resultRNAz 
           inputRNAz <- readRNAz resultRNAz
           let rnaZString = rnaZEvalOutput inputRNAz
-          return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: " ++ rnaZString)
+          RC.systemRNAcode " -t " (fromRight rnazClustalpath) resultRNAcode
+          inputRNAcode <- RC.readRNAcodeTabular resultRNAcode
+          let rnaCodeString = rnaCodeEvalOutput inputRNAcode
+          return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: " ++ rnaZString ++ "\nRNAcode output for result alignment: rnaCodeString")
         else do
           logWarning ("Running RNAz for result evalution encountered a problem:" ++ fromLeft rnazClustalpath) (tempDirPath staticOptions) 
           return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: Running RNAz for result evalution encountered a problem\n" ++ fromLeft rnazClustalpath)
@@ -1715,6 +1720,17 @@ rnaZEvalOutput inputRNAz
   | otherwise = show (fromLeft inputRNAz)
     where rnaZ = fromRight inputRNAz
           rnazString = "  Mean pairwise identity: " ++ show (meanPairwiseIdentity rnaZ) ++ "\n  Shannon entropy: " ++ show (shannonEntropy rnaZ) ++  "\n  GC content: " ++ show (gcContent rnaZ) ++ "\n  Mean single sequence minimum free energy: " ++ show (meanSingleSequenceMinimumFreeEnergy rnaZ) ++ "\n  Consensus minimum free energy: " ++ show (consensusMinimumFreeEnergy rnaZ) ++ "\n  Energy contribution: " ++ show (energyContribution rnaZ) ++ "\n  Covariance contribution: " ++ show (covarianceContribution rnaZ) ++ "\n  Combinations pair: " ++ show (combinationsPair rnaZ) ++ "\n  Mean z-score: " ++ show (meanZScore rnaZ) ++ "\n  Structure conservation index: " ++ show (structureConservationIndex rnaZ) ++ "\n  Background model: " ++ backgroundModel rnaZ ++ "\n  Decision model: " ++ decisionModel rnaZ ++ "\n  SVM decision value: " ++ show (svmDecisionValue rnaZ) ++ "\n  SVM class propability: " ++ show (svmRNAClassProbability rnaZ) ++ "\n  Prediction: " ++ prediction rnaZ
+
+rnaCodeEvalOutput :: Either ParseError RC.RNAcode -> String 
+rnaCodeEvalOutput inputRNAcode 
+  | isRight inputRNAcode = rnaCodeString
+  | otherwise = show (fromLeft inputRNAcode)
+    where rnaCode = fromRight inputRNAcode
+          rnaCodeString = "HSS\tFrame\tLength\tFrom\tTo\tName\tStart\tEnd\tScore\tP\n" ++ rnaCodeEntries
+          rnaCodeEntries = concatMap showRNACodeHits (RC.rnacodeHits rnaCode)
+
+showRNACodeHits :: RC.RNAcodeHit -> String
+showRNACodeHits rnacodeHit = show (RC.hss rnacodeHit) ++ "\t" ++ show (RC.frame rnacodeHit) ++ "\t" ++ show (RC.length rnacodeHit) ++ "\t"++ show (RC.from rnacodeHit) ++ "\t" ++ show (RC.to rnacodeHit) ++ "\t" ++ (RC.name rnacodeHit) ++ "\t" ++ show (RC.start rnacodeHit) ++ "\t" ++ show (RC.end rnacodeHit) ++ "\t" ++ show (RC.score rnacodeHit) ++ show (RC.pvalue rnacodeHit) ++ "\n"
 
 -- | Call for external preprocessClustalForRNAz
 preprocessClustalForRNAzExternal :: String -> String -> IO (Either String String)
