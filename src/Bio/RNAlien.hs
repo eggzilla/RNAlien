@@ -44,7 +44,7 @@ options = Options
     lengthFilter = True &= name "l" &= help "Filter blast hits per genomic length. Default: True",
     coverageFilter = True &= name "a" &= help "Filter blast hits by coverage of at least 80%. Default: True",
     singleHitperTax = True &= name "s" &= help "Only the best blast hit per taxonomic entry is considered. Default: True",
-    inputQuerySelectionMethod = "clustering" &= name "q" &= help "Method for selection of queries (clustering,filtering). Default: clustering",
+    inputQuerySelectionMethod = "clustering" &= name "m" &= help "Method for selection of queries (clustering,filtering). Default: clustering",
     inputQueryNumber = (5 :: Int) &= name "n" &= help "Number of queries used for candidate search. Default: 5",
     threads = 1 &= name "c" &= help "Number of available cpu slots/cores. Default: 1",
     taxonomyRestriction = Nothing &= name "r" &= help "Restrict search space to taxonomic kingdom (bacteria,archea,eukaryia). Default: not set",
