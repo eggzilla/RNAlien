@@ -574,7 +574,6 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
   let candidateSequences = extractQueryCandidates selectedCandidates
   let iterationDirectory = tempDirPath staticOptions ++ show (iterationNumber modelConstruction) ++ "/"
   let alignmentSequences = map snd (V.toList (V.concat [candidateSequences,alignedSequences]))
-  let queryselectionbyclustering = False
   if length alignmentSequences > 3
     then do
       if (querySelectionMethod staticOptions) == "clustering"
