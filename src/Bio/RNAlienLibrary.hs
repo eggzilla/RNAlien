@@ -577,7 +577,7 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
   let queryselectionbyclustering = False
   if length alignmentSequences > 3
     then do
-      if queryselectionbyclustering
+      if (querySelectionMethod staticOptions) == "clustering"
         then do
           --write Fasta sequences
           writeFasta (iterationDirectory ++ "query" ++ ".fa") alignmentSequences
@@ -601,13 +601,13 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
           let cutDendrogram = cutAt clustaloDendrogram dendrogramCutDistance'
           --putStrLn "cutDendrogram: "
           --print cutDendrogram
-          let currentSelectedQueries = take 5 (concatMap (take 1 . elements) cutDendrogram)
+          let currentSelectedQueries = take (queryNumber staticOptions) (concatMap (take 1 . elements) cutDendrogram)
           logVerboseMessage (verbositySwitch staticOptions) ("SelectedQueries: " ++ show currentSelectedQueries ++ "\n") (tempDirPath staticOptions)                       
           writeFile (tempDirPath staticOptions ++ show (iterationNumber modelConstruction) ++ "/log" ++ "/13selectedQueries") (showlines currentSelectedQueries)
           CE.evaluate currentSelectedQueries
         else do
           let currentSelectedSequences = filterIdenticalSequences' alignmentSequences (95 :: Double)
-          let currentSelectedQueries = map show currentSelectedSequences
+          let currentSelectedQueries = map show (take (queryNumber staticOptions) currentSelectedSequences)
           CE.evaluate currentSelectedQueries
           
     else return []
