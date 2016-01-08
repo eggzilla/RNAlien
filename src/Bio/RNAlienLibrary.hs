@@ -565,7 +565,8 @@ findCutoffforClusterNumber clustaloDendrogram numberOfClusters currentCutoff
   | currentClusterNumber >= numberOfClusters = currentCutoff
   | otherwise = findCutoffforClusterNumber clustaloDendrogram numberOfClusters (currentCutoff-0.01)
     where currentClusterNumber = length (cutAt clustaloDendrogram currentCutoff)
-                
+
+-- Selects Query sequence ids from all collected seqeuences. Queries are then fetched by extractQueries function.
 selectQueries :: StaticOptions -> ModelConstruction -> [(Sequence,Int,String,Char)] -> IO [String]
 selectQueries staticOptions modelConstruction selectedCandidates = do
   logVerboseMessage (verbositySwitch staticOptions) "SelectQueries\n" (tempDirPath staticOptions)
@@ -606,7 +607,7 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
           CE.evaluate currentSelectedQueries
         else do
           let currentSelectedSequences = filterIdenticalSequences' alignmentSequences (95 :: Double)
-          let currentSelectedQueries = map show (take (queryNumber staticOptions) currentSelectedSequences)
+          let currentSelectedQueries = map (L.unpack . unSL . seqid) (take (queryNumber staticOptions) currentSelectedSequences)
           CE.evaluate currentSelectedQueries
           
     else return []
