@@ -65,7 +65,6 @@ startSession query' = do
   let eitherErrorResponse = eitherDecode requestXml :: Either String RNAcentralEntryResponse
   return eitherErrorResponse
   
-
 -- | Send query and return response XML
 sendQuery :: String -> IO L8.ByteString
 sendQuery query' = simpleHttp ("http://rnacentral.org/api/v1/rna/" ++ query')
@@ -74,3 +73,14 @@ sendQuery query' = simpleHttp ("http://rnacentral.org/api/v1/rna/" ++ query')
 rnaCentralHTTP :: String -> IO (Either String RNAcentralEntryResponse)
 rnaCentralHTTP query' = do
   startSession query'
+
+-- | Function for delayed queries to the RNAcentral REST interface. Enforces the maximum 20 requests per second policy.
+delayedRNACentralHTTP :: String -> IO (Either String RNAcentralEntryResponse)
+delayedRNACentralHTTP query' = do
+  threadDelay 55000
+  startSession query'
+
+getRNACentralEntries :: [String] -> IO [(Either String RNAcentralEntryResponse)]
+getRNACentralEntries queries = do
+  responses <- mapM delayedRNACentralHTTP queries
+  return responses

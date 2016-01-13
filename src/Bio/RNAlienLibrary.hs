@@ -65,6 +65,7 @@ import Bio.RNAalifoldParser
 import Bio.RNAzParser
 import Network.HTTP
 import qualified Bio.RNAcodeParser as RC
+import Bio.RNAcentralHTTP
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 modelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
