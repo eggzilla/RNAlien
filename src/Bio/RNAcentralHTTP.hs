@@ -23,6 +23,9 @@ import GHC.Generics
 import Data.Maybe
 import Data.Text
 import Control.Monad
+import qualified Data.Digest.Pure.MD5 as M
+import Bio.Core.Sequence 
+import Bio.Sequence.Fasta 
 
 --Datatypes
 -- | Data structure for RNAcentral entry response
@@ -84,3 +87,9 @@ getRNACentralEntries :: [String] -> IO [(Either String RNAcentralEntryResponse)]
 getRNACentralEntries queries = do
   responses <- mapM delayedRNACentralHTTP queries
   return responses
+
+buildSequenceViaMD5Query :: Sequence -> String
+buildSequenceViaMD5Query s = queryString
+  where querySequence = unSD (seqdata s)
+        md5Sequence = M.md5 querySequence
+        queryString = "?md5=" ++ (show md5Sequence)
