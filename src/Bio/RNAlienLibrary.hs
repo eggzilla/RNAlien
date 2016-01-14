@@ -1688,20 +1688,25 @@ setVerbose verbosityLevel
   | verbosityLevel == Loud = True
   | otherwise = False
 
-evaluateConstructionResult :: StaticOptions -> Int -> IO String
-evaluateConstructionResult staticOptions entryNumber = do
+evaluateConstructionResult :: StaticOptions -> ModelConstruction -> IO String
+evaluateConstructionResult staticOptions mCResult = do
   let evaluationDirectoryFilepath = tempDirPath staticOptions ++ "evaluation/"
   createDirectoryIfMissing False evaluationDirectoryFilepath
   let fastaFilepath = tempDirPath staticOptions ++ "result.fa"
   let clustalFilepath = evaluationDirectoryFilepath ++ "result.clustal"
   let reformatedClustalPath = evaluationDirectoryFilepath ++ "result.clustal.reformated"
   let cmFilepath = tempDirPath staticOptions ++ "result.cm"
+  let resultSequences = map nucleotideSequence (concatMap sequenceRecords (taxRecords mCResult))
+  let resultNumber = length resultSequences + 1 
+  let rnaCentralQueries = map buildSequenceViaMD5Query resultSequences    
+  rnaCentralEntries <- getRNACentralEntries rnaCentralQueries
+  let rnaCentralEvaluationResult = showRNAcentralAlienEvaluation rnaCentralEntries
   systemCMalign ("--outformat=Clustal --cpu " ++ show (cpuThreads staticOptions)) cmFilepath fastaFilepath clustalFilepath
   let resultModelStatistics = tempDirPath staticOptions ++ "result.cmstat"
   systemCMstat cmFilepath resultModelStatistics
   inputcmStat <- readCMstat resultModelStatistics
   let cmstatString = cmstatEvalOutput inputcmStat
-  if entryNumber > 1
+  if resultNumber > 1
     then do 
       let resultRNAz = tempDirPath staticOptions ++ "result.rnaz"
       let resultRNAcode = tempDirPath staticOptions ++ "result.rnacode"
@@ -1714,13 +1719,13 @@ evaluateConstructionResult staticOptions entryNumber = do
           RC.systemRNAcode " -t " (fromRight rnazClustalpath) resultRNAcode
           inputRNAcode <- RC.readRNAcodeTabular resultRNAcode
           let rnaCodeString = rnaCodeEvalOutput inputRNAcode
-          return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: " ++ rnaZString ++ "\nRNAcode output for result alignment:\n" ++ rnaCodeString)
+          return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: " ++ rnaZString ++ "\nRNAcode output for result alignment:\n" ++ rnaCodeString ++ "\n" ++ rnaCentralEvaluationResult)
         else do
           logWarning ("Running RNAz for result evalution encountered a problem:" ++ fromLeft rnazClustalpath) (tempDirPath staticOptions) 
-          return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: Running RNAz for result evalution encountered a problem\n" ++ fromLeft rnazClustalpath)
+          return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: Running RNAz for result evalution encountered a problem\n" ++ fromLeft rnazClustalpath ++ "\n" ++ rnaCentralEvaluationResult)
     else do
       logWarning "Message: RNAlien could not find additional covariant sequences\n Could not run RNAz statistics. Could not run RNAz statistics with a single sequence.\n" (tempDirPath staticOptions) 
-      return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAlien could not find additional covariant sequences. Could not run RNAz statistics with a single sequence.\n")
+      return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAlien could not find additional covariant sequences. Could not run RNAz statistics with a single sequence.\n" ++ rnaCentralEvaluationResult)
 
 
 cmstatEvalOutput :: Either ParseError CMstat -> String 

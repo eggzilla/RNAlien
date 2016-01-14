@@ -5,27 +5,25 @@
 -- | Interface for the RNAcentral REST webservice.
 --   
 module Bio.RNAcentralHTTP (rnaCentralHTTP,
+                      buildSequenceViaMD5Query,
+                      getRNACentralEntries,
+                      showRNAcentralAlienEvaluation,
                       RNAcentralEntryResponse,
                       RNAcentralEntry
                       ) where
 
 import Network.HTTP.Conduit    
 import qualified Data.ByteString.Lazy.Char8 as L8    
-import Text.XML.HXT.Core
 import Network
-import Data.Maybe
-import qualified Data.ByteString.Char8 as B
-import Network.HTTP.Base
+--import Data.Maybe
 import Control.Concurrent
 import Data.Text
 import Data.Aeson
 import GHC.Generics
-import Data.Maybe
-import Data.Text
-import Control.Monad
 import qualified Data.Digest.Pure.MD5 as M
 import Bio.Core.Sequence 
-import Bio.Sequence.Fasta 
+import Bio.Sequence.Fasta
+import Data.Either
 
 --Datatypes
 -- | Data structure for RNAcentral entry response
@@ -39,7 +37,8 @@ data RNAcentralEntryResponse = RNAcentralEntryResponse
   deriving (Show, Eq, Generic)
 
 instance ToJSON RNAcentralEntryResponse where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON = genericToJSON defaultOptions
+  --toEncoding = genericToEncoding defaultOptions
 
 instance FromJSON RNAcentralEntryResponse 
 
@@ -56,9 +55,10 @@ data RNAcentralEntry = RNAcentralEntry
   deriving (Show, Eq, Generic)
 
 instance ToJSON RNAcentralEntry where
-  toEncoding = genericToEncoding defaultOptions
+  toJSON = genericToJSON defaultOptions
+  --toEncoding = genericToEncoding defaultOptions
 
-instance FromJSON RNAcentralEntry
+instance FromJSON RNAcentralEntry 
 
 -- | Send query and parse return XML 
 startSession :: String -> IO (Either String RNAcentralEntryResponse)
@@ -89,7 +89,17 @@ getRNACentralEntries queries = do
   return responses
 
 buildSequenceViaMD5Query :: Sequence -> String
-buildSequenceViaMD5Query s = queryString
+buildSequenceViaMD5Query s = qString
   where querySequence = unSD (seqdata s)
         md5Sequence = M.md5 querySequence
-        queryString = "?md5=" ++ (show md5Sequence)
+        qString = "?md5=" ++ (show md5Sequence)
+
+showRNAcentralAlienEvaluation :: [(Either String RNAcentralEntryResponse)] -> String
+showRNAcentralAlienEvaluation responses = output
+  where resultEntries = Prelude.concatMap results (rights responses)
+        resulthead = "Sequences found by RNAlien with RNAcentral entry:\nrnacentral_id\tmd5\tlength\n"
+        resultentries = Prelude.concatMap showRNAcentralAlienEvaluationLine resultEntries
+        output = if resultentries == [] then resulthead ++ "No matching sequences found in RNAcentral\n" else resulthead ++ resultentries
+        
+showRNAcentralAlienEvaluationLine :: RNAcentralEntry -> String
+showRNAcentralAlienEvaluationLine entry = unpack (rnacentral_id entry) ++ "\t" ++ unpack (md5 entry) ++ "\t" ++ show (Bio.RNAcentralHTTP.length entry) ++"\n"
