@@ -15,7 +15,6 @@ module Bio.RNAcentralHTTP (rnaCentralHTTP,
 import Network.HTTP.Conduit    
 import qualified Data.ByteString.Lazy.Char8 as L8    
 import Network
---import Data.Maybe
 import Control.Concurrent
 import Data.Text
 import Data.Aeson
@@ -91,7 +90,8 @@ getRNACentralEntries queries = do
 buildSequenceViaMD5Query :: Sequence -> String
 buildSequenceViaMD5Query s = qString
   where querySequence = unSD (seqdata s)
-        md5Sequence = M.md5 querySequence
+        querySequenceUreplacedwithT = L8.map bsreplaceUT querySequence
+        md5Sequence = M.md5 querySequenceUreplacedwithT
         qString = "?md5=" ++ (show md5Sequence)
 
 showRNAcentralAlienEvaluation :: [(Either String RNAcentralEntryResponse)] -> String
@@ -103,3 +103,8 @@ showRNAcentralAlienEvaluation responses = output
         
 showRNAcentralAlienEvaluationLine :: RNAcentralEntry -> String
 showRNAcentralAlienEvaluationLine entry = unpack (rnacentral_id entry) ++ "\t" ++ unpack (md5 entry) ++ "\t" ++ show (Bio.RNAcentralHTTP.length entry) ++"\n"
+
+bsreplaceUT :: Char -> Char
+bsreplaceUT a
+  | a == 'U' = 'T'
+  | otherwise = a
