@@ -65,6 +65,7 @@ import Bio.RNAalifoldParser
 import Bio.RNAzParser
 import Network.HTTP
 import qualified Bio.RNAcodeParser as RC
+import Bio.RNAcentralHTTP
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 modelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
@@ -565,7 +566,8 @@ findCutoffforClusterNumber clustaloDendrogram numberOfClusters currentCutoff
   | currentClusterNumber >= numberOfClusters = currentCutoff
   | otherwise = findCutoffforClusterNumber clustaloDendrogram numberOfClusters (currentCutoff-0.01)
     where currentClusterNumber = length (cutAt clustaloDendrogram currentCutoff)
-                
+
+-- Selects Query sequence ids from all collected seqeuences. Queries are then fetched by extractQueries function.
 selectQueries :: StaticOptions -> ModelConstruction -> [(Sequence,Int,String,Char)] -> IO [String]
 selectQueries staticOptions modelConstruction selectedCandidates = do
   logVerboseMessage (verbositySwitch staticOptions) "SelectQueries\n" (tempDirPath staticOptions)
@@ -576,32 +578,39 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
   let alignmentSequences = map snd (V.toList (V.concat [candidateSequences,alignedSequences]))
   if length alignmentSequences > 3
     then do
-      --write Fasta sequences
-      writeFasta (iterationDirectory ++ "query" ++ ".fa") alignmentSequences
-      let fastaFilepath = iterationDirectory ++ "query" ++ ".fa"
-      let clustaloFilepath = iterationDirectory ++ "query" ++ ".clustalo"
-      let clustaloDistMatrixPath = iterationDirectory ++ "query" ++ ".matrix" 
-      alignSequences "clustalo" ("--full --distmat-out=" ++ clustaloDistMatrixPath ++ " ") [fastaFilepath] [] [clustaloFilepath] []
-      idsDistancematrix <- readClustaloDistMatrix clustaloDistMatrixPath
-      logEither idsDistancematrix (tempDirPath staticOptions)
-      let (clustaloIds,clustaloDistMatrix) = fromRight idsDistancematrix
-      logVerboseMessage (verbositySwitch staticOptions) ("Clustalid: " ++ intercalate "," clustaloIds ++ "\n") (tempDirPath staticOptions)
-      logVerboseMessage (verbositySwitch staticOptions) ("Distmatrix: " ++ show clustaloDistMatrix ++ "\n") (tempDirPath staticOptions)
-      let clustaloDendrogram = dendrogram UPGMA clustaloIds (getDistanceMatrixElements clustaloIds clustaloDistMatrix)
-      logVerboseMessage (verbositySwitch staticOptions) ("ClustaloDendrogram: " ++ show  clustaloDendrogram ++ "\n") (tempDirPath staticOptions)
-      logVerboseMessage (verbositySwitch staticOptions) ("ClustaloDendrogram: " ++ show clustaloDistMatrix ++ "\n") (tempDirPath staticOptions)
-      let numberOfClusters = setClusterNumber (length alignmentSequences)
-      logVerboseMessage (verbositySwitch staticOptions) ("numberOfClusters: " ++ show numberOfClusters ++ "\n") (tempDirPath staticOptions)
-      let dendrogramStartCutDistance = 1 :: Double
-      let dendrogramCutDistance' = findCutoffforClusterNumber clustaloDendrogram numberOfClusters dendrogramStartCutDistance
-      logVerboseMessage (verbositySwitch staticOptions) ("dendrogramCutDistance': " ++ show dendrogramCutDistance' ++ "\n") (tempDirPath staticOptions)
-      let cutDendrogram = cutAt clustaloDendrogram dendrogramCutDistance'
-      --putStrLn "cutDendrogram: "
-      --print cutDendrogram
-      let currentSelectedQueries = take 5 (concatMap (take 1 . elements) cutDendrogram)
-      logVerboseMessage (verbositySwitch staticOptions) ("SelectedQueries: " ++ show currentSelectedQueries ++ "\n") (tempDirPath staticOptions)                       
-      writeFile (tempDirPath staticOptions ++ show (iterationNumber modelConstruction) ++ "/log" ++ "/13selectedQueries") (showlines currentSelectedQueries)
-      CE.evaluate currentSelectedQueries
+      if (querySelectionMethod staticOptions) == "clustering"
+        then do
+          --write Fasta sequences
+          writeFasta (iterationDirectory ++ "query" ++ ".fa") alignmentSequences
+          let fastaFilepath = iterationDirectory ++ "query" ++ ".fa"
+          let clustaloFilepath = iterationDirectory ++ "query" ++ ".clustalo"
+          let clustaloDistMatrixPath = iterationDirectory ++ "query" ++ ".matrix" 
+          alignSequences "clustalo" ("--full --distmat-out=" ++ clustaloDistMatrixPath ++ " ") [fastaFilepath] [] [clustaloFilepath] []
+          idsDistancematrix <- readClustaloDistMatrix clustaloDistMatrixPath
+          logEither idsDistancematrix (tempDirPath staticOptions)
+          let (clustaloIds,clustaloDistMatrix) = fromRight idsDistancematrix
+          logVerboseMessage (verbositySwitch staticOptions) ("Clustalid: " ++ intercalate "," clustaloIds ++ "\n") (tempDirPath staticOptions)
+          logVerboseMessage (verbositySwitch staticOptions) ("Distmatrix: " ++ show clustaloDistMatrix ++ "\n") (tempDirPath staticOptions)
+          let clustaloDendrogram = dendrogram UPGMA clustaloIds (getDistanceMatrixElements clustaloIds clustaloDistMatrix)
+          logVerboseMessage (verbositySwitch staticOptions) ("ClustaloDendrogram: " ++ show  clustaloDendrogram ++ "\n") (tempDirPath staticOptions)
+          logVerboseMessage (verbositySwitch staticOptions) ("ClustaloDendrogram: " ++ show clustaloDistMatrix ++ "\n") (tempDirPath staticOptions)
+          let numberOfClusters = setClusterNumber (length alignmentSequences)
+          logVerboseMessage (verbositySwitch staticOptions) ("numberOfClusters: " ++ show numberOfClusters ++ "\n") (tempDirPath staticOptions)
+          let dendrogramStartCutDistance = 1 :: Double
+          let dendrogramCutDistance' = findCutoffforClusterNumber clustaloDendrogram numberOfClusters dendrogramStartCutDistance
+          logVerboseMessage (verbositySwitch staticOptions) ("dendrogramCutDistance': " ++ show dendrogramCutDistance' ++ "\n") (tempDirPath staticOptions)
+          let cutDendrogram = cutAt clustaloDendrogram dendrogramCutDistance'
+          --putStrLn "cutDendrogram: "
+          --print cutDendrogram
+          let currentSelectedQueries = take (queryNumber staticOptions) (concatMap (take 1 . elements) cutDendrogram)
+          logVerboseMessage (verbositySwitch staticOptions) ("SelectedQueries: " ++ show currentSelectedQueries ++ "\n") (tempDirPath staticOptions)                       
+          writeFile (tempDirPath staticOptions ++ show (iterationNumber modelConstruction) ++ "/log" ++ "/13selectedQueries") (showlines currentSelectedQueries)
+          CE.evaluate currentSelectedQueries
+        else do
+          let currentSelectedSequences = filterIdenticalSequences' alignmentSequences (95 :: Double)
+          let currentSelectedQueries = map (L.unpack . unSL . seqid) (take (queryNumber staticOptions) currentSelectedSequences)
+          CE.evaluate currentSelectedQueries
+          
     else return []
 
 constructModel :: ModelConstruction -> StaticOptions -> IO String
@@ -766,6 +775,13 @@ filterIdenticalSequences [] _ = []
 filterWithCollectedSequences :: [(Sequence,Int,String,Char)] -> [Sequence] -> Double -> [(Sequence,Int,String,Char)]                            
 filterWithCollectedSequences inputCandidates collectedSequences identitycutoff = filter (isUnSimilarSequence collectedSequences identitycutoff . firstOfQuadruple) inputCandidates 
 --filterWithCollectedSequences [] [] _ = []
+
+-- | Filter alignment entries by similiarity  
+filterIdenticalSequences' :: [Sequence] -> Double -> [Sequence]
+filterIdenticalSequences' (headEntry:rest) identitycutoff = result
+  where filteredEntries = filter (\ x -> (sequenceIdentity headEntry x) < identitycutoff) rest
+        result = headEntry:filterIdenticalSequences' filteredEntries identitycutoff
+filterIdenticalSequences' [] _ = []
 
 -- | Filter alignment entries by similiarity  
 filterIdenticalAlignmentEntry :: [ClustalAlignmentEntry] -> Double -> [ClustalAlignmentEntry]
@@ -1672,20 +1688,25 @@ setVerbose verbosityLevel
   | verbosityLevel == Loud = True
   | otherwise = False
 
-evaluateConstructionResult :: StaticOptions -> Int -> IO String
-evaluateConstructionResult staticOptions entryNumber = do
+evaluateConstructionResult :: StaticOptions -> ModelConstruction -> IO String
+evaluateConstructionResult staticOptions mCResult = do
   let evaluationDirectoryFilepath = tempDirPath staticOptions ++ "evaluation/"
   createDirectoryIfMissing False evaluationDirectoryFilepath
   let fastaFilepath = tempDirPath staticOptions ++ "result.fa"
   let clustalFilepath = evaluationDirectoryFilepath ++ "result.clustal"
   let reformatedClustalPath = evaluationDirectoryFilepath ++ "result.clustal.reformated"
   let cmFilepath = tempDirPath staticOptions ++ "result.cm"
+  let resultSequences = map nucleotideSequence (concatMap sequenceRecords (taxRecords mCResult))
+  let resultNumber = length resultSequences + 1 
+  let rnaCentralQueries = map buildSequenceViaMD5Query resultSequences    
+  rnaCentralEntries <- getRNACentralEntries rnaCentralQueries
+  let rnaCentralEvaluationResult = showRNAcentralAlienEvaluation rnaCentralEntries
   systemCMalign ("--outformat=Clustal --cpu " ++ show (cpuThreads staticOptions)) cmFilepath fastaFilepath clustalFilepath
   let resultModelStatistics = tempDirPath staticOptions ++ "result.cmstat"
   systemCMstat cmFilepath resultModelStatistics
   inputcmStat <- readCMstat resultModelStatistics
   let cmstatString = cmstatEvalOutput inputcmStat
-  if entryNumber > 1
+  if resultNumber > 1
     then do 
       let resultRNAz = tempDirPath staticOptions ++ "result.rnaz"
       let resultRNAcode = tempDirPath staticOptions ++ "result.rnacode"
@@ -1698,13 +1719,13 @@ evaluateConstructionResult staticOptions entryNumber = do
           RC.systemRNAcode " -t " (fromRight rnazClustalpath) resultRNAcode
           inputRNAcode <- RC.readRNAcodeTabular resultRNAcode
           let rnaCodeString = rnaCodeEvalOutput inputRNAcode
-          return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: " ++ rnaZString ++ "\nRNAcode output for result alignment:\n" ++ rnaCodeString)
+          return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: " ++ rnaZString ++ "\nRNAcode output for result alignment:\n" ++ rnaCodeString ++ "\n" ++ rnaCentralEvaluationResult)
         else do
           logWarning ("Running RNAz for result evalution encountered a problem:" ++ fromLeft rnazClustalpath) (tempDirPath staticOptions) 
-          return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: Running RNAz for result evalution encountered a problem\n" ++ fromLeft rnazClustalpath)
+          return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: Running RNAz for result evalution encountered a problem\n" ++ fromLeft rnazClustalpath ++ "\n" ++ rnaCentralEvaluationResult)
     else do
       logWarning "Message: RNAlien could not find additional covariant sequences\n Could not run RNAz statistics. Could not run RNAz statistics with a single sequence.\n" (tempDirPath staticOptions) 
-      return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAlien could not find additional covariant sequences. Could not run RNAz statistics with a single sequence.\n")
+      return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAlien could not find additional covariant sequences. Could not run RNAz statistics with a single sequence.\n" ++ rnaCentralEvaluationResult)
 
 
 cmstatEvalOutput :: Either ParseError CMstat -> String 

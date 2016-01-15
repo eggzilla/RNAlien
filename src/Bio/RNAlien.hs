@@ -26,6 +26,8 @@ data Options = Options
     lengthFilter :: Bool,
     coverageFilter :: Bool,
     singleHitperTax :: Bool,
+    inputQuerySelectionMethod :: String,
+    inputQueryNumber :: Int,
     threads :: Int,
     taxonomyRestriction :: Maybe String,
     sessionIdentificator :: Maybe String
@@ -42,6 +44,8 @@ options = Options
     lengthFilter = True &= name "l" &= help "Filter blast hits per genomic length. Default: True",
     coverageFilter = True &= name "a" &= help "Filter blast hits by coverage of at least 80%. Default: True",
     singleHitperTax = True &= name "s" &= help "Only the best blast hit per taxonomic entry is considered. Default: True",
+    inputQuerySelectionMethod = "clustering" &= name "m" &= help "Method for selection of queries (clustering,filtering). Default: clustering",
+    inputQueryNumber = (5 :: Int) &= name "n" &= help "Number of queries used for candidate search. Default: 5",
     threads = 1 &= name "c" &= help "Number of available cpu slots/cores. Default: 1",
     taxonomyRestriction = Nothing &= name "r" &= help "Restrict search space to taxonomic kingdom (bacteria,archea,eukaryia). Default: not set",
     sessionIdentificator = Nothing &= name "d" &= help "Optional session id that is used instead of automatically generated one."
@@ -87,13 +91,12 @@ main = do
               let inputSequence = reformatFasta (head inputFasta)
               initialTaxId <- setInitialTaxId inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
               let checkedTaxonomyRestriction = checkTaxonomyRestriction taxonomyRestriction
-              let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) inputTaxId singleHitperTax lengthFilter coverageFilter threads inputBlastDatabase checkedTaxonomyRestriction (setVerbose verboseLevel)
+              let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) inputTaxId singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter threads inputBlastDatabase checkedTaxonomyRestriction (setVerbose verboseLevel)
               let initialization = ModelConstruction iterationNumber inputSequence [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] []
               logMessage (show initialization) temporaryDirectoryPath
               modelConstructionResults <- modelConstructer staticOptions initialization
               let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults
-              let resultNumber = (length (concatMap sequenceRecords (taxRecords modelConstructionResults))) + 1
-              resultEvaluation <- evaluateConstructionResult staticOptions resultNumber
+              resultEvaluation <- evaluateConstructionResult staticOptions modelConstructionResults
               appendFile (temporaryDirectoryPath ++ "Log") resultEvaluation
               writeFile (temporaryDirectoryPath ++ "result.csv") resultTaxonomyRecordsCSVTable
               resultSummary modelConstructionResults staticOptions

@@ -14,6 +14,8 @@ data StaticOptions = StaticOptions
     nSCICutoff :: Double,
     userTaxId :: Maybe Int,
     singleHitperTaxToggle :: Bool,
+    querySelectionMethod :: String,
+    queryNumber :: Int,
     lengthFilterToggle :: Bool,
     coverageFilterToggle :: Bool,
     cpuThreads :: Int,
