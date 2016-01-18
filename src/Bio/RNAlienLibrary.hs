@@ -66,6 +66,8 @@ import Bio.RNAzParser
 import Network.HTTP
 import qualified Bio.RNAcodeParser as RC
 import Bio.RNAcentralHTTP
+import Data.Text as T
+import Data.Text.IO as TI
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 modelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
@@ -398,6 +400,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
   let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=5000&EXPECT=" ++ show expectThreshold
   let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
   let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) querySequences'  (Just (hitNumberQuery ++ entrezTaxFilter ++ registrationInfo)) (Just (5400000000 :: Int))
+  --appendFile "/scratch/egg/blasttest/queries" ("\nBlast query:\n"  ++ show blastQuery ++ "\n") 
   logVerboseMessage (verbositySwitch staticOptions) ("Sending blast query " ++ (show iterationnumber) ++ "\n") (tempDirPath staticOptions)
   blastOutput <- CE.catch (blastHTTP blastQuery)
                        (\e -> do let err = show (e :: CE.IOException)
@@ -1710,7 +1713,7 @@ evaluateConstructionResult staticOptions mCResult = do
     then do 
       let resultRNAz = tempDirPath staticOptions ++ "result.rnaz"
       let resultRNAcode = tempDirPath staticOptions ++ "result.rnacode"
-      rnazClustalpath <- preprocessClustalForRNAzExternal clustalFilepath reformatedClustalPath
+      rnazClustalpath <- preprocessClustalForRNAcodeExternal clustalFilepath reformatedClustalPath
       if isRight rnazClustalpath
         then do
           systemRNAz "-l" (fromRight rnazClustalpath) resultRNAz 
@@ -1765,15 +1768,31 @@ preprocessClustalForRNAzExternal clustalFilepath reformatedClustalPath = do
   system ("rnazSelectSeqs.pl " ++ reformatedClustalPath ++ " >" ++ selectedClustalpath)
   return (Right selectedClustalpath)
 
+-- | Call for external preprocessClustalForRNAcode - RNAcode additionally to RNAz requirements does not accept pipe,underscore, doublepoint symbols
+preprocessClustalForRNAcodeExternal :: String -> String -> IO (Either String String)
+preprocessClustalForRNAcodeExternal clustalFilepath reformatedClustalPath = do
+  clustalString <- TI.readFile clustalFilepath
+  --change clustal format for rnazSelectSeqs.pl
+  let clustalTextLines = T.lines clustalString
+  let headerClustalTextLines = T.unlines (take 3 clustalTextLines)
+  let headerlessClustalTextLines = T.unlines (drop 3 clustalTextLines)
+  let reformatedClustalText = T.map reformatAln headerlessClustalTextLines
+  TI.writeFile reformatedClustalPath (headerClustalTextLines ++ reformatedClustalText)
+  --select representative entries from result.Clustal with select_sequences
+  let selectedClustalpath = clustalFilepath ++ ".selected"
+  system ("rnazSelectSeqs.pl " ++ reformatedClustalPath ++ " >" ++ selectedClustalpath)
+  return (Right selectedClustalpath)
+
 -- | RNAz can process 500 sequences at max. Using rnazSelectSeqs to isolate representative sample. rnazSelectSeqs only accepts - gap characters, alignment is reformatted accordingly.
 preprocessClustalForRNAz :: String -> String -> IO (Either String String)
 preprocessClustalForRNAz clustalFilepath reformatedClustalPath = do
-  clustalString <- readFile clustalFilepath
-  if length (lines clustalString) > 500
+  clustalText <- TI.readFile clustalFilepath
+  let clustalTextLines = T.lines clustalString
+  if length clustalTextLines > 500
     then do 
       --change clustal format for rnazSelectSeqs.pl
-      let reformatedClustalString = map reformatAln clustalString
-      writeFile reformatedClustalPath reformatedClustalString
+      let reformatedClustalString = T.map reformatAln clustalString
+      TI.writeFile reformatedClustalPath reformatedClustalString
       --select representative entries from result.Clustal with select_sequences
       let selectedClustalpath = clustalFilepath ++ ".selected"
       parsedClustalInput <- readClustalAlignment clustalFilepath
@@ -1784,6 +1803,7 @@ preprocessClustalForRNAz clustalFilepath reformatedClustalPath = do
           return (Right selectedClustalpath)
         else return (Left (show (fromLeft parsedClustalInput)))
     else return (Right clustalFilepath)
+
 
 -- Iteratively removes sequences with decreasing similarity until target number of alignment entries is reached.
 rnaZSelectSeqs :: ClustalAlignment -> Int -> Double -> ClustalAlignment
@@ -1796,6 +1816,8 @@ rnaZSelectSeqs currentClustalAlignment targetEntries identityCutoff
  
 reformatAln :: Char -> Char 
 reformatAln c
+  | c == ':' = '-'
+  | c == '|' = '-'
   | c == '.' = '-'
   | c == '~' = '-'
   | c == '_' = '-'
