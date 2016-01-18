@@ -66,8 +66,8 @@ import Bio.RNAzParser
 import Network.HTTP
 import qualified Bio.RNAcodeParser as RC
 import Bio.RNAcentralHTTP
-import Data.Text as T
-import Data.Text.IO as TI
+import qualified Data.Text as T
+import qualified Data.Text.IO as TI
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 modelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
@@ -1759,10 +1759,10 @@ showRNACodeHits rnacodeHit = show (RC.hss rnacodeHit) ++ "\t" ++ show (RC.frame 
 -- | Call for external preprocessClustalForRNAz
 preprocessClustalForRNAzExternal :: String -> String -> IO (Either String String)
 preprocessClustalForRNAzExternal clustalFilepath reformatedClustalPath = do
-  clustalString <- readFile clustalFilepath
+  clustalText <- TI.readFile clustalFilepath
   --change clustal format for rnazSelectSeqs.pl
-  let reformatedClustalString = map reformatAln clustalString
-  writeFile reformatedClustalPath reformatedClustalString
+  let reformatedClustalText = T.map reformatAln clustalText
+  TI.writeFile reformatedClustalPath reformatedClustalText
   --select representative entries from result.Clustal with select_sequences
   let selectedClustalpath = clustalFilepath ++ ".selected"
   system ("rnazSelectSeqs.pl " ++ reformatedClustalPath ++ " >" ++ selectedClustalpath)
@@ -1771,13 +1771,13 @@ preprocessClustalForRNAzExternal clustalFilepath reformatedClustalPath = do
 -- | Call for external preprocessClustalForRNAcode - RNAcode additionally to RNAz requirements does not accept pipe,underscore, doublepoint symbols
 preprocessClustalForRNAcodeExternal :: String -> String -> IO (Either String String)
 preprocessClustalForRNAcodeExternal clustalFilepath reformatedClustalPath = do
-  clustalString <- TI.readFile clustalFilepath
+  clustalText <- TI.readFile clustalFilepath
   --change clustal format for rnazSelectSeqs.pl
-  let clustalTextLines = T.lines clustalString
+  let clustalTextLines = T.lines clustalText
   let headerClustalTextLines = T.unlines (take 3 clustalTextLines)
   let headerlessClustalTextLines = T.unlines (drop 3 clustalTextLines)
-  let reformatedClustalText = T.map reformatAln headerlessClustalTextLines
-  TI.writeFile reformatedClustalPath (headerClustalTextLines ++ reformatedClustalText)
+  let reformatedClustalText = T.map reformatRNACodeAln headerlessClustalTextLines
+  TI.writeFile reformatedClustalPath (headerClustalTextLines `T.append` (T.singleton '\n') `T.append` reformatedClustalText)
   --select representative entries from result.Clustal with select_sequences
   let selectedClustalpath = clustalFilepath ++ ".selected"
   system ("rnazSelectSeqs.pl " ++ reformatedClustalPath ++ " >" ++ selectedClustalpath)
@@ -1787,11 +1787,11 @@ preprocessClustalForRNAcodeExternal clustalFilepath reformatedClustalPath = do
 preprocessClustalForRNAz :: String -> String -> IO (Either String String)
 preprocessClustalForRNAz clustalFilepath reformatedClustalPath = do
   clustalText <- TI.readFile clustalFilepath
-  let clustalTextLines = T.lines clustalString
+  let clustalTextLines = T.lines clustalText
   if length clustalTextLines > 500
     then do 
       --change clustal format for rnazSelectSeqs.pl
-      let reformatedClustalString = T.map reformatAln clustalString
+      let reformatedClustalString = T.map reformatAln clustalText
       TI.writeFile reformatedClustalPath reformatedClustalString
       --select representative entries from result.Clustal with select_sequences
       let selectedClustalpath = clustalFilepath ++ ".selected"
@@ -1813,11 +1813,23 @@ rnaZSelectSeqs currentClustalAlignment targetEntries identityCutoff
   where numberOfEntries =  length (alignmentEntries currentClustalAlignment) 
         filteredEntries = filterIdenticalAlignmentEntry (alignmentEntries currentClustalAlignment) identityCutoff 
         filteredAlignment = ClustalAlignment filteredEntries (conservationTrack currentClustalAlignment)
- 
-reformatAln :: Char -> Char 
-reformatAln c
+
+reformatRNACodeAln :: Char -> Char 
+reformatRNACodeAln c
   | c == ':' = '-'
   | c == '|' = '-'
+  | c == '.' = '-'
+  | c == '~' = '-'
+  | c == '_' = '-'
+  | c == 'u' = 'U'
+  | c == 't' = 'T'
+  | c == 'g' = 'G'
+  | c == 'c' = 'C'
+  | c == 'a' = 'A'
+  | otherwise = c
+
+reformatAln :: Char -> Char 
+reformatAln c
   | c == '.' = '-'
   | c == '~' = '-'
   | c == '_' = '-'
