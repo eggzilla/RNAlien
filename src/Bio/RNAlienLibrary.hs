@@ -253,6 +253,7 @@ reevaluatePotentialMembers staticOptions modelConstruction = do
       let lastIterationAlignmentPath = outputDirectory ++ show (currentIterationNumber - 1)  ++ "/model.stockholm"
       let lastIterationCMPath = outputDirectory ++ show (currentIterationNumber - 1)++ "/model.cm"
       copyFile lastIterationCMPath resultCMPath
+      --copyFile lastIterationCMPath (resultCMPath ++ ".bak1")
       copyFile lastIterationFastaPath resultFastaPath
       copyFile lastIterationAlignmentPath resultAlignmentPath
       _ <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath
@@ -266,8 +267,10 @@ reevaluatePotentialMembers staticOptions modelConstruction = do
       let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults Nothing Nothing [] [] (alignmentModeInfernal modelConstruction)
       constructModel nextModelConstructionInput staticOptions
       copyFile lastIterationCMPath resultCMPath
+      --debug
+      --copyFile lastIterationCMPath (resultCMPath ++ ".bak2")
       copyFile lastIterationFastaPath resultFastaPath
-      copyFile lastIterationAlignmentPath resultAlignmentPath 
+      copyFile lastIterationAlignmentPath resultAlignmentPath
       logMessage (iterationSummaryLog nextModelConstructionInput) outputDirectory
       logVerboseMessage (verbositySwitch staticOptions) (show nextModelConstructionInput) outputDirectory
       _ <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath
@@ -1703,6 +1706,8 @@ evaluateConstructionResult staticOptions mCResult = do
   let resultNumber = length resultSequences + 1 
   let rnaCentralQueries = map buildSequenceViaMD5Query resultSequences    
   rnaCentralEntries <- getRNACentralEntries rnaCentralQueries
+  --debugging for rnacentral output
+  --writeFile (tempDirPath staticOptions ++ "rnacentrallefts")  (concatMap show (lefts rnaCentralEntries))
   let rnaCentralEvaluationResult = showRNAcentralAlienEvaluation rnaCentralEntries
   systemCMalign ("--outformat=Clustal --cpu " ++ show (cpuThreads staticOptions)) cmFilepath fastaFilepath clustalFilepath
   let resultModelStatistics = tempDirPath staticOptions ++ "result.cmstat"
@@ -1774,8 +1779,8 @@ preprocessClustalForRNAcodeExternal clustalFilepath reformatedClustalPath = do
   clustalText <- TI.readFile clustalFilepath
   --change clustal format for rnazSelectSeqs.pl
   let clustalTextLines = T.lines clustalText
-  let headerClustalTextLines = T.unlines (take 3 clustalTextLines)
-  let headerlessClustalTextLines = T.unlines (drop 3 clustalTextLines)
+  let headerClustalTextLines = T.unlines (take 2 clustalTextLines)
+  let headerlessClustalTextLines = T.unlines (drop 2 clustalTextLines)
   let reformatedClustalText = T.map reformatRNACodeAln headerlessClustalTextLines
   TI.writeFile reformatedClustalPath (headerClustalTextLines `T.append` (T.singleton '\n') `T.append` reformatedClustalText)
   --select representative entries from result.Clustal with select_sequences
