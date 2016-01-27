@@ -64,17 +64,14 @@ data SequenceRecord = SequenceRecord
     nucleotideSequence :: Sequence,
     -- 0 is unaligned, number is the iteration the sequence has been included into the alignment
     aligned  :: Int,
-    recordDescription :: L.ByteString,
-    -- Is the sequence derived from the blast hit coordinates (B) or from a corresponding genbank feature (G)
-    sequenceOrigin :: Char    
+    recordDescription :: L.ByteString   
   } 
 
 instance Show SequenceRecord where
-  show (SequenceRecord _nucleotideSequence _aligned _recordDescription _sequenceOrigin) = a ++ b ++ c ++ d 
-    where a = "SequenceRecord TaxonomyId: " ++ show _recordDescription ++ "\n" 
-          b = "Sequence Origin: " ++ (L.unpack _recordDescription) ++ "\n" 
-          c = "Aligned in iteration: " ++ show _aligned ++ "\n" 
-          d = "Sequence Origin: " ++ show _nucleotideSequence ++ "\n"
+  show (SequenceRecord _nucleotideSequence _aligned _recordDescription) = a ++ b ++ c 
+    where a = "Record Description: " ++ (L.unpack _recordDescription) ++ "\n" 
+          b = "Aligned in iteration: " ++ show _aligned ++ "\n" 
+          c = "Sequence:" ++ show _nucleotideSequence ++ "\n" 
 -- |  
 data CMsearch = CMsearch
   { queryCMfile :: String,
@@ -103,7 +100,7 @@ data CMsearchHit = CMsearchHit
   } deriving (Show, Eq, Read) 
 
 data SearchResult = SearchResult
-  { candidates :: [(Sequence,Int,L.ByteString,Char)],
+  { candidates :: [(Sequence,Int,L.ByteString)],
     blastDatabaseSize :: Maybe Double
   }
 
