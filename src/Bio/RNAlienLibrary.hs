@@ -46,7 +46,6 @@ import Bio.Taxonomy
 import Data.Either.Unwrap
 import Data.Maybe
 import Bio.EntrezHTTP 
-import qualified Data.List.Split as DS
 import System.Exit
 import Data.Either (lefts,rights)
 import qualified Text.EditDistance as ED   
@@ -798,16 +797,11 @@ filterIdenticalAlignmentEntry (headEntry:rest) identitycutoff = result
         result = headEntry:filterIdenticalAlignmentEntry filteredEntries identitycutoff
 filterIdenticalAlignmentEntry [] _ = []
 
-
 isUnSimilarSequence :: [Sequence] -> Double -> Sequence -> Bool
 isUnSimilarSequence collectedSequences identitycutoff checkSequence = any (\ x -> (sequenceIdentity checkSequence x) < identitycutoff) collectedSequences
-
-                 
+                
 firstOfTriple :: (t, t1, t2) -> t
 firstOfTriple (a,_,_) = a 
-
-firstOfQuadruple :: (t, t1, t2, t3) -> t
-firstOfQuadruple (a,_,_,_) = a 
 
 -- | Check if the result field of BlastResult is filled and if hits are present
 blastMatchesPresent :: BlastResult -> Bool

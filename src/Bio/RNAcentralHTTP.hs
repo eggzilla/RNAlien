@@ -23,15 +23,15 @@ import qualified Data.Digest.Pure.MD5 as M
 import Bio.Core.Sequence 
 import Bio.Sequence.Fasta
 import Data.Either
-import Data.Aeson.Types
+--import Data.Aeson.Types
 
 --Datatypes
 -- | Data structure for RNAcentral entry response
 data RNAcentralEntryResponse = RNAcentralEntryResponse
   {
-    count :: Int,
-    next :: Maybe Text,
-    previous :: Maybe Text,
+    _count :: Int,
+    _next :: Maybe Text,
+    _previous :: Maybe Text,
     results :: [RNAcentralEntry]
   }
   deriving (Show, Eq, Generic)
@@ -44,13 +44,13 @@ instance FromJSON RNAcentralEntryResponse
 
 data RNAcentralEntry = RNAcentralEntry
   {
-    url :: Text,
+    _url :: Text,
     rnacentral_id :: Text,
     md5 :: Text,
-    sequence :: Text,
+    _sequence :: Text,
     length :: Int,
-    xrefs :: Text,
-    publications :: Text
+    _xrefs :: Text,
+    _publications :: Text
   }
   deriving (Show, Eq, Generic)
 
