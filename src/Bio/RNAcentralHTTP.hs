@@ -23,7 +23,7 @@ import qualified Data.Digest.Pure.MD5 as M
 import Bio.Core.Sequence 
 import Bio.Sequence.Fasta
 import Data.Either
---import Data.Aeson.Types
+import Data.Aeson.Types
 
 --Datatypes
 -- | Data structure for RNAcentral entry response
