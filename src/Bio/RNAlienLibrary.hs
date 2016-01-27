@@ -68,6 +68,7 @@ import qualified Bio.RNAcodeParser as RC
 import Bio.RNAcentralHTTP
 import qualified Data.Text as T
 import qualified Data.Text.IO as TI
+import qualified Data.Text.Encoding as DTE
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 modelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
@@ -477,7 +478,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
 computeDataBaseSize :: Double -> Double -> Double -> Double 
 computeDataBaseSize evalue bitscore querylength = ((evalue * 2 ** bitscore) / querylength)/10^(6 :: Integer)
 
-alignCandidates :: StaticOptions -> ModelConstruction -> String -> SearchResult -> IO ([(Sequence,Int,String,Char)],[(Sequence,Int,String,Char)])
+alignCandidates :: StaticOptions -> ModelConstruction -> String -> SearchResult -> IO ([(Sequence,Int,L.ByteString,Char)],[(Sequence,Int,L.ByteString,Char)])
 alignCandidates staticOptions modelConstruction multipleSearchResultPrefix searchResults = do
   let iterationDirectory = tempDirPath staticOptions ++ show (iterationNumber modelConstruction) ++ "/" ++ multipleSearchResultPrefix
   createDirectoryIfMissing False (iterationDirectory ++ "log")
@@ -495,7 +496,7 @@ alignCandidates staticOptions modelConstruction multipleSearchResultPrefix searc
         then alignCandidatesInfernalMode staticOptions modelConstruction multipleSearchResultPrefix (blastDatabaseSize searchResults) filteredCandidates
         else alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultPrefix filteredCandidates
 
-alignCandidatesInfernalMode :: StaticOptions -> ModelConstruction -> String -> Maybe Double -> [(Sequence,Int,String,Char)] -> IO ([(Sequence,Int,String,Char)],[(Sequence,Int,String,Char)])
+alignCandidatesInfernalMode :: StaticOptions -> ModelConstruction -> String -> Maybe Double -> [(Sequence,Int,L.ByteString,Char)] -> IO ([(Sequence,Int,L.ByteString,Char)],[(Sequence,Int,L.ByteString,Char)])
 alignCandidatesInfernalMode staticOptions modelConstruction multipleSearchResultPrefix blastDbSize filteredCandidates = do
   let iterationDirectory = tempDirPath staticOptions ++ show (iterationNumber modelConstruction) ++ "/" ++ multipleSearchResultPrefix
   let candidateSequences = extractCandidateSequences filteredCandidates 
@@ -519,7 +520,7 @@ alignCandidatesInfernalMode staticOptions modelConstruction multipleSearchResult
   writeFile (iterationDirectory ++ "log" ++ "/15potentialCandidates'") (showlines potentialCandidates)                                         
   CE.evaluate (map snd trimmedSelectedCandidates,map snd potentialCandidates)
 
-alignCandidatesInitialMode :: StaticOptions -> ModelConstruction -> String -> [(Sequence,Int,String,Char)] -> IO ([(Sequence,Int,String,Char)],[(Sequence,Int,String,Char)])
+alignCandidatesInitialMode :: StaticOptions -> ModelConstruction -> String -> [(Sequence,Int,L.ByteString,Char)] -> IO ([(Sequence,Int,L.ByteString,Char)],[(Sequence,Int,L.ByteString,Char)])
 alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultPrefix filteredCandidates = do
   let iterationDirectory = tempDirPath staticOptions ++ show (iterationNumber modelConstruction) ++ "/" ++ multipleSearchResultPrefix
   --writeFile (iterationDirectory ++ "log" ++ "/11bcandidates") (showlines filteredCandidates)
@@ -575,7 +576,7 @@ findCutoffforClusterNumber clustaloDendrogram numberOfClusters currentCutoff
     where currentClusterNumber = length (cutAt clustaloDendrogram currentCutoff)
 
 -- Selects Query sequence ids from all collected seqeuences. Queries are then fetched by extractQueries function.
-selectQueries :: StaticOptions -> ModelConstruction -> [(Sequence,Int,String,Char)] -> IO [String]
+selectQueries :: StaticOptions -> ModelConstruction -> [(Sequence,Int,L.ByteString,Char)] -> IO [String]
 selectQueries staticOptions modelConstruction selectedCandidates = do
   logVerboseMessage (verbositySwitch staticOptions) "SelectQueries\n" (tempDirPath staticOptions)
   --Extract sequences from modelconstruction
@@ -772,14 +773,14 @@ filterDuplicates modelConstruction inputSearchResult = uniqueSearchResult
 --filterIdenticalSequencesWithOrigin [] _ = []
 
 -- | Filter a list of similar extended blast hits   
-filterIdenticalSequences :: [(Sequence,Int,String)] -> Double -> [(Sequence,Int,String)]                            
+filterIdenticalSequences :: [(Sequence,Int,L.ByteString)] -> Double -> [(Sequence,Int,L.ByteString)] 
 filterIdenticalSequences (headSequence:rest) identitycutoff = result
   where filteredSequences = filter (\x -> sequenceIdentity (firstOfTriple headSequence) (firstOfTriple x) < identitycutoff) rest 
         result = headSequence:filterIdenticalSequences filteredSequences identitycutoff
 filterIdenticalSequences [] _ = []
 
 -- | Filter sequences too similar to already aligned sequences
-filterWithCollectedSequences :: [(Sequence,Int,String,Char)] -> [Sequence] -> Double -> [(Sequence,Int,String,Char)]                            
+filterWithCollectedSequences :: [(Sequence,Int,L.ByteString,Char)] -> [Sequence] -> Double -> [(Sequence,Int,L.ByteString,Char)]                            
 filterWithCollectedSequences inputCandidates collectedSequences identitycutoff = filter (isUnSimilarSequence collectedSequences identitycutoff . firstOfQuadruple) inputCandidates 
 --filterWithCollectedSequences [] [] _ = []
 
@@ -859,7 +860,7 @@ raiseTaxIdLimitEntrez subTreeTaxId taxon = parentNodeTaxId
         --the input taxid is not part of the lineage, therefor we look for further taxids in the lineage after we used the parent tax id of the input node
         parentNodeTaxId = if subTreeTaxId == taxonTaxId taxon then Just (taxonParentTaxId taxon) else linageNodeTaxId
        
-constructNext :: Int -> ModelConstruction -> [(Sequence, Int, String, Char)] -> Maybe Int -> Maybe Taxon  -> [String] -> [SearchResult] -> Bool -> ModelConstruction
+constructNext :: Int -> ModelConstruction -> [(Sequence,Int,L.ByteString,Char)] -> Maybe Int -> Maybe Taxon  -> [String] -> [SearchResult] -> Bool -> ModelConstruction
 constructNext currentIterationNumber modelconstruction alignmentResults upperTaxLimit inputTaxonomicContext inputSelectedQueries inputPotentialMembers toggleInfernalAlignmentModeTrue = nextModelConstruction
   where newIterationNumber = currentIterationNumber + 1
         taxEntries = taxRecords modelconstruction ++ buildTaxRecords alignmentResults currentIterationNumber
@@ -867,25 +868,25 @@ constructNext currentIterationNumber modelconstruction alignmentResults upperTax
         currentAlignmentMode = toggleInfernalAlignmentModeTrue || alignmentModeInfernal modelconstruction
         nextModelConstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) taxEntries upperTaxLimit inputTaxonomicContext (evalueThreshold modelconstruction) currentAlignmentMode inputSelectedQueries potMembers
          
-buildTaxRecords :: [(Sequence,Int,String,Char)] -> Int -> [TaxonomyRecord]
+buildTaxRecords :: [(Sequence,Int,L.ByteString,Char)] -> Int -> [TaxonomyRecord]
 buildTaxRecords alignmentResults currentIterationNumber = taxonomyRecords
   where taxIdGroups = groupBy sameTaxIdAlignmentResult alignmentResults
         taxonomyRecords = map (buildTaxRecord currentIterationNumber) taxIdGroups    
 
-sameTaxIdAlignmentResult :: (Sequence,Int,String,Char) -> (Sequence,Int,String,Char) -> Bool
+sameTaxIdAlignmentResult :: (Sequence,Int,L.ByteString,Char) -> (Sequence,Int,L.ByteString,Char) -> Bool
 sameTaxIdAlignmentResult (_,taxId1,_,_) (_,taxId2,_,_) = taxId1 == taxId2
 
-buildTaxRecord :: Int -> [(Sequence,Int,String,Char)] -> TaxonomyRecord
+buildTaxRecord :: Int -> [(Sequence,Int,L.ByteString,Char)] -> TaxonomyRecord
 buildTaxRecord currentIterationNumber entries = taxRecord
   where recordTaxId = (\(_,currentTaxonomyId,_,_) -> currentTaxonomyId) (head entries)
         seqRecords = map (buildSeqRecord currentIterationNumber)  entries
         taxRecord = TaxonomyRecord recordTaxId seqRecords
 
-buildSeqRecord :: Int -> (Sequence,Int,String,Char) -> SequenceRecord 
+buildSeqRecord :: Int -> (Sequence,Int,L.ByteString,Char) -> SequenceRecord 
 buildSeqRecord currentIterationNumber (parsedFasta,_,seqSubject,seqOrigin) = SequenceRecord parsedFasta currentIterationNumber seqSubject seqOrigin   
 
 -- | Partitions sequences by containing a cmsearch hit and extracts the hit region as new sequence
-evaluePartitionTrimCMsearchHits :: Double -> [(CMsearch,(Sequence, Int, String, Char))] -> ([(CMsearch,(Sequence, Int, String, Char))],[(CMsearch,(Sequence, Int, String, Char))],[(CMsearch,(Sequence, Int, String, Char))])
+evaluePartitionTrimCMsearchHits :: Double -> [(CMsearch,(Sequence, Int, L.ByteString, Char))] -> ([(CMsearch,(Sequence, Int, L.ByteString, Char))],[(CMsearch,(Sequence, Int, L.ByteString, Char))],[(CMsearch,(Sequence, Int, L.ByteString, Char))])
 evaluePartitionTrimCMsearchHits eValueThreshold cmSearchCandidatesWithSequences = (trimmedSelectedCandidates,potentialCandidates,rejectedCandidates)
   where potentialMemberseValueThreshold = eValueThreshold * 1000
         (prefilteredCandidates,rejectedCandidates) = partition (\(cmSearchResult,_) -> any (\hitScore' -> potentialMemberseValueThreshold >= hitEvalue hitScore') (cmsearchHits cmSearchResult)) cmSearchCandidatesWithSequences
@@ -893,7 +894,7 @@ evaluePartitionTrimCMsearchHits eValueThreshold cmSearchCandidatesWithSequences 
         trimmedSelectedCandidates = map (\(cmSearchResult,inputSequence) -> (cmSearchResult,trimCMsearchHit cmSearchResult inputSequence)) selectedCandidates
         
         
-trimCMsearchHit :: CMsearch -> (Sequence, Int, String, Char) -> (Sequence, Int, String, Char)
+trimCMsearchHit :: CMsearch -> (Sequence, Int, L.ByteString, Char) -> (Sequence, Int, L.ByteString, Char)
 trimCMsearchHit cmSearchResult (inputSequence,b,c,d) = (subSequence,b,c,d)
   where hitScoreEntry = head (cmsearchHits cmSearchResult)
         sequenceString = L.unpack (unSD (seqdata inputSequence))
@@ -921,7 +922,7 @@ extractQueries foundSequenceNumber modelconstruction
         alignedSequences = fastaSeqData:map nucleotideSequence (concatMap sequenceRecords (taxRecords modelconstruction)) 
         querySequences' = concatMap (\querySeqId -> filter (\alignedSeq -> L.unpack (unSL (seqid alignedSeq)) == querySeqId) alignedSequences) querySeqIds
         
-extractQueryCandidates :: [(Sequence,Int,String,Char)] -> V.Vector (Int,Sequence)
+extractQueryCandidates :: [(Sequence,Int,L.ByteString,Char)] -> V.Vector (Int,Sequence)
 extractQueryCandidates querycandidates = indexedSeqences
   where sequences = map (\(candidateSequence,_,_,_) -> candidateSequence) querycandidates
         indexedSeqences = V.map (\(number,candidateSequence) -> (number + 1,candidateSequence))(V.indexed (V.fromList sequences))
@@ -1249,7 +1250,7 @@ genParserCMstat = do
   eof  
   return $ CMstat (readInt _statIndex) _statName _statAccession (readInt _statSequenceNumber) (readDouble _statEffectiveSequences) (readInt _statConsensusLength) (readInt _statW) (readInt _statBasepaires) (readInt _statBifurcations) _statModel (readDouble _relativeEntropyCM) (readDouble _relativeEntropyHMM)
    
-extractCandidateSequences :: [(Sequence,Int,String,Char)] -> V.Vector (Int,Sequence)
+extractCandidateSequences :: [(Sequence,Int,L.ByteString,Char)] -> V.Vector (Int,Sequence)
 extractCandidateSequences candidates' = indexedSeqences
   where sequences = map (\(inputSequence,_,_,_) -> inputSequence) candidates'
         indexedSeqences = V.map (\(number,inputSequence) -> (number + 1,inputSequence))(V.indexed (V.fromList sequences))
@@ -1306,9 +1307,8 @@ coverageCheck queryLength blastHit = coverageStatus
          maxIdentity = fromIntegral (maximum (map (snd . Bio.BlastXML.identity) blastMatches))
          coverageStatus = (maxIdentity/(fromIntegral queryLength))* (100 :: Double) >= (80 :: Double)
          
-  
 -- | Wrapper for retrieveFullSequence that rerequests incomplete return sequees
-retrieveFullSequences :: StaticOptions -> [(String,Int,Int,String,String,Int,String)] -> IO [(Sequence,Int,String)]
+retrieveFullSequences :: StaticOptions -> [(String,Int,Int,String,T.Text,Int,L.ByteString)] -> IO [(Sequence,Int,L.ByteString)]
 retrieveFullSequences staticOptions requestedSequences = do
   fullSequences <- mapM (retrieveFullSequence (tempDirPath staticOptions)) requestedSequences
   if any (isNothing . firstOfTriple) fullSequences
@@ -1324,7 +1324,7 @@ retrieveFullSequences staticOptions requestedSequences = do
       CE.evaluate unwrappedRetrievals
     else CE.evaluate (map (\(x,y,z) -> (fromJust x,y,z)) fullSequences)
         
-retrieveFullSequence :: String -> (String,Int,Int,String,String,Int,String) -> IO (Maybe Sequence,Int,String)
+retrieveFullSequence :: String -> (String,Int,Int,String,T.Text,Int,L.ByteString) -> IO (Maybe Sequence,Int,L.ByteString)
 retrieveFullSequence temporaryDirectoryPath (nucleotideId,seqStart,seqStop,strand,_,taxid,subject') = do
   let program' = Just "efetch"
   let database' = Just "nucleotide"
@@ -1346,7 +1346,7 @@ retrieveFullSequence temporaryDirectoryPath (nucleotideId,seqStart,seqStop,stran
             then return (Nothing,taxid,subject')
             else CE.evaluate (Just parsedFasta,taxid,subject')
  
-getRequestedSequenceElement :: Int -> (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
+getRequestedSequenceElement :: Int -> (BlastHit,Int) -> (String,Int,Int,String,T.Text,Int,L.ByteString)
 getRequestedSequenceElement queryLength (blastHit,taxid) 
   | blastHitIsReverseComplement (blastHit,taxid) = getReverseRequestedSequenceElement queryLength (blastHit,taxid)
   | otherwise = getForwardRequestedSequenceElement queryLength (blastHit,taxid)
@@ -1358,11 +1358,11 @@ blastHitIsReverseComplement (blastHit,_) = isReverse
         firstHSPto = h_to blastMatch
         isReverse = firstHSPfrom > firstHSPto
 
-getForwardRequestedSequenceElement :: Int -> (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
+getForwardRequestedSequenceElement :: Int -> (BlastHit,Int) -> (String,Int,Int,String,T.Text,Int,L.ByteString)
 getForwardRequestedSequenceElement queryLength (blastHit,taxid) = (geneIdentifier',startcoordinate,endcoordinate,strand,accession',taxid,subjectBlast)
-   where    accession' = L.unpack (extractAccession blastHit)
-            subjectBlast = L.unpack (unSL (subject blastHit))
-            geneIdentifier' = extractGeneId blastHit--
+   where    accession' = extractAccession blastHit
+            subjectBlast = unSL (subject blastHit)
+            geneIdentifier' = extractGeneId blastHit
             blastMatch = head (matches blastHit)
             blastHitOriginSequenceLength = slength blastHit
             minHfrom = h_from blastMatch
@@ -1401,10 +1401,10 @@ upperBoundryCoordinateSetter upperBoundry currentValue
   | currentValue > upperBoundry = upperBoundry
   | otherwise = currentValue
 
-getReverseRequestedSequenceElement :: Int -> (BlastHit,Int) -> (String,Int,Int,String,String,Int,String)
+getReverseRequestedSequenceElement :: Int -> (BlastHit,Int) -> (String,Int,Int,String,T.Text,Int,L.ByteString)
 getReverseRequestedSequenceElement queryLength (blastHit,taxid) = (geneIdentifier',startcoordinate,endcoordinate,strand,accession',taxid,subjectBlast)
-   where   accession' = L.unpack (extractAccession blastHit)
-           subjectBlast = L.unpack (unSL (subject blastHit))           
+   where   accession' = extractAccession blastHit
+           subjectBlast = unSL (subject blastHit)        
            geneIdentifier' = extractGeneId blastHit
            blastMatch = head (matches blastHit)
            blastHitOriginSequenceLength = slength blastHit               
@@ -1601,10 +1601,10 @@ extractTaxIdFromEntrySummaries input
         hitTaxIdStrings = map extractTaxIdfromDocumentSummary blastHitSummaries
         hitTaxIds = map readInt hitTaxIdStrings
 
-extractAccession :: BlastHit -> L.ByteString
+extractAccession :: BlastHit -> T.Text
 extractAccession currentBlastHit = accession'
-  where splitedFields = DS.splitOn "|" (L.unpack (hitId currentBlastHit))
-        accession' =  L.pack (splitedFields !! 3) 
+  where splitedFields = T.splitOn (T.pack "|") (DTE.decodeUtf8 (L.toStrict (hitId currentBlastHit)))
+        accession' =  splitedFields !! 3
         
 extractGeneId :: BlastHit -> String
 extractGeneId currentBlastHit = nucleotideId

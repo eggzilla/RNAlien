@@ -64,7 +64,7 @@ data SequenceRecord = SequenceRecord
     nucleotideSequence :: Sequence,
     -- 0 is unaligned, number is the iteration the sequence has been included into the alignment
     aligned  :: Int,
-    recordDescription :: String,
+    recordDescription :: L.ByteString,
     -- Is the sequence derived from the blast hit coordinates (B) or from a corresponding genbank feature (G)
     sequenceOrigin :: Char    
   } 
@@ -72,7 +72,7 @@ data SequenceRecord = SequenceRecord
 instance Show SequenceRecord where
   show (SequenceRecord _nucleotideSequence _aligned _recordDescription _sequenceOrigin) = a ++ b ++ c ++ d 
     where a = "SequenceRecord TaxonomyId: " ++ show _recordDescription ++ "\n" 
-          b = "Sequence Origin: " ++ _recordDescription ++ "\n" 
+          b = "Sequence Origin: " ++ (L.unpack _recordDescription) ++ "\n" 
           c = "Aligned in iteration: " ++ show _aligned ++ "\n" 
           d = "Sequence Origin: " ++ show _nucleotideSequence ++ "\n"
 -- |  
@@ -103,7 +103,7 @@ data CMsearchHit = CMsearchHit
   } deriving (Show, Eq, Read) 
 
 data SearchResult = SearchResult
-  { candidates :: [(Sequence,Int,String,Char)],
+  { candidates :: [(Sequence,Int,L.ByteString,Char)],
     blastDatabaseSize :: Maybe Double
   }
 
