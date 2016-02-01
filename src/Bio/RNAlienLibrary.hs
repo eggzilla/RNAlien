@@ -433,7 +433,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
        let blastHitsFilteredByCoverage = filterByCoverage blastHitsFilteredByLength queryLength (coverageFilterToggle staticOptions)
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_3ablastHitsFilteredByLength") (showlines blastHitsFilteredByCoverage)
        --tag BlastHits with TaxId
-       blastHitsWithTaxIdOutput <- retrieveBlastHitsTaxIdEntrez blastHitsFilteredByLength
+       blastHitsWithTaxIdOutput <- retrieveBlastHitsTaxIdEntrez blastHitsFilteredByCoverage
        let uncheckedBlastHitsWithTaxIdList = map (\(blasthits,taxIdout) -> (blasthits,extractTaxIdFromEntrySummaries taxIdout)) blastHitsWithTaxIdOutput
        let checkedBlastHitsWithTaxId = filter (\(_,taxids) -> not (null taxids)) uncheckedBlastHitsWithTaxIdList
        --todo checked blasthittaxidswithblasthits need to be merged as taxid blasthit pairs
