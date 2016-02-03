@@ -47,7 +47,7 @@ import Data.Either.Unwrap
 import Data.Maybe
 import Bio.EntrezHTTP 
 import System.Exit
-import Data.Either (lefts,rights)
+import Data.Either (lefts,rights,Either)
 import qualified Text.EditDistance as ED   
 import qualified Data.Vector as V
 import Control.Concurrent 
@@ -996,7 +996,7 @@ systemCMcalibrate mode cpus covarianceModelPath outputPath
 systemCMalign :: String -> String -> String -> String -> IO ExitCode 
 systemCMalign options filePathCovarianceModel filePathSequence filePathAlignment = system ("cmalign " ++ options ++ " " ++ filePathCovarianceModel ++ " " ++ filePathSequence ++ "> " ++ filePathAlignment)
 
-compareCM :: String -> String -> String -> IO Double
+compareCM :: String -> String -> String -> IO (Either String Double)
 compareCM rfamCMPath resultCMpath outputDirectory = do
   let myOptions = defaultDecodeOptions {
       decDelimiter = fromIntegral (ord ' ')
@@ -1012,7 +1012,7 @@ compareCM rfamCMPath resultCMpath outputDirectory = do
   let bitscore1 = read (decodedCmCompareOutput !! 2) :: Double
   let bitscore2 = read (decodedCmCompareOutput !! 3) :: Double
   let minmax = minimum [bitscore1,bitscore2]
-  return minmax
+  return (Right minmax)
                                                                  
 readInt :: String -> Int
 readInt = read

@@ -2,7 +2,7 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 
 -- | Statistics for RNAlien Results
--- dist/build/RNAlienStatistics/RNAlienStatistics -i /scratch/egg/temp/cm13676/1/model.cm -r /home/mescalin/egg/current/Data/AlienTest/cms/BsrG.cm -g /scratch/egg/temp/AlienSearch/genomes/ -o /scratch/egg/temp/AlienStatistics
+-- dist/build/RNAlienStatistics/RNAlienStatistics -s bitscore -i /scratch/egg/temp/cm13676/1/model.cm -r /home/mescalin/egg/current/Data/AlienTest/cms/BsrG.cm -g /scratch/egg/temp/AlienSearch/genomes/ -o /scratch/egg/temp/AlienStatistics
 module Main where
     
 import System.Console.CmdArgs      
@@ -32,6 +32,8 @@ data Options = Options
     alienThreshold :: Double,
     outputDirectoryPath :: String,
     benchmarkIndex :: Int,
+    thresholdSelection :: String,
+    linkScores :: Bool,
     threads :: Int
   } deriving (Show,Data,Typeable)
 
@@ -49,12 +51,14 @@ options = Options
     alienThreshold = 20 &= name "t" &= help "Bitscore threshold for RNAlien model hits on Rfam fasta, default 20",
     rfamThreshold = 20 &= name "x" &= help "Bitscore threshold for Rfam model hits on Alien fasta, default 20",
     benchmarkIndex = 1 &= name "b" &= help "Index used to identify sRNA tagged RNA families",
+    thresholdSelection = "bitscore" &= name "s" &= help "Selection method, (bitscore, evalue), default bitscore",
+    linkScores = False &= name "l" &= help "Triggers computation of linkscores via CMCompare",
     threads = 1 &= name "c" &= help "Number of available cpu slots/cores, default 1"
-  } &= summary "RNAlienStatistics devel version" &= help "Florian Eggenhofer - >2013" &= verbosity       
+  } &= summary "RNAlienStatistics" &= help "Florian Eggenhofer - >2013" &= verbosity       
 
 --cmSearchFasta threads rfamCovarianceModelPath outputDirectoryPath "Rfam" False genomesDirectoryPath
-cmSearchFasta :: Int -> Double -> Int -> String -> String -> String -> String -> IO [CMsearchHit]
-cmSearchFasta benchmarkIndex thresholdScore cpuThreads covarianceModelPath outputDirectory modelType fastapath = do
+cmSearchFasta :: Int -> String -> Double -> Int -> String -> String -> String -> String -> IO [CMsearchHit]
+cmSearchFasta benchmarkIndex thresholdSelection thresholdScore cpuThreads covarianceModelPath outputDirectory modelType fastapath = do
   createDirectoryIfMissing False (outputDirectory ++ "/" ++ modelType)
   _ <- systemCMsearch cpuThreads "" covarianceModelPath fastapath (outputDirectory ++ "/" ++ modelType ++ "/" ++ (show benchmarkIndex) ++ ".cmsearch")
   result <- readCMSearch (outputDirectory ++ "/" ++ modelType ++ "/" ++ (show benchmarkIndex) ++ ".cmsearch")
@@ -64,13 +68,23 @@ cmSearchFasta benchmarkIndex thresholdScore cpuThreads covarianceModelPath outpu
        return []
      else do
        let rightResults = fromRight result
-       let (significantHits,_) = partitionCMsearchHitsByScore thresholdScore rightResults
+       let significantHits = filterCMsearchHits thresholdSelection thresholdScore rightResults
        let organismUniquesignificantHits = nubBy cmSearchSameOrganism significantHits
        return organismUniquesignificantHits
 
-partitionCMsearchHitsByScore :: Double -> CMsearch -> ([CMsearchHit],[CMsearchHit])
-partitionCMsearchHitsByScore thresholdScore cmSearchResult = (selected,rejected)
-  where (selected,rejected) = partition (\hit -> hitScore hit >= thresholdScore) (cmsearchHits cmSearchResult)
+filterCMsearchHits :: String -> Double -> CMsearch -> [CMsearchHit]
+filterCMsearchHits thresholdSelection thresholdScore cmSearchResult
+  | thresholdSelection == "bitscore" = bitscorefiltered
+  | otherwise =  evaluefiltered
+  where bitscorefiltered = filter (\hit -> hitScore hit >= thresholdScore) (cmsearchHits cmSearchResult)
+        evaluefiltered = filter (\hit -> hitEvalue hit <= thresholdScore) (cmsearchHits cmSearchResult)
+
+partitionCMsearchHits :: String -> Double -> CMsearch -> ([CMsearchHit],[CMsearchHit])
+partitionCMsearchHits thresholdSelection thresholdScore cmSearchResult
+  | thresholdSelection == "bitscore" = (bitscoreselected,bitscorerejected)
+  | otherwise =  (evalueselected,evaluerejected)
+  where (bitscoreselected,bitscorerejected) = partition (\hit -> hitScore hit >= thresholdScore) (cmsearchHits cmSearchResult)
+        (evalueselected,evaluerejected) = partition (\hit -> hitEvalue hit <= thresholdScore) (cmsearchHits cmSearchResult)
 
 trimCMsearchFastaFile :: String -> String -> String -> CMsearch -> String -> IO ()
 trimCMsearchFastaFile genomesDirectory outputFolder modelType cmsearch fastafile  = do
@@ -114,17 +128,19 @@ main = do
   if rfamModelExists
     then do
       --compute linkscore
-      linkscore <- compareCM rfamCovarianceModelPath alienCovarianceModelPath outputDirectoryPath
-      rfamMaxLinkScore <- compareCM rfamCovarianceModelPath rfamCovarianceModelPath outputDirectoryPath
-      alienMaxLinkscore <- compareCM alienCovarianceModelPath alienCovarianceModelPath outputDirectoryPath
+      linkscore <- if linkScores
+        then compareCM rfamCovarianceModelPath alienCovarianceModelPath outputDirectoryPath
+        else return (Left "-")
+      rfamMaxLinkScore <- if linkScores then compareCM rfamCovarianceModelPath rfamCovarianceModelPath outputDirectoryPath else return (Left "-")
+      alienMaxLinkscore <- if linkScores then compareCM alienCovarianceModelPath alienCovarianceModelPath outputDirectoryPath else return (Left "-")
       _ <- system ("cat " ++ rfamFastaFilePath ++ " | grep '>' | wc -l >" ++ outputDirectoryPath ++ FP.takeFileName rfamFastaFilePath ++ ".entries")
       _ <- system ("cat " ++ alienFastaFilePath ++ " | grep '>' | wc -l >" ++ outputDirectoryPath ++ FP.takeFileName alienFastaFilePath ++ ".entries")
       rfamFastaEntries <- readFile (outputDirectoryPath ++ FP.takeFileName rfamFastaFilePath ++ ".entries")
       alienFastaEntries <- readFile (outputDirectoryPath ++ FP.takeFileName alienFastaFilePath ++ ".entries")                    
       let rfamFastaEntriesNumber = read rfamFastaEntries :: Int
       let alienFastaEntriesNumber = read alienFastaEntries :: Int
-      rfamonAlienResults <- cmSearchFasta benchmarkIndex rfamThreshold threads rfamCovarianceModelPath outputDirectoryPath "rfamOnAlien" alienFastaFilePath 
-      alienonRfamResults <- cmSearchFasta benchmarkIndex alienThreshold threads alienCovarianceModelPath outputDirectoryPath "alienOnRfam" rfamFastaFilePath  
+      rfamonAlienResults <- cmSearchFasta benchmarkIndex thresholdSelection rfamThreshold threads rfamCovarianceModelPath outputDirectoryPath "rfamOnAlien" alienFastaFilePath 
+      alienonRfamResults <- cmSearchFasta benchmarkIndex thresholdSelection alienThreshold threads alienCovarianceModelPath outputDirectoryPath "alienOnRfam" rfamFastaFilePath  
       let rfamonAlienResultsNumber = length rfamonAlienResults
       let alienonRfamResultsNumber = length alienonRfamResults
       let rfamonAlienRecovery = (fromIntegral rfamonAlienResultsNumber :: Double) / (fromIntegral alienFastaEntriesNumber :: Double)
@@ -134,9 +150,9 @@ main = do
           putStrLn ("BenchmarkIndex: " ++ show benchmarkIndex)
           putStrLn ("RfamModelName: " ++ rfamModelName)
           putStrLn ("RfamModelId: " ++ rfamModelId)
-          putStrLn ("Linkscore: " ++ show linkscore)
-          putStrLn ("rfamMaxLinkScore: " ++ show rfamMaxLinkScore)
-          putStrLn ("alienMaxLinkscore: " ++ show alienMaxLinkscore)    
+          putStrLn ("Linkscore: " ++ (either id show linkscore))
+          putStrLn ("rfamMaxLinkScore: " ++ (either id show rfamMaxLinkScore))
+          putStrLn ("alienMaxLinkscore: " ++ (either id show alienMaxLinkscore))
           putStrLn ("rfamGatheringThreshold: " ++ show rfamThreshold)
           putStrLn ("alienGatheringThreshold: " ++ show alienThreshold) 
           putStrLn ("rfamFastaEntriesNumber: " ++ show rfamFastaEntriesNumber)
@@ -148,24 +164,13 @@ main = do
           print rnazString
           print cmStatString
         else do
-          putStrLn (show benchmarkIndex ++ "\t" ++ rfamModelName ++ "\t" ++ rfamModelId ++ "\t" ++ show linkscore ++ "\t" ++ show rfamMaxLinkScore ++ "\t" ++ show alienMaxLinkscore ++ "\t" ++ show rfamThreshold ++ "\t" ++ show alienThreshold ++ "\t" ++ show rfamFastaEntriesNumber ++ "\t" ++ show alienFastaEntriesNumber ++ "\t" ++ show rfamonAlienResultsNumber ++ "\t" ++ show alienonRfamResultsNumber ++ "\t" ++ printf "%.2f" rfamonAlienRecovery  ++ "\t" ++ printf "%.2f" alienonRfamRecovery ++ "\t" ++ rnazString ++ "\t" ++ cmStatString)
+          putStrLn (show benchmarkIndex ++ "\t" ++ rfamModelName ++ "\t" ++ rfamModelId ++ "\t" ++  (either id show linkscore) ++ "\t" ++  (either id show rfamMaxLinkScore) ++ "\t" ++ (either id show alienMaxLinkscore) ++ "\t" ++ show rfamThreshold ++ "\t" ++ show alienThreshold ++ "\t" ++ show rfamFastaEntriesNumber ++ "\t" ++ show alienFastaEntriesNumber ++ "\t" ++ show rfamonAlienResultsNumber ++ "\t" ++ show alienonRfamResultsNumber ++ "\t" ++ printf "%.2f" rfamonAlienRecovery  ++ "\t" ++ printf "%.2f" alienonRfamRecovery ++ "\t" ++ rnazString ++ "\t" ++ cmStatString)
     else do
       --compute linkscore
-      --linkscore <- compareCM rfamCovarianceModelPath alienCovarianceModelPath outputDirectoryPath
-      --rfamMaxLinkScore <- compareCM rfamCovarianceModelPath rfamCovarianceModelPath outputDirectoryPath
-      alienMaxLinkscore <- compareCM alienCovarianceModelPath alienCovarianceModelPath outputDirectoryPath
-      --_ <- system ("cat " ++ rfamFastaFilePath ++ " | grep '>' | wc -l >" ++ outputDirectoryPath ++ FP.takeFileName rfamFastaFilePath ++ ".entries")
+      alienMaxLinkscore <- if linkScores then compareCM alienCovarianceModelPath alienCovarianceModelPath outputDirectoryPath else return ( Left "-")
       _ <- system ("cat " ++ alienFastaFilePath ++ " | grep '>' | wc -l >" ++ outputDirectoryPath ++ FP.takeFileName alienFastaFilePath ++ ".entries")
-      --rfamFastaEntries <- readFile (outputDirectoryPath ++ FP.takeFileName rfamFastaFilePath ++ ".entries")
       alienFastaEntries <- readFile (outputDirectoryPath ++ FP.takeFileName alienFastaFilePath ++ ".entries")                    
-      --let rfamFastaEntriesNumber = read rfamFastaEntries :: Int
-      let alienFastaEntriesNumber = read alienFastaEntries :: Int
-      --rfamonAlienResults <- cmSearchFasta benchmarkIndex rfamThreshold threads rfamCovarianceModelPath outputDirectoryPath "rfamOnAlien" alienFastaFilePath 
-      --alienonRfamResults <- cmSearchFasta benchmarkIndex alienThreshold threads alienCovarianceModelPath outputDirectoryPath "alienOnRfam" rfamFastaFilePath  
-      --let rfamonAlienResultsNumber = length rfamonAlienResults
-      --let alienonRfamResultsNumber = length alienonRfamResults
-      --let rfamonAlienRecovery = (fromIntegral rfamonAlienResultsNumber :: Double) / (fromIntegral alienFastaEntriesNumber :: Double)
-      --let alienonRfamRecovery = (fromIntegral alienonRfamResultsNumber :: Double) / (fromIntegral rfamFastaEntriesNumber :: Double)  
+      let alienFastaEntriesNumber = read alienFastaEntries :: Int  
       if (verbose == Loud)
         then do
           putStrLn ("BenchmarkIndex:")
@@ -173,7 +178,7 @@ main = do
           putStrLn ("RfamModelId: -")
           putStrLn ("Linkscore: -")
           putStrLn ("rfamMaxLinkScore: -")
-          putStrLn ("alienMaxLinkscore: " ++ show alienMaxLinkscore)    
+          putStrLn ("alienMaxLinkscore: " ++  (either id show alienMaxLinkscore))    
           putStrLn ("rfamGatheringThreshold: -")
           putStrLn ("alienGatheringThreshold: -") 
           putStrLn ("rfamFastaEntriesNumber: -")
@@ -185,7 +190,7 @@ main = do
           print rnazString
           print cmStatString
         else do
-          putStrLn (show benchmarkIndex ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ show alienMaxLinkscore ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ show alienFastaEntriesNumber ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-"  ++ "\t" ++ "-" ++ "\t" ++ rnazString ++ "\t" ++ cmStatString)
+          putStrLn (show benchmarkIndex ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ (either id show alienMaxLinkscore) ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ show alienFastaEntriesNumber ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-"  ++ "\t" ++ "-" ++ "\t" ++ rnazString ++ "\t" ++ cmStatString)
 
 rnazOutput :: Verbosity -> String -> IO String
 rnazOutput verbose rnazPath = do
