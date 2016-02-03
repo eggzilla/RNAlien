@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-#./alienresultstatistics structured 11
+#./alienresultstatistics structured 11 bitscore
 use warnings;
 use strict;
 use diagnostics;
@@ -11,6 +11,8 @@ $|=1;
 my $type = $ARGV[0];
 #result iteration
 my $currentresultnumber = $ARGV[1];
+#threshold selection (bitscore, evalue)
+my $threshold_selection = $ARGV[2];
 #contains all RNAlien result folders for sRNA tagged families
 my $alienresult_basename;
 #contains all Rfam Families names by family name with extension .cm
@@ -23,15 +25,33 @@ my $resulttempdir;
 my $resultfileprefix;
 my $cpu_cores = 20;
 
-if($type eq "structured"){
-	$alienresult_basename="/scr/coridan/egg/AlienStructuredResultsCollected" . "$currentresultnumber" . "/";
+
+if($type eq "background"){
+	$alienresult_basename="/scr/kronos/egg/AlienBackgroundCollected" . "$currentresultnumber" . "/";
+	$rfammodel_basename = "/scr/kronos/egg/AlienTest/sRNAFamilies/all_models/";
+	#$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyfasta/"; #full fasta
+	$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyseedfasta/"; #seed fasta
+	$RNAFamilyIdFile = "/scr/kronos/egg/randomFamilyNameIdGatheringCutoffSorted";
+	$familyNumber = 300;
+	$resulttempdir = "/scr/kronos/egg/temp/AlienRandomResultStatistics". "$currentresultnumber" . "/";
+        $resultfileprefix = "structuredalienbackgroundoutput";
+}elsif($type eq "structured"){
+	$alienresult_basename="/scr/kronos/egg/AlienStructuredResultsCollected" . "$currentresultnumber" . "/";
 	$rfammodel_basename = "/scr/kronos/egg/AlienTest/sRNAFamilies/all_models/";
 	#$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyfasta/"; #full fasta
 	$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyseedfasta/"; #seed fasta
 	$RNAFamilyIdFile = "/scr/kronos/egg/structuredFamilyNameIdGatheringCutoffSorted";
 	$familyNumber = 72;
-	$resulttempdir = "/scr/coridan/egg/temp/AlienStructuredResultStatistics". "$currentresultnumber" . "/";
+	$resulttempdir = "/scr/kronos/egg/temp/AlienStructuredResultStatistics". "$currentresultnumber" . "/";
         $resultfileprefix = "structuredalienseedoutput";
+}elsif($type eq "diverse"){
+	$alienresult_basename="/scr/kronos/egg/AlienDiverseResultsCollected" . "$currentresultnumber" . "/";
+	$rfammodel_basename = "/scr/kronos/egg/AlienTest/sRNAFamilies/all_models/";
+	$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyseedfasta/"; #seed fasta
+	$RNAFamilyIdFile = "/scratch/egg/diverse_families/result_diverse_families";
+	$familyNumber = 191;
+	$resulttempdir = "/scr/kronos/egg/temp/AlienStructuredResultStatistics". "$currentresultnumber" . "/";
+        $resultfileprefix = "diversealienseedoutput";
 }else{
 	#sRNA
 	$alienresult_basename="/scr/kronos/egg/AlienResultsCollected" . "$currentresultnumber" . "/";
@@ -39,7 +59,7 @@ if($type eq "structured"){
 	$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyfasta/";
 	$RNAFamilyIdFile = "/scr/kronos/egg/smallRNAtaggedfamiliesNameIDThresholdTagSorted.csv";
         $familyNumber = 374;
-	$resulttempdir = "/scr/coridan/egg/temp/AlienResultStatistics" . "$currentresultnumber" . "/";
+	$resulttempdir = "/scr/kronos/egg/temp/AlienResultStatistics" . "$currentresultnumber" . "/";
         $resultfileprefix = "alienseedoutput";
 }
 
@@ -54,15 +74,15 @@ close $RNAfamilyfh;
 
 my $gathering_score_multiplier = 1.0; 
 my $gathering_score_lower_bound;
-alienresultstatistic($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,$gathering_score_multiplier,$gathering_score_lower_bound,"/scr/kronos/egg/$resultfileprefix$currentresultnumber-" . $gathering_score_multiplier . ".tsv",$cpu_cores);
-
-#for(1..10){
-#     my $outputfilePath = "/scr/kronos/egg/structuredalienseedoutput$currentresultnumber-" . $gathering_score_multiplier . ".csv";
-#     alienresultstatistic($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,$gathering_score_multiplier,$gathering_score_lower_bound,$outputfilePath);
-#     $gathering_score_multiplier = $gathering_score_multiplier - 0.1;
-# }
-# alienresultstatistic($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,0.5,40,"/scr/kronos/egg/structuredalienseedoutput$currentresultnumber-fixed0.5or40bit.csv");
-# alienresultstatistic($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,0.5,20,"/scr/kronos/egg/structuredalienseedoutput$currentresultnumber-fixed0.5or20bit.csv");
+if ($tresholdselection eq "bitscore"){
+    alienresultstatistic($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,$gathering_score_multiplier,$gathering_score_lower_bound,"/scr/kronos/egg/$resultfileprefix$currentresultnumber-bs-" . $gathering_score_multiplier . ".tsv",$cpu_cores,$threshold_selection,"evalue threshold");
+}else{
+    my @evalues = qw(1 1e-3 1e-6 1e-9);
+    foreach my $evalue (@evalues){
+        my $outputfilePath = "/scr/kronos/egg/structuredalienseedoutput$currentresultnumber-ev-" . $evalue . ".tsv";
+        alienresultstatistic($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,$gathering_score_multiplier,$gathering_score_lower_bound,$outputfilePath,$threshold_selection,$evalue);
+    }
+}
 
 sub alienresultstatistic{
     my $familyNumber = shift;
@@ -75,36 +95,18 @@ sub alienresultstatistic{
     my $gathering_score_lower_bound = shift;
     my $outputfilePath = shift;
     my $cpu_cores = shift;
-    #my $output="BenchmarkIndex\tRfamModelName\tRfamModelId\tLinkscore\trfamMaxLinkScore\talienMaxLinkscore\trfamGatheringThreshold\talienGatheringThreshold\trfamFastaEntriesNumber\talienFastaEntriesNumber\trfamonAlienResultsNumber\talienonRfamResultsNumber\tRfamonAlienRecovery\tAlienonRfamRecovery\tmeanPairwiseIdentity\tshannonEntropy\tgcContent\tmeanSingleSequenceMinimumFreeEnergy\tconsensusMinimumFreeEnergy\tenergyContribution\tcovarianceContribution\tcombinationsPair\tmeanZScore\tstructureConservationIndex\tsvmDecisionValue\tsvmRNAClassProbability\tprediction\n";
+    my $thresholdSelection = shift;
+    my $evalueTreshold=shift;
     my $output="Index\tRfamName\tRfamId\tLinkscore\trfamMaxLS\talienMaxLS\trfamGatheringThreshold\talienGatheringThreshold\trfamFastaNumber\talienFastaNumber\trfamonAlienNumber\talienonRfamNumber\tRfamonAlienRecovery\tAlienonRfamRecovery\tmeanPairwiseIdentity\tshannonEntropy\tgcContent\tmeanSingleSequenceMFE\tconsensusMFE\tenergyContribution\tcovarianceContribution\tcombinationsPair\tmeanZScore\tSCI\tsvmDecisionValue\tsvmRNAClassProbability\tprediction\tstatSequenceNumber\tstatEffectiveSequences\tstatConsensusLength\tstatW\tstatBasepairs\tstatBifurcations\tstatModel\trelativeEntropyCM\trelativeEntropyHMM\n"; 
     for(my $counter=1; $counter <= $familyNumber; $counter++){
+    #for(my $counter=273; $counter <= 273; $counter++){
         my $current_alienresult_folder= $alienresult_basename.$counter."/";
         if(-e $alienresult_basename.$counter."/done"){
             my $alienModelPath = $current_alienresult_folder."result.cm";
             my $alienFastaPath = $current_alienresult_folder."result.fa";
             my $alienRNAzPath = $current_alienresult_folder."result.rnaz";
             my $aliencmstatPath = $current_alienresult_folder."result.cmstat";
-            #my $alienThresholdLogFile = $current_alienresult_folder."result.log";
-            #if(! -e  $alienThresholdLogFile){
-            #    print "Does not exist: $alienThresholdLogFile ";
-            #}
-            #my @alienThresholdLog;
-            #open(my $alienThresholdLogfh, "<", $alienThresholdLogFile)
-            #    or die "Failed to open file: $!\n";
-            #while(<$alienThresholdLogfh>) {
-            #    chomp;
-            #    push @alienThresholdLog, $_;
-            #}
-            #close $RNAfamilyfh;
-            #my @alienThresholdLogSplit = split (/,/,$alienThresholdLog[0]);
-            #my $alienThresholdUnmodified = $alienThresholdLogSplit[2];
-            #my $alienThreshold = $alienThresholdUnmodified * $gathering_score_multiplier;
-            #if defined alienthreshold cannot be lower than lower bound value
-            #if(defined $gathering_score_lower_bound){
-            #    if($alienThreshold < $gathering_score_lower_bound){
-            #        $alienThreshold = $gathering_score_lower_bound;
-            #    }       
-            #}
+            #retrieve family specific information
             my @rfamModelNameId = split(/\s+/,$RNAfamilies[($counter - 1)]);
             my $rfamModelName = $rfamModelNameId[0];
             my $rfamModelId = $rfamModelNameId[1];
@@ -123,22 +125,32 @@ sub alienresultstatistic{
             if(! -e  $alienFastaPath){
                 print "Does not exist: $alienFastaPath";
             }
-            my $rfamThresholdUnmodified = $rfamModelNameId[2];
-            my $rfamThreshold;
-            unless ($rfamThresholdUnmodified eq "-"){
-                $rfamThreshold = $rfamThresholdUnmodified * $gathering_score_multiplier;
+            #set threshold corresponding to bitscore or evalue cutoff
+            my $threshold;
+            if($thresholdSelection eq "bitscore"){
+                my $rfamThresholdUnmodified = $rfamModelNameId[2];
+                my $rfamThreshold;
+                unless ($rfamThresholdUnmodified eq "-"){
+                    $rfamThreshold = $rfamThresholdUnmodified * $gathering_score_multiplier;
+                }else{
+                    $rfamThreshold= "0";
+                }
+                if(defined $gathering_score_lower_bound){
+                    if($rfamThreshold < $gathering_score_lower_bound){
+                        $rfamThreshold = $gathering_score_lower_bound;
+                    }       
+                }
+                $threshold = $rfamThreshold;
+                
             }else{
-                $rfamThreshold= "0";
+                $threshold = $evalueThreshold;
             }
-            if(defined $gathering_score_lower_bound){
-                if($rfamThreshold < $gathering_score_lower_bound){
-                    $rfamThreshold = $gathering_score_lower_bound;
-                }       
-            }
-            #print "RNAlienStatistics -n $rfamModelName -d $rfamModelId -b $counter -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -t $alienThreshold -x $rfamThreshold -o $resulttempdir\n";
-            $output = $output . `RNAlienStatistics -c $cpu_cores -n $rfamModelName -d $rfamModelId -b $counter -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -t $rfamThreshold -x $rfamThreshold -o $resulttempdir -z $alienRNAzPath -m $aliencmstatPath`;
-        }
+            $output = $output . `RNAlienStatistics -s $thresholdSelection -c $cpu_cores -n $rfamModelName -d $rfamModelId -b $counter -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -t $threshold -x $threshold -o $resulttempdir -z $alienRNAzPath -m $aliencmstatPath`;
+        }else{
+		print "Does not exist $alienresult_basename.$counter/done";
+	}
     }
+   
     open(my $outputfh, ">", $outputfilePath)
                 or die "Failed to open file: $!\n";
     print $outputfh $output;
