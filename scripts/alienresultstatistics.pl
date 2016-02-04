@@ -72,14 +72,19 @@ while(<$RNAfamilyfh>) {
 }
 close $RNAfamilyfh;
 
+mkdir $resulttempdir or die "Cannot create result tempdir: $!";
+my $output_directory_path = "/scr/kronos/egg/$resultfileprefix$currentresultnumber/";
+mkdir $output_directory_path die "Cannot create output dir: $!";
+
+
 my $gathering_score_multiplier = 1.0; 
 my $gathering_score_lower_bound;
-if ($tresholdselection eq "bitscore"){
-    alienresultstatistic($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,$gathering_score_multiplier,$gathering_score_lower_bound,"/scr/kronos/egg/$resultfileprefix$currentresultnumber-bs-" . $gathering_score_multiplier . ".tsv",$cpu_cores,$threshold_selection,"evalue threshold");
+if ($tresholdselection eq "bitscore"){   
+    alienresultstatistic($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,$gathering_score_multiplier,$gathering_score_lower_bound,"$output_directory_path" . "bs-" . $gathering_score_multiplier . ".tsv",$cpu_cores,$threshold_selection,"evalue threshold");
 }else{
     my @evalues = qw(1 1e-3 1e-6 1e-9);
     foreach my $evalue (@evalues){
-        my $outputfilePath = "/scr/kronos/egg/structuredalienseedoutput$currentresultnumber-ev-" . $evalue . ".tsv";
+        my $outputfilePath = "$output_directory_path" . "ev-" . $evalue . ".tsv";
         alienresultstatistic($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,$gathering_score_multiplier,$gathering_score_lower_bound,$outputfilePath,$threshold_selection,$evalue);
     }
 }
