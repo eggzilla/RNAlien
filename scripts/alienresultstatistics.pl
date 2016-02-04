@@ -48,7 +48,7 @@ if($type eq "background"){
 	$alienresult_basename="/scr/kronos/egg/AlienDiverseResultsCollected" . "$currentresultnumber" . "/";
 	$rfammodel_basename = "/scr/kronos/egg/AlienTest/sRNAFamilies/all_models/";
 	$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyseedfasta/"; #seed fasta
-	$RNAFamilyIdFile = "/scratch/egg/diverse_families/result_diverse_families";
+	$RNAFamilyIdFile = "/scr/kronos/egg/diverse_families/result_diverse_families";
 	$familyNumber = 191;
 	$resulttempdir = "/scr/kronos/egg/temp/AlienStructuredResultStatistics". "$currentresultnumber" . "/";
         $resultfileprefix = "diversealienseedoutput";
@@ -71,15 +71,18 @@ while(<$RNAfamilyfh>) {
     push @RNAfamilies, $_;
 }
 close $RNAfamilyfh;
-
-mkdir $resulttempdir or die "Cannot create result tempdir: $!";
+unless (-d $resulttempdir){
+	mkdir $resulttempdir or die "Cannot create result tempdir: $!";
+}
 my $output_directory_path = "/scr/kronos/egg/$resultfileprefix$currentresultnumber/";
-mkdir $output_directory_path die "Cannot create output dir: $!";
+unless (-d $output_directory_path){
+	mkdir $output_directory_path or die "Cannot create output dir: $!";
+}
 
 
 my $gathering_score_multiplier = 1.0; 
 my $gathering_score_lower_bound;
-if ($tresholdselection eq "bitscore"){   
+if ($threshold_selection eq "bitscore"){   
     alienresultstatistic($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,$gathering_score_multiplier,$gathering_score_lower_bound,"$output_directory_path" . "bs-" . $gathering_score_multiplier . ".tsv",$cpu_cores,$threshold_selection,"evalue threshold");
 }else{
     my @evalues = qw(1 1e-3 1e-6 1e-9);
@@ -101,7 +104,7 @@ sub alienresultstatistic{
     my $outputfilePath = shift;
     my $cpu_cores = shift;
     my $thresholdSelection = shift;
-    my $evalueTreshold=shift;
+    my $evalueThreshold=shift;
     my $output="Index\tRfamName\tRfamId\tLinkscore\trfamMaxLS\talienMaxLS\trfamGatheringThreshold\talienGatheringThreshold\trfamFastaNumber\talienFastaNumber\trfamonAlienNumber\talienonRfamNumber\tRfamonAlienRecovery\tAlienonRfamRecovery\tmeanPairwiseIdentity\tshannonEntropy\tgcContent\tmeanSingleSequenceMFE\tconsensusMFE\tenergyContribution\tcovarianceContribution\tcombinationsPair\tmeanZScore\tSCI\tsvmDecisionValue\tsvmRNAClassProbability\tprediction\tstatSequenceNumber\tstatEffectiveSequences\tstatConsensusLength\tstatW\tstatBasepairs\tstatBifurcations\tstatModel\trelativeEntropyCM\trelativeEntropyHMM\n"; 
     for(my $counter=1; $counter <= $familyNumber; $counter++){
     #for(my $counter=273; $counter <= 273; $counter++){
