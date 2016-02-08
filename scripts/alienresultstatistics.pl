@@ -51,7 +51,7 @@ if($type eq "background"){
 	$rfammodel_basename = "/scr/kronos/egg/AlienTest/sRNAFamilies/all_models/";
 	$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyseedfasta2/"; #seed fasta
 	#$RNAFamilyIdFile = "/scr/kronos/egg/diverse_families/result_diverse_families";
-	$RNAFamilyIdFile = "/scr/kronos/egg/diverse_families/test";
+	$RNAFamilyIdFile = "/scr/kronos/egg/diverse_families/test2";
 	$familyNumber = 191;
 	$resulttempdir = "/scr/kronos/egg/temp/AlienDiverseResultStatistics". "$currentresultnumber" . "/";
         $resultfileprefix = "diversealienseedoutput";
@@ -128,7 +128,7 @@ sub alienresultstatistic{
     for(my $counter=1; $counter <= $familyNumber; $counter++){
     #for(my $counter=1; $counter <= 1; $counter++){
         my $current_alienresult_folder= $alienresult_basename.$counter."/";
-        if(-e $alienresult_basename.$counter."/done"){
+        if(-e $alienresult_basename.$counter."/result.cm"){
             my $alienModelPath = $current_alienresult_folder."result.cm";
             my $alienFastaPath = $current_alienresult_folder."result.fa";
             my $alienRNAzPath = $current_alienresult_folder."result.rnaz";
