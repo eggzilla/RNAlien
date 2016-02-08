@@ -72,6 +72,22 @@ cmSearchFasta benchmarkIndex thresholdSelection thresholdScore cpuThreads covari
        let organismUniquesignificantHits = nubBy cmSearchSameOrganism significantHits
        return organismUniquesignificantHits
 
+--cmSearchFasta threads rfamCovarianceModelPath outputDirectoryPath "Rfam" False genomesDirectoryPath
+cmSearchesFasta :: Int -> String -> Double -> Int -> String -> String -> String -> String -> IO [CMsearchHit]
+cmSearchesFasta benchmarkIndex thresholdSelection thresholdScore cpuThreads covarianceModelPath outputDirectory modelType fastapath = do
+  createDirectoryIfMissing False (outputDirectory ++ "/" ++ modelType)
+  _ <- systemCMsearch cpuThreads "" covarianceModelPath fastapath (outputDirectory ++ "/" ++ modelType ++ "/" ++ (show benchmarkIndex) ++ ".cmsearch")
+  result <- readCMSearches (outputDirectory ++ "/" ++ modelType ++ "/" ++ (show benchmarkIndex) ++ ".cmsearch")
+  if (isLeft result)
+     then do
+       print (fromLeft result)
+       return []
+     else do
+       let rightResults = fromRight result
+       let significantHits = concatMap (filterCMsearchHits thresholdSelection thresholdScore) rightResults
+       let organismUniquesignificantHits = nubBy cmSearchSameOrganism significantHits
+       return organismUniquesignificantHits
+
 filterCMsearchHits :: String -> Double -> CMsearch -> [CMsearchHit]
 filterCMsearchHits thresholdSelection thresholdScore cmSearchResult
   | thresholdSelection == "bitscore" = bitscorefiltered
@@ -139,7 +155,7 @@ main = do
       alienFastaEntries <- readFile (outputDirectoryPath ++ FP.takeFileName alienFastaFilePath ++ ".entries")                    
       let rfamFastaEntriesNumber = read rfamFastaEntries :: Int
       let alienFastaEntriesNumber = read alienFastaEntries :: Int
-      rfamonAlienResults <- cmSearchFasta benchmarkIndex thresholdSelection rfamThreshold threads rfamCovarianceModelPath outputDirectoryPath "rfamOnAlien" alienFastaFilePath 
+      rfamonAlienResults <- cmSearchesFasta benchmarkIndex thresholdSelection rfamThreshold threads rfamCovarianceModelPath outputDirectoryPath "rfamOnAlien" alienFastaFilePath 
       alienonRfamResults <- cmSearchFasta benchmarkIndex thresholdSelection alienThreshold threads alienCovarianceModelPath outputDirectoryPath "alienOnRfam" rfamFastaFilePath  
       let rfamonAlienResultsNumber = length rfamonAlienResults
       let alienonRfamResultsNumber = length alienonRfamResults
