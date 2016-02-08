@@ -13,6 +13,8 @@ my $type = $ARGV[0];
 my $currentresultnumber = $ARGV[1];
 #threshold selection (bitscore, evalue)
 my $threshold_selection = $ARGV[2];
+#use clans for specificity check
+my $use_clans = 1;
 #contains all RNAlien result folders for sRNA tagged families
 my $alienresult_basename;
 #contains all Rfam Families names by family name with extension .cm
@@ -109,7 +111,20 @@ sub alienresultstatistic{
     my $cpu_cores = shift;
     my $thresholdSelection = shift;
     my $evalueThreshold=shift;
-    my $output="Index\tRfamName\tRfamId\tLinkscore\trfamMaxLS\talienMaxLS\trfamGatheringThreshold\talienGatheringThreshold\trfamFastaNumber\talienFastaNumber\trfamonAlienNumber\talienonRfamNumber\tRfamonAlienRecovery\tAlienonRfamRecovery\tmeanPairwiseIdentity\tshannonEntropy\tgcContent\tmeanSingleSequenceMFE\tconsensusMFE\tenergyContribution\tcovarianceContribution\tcombinationsPair\tmeanZScore\tSCI\tsvmDecisionValue\tsvmRNAClassProbability\tprediction\tstatSequenceNumber\tstatEffectiveSequences\tstatConsensusLength\tstatW\tstatBasepairs\tstatBifurcations\tstatModel\trelativeEntropyCM\trelativeEntropyHMM\n"; 
+    my $output="Index\tRfamName\tRfamId\tLinkscore\trfamMaxLS\talienMaxLS\trfamGatheringThreshold\talienGatheringThreshold\trfamFastaNumber\talienFastaNumber\trfamonAlienNumber\talienonRfamNumber\tRfamonAlienRecovery\tAlienonRfamRecovery\tmeanPairwiseIdentity\tshannonEntropy\tgcContent\tmeanSingleSequenceMFE\tconsensusMFE\tenergyContribution\tcovarianceContribution\tcombinationsPair\tmeanZScore\tSCI\tsvmDecisionValue\tsvmRNAClassProbability\tprediction\tstatSequenceNumber\tstatEffectiveSequences\tstatConsensusLength\tstatW\tstatBasepairs\tstatBifurcations\tstatModel\trelativeEntropyCM\trelativeEntropyHMM\n";
+    my $clanMembersFile = "family_clan.txt";
+    my %clan_members;
+    open(my $clanMembersfh, "<", $clanMembersFile)
+	or die "Failed to open file: $!\n";
+    while(<$clanMembersfh>) {
+	chomp;
+	#add to hash
+	my @line = split('\t',$_);
+	#print "$line[0] - $line[1]";
+	push( @{ $clan_members {$line[0] } }, $line[1]);
+    }
+    close $clanMembersfh;
+    
     for(my $counter=1; $counter <= $familyNumber; $counter++){
     #for(my $counter=1; $counter <= 1; $counter++){
         my $current_alienresult_folder= $alienresult_basename.$counter."/";
@@ -123,7 +138,19 @@ sub alienresultstatistic{
             #my @rfamModelNameId = split(/\s+/,$RNAfamilies[($counter)]);
             my $rfamModelName = $rfamModelNameId[0];
             my $rfamModelId = $rfamModelNameId[1];
-            my $rfamModelPath = $rfammodel_basename . $rfamModelId . ".cm";
+	    my $rfamModelPath;
+	    if($use_clan == 1){
+		#check if key exists
+		if(exists $clan_members{$rfamModelId}){
+		  my $clan_for_rfammodel = $clan_members{$rfamModelId}
+		  $rfamModelPath = "/scratch/egg/clans/clan_models/". "$clan_for_rfammodel". ".cm";
+		}else{
+		    $rfamModelPath = $rfammodel_basename . $rfamModelId . ".cm";
+		}
+	    }else{
+		$rfamModelPath = $rfammodel_basename . $rfamModelId . ".cm";
+	    }
+            #my $rfamModelPath = $rfammodel_basename . $rfamModelId . ".cm";
             my $rfamFastaPath =$rfamfasta_basename . $rfamModelId . ".fa";
             if(! -e  $rfamModelPath){
                 print "Does not exist: $rfamModelPath ";

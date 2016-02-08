@@ -13,6 +13,7 @@ module Bio.RNAlienLibrary (
                            checkTools,
                            systemCMsearch,
                            readCMSearch,
+                           readCMSearches,
                            compareCM,
                            parseCMSearch,
                            cmSearchsubString,
@@ -1029,7 +1030,18 @@ readCMSearch :: String -> IO (Either ParseError CMsearch)
 readCMSearch filePath = do 
   parsedFile <- parseFromFile genParserCMsearch filePath
   CE.evaluate parsedFile 
-                      
+
+-- | parse from input filePath                      
+readCMSearches :: String -> IO (Either ParseError [CMsearch])             
+readCMSearches filePath = do 
+  parsedFile <- parseFromFile genParserCMsearches filePath
+  CE.evaluate parsedFile 
+
+genParserCMsearches :: GenParser Char st [CMsearch]
+genParserCMsearches = do
+  cmsearches <- many1 (try genParserCMsearch)
+  return cmsearches 
+    
 genParserCMsearch :: GenParser Char st CMsearch
 genParserCMsearch = do
   string "# cmsearch :: search CM(s) against a sequence database"
