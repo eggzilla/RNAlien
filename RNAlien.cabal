@@ -74,5 +74,6 @@ Library
   Exposed-Modules:     Bio.RNAlienData
                        Bio.RNAlienLibrary
                        Bio.RNAcentralHTTP
+                       Bio.InfernalParser
 
 
