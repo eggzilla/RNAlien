@@ -15,6 +15,10 @@ my $currentresultnumber = $ARGV[1];
 my $threshold_selection = $ARGV[2];
 #use clans for specificity check
 my $use_clans = 1;
+#Sequences to use (seed,full)
+my $use_sequences="full";
+
+
 #contains all RNAlien result folders for sRNA tagged families
 my $alienresult_basename;
 #contains all Rfam Families names by family name with extension .cm
@@ -31,8 +35,11 @@ my $cpu_cores = 20;
 if($type eq "background"){
 	$alienresult_basename="/scr/kronos/egg/AlienBackgroundCollected" . "$currentresultnumber" . "/";
 	$rfammodel_basename = "/scr/kronos/egg/AlienTest/sRNAFamilies/all_models/";
-	#$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyfasta/"; #full fasta
-	$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyseedfasta/"; #seed fasta
+        if($use_sequences eq "full"){
+		$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyfasta/"; #full fasta
+	}else{
+		$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyseedfasta/"; #seed fasta
+	}
 	$RNAFamilyIdFile = "/scr/kronos/egg/randomFamilyNameIdGatheringCutoffSorted";
 	$familyNumber = 300;
 	$resulttempdir = "/scr/kronos/egg/temp/AlienRandomResultStatistics". "$currentresultnumber" . "/";
@@ -40,26 +47,38 @@ if($type eq "background"){
 }elsif($type eq "structured"){
 	$alienresult_basename="/scr/kronos/egg/AlienStructuredResultsCollected" . "$currentresultnumber" . "/";
 	$rfammodel_basename = "/scr/kronos/egg/AlienTest/sRNAFamilies/all_models/";
-	#$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyfasta/"; #full fasta
-	$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyseedfasta/"; #seed fasta
+        if($use_sequences eq "full"){
+                $rfamfasta_basename = "/scr/kronos/egg/rfamfamilyfasta/"; #full fasta
+        }else{
+                $rfamfasta_basename = "/scr/kronos/egg/rfamfamilyseedfasta/"; #seed fasta
+        }
 	$RNAFamilyIdFile = "/scr/kronos/egg/structuredFamilyNameIdGatheringCutoffSorted";
 	$familyNumber = 72;
 	$resulttempdir = "/scr/kronos/egg/temp/AlienStructuredResultStatistics". "$currentresultnumber" . "/";
-        $resultfileprefix = "structuredalienseedoutput";
+        $resultfileprefix = "structuredalien". $use_sequences ."output";
 }elsif($type eq "diverse"){
 	$alienresult_basename="/scr/kronos/egg/AlienDiverseResultsCollected" . "$currentresultnumber" . "/";
 	$rfammodel_basename = "/scr/kronos/egg/AlienTest/sRNAFamilies/all_models/";
-	$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyseedfasta2/"; #seed fasta
+        if($use_sequences eq "full"){
+                $rfamfasta_basename = "/scr/kronos/egg/rfamfamilyfasta/"; #full fasta
+        }else{
+                $rfamfasta_basename = "/scr/kronos/egg/rfamfamilyseedfasta/"; #seed fasta
+        }
+
 	#$RNAFamilyIdFile = "/scr/kronos/egg/diverse_families/result_diverse_families";
 	$RNAFamilyIdFile = "/scr/kronos/egg/diverse_families/test2";
 	$familyNumber = 191;
 	$resulttempdir = "/scr/kronos/egg/temp/AlienDiverseResultStatistics". "$currentresultnumber" . "/";
-        $resultfileprefix = "diversealienseedoutput";
+        $resultfileprefix = "diversealien" . $use_sequences . "output";
 }else{
 	#sRNA
 	$alienresult_basename="/scr/kronos/egg/AlienResultsCollected" . "$currentresultnumber" . "/";
 	$rfammodel_basename = "/scr/kronos/egg/AlienTest/sRNAFamilies/all_models/";
-	$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyfasta/";
+        if($use_sequences eq "full"){
+                $rfamfasta_basename = "/scr/kronos/egg/rfamfamilyfasta/"; #full fasta
+        }else{
+                $rfamfasta_basename = "/scr/kronos/egg/rfamfamilyseedfasta/"; #seed fasta
+        }
 	$RNAFamilyIdFile = "/scr/kronos/egg/smallRNAtaggedfamiliesNameIDThresholdTagSorted.csv";
         $familyNumber = 374;
 	$resulttempdir = "/scr/kronos/egg/temp/AlienResultStatistics" . "$currentresultnumber" . "/";
@@ -112,7 +131,7 @@ sub alienresultstatistic{
     my $thresholdSelection = shift;
     my $evalueThreshold=shift;
     my $output="Index\tRfamName\tRfamId\tLinkscore\trfamMaxLS\talienMaxLS\trfamGatheringThreshold\talienGatheringThreshold\trfamFastaNumber\talienFastaNumber\trfamonAlienNumber\talienonRfamNumber\tRfamonAlienRecovery\tAlienonRfamRecovery\tmeanPairwiseIdentity\tshannonEntropy\tgcContent\tmeanSingleSequenceMFE\tconsensusMFE\tenergyContribution\tcovarianceContribution\tcombinationsPair\tmeanZScore\tSCI\tsvmDecisionValue\tsvmRNAClassProbability\tprediction\tstatSequenceNumber\tstatEffectiveSequences\tstatConsensusLength\tstatW\tstatBasepairs\tstatBifurcations\tstatModel\trelativeEntropyCM\trelativeEntropyHMM\n";
-    my $clanMembersFile = "family_clan.txt";
+    my $clanMembersFile = "/scr/kronos/egg/clans/family_clan";
     my %clan_members;
     open(my $clanMembersfh, "<", $clanMembersFile)
 	or die "Failed to open file: $!\n";
@@ -121,7 +140,8 @@ sub alienresultstatistic{
 	#add to hash
 	my @line = split('\t',$_);
 	#print "$line[0] - $line[1]";
-	push( @{ $clan_members {$line[0] } }, $line[1]);
+	#push( @{ $clan_members {$line[0] } }, $line[1]);
+	$clan_members{$line[0]}=$line[1];
     }
     close $clanMembersfh;
     
@@ -139,11 +159,12 @@ sub alienresultstatistic{
             my $rfamModelName = $rfamModelNameId[0];
             my $rfamModelId = $rfamModelNameId[1];
 	    my $rfamModelPath;
-	    if($use_clan == 1){
+	    my $use_clans=1;
+	    if($use_clans == 1){
 		#check if key exists
 		if(exists $clan_members{$rfamModelId}){
-		  my $clan_for_rfammodel = $clan_members{$rfamModelId}
-		  $rfamModelPath = "/scratch/egg/clans/clan_models/". "$clan_for_rfammodel". ".cm";
+		  #my $clan_for_rfammodel = $clan_members{$rfamModelId};
+		  $rfamModelPath = "/scr/kronos/egg/clans/clan_models/". "$clan_members{$rfamModelId}". ".cm";
 		}else{
 		    $rfamModelPath = $rfammodel_basename . $rfamModelId . ".cm";
 		}
