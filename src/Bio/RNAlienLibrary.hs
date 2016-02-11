@@ -1416,10 +1416,12 @@ logEither :: (Show a) => Either a b -> String -> IO ()
 logEither (Left logoutput) temporaryDirectoryPath = appendFile (temporaryDirectoryPath ++ "Log") (show logoutput)
 logEither  _ _ = return ()
 
-checkTools :: [String] -> String -> IO (Either String String)
-checkTools tools temporaryDirectoryPath = do
+checkTools :: [String] -> String -> String -> IO (Either String String)
+checkTools tools temporaryDirectoryPath selectedQuerySelectionMethod = do
+  -- if queryselectionmethod is set to clustering then also check for clustal omega
+  let additionaltools = if selectedQuerySelectionMethod == "clustering" then tools ++ ["clustalo"] else tools
   -- check if all tools are available via PATH or Left
-  checks <- mapM checkTool tools
+  checks <- mapM checkTool additionaltools
   if not (null (lefts checks))
     then return (Left (concat (lefts checks)))
     else do  

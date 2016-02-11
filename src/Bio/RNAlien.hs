@@ -44,7 +44,7 @@ options = Options
     lengthFilter = True &= name "l" &= help "Filter blast hits per genomic length. Default: True",
     coverageFilter = True &= name "a" &= help "Filter blast hits by coverage of at least 80%. Default: True",
     singleHitperTax = False &= name "s" &= help "Only the best blast hit per taxonomic entry is considered. Default: False",
-    inputQuerySelectionMethod = "clustering" &= name "m" &= help "Method for selection of queries (clustering,filtering). Default: clustering",
+    inputQuerySelectionMethod = "filtering" &= name "m" &= help "Method for selection of queries (filtering,clustering). Default: filtering",
     inputQueryNumber = (5 :: Int) &= name "n" &= help "Number of queries used for candidate search. Default: 5",
     threads = 1 &= name "c" &= help "Number of available cpu slots/cores. Default: 1",
     taxonomyRestriction = Nothing &= name "r" &= help "Restrict search space to taxonomic kingdom (bacteria,archea,eukaryia). Default: not set",
@@ -79,8 +79,8 @@ main = do
           logMessage "Error: Input fasta file is empty.\n" temporaryDirectoryPath
         else do
           let iterationNumber = 0
-          let tools = ["clustalo","mlocarna","RNAfold","RNAalifold","cmcalibrate","cmstat","cmbuild","RNAz","RNAcode"]
-          toolsCheck <- checkTools tools temporaryDirectoryPath
+          let tools = ["mlocarna","RNAfold","RNAalifold","cmcalibrate","cmstat","cmbuild","RNAz","RNAcode"]
+          toolsCheck <- checkTools tools inputQuerySelectionMethod temporaryDirectoryPath
           -- Check required commandline tools
           if isLeft toolsCheck
             then do 
