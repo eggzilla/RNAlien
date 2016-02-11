@@ -21,7 +21,7 @@ parseCMSearch :: String -> Either ParseError CMsearch
 parseCMSearch = parse genParserCMSearch "parseCMsearch" 
 
 -- | parse from input filePath              
-parseCMSearches :: String -> Either ParseError [CMsearch]
+parseCMSearches :: String -> Either ParseError CMsearch
 parseCMSearches = parse genParserCMSearches "parseCMsearch"
 
 -- | parse from input filePath                      
@@ -31,15 +31,47 @@ readCMSearch filePath = do
   CE.evaluate parsedFile 
 
 -- | parse from input filePath                      
-readCMSearches :: String -> IO (Either ParseError [CMsearch])             
+readCMSearches :: String -> IO (Either ParseError CMsearch)             
 readCMSearches filePath = do 
   parsedFile <- parseFromFile genParserCMSearches filePath
   CE.evaluate parsedFile 
 
-genParserCMSearches :: GenParser Char st [CMsearch]
+genParserCMSearches :: GenParser Char st CMsearch
 genParserCMSearches = do
-  cmsearches <- many1 (try genParserCMSearch)
-  return cmsearches 
+  string "# cmsearch :: search CM(s) against a sequence database"
+  newline
+  string "# INFERNAL "
+  many1 (noneOf "\n")
+  newline       
+  string "# Copyright (C) 201"
+  many1 (noneOf "\n")
+  newline       
+  string "# Freely distributed under the GNU General Public License (GPLv3)."
+  newline       
+  string "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -"
+  newline
+  string "# query CM file:"
+  many1 space
+  queryCMfile' <- many1 (noneOf "\n")
+  newline
+  string "# target sequence database:"
+  many1 space      
+  targetSequenceDatabase' <- many1 (noneOf "\n")
+  newline
+  optional (try (genParserCMsearchHeaderField "# CM configuration"))
+  optional (try (genParserCMsearchHeaderField "# database size is set to"))
+  optional (try (genParserCMsearchHeaderField "# truncated sequence detection"))
+  string "# number of worker threads:"
+  many1 space
+  numberOfWorkerThreads' <- many1 (noneOf "\n")
+  newline
+  string "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -"
+  newline
+  optional newline
+  cmSearchesHits <- many1 (try genParserMultipleCMSearch)
+  optional (string "[ok]\n")
+  eof
+  return $ CMsearch queryCMfile' targetSequenceDatabase' numberOfWorkerThreads' (concat cmSearchesHits)
     
 genParserCMSearch :: GenParser Char st CMsearch
 genParserCMSearch = do
@@ -113,6 +145,52 @@ genParserCMSearch = do
   many anyChar
   eof
   return $ CMsearch queryCMfile' targetSequenceDatabase' numberOfWorkerThreads' hitScores'
+
+-- | Parsing function for CMSearches with multiple querymodels in one modelfile, e.g. clans
+genParserMultipleCMSearch :: GenParser Char st [CMsearchHit]
+genParserMultipleCMSearch = do
+  --optional newline
+  --optional string "//"
+  string "Query:"
+  many1 (noneOf "\n")       
+  newline
+  optional (try (genParserCMsearchHeaderField "Accession"))
+  optional (try (genParserCMsearchHeaderField "Description"))
+  string "Hit scores:"
+  newline
+  choice  [try (string " rank"), try (string "  rank") , try (string "   rank"), try (string "    rank"),try (string "     rank"),try (string "      rank")]
+  many1 space 
+  string "E-value"
+  many1 space        
+  string "score"
+  many1 space 
+  string "bias"
+  many1 space 
+  string "sequence"
+  many1 space  
+  string "start"
+  many1 space 
+  string "end"
+  many1 space 
+  string "mdl"
+  many1 space 
+  string "trunc"
+  many1 space 
+  string "gc"
+  many1 space 
+  string "description"
+  newline
+  string " -"
+  many1 (try (oneOf " -"))
+  newline
+  optional (try (string " ------ inclusion threshold ------"))
+  many newline
+  hitScores' <- many (try genParserCMsearchHit) --`endBy` (try (string "Hit alignments:"))
+  optional (try genParserCMsearchEmptyHit)
+  -- this is followed by hit alignments and internal cmsearch statistics which are not parsed
+  --many anyChar
+  manyTill anyChar (try (string "//\n"))
+  return hitScores'
 
 genParserCMsearchHeaderField :: String -> GenParser Char st String
 genParserCMsearchHeaderField fieldname = do

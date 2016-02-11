@@ -60,7 +60,7 @@ options = Options
 cmSearchFasta :: Int -> String -> Double -> Int -> String -> String -> String -> String -> IO [CMsearchHit]
 cmSearchFasta benchmarkIndex thresholdSelection thresholdScore cpuThreads covarianceModelPath outputDirectory modelType fastapath = do
   createDirectoryIfMissing False (outputDirectory ++ "/" ++ modelType)
-  _ <- systemCMsearch cpuThreads "" covarianceModelPath fastapath (outputDirectory ++ "/" ++ modelType ++ "/" ++ (show benchmarkIndex) ++ ".cmsearch")
+  _ <- systemCMsearch cpuThreads " -Z 1000 " covarianceModelPath fastapath (outputDirectory ++ "/" ++ modelType ++ "/" ++ (show benchmarkIndex) ++ ".cmsearch")
   result <- readCMSearch (outputDirectory ++ "/" ++ modelType ++ "/" ++ (show benchmarkIndex) ++ ".cmsearch")
   if (isLeft result)
      then do
@@ -76,7 +76,7 @@ cmSearchFasta benchmarkIndex thresholdSelection thresholdScore cpuThreads covari
 cmSearchesFasta :: Int -> String -> Double -> Int -> String -> String -> String -> String -> IO [CMsearchHit]
 cmSearchesFasta benchmarkIndex thresholdSelection thresholdScore cpuThreads covarianceModelPath outputDirectory modelType fastapath = do
   createDirectoryIfMissing False (outputDirectory ++ "/" ++ modelType)
-  _ <- systemCMsearch cpuThreads "" covarianceModelPath fastapath (outputDirectory ++ "/" ++ modelType ++ "/" ++ (show benchmarkIndex) ++ ".cmsearch")
+  _ <- systemCMsearch cpuThreads " -Z 1000 " covarianceModelPath fastapath (outputDirectory ++ "/" ++ modelType ++ "/" ++ (show benchmarkIndex) ++ ".cmsearch")
   result <- readCMSearches (outputDirectory ++ "/" ++ modelType ++ "/" ++ (show benchmarkIndex) ++ ".cmsearch")
   if (isLeft result)
      then do
@@ -84,7 +84,7 @@ cmSearchesFasta benchmarkIndex thresholdSelection thresholdScore cpuThreads cova
        return []
      else do
        let rightResults = fromRight result
-       let significantHits = concatMap (filterCMsearchHits thresholdSelection thresholdScore) rightResults
+       let significantHits = filterCMsearchHits thresholdSelection thresholdScore rightResults
        let organismUniquesignificantHits = nubBy cmSearchSameOrganism significantHits
        return organismUniquesignificantHits
 
