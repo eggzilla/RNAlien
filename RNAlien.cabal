@@ -2,7 +2,7 @@
 -- see http://haskell.org/cabal/users-guide/
 
 name:                RNAlien
-version:             1.0.0
+version:             1.1.0
 synopsis:            Unsupervized construction of RNA family models
 description:         RNAlien is a tool for automatic construction of RNAfamily models from a single sequence.
                      .
@@ -26,8 +26,6 @@ description:         RNAlien is a tool for automatic construction of RNAfamily m
 		     .
                      * <http://infernal.janelia.org/ Infernal>
 		     .
-                     * <http://www.clustal.org/omega/#Download clustal-omega>
-		     .
 		     * <http://www.bioinf.uni-freiburg.de/Software/LocARNA/#download Locarna>
 		     .
 		     * <https://www.tbi.univie.ac.at/~wash/RNAz/ RNAz>
@@ -49,6 +47,15 @@ category:            Bioinformatics
 build-type:          Simple
 cabal-version:       >=1.8
 
+source-repository head
+  type:     git
+  location: https://github.com/eggzilla/RNAlien
+
+source-repository this
+  type:     git
+  location: https://github.com/eggzilla/RNAlien/tree/1.1.0
+  tag:      1.1.0
+                     
 executable RNAlien
   Hs-Source-Dirs:      ./src/Bio/
   main-is:	       RNAlien.hs   

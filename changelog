@@ -1,0 +1,16 @@
+-*-change-log-*-
+1.1.0 Florian Eggenhofer <florian.eggenhofer@univie.ac.at> 11. February 2016
+	* Update including changes from 1st review
+	* Cmbuild uses --refine option
+	* Evaluation now includes RNAcode result, which is a new dependecy
+	* RNAcentral lookup for found sequences via REST interface during evaluation
+	* Added a new alternative query selection method that filters for entries max. pairwise identity
+	* Added softmasking to blastrequests
+	* Paralog sequences are now included by default
+	* Installation of RNAlien is now available via stackage
+        * Fix several bugs including blasthit coverage filter
+	* RNAlienStatistics can now parse cmsearch results from multiple cm files as for clans
+	* RNAlienStatistics includes a switch for using bitscore or evalue cutoffs
+1.0.0 Florian Eggenhofer <florian.eggenhofer@univie.ac.at> 29. October 2015
+	* Initial version
+
