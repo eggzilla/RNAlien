@@ -18,7 +18,7 @@ TaxonomyTools which can be used to visualise the organisms included in a RNAlien
     ### <u>Dependencies:</u>
 
     *   [Infernal: inference of RNA alignments](http://infernal.janelia.org/)
-    *   [clustal-omega](http://www.clustal.org/omega/#Download)
+    *   [RNAcode](http://wash.github.io/rnacode/)
     *   [Locarna](http://www.bioinf.uni-freiburg.de/Software/LocARNA/#download)
     *   [RNAz](https://www.tbi.univie.ac.at/~wash/RNAz/)
     *   [ViennaRNApackage](http://www.tbi.univie.ac.at/RNA/index.html#download)
@@ -27,11 +27,16 @@ TaxonomyTools which can be used to visualise the organisms included in a RNAlien
 
      RNAlien is implemented in Haskell and can be installed via the Haskell package distribution sytem [cabal](https://www.haskell.org/cabal/). Once you have cabal installed simply type:
 
-
          cabal install RNAlien
+
+   ### <u>Installation via stackage</u>
+
+     RNAlien can also be install via the Haskell package distribution sytem [Stackage](https://www.stackage.org/), which guarantees consistent package builds.     Once you have stackage installed simply type:
+
+         stack install RNAlien
+
 
    ### <u>Precompiled Executables</u>
 
-    *   Debian [x86](#) [x86_64](#)
-    *   Fedora [x86](#) [x86_64](#)
-    *   Archlinux [x86](#) [x86_64](#)
+    *   Fedora (ghc-7.8.4)[x86_64](http://www.tbi.univie.ac.at/~egg/RNAlien/fedora22-ghc7.8.4/RNAlien-1.1.0)
+    *   Archlinux (ghc-7.10.3) [x86_64](http://www.tbi.univie.ac.at/~egg/RNAlien/archlinux-ghc7.10.2/RNAlien-1.1.0)
