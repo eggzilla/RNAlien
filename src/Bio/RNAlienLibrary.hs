@@ -1481,9 +1481,8 @@ evaluateConstructionResult staticOptions mCResult = do
   let resultNumber = length resultSequences + 1 
   let rnaCentralQueries = map buildSequenceViaMD5Query resultSequences    
   rnaCentralEntries <- getRNACentralEntries rnaCentralQueries
-  --debugging for rnacentral output
-  --writeFile (tempDirPath staticOptions ++ "rnacentrallefts")  (concatMap show (lefts rnaCentralEntries))
   let rnaCentralEvaluationResult = showRNAcentralAlienEvaluation rnaCentralEntries
+  writeFile (tempDirPath staticOptions ++ "result.rnacentral") rnaCentralEvaluationResult
   systemCMalign ("--outformat=Clustal --cpu " ++ show (cpuThreads staticOptions)) cmFilepath fastaFilepath clustalFilepath
   let resultModelStatistics = tempDirPath staticOptions ++ "result.cmstat"
   systemCMstat cmFilepath resultModelStatistics
@@ -1502,13 +1501,13 @@ evaluateConstructionResult staticOptions mCResult = do
           RC.systemRNAcode " -t " (fromRight rnazClustalpath) resultRNAcode
           inputRNAcode <- RC.readRNAcodeTabular resultRNAcode
           let rnaCodeString = rnaCodeEvalOutput inputRNAcode
-          return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: " ++ rnaZString ++ "\nRNAcode output for result alignment:\n" ++ rnaCodeString ++ "\n" ++ rnaCentralEvaluationResult)
+          return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: " ++ rnaZString ++ "\nRNAcode output for result alignment:\n" ++ rnaCodeString ++ "\nSequences found by RNAlien with RNAcentral entry:\n" ++ rnaCentralEvaluationResult)
         else do
           logWarning ("Running RNAz for result evalution encountered a problem:" ++ fromLeft rnazClustalpath) (tempDirPath staticOptions) 
-          return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: Running RNAz for result evalution encountered a problem\n" ++ fromLeft rnazClustalpath ++ "\n" ++ rnaCentralEvaluationResult)
+          return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: Running RNAz for result evalution encountered a problem\n" ++ fromLeft rnazClustalpath ++ "\n" ++ "Sequences found by RNAlien with RNAcentral entry:\n" ++ rnaCentralEvaluationResult)
     else do
       logWarning "Message: RNAlien could not find additional covariant sequences\n Could not run RNAz statistics. Could not run RNAz statistics with a single sequence.\n" (tempDirPath staticOptions) 
-      return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAlien could not find additional covariant sequences. Could not run RNAz statistics with a single sequence.\n" ++ rnaCentralEvaluationResult)
+      return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAlien could not find additional covariant sequences. Could not run RNAz statistics with a single sequence.\n\nSequences found by RNAlien with RNAcentral entry:\n" ++ rnaCentralEvaluationResult)
 
 
 cmstatEvalOutput :: Either ParseError CMstat -> String 

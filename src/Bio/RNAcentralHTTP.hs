@@ -98,7 +98,7 @@ buildSequenceViaMD5Query s = qString
 showRNAcentralAlienEvaluation :: [(Either String RNAcentralEntryResponse)] -> String
 showRNAcentralAlienEvaluation responses = output
   where resultEntries = Prelude.concatMap results (rights responses)
-        resulthead = "Sequences found by RNAlien with RNAcentral entry:\nrnacentral_id\tmd5\tlength\n"
+        resulthead = "rnacentral_id\tmd5\tlength\n"
         resultentries = Prelude.concatMap showRNAcentralAlienEvaluationLine resultEntries
         output = if resultentries == [] then resulthead ++ "No matching sequences found in RNAcentral\n" else resulthead ++ resultentries
         
