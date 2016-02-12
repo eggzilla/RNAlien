@@ -38,5 +38,5 @@ TaxonomyTools which can be used to visualise the organisms included in a RNAlien
 
    ### <u>Precompiled Executables</u>
 
-    *   Fedora (ghc-7.8.4)[x86_64](http://www.tbi.univie.ac.at/~egg/RNAlien/fedora22-ghc7.8.4/RNAlien-1.1.0)
-    *   Archlinux (ghc-7.10.3) [x86_64](http://www.tbi.univie.ac.at/~egg/RNAlien/archlinux-ghc7.10.2/RNAlien-1.1.0)
+    *   Fedora (ghc-7.8.4)[RNAlien 1.1.0 x86_64](http://www.tbi.univie.ac.at/~egg/RNAlien/fedora22-ghc7.8.4/RNAlien-1.1.0)
+    *   Archlinux (ghc-7.10.3) [RNAlien 1.1.0 x86_64](http://www.tbi.univie.ac.at/~egg/RNAlien/archlinux-ghc7.10.3/RNAlien-1.1.0)
