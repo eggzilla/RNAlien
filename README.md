@@ -18,14 +18,10 @@ TaxonomyTools which can be used to visualise the organisms included in a RNAlien
     ### <u>Dependencies:</u>
 
     *   [Infernal: inference of RNA alignments](http://infernal.janelia.org/)
-<<<<<<< HEAD
-=======
     *   [RNAcode](http://wash.github.io/rnacode/)
->>>>>>> 8c773f750c2fe890d34c374df898b292fac8b97b
     *   [Locarna](http://www.bioinf.uni-freiburg.de/Software/LocARNA/#download)
     *   [RNAz](https://www.tbi.univie.ac.at/~wash/RNAz/)
     *   [ViennaRNApackage](http://www.tbi.univie.ac.at/RNA/index.html#download)
-    *   [RNAcode](http://wash.github.io/rnacode/)
 
     ### <u>Installation via cabal-install</u>
 
@@ -33,17 +29,6 @@ TaxonomyTools which can be used to visualise the organisms included in a RNAlien
 
          cabal install RNAlien
 
-<<<<<<< HEAD
-    ### <u>Installation via stackage</u>
-
-     Stackage is a alternative haskell package managment system with guaranteed build consistency [stackage](https://www.stackage.org). Once you have stackage installed simply type:
-
-         stack install RNAlien
-    ### <u>Precompiled Executables</u>
-
-    *   Fedora (ghc-7.8.4) [x86_64](http://tbi.univie.ac.at:/~egg/RNAlien/fedora22-ghc7.8.4/RNAlien-1.1.0)
-    *   Archlinux (ghc-7.10.3) [x86_64](http://tbi.univie.ac.at:/~egg/RNAlien/archlinux-ghc7.10.2/RNAlien-1.1.0)
-=======
    ### <u>Installation via stackage</u>
 
      RNAlien can also be install via the Haskell package distribution sytem [Stackage](https://www.stackage.org/), which guarantees consistent package builds.     Once you have stackage installed simply type:
@@ -55,4 +40,3 @@ TaxonomyTools which can be used to visualise the organisms included in a RNAlien
 
     *   Fedora (ghc-7.8.4)[RNAlien 1.1.0 x86_64](http://www.tbi.univie.ac.at/~egg/RNAlien/fedora22-ghc7.8.4/RNAlien-1.1.0)
     *   Archlinux (ghc-7.10.3) [RNAlien 1.1.0 x86_64](http://www.tbi.univie.ac.at/~egg/RNAlien/archlinux-ghc7.10.3/RNAlien-1.1.0)
->>>>>>> 8c773f750c2fe890d34c374df898b292fac8b97b
