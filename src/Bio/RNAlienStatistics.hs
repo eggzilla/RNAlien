@@ -61,6 +61,7 @@ cmSearchFasta :: Int -> String -> Double -> Int -> String -> String -> String ->
 cmSearchFasta benchmarkIndex thresholdSelection thresholdScore cpuThreads covarianceModelPath outputDirectory modelType fastapath = do
   createDirectoryIfMissing False (outputDirectory ++ "/" ++ modelType)
   _ <- systemCMsearch cpuThreads " -Z 1000 " covarianceModelPath fastapath (outputDirectory ++ "/" ++ modelType ++ "/" ++ (show benchmarkIndex) ++ ".cmsearch")
+  --_ <- systemCMsearch cpuThreads " " covarianceModelPath fastapath (outputDirectory ++ "/" ++ modelType ++ "/" ++ (show benchmarkIndex) ++ ".cmsearch")
   result <- readCMSearch (outputDirectory ++ "/" ++ modelType ++ "/" ++ (show benchmarkIndex) ++ ".cmsearch")
   if (isLeft result)
      then do
@@ -69,14 +70,15 @@ cmSearchFasta benchmarkIndex thresholdSelection thresholdScore cpuThreads covari
      else do
        let rightResults = fromRight result
        let significantHits = filterCMsearchHits thresholdSelection thresholdScore rightResults
-       let organismUniquesignificantHits = nubBy cmSearchSameOrganism significantHits
-       return organismUniquesignificantHits
+       let uniquesignificantHits = nubBy cmSearchSameHit significantHits
+       return uniquesignificantHits
 
 --cmSearchFasta threads rfamCovarianceModelPath outputDirectoryPath "Rfam" False genomesDirectoryPath
 cmSearchesFasta :: Int -> String -> Double -> Int -> String -> String -> String -> String -> IO [CMsearchHit]
 cmSearchesFasta benchmarkIndex thresholdSelection thresholdScore cpuThreads covarianceModelPath outputDirectory modelType fastapath = do
   createDirectoryIfMissing False (outputDirectory ++ "/" ++ modelType)
   _ <- systemCMsearch cpuThreads " -Z 1000 " covarianceModelPath fastapath (outputDirectory ++ "/" ++ modelType ++ "/" ++ (show benchmarkIndex) ++ ".cmsearch")
+  --_ <- systemCMsearch cpuThreads " " covarianceModelPath fastapath (outputDirectory ++ "/" ++ modelType ++ "/" ++ (show benchmarkIndex) ++ ".cmsearch")
   result <- readCMSearches (outputDirectory ++ "/" ++ modelType ++ "/" ++ (show benchmarkIndex) ++ ".cmsearch")
   if (isLeft result)
      then do
@@ -85,8 +87,11 @@ cmSearchesFasta benchmarkIndex thresholdSelection thresholdScore cpuThreads cova
      else do
        let rightResults = fromRight result
        let significantHits = filterCMsearchHits thresholdSelection thresholdScore rightResults
-       let organismUniquesignificantHits = nubBy cmSearchSameOrganism significantHits
-       return organismUniquesignificantHits
+       --putStrLn ("significant Hits " ++ show (length significantHits))
+       let uniquesignificantHits = nubBy cmSearchSameHit significantHits
+       --putStrLn ("unique significant Hits " ++ show (length uniquesignificantHits))
+       --let organismUniquesignificantHits = nubBy cmSearchSameOrganism significantHits
+       return uniquesignificantHits
 
 filterCMsearchHits :: String -> Double -> CMsearch -> [CMsearchHit]
 filterCMsearchHits thresholdSelection thresholdScore cmSearchResult
@@ -117,6 +122,14 @@ trimCMsearchSequence cmSearchResult inputSequence = subSequence
         sequenceSubstring = cmSearchsubString (hitStart hitScoreEntry) (hitEnd hitScoreEntry) sequenceString
         newSequenceHeader =  L.pack ((L.unpack (unSL (seqheader inputSequence))) ++ "cmS_" ++ (show (hitStart hitScoreEntry)) ++ "_" ++ (show (hitEnd hitScoreEntry)) ++ "_" ++ (show (hitStrand hitScoreEntry)))
         subSequence = Seq (SeqLabel newSequenceHeader) (SeqData (L.pack sequenceSubstring)) Nothing     
+
+--With paralogs allowed
+cmSearchSameHit :: CMsearchHit -> CMsearchHit -> Bool
+cmSearchSameHit hitscore1 hitscore2
+  | unpackedSeqHeader1 == unpackedSeqHeader2 = True
+  | otherwise = False
+  where unpackedSeqHeader1 = (L.unpack (hitSequenceHeader hitscore1))
+        unpackedSeqHeader2 = (L.unpack (hitSequenceHeader hitscore2))
 
 cmSearchSameOrganism :: CMsearchHit -> CMsearchHit -> Bool
 cmSearchSameOrganism hitscore1 hitscore2
