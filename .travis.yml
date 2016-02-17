@@ -1,5 +1,5 @@
 #Copied as is from https://www.fpcomplete.com/blog/2016/02/updated-haskell-travis-config 
-Copy these contents into the root directory of your Github project in a file
+#Copy these contents into the root directory of your Github project in a file
 # named .travis.yml
 
 # Use new container infrastructure to enable caching
