@@ -14,9 +14,9 @@ my $currentresultnumber = $ARGV[1];
 #threshold selection (bitscore, evalue)
 my $threshold_selection = $ARGV[2];
 #use clans for specificity check
-my $use_clans = 1;
+my $use_clans = 0;
 #Sequences to use (seed,full)
-my $use_sequences="full";
+my $use_sequences="seed";
 
 
 #contains all RNAlien result folders for sRNA tagged families
@@ -29,7 +29,7 @@ my $RNAFamilyIdFile;
 my $familyNumber;
 my $resulttempdir;
 my $resultfileprefix;
-my $cpu_cores = 20;
+my $cpu_cores = 30;
 
 
 if($type eq "background"){
@@ -62,7 +62,7 @@ if($type eq "background"){
         if($use_sequences eq "full"){
                 $rfamfasta_basename = "/scr/kronos/egg/rfamfamilyfasta/"; #full fasta
         }else{
-                $rfamfasta_basename = "/scr/kronos/egg/rfamfamilyseedfasta/"; #seed fasta
+                $rfamfasta_basename = "/scr/kronos/egg/rfamfamilyseedfasta2/"; #seed fasta
         }
 
 	#$RNAFamilyIdFile = "/scr/kronos/egg/diverse_families/result_diverse_families";
@@ -70,6 +70,31 @@ if($type eq "background"){
 	$familyNumber = 191;
 	$resulttempdir = "/scr/kronos/egg/temp/AlienDiverseResultStatistics". "$currentresultnumber" . "/";
         $resultfileprefix = "diversealien" . $use_sequences . "output";
+}elsif($type eq "blast"){
+        $alienresult_basename="/scr/kronos/egg/alienhmmerblast/blastout/";
+        $rfammodel_basename = "/scr/kronos/egg/AlienTest/sRNAFamilies/all_models/";
+        if($use_sequences eq "full"){
+                $rfamfasta_basename = "/scr/kronos/egg/rfamfamilyfasta/"; #full fasta
+        }else{
+                $rfamfasta_basename = "/scr/kronos/egg/rfamfamilyseedfasta/"; #seed fasta
+        }
+
+        $RNAFamilyIdFile = "/scr/kronos/egg/structuredFamilyNameIdGatheringCutoffSorted";
+        $familyNumber = 56;
+        $resulttempdir = "/scr/kronos/egg/temp/AlienBlastResultStatistics/";
+        $resultfileprefix = "blastalien" . $use_sequences . "output";
+}elsif($type eq "nhmmer"){
+        $alienresult_basename="/scr/kronos/egg/alienhmmerblast/nhmmerout/";
+        $rfammodel_basename = "/scr/kronos/egg/AlienTest/sRNAFamilies/all_models/";
+        if($use_sequences eq "full"){
+                $rfamfasta_basename = "/scr/kronos/egg/rfamfamilyfasta/"; #full fasta
+        }else{
+                $rfamfasta_basename = "/scr/kronos/egg/rfamfamilyseedfasta/"; #seed fasta
+        }
+	$RNAFamilyIdFile = "/scr/kronos/egg/structuredFamilyNameIdGatheringCutoffSorted";
+        $familyNumber = 56;
+        $resulttempdir = "/scr/kronos/egg/temp/AlienHmmerResultStatistics/";
+        $resultfileprefix = "hmmer" . $use_sequences . "output";
 }else{
 	#sRNA
 	$alienresult_basename="/scr/kronos/egg/AlienResultsCollected" . "$currentresultnumber" . "/";
@@ -146,7 +171,7 @@ sub alienresultstatistic{
     close $clanMembersfh;
     
     for(my $counter=1; $counter <= $familyNumber; $counter++){
-    #for(my $counter=1; $counter <= 1; $counter++){
+    #for(my $counter=173; $counter <= 173; $counter++){
         my $current_alienresult_folder= $alienresult_basename.$counter."/";
         if(-e $alienresult_basename.$counter."/result.cm"){
             my $alienModelPath = $current_alienresult_folder."result.cm";
@@ -159,14 +184,16 @@ sub alienresultstatistic{
             my $rfamModelName = $rfamModelNameId[0];
             my $rfamModelId = $rfamModelNameId[1];
 	    my $rfamModelPath;
-	    my $use_clans=1;
+	    my $use_clans=0;
 	    if($use_clans == 1){
 		#check if key exists
 		if(exists $clan_members{$rfamModelId}){
 		  #my $clan_for_rfammodel = $clan_members{$rfamModelId};
 		  $rfamModelPath = "/scr/kronos/egg/clans/clan_models/". "$clan_members{$rfamModelId}". ".cm";
+                  print "For $rfamModelId, set path to: /scr/kronos/egg/clans/clan_models/". "$clan_members{$rfamModelId}\n";
 		}else{
 		    $rfamModelPath = $rfammodel_basename . $rfamModelId . ".cm";
+		    print "For $rfamModelId, set path to: $rfammodel_basename . $rfamModelId" . ".cm\n";
 		}
 	    }else{
 		$rfamModelPath = $rfammodel_basename . $rfamModelId . ".cm";
