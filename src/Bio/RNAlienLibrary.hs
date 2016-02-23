@@ -1567,7 +1567,7 @@ preprocessClustalForRNAz :: String -> String -> IO (Either String String)
 preprocessClustalForRNAz clustalFilepath reformatedClustalPath = do
   clustalText <- TI.readFile clustalFilepath
   let clustalTextLines = T.lines clustalText
-  if length clustalTextLines > 500
+  if length clustalTextLines > 5
     then do 
       --change clustal format for rnazSelectSeqs.pl
       let reformatedClustalString = T.map reformatAln clustalText
@@ -1575,6 +1575,11 @@ preprocessClustalForRNAz clustalFilepath reformatedClustalPath = do
       --select representative entries from result.Clustal with select_sequences
       let selectedClustalpath = clustalFilepath ++ ".selected"
       parsedClustalInput <- readClustalAlignment clustalFilepath
+      --maxSeqs=6;
+      --minSeqs=2;
+      --nSamples=1;
+      --maxID=99;
+      --optID=80;
       if isRight parsedClustalInput
         then do
           let filteredClustalInput = rnaZSelectSeqs (fromRight parsedClustalInput) 500 99
@@ -1582,6 +1587,26 @@ preprocessClustalForRNAz clustalFilepath reformatedClustalPath = do
           return (Right selectedClustalpath)
         else return (Left (show (fromLeft parsedClustalInput)))
     else return (Right clustalFilepath)
+
+
+-- Iteratively removes sequences with decreasing similarity until target number of alignment entries is reached.
+rnaZSelectSeqs2 :: ClustalAlignment -> Int -> Double -> ClustalAlignment
+rnaZSelectSeqs2 currentClustalAlignment targetEntries identityCutoff
+  | targetEntries < numberOfEntries = rnaZSelectSeqs filteredAlignment targetEntries (identityCutoff - 1)
+  | otherwise = currentClustalAlignment
+  where entryVector = V.fromList (alignmentEntries currentClustalAlignment)
+        identityMatrix = computeSequenceIdentityMatrix entryVector
+        filteredEntries = filterIdenticalAlignmentEntry (alignmentEntries currentClustalAlignment) identityCutoff 
+        filteredAlignment = ClustalAlignment filteredEntries (conservationTrack currentClustalAlignment)
+
+computeSequenceIdentityMatrix :: V.Vector String
+computeSequenceIdentityMatrix entryVector = matrix (V.length entryVector) (V.length entryVector) (computeSequenceIdentityPair entryVector)
+
+-- Computes Sequenceidentity once for each pair and not vs itself
+computeSequenceIdentityEntry :: V.Vector String -> (Int,Int) -> Maybe Double
+computeSequenceIdentityEntry entryVector (row,col)
+  | row < col = stringIdentity (entryVector V.! row) (entryVector V.! col)
+  | otherwise = Nothing
 
 
 -- Iteratively removes sequences with decreasing similarity until target number of alignment entries is reached.
