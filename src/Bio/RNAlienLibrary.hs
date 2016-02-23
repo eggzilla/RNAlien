@@ -1596,10 +1596,25 @@ rnaZSelectSeqs2 currentClustalAlignment targetEntries identityCutoff
   | otherwise = currentClustalAlignment
   where entryVector = V.fromList (alignmentEntries currentClustalAlignment)
         identityMatrix = computeSequenceIdentityMatrix entryVector
-        filteredEntries = filterIdenticalAlignmentEntry (alignmentEntries currentClustalAlignment) identityCutoff 
+        entryIndices =  getMatrixAsVector (matrix (V.length entryVector) (V.length entryVector) (\(i,j) -> (i,j)))
+        filteredEntriesIndices = filterIdentityMatrix  identityMatrix targetEntries entryIndices identityCutoff
+        filteredEntries = V.map () filteredEntriesIndices
         filteredAlignment = ClustalAlignment filteredEntries (conservationTrack currentClustalAlignment)
 
-computeSequenceIdentityMatrix :: V.Vector String
+filterIdentityMatrix :: Matrix (Maybe Double)  -> Int -> V.Vector (Int,Int) -> Double -> V.Vector (Int,Int)
+filterIdentityMatrix identityMatrix targetEntries entryIndices identityCutoff
+  | (length filteredEntries) >= targetEntries = filteredEntries
+  | identityCutoff == (100 :: Int) = filteredEntries
+  | otherwise = filterIdentityMatrix identityMatrix targetEntries entryIndices (identityCutoff + (1 :: Int))
+  where filteredEntries = V.filter (\(i,j)) entryIndices
+        
+filterSequenceIdentityEntry matrix identityCutoff entryIndexPair
+  | isJust entry = if (fromJust entry) <= identityCutoff then entryIndexPair else 
+  | isNothing entry = V.null
+  
+  where entry = identityMatrix ! entryIndexPair
+
+computeSequenceIdentityMatrix :: V.Vector String -> Matrix (Maybe Double)
 computeSequenceIdentityMatrix entryVector = matrix (V.length entryVector) (V.length entryVector) (computeSequenceIdentityPair entryVector)
 
 -- Computes Sequenceidentity once for each pair and not vs itself
