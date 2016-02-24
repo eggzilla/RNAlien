@@ -29,7 +29,7 @@ my $RNAFamilyIdFile;
 my $familyNumber;
 my $resulttempdir;
 my $resultfileprefix;
-my $cpu_cores = 30;
+my $cpu_cores = 3;
 
 
 if($type eq "background"){
@@ -133,12 +133,12 @@ unless (-d $output_directory_path){
 my $gathering_score_multiplier = 1.0; 
 my $gathering_score_lower_bound;
 if ($threshold_selection eq "bitscore"){   
-    alienresultstatistic($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,$gathering_score_multiplier,$gathering_score_lower_bound,"$output_directory_path" . "bs-" . $gathering_score_multiplier . ".tsv",$cpu_cores,$threshold_selection,"evalue threshold");
+    alienresultstatistic($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,$gathering_score_multiplier,$gathering_score_lower_bound,"$output_directory_path" . "bs-" . $gathering_score_multiplier . ".tsv",$cpu_cores,$threshold_selection,"evalue threshold",$use_clans);
 }else{
     my @evalues = qw(1 1e-3 1e-6 1e-9);
     foreach my $evalue (@evalues){
         my $outputfilePath = "$output_directory_path" . "ev-" . $evalue . ".tsv";
-        alienresultstatistic($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,$gathering_score_multiplier,$gathering_score_lower_bound,$outputfilePath,$cpu_cores,$threshold_selection,$evalue);
+        alienresultstatistic($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,$gathering_score_multiplier,$gathering_score_lower_bound,$outputfilePath,$cpu_cores,$threshold_selection,$evalue,$use_clans);
     }
 }
 
@@ -154,7 +154,8 @@ sub alienresultstatistic{
     my $outputfilePath = shift;
     my $cpu_cores = shift;
     my $thresholdSelection = shift;
-    my $evalueThreshold=shift;
+    my $evalueThreshold = shift;
+    my $use_clans = shift;
     my $output="Index\tRfamName\tRfamId\tLinkscore\trfamMaxLS\talienMaxLS\trfamGatheringThreshold\talienGatheringThreshold\trfamFastaNumber\talienFastaNumber\trfamonAlienNumber\talienonRfamNumber\tRfamonAlienRecovery\tAlienonRfamRecovery\tmeanPairwiseIdentity\tshannonEntropy\tgcContent\tmeanSingleSequenceMFE\tconsensusMFE\tenergyContribution\tcovarianceContribution\tcombinationsPair\tmeanZScore\tSCI\tsvmDecisionValue\tsvmRNAClassProbability\tprediction\tstatSequenceNumber\tstatEffectiveSequences\tstatConsensusLength\tstatW\tstatBasepairs\tstatBifurcations\tstatModel\trelativeEntropyCM\trelativeEntropyHMM\n";
     my $clanMembersFile = "/scr/kronos/egg/clans/family_clan";
     my %clan_members;
@@ -171,7 +172,6 @@ sub alienresultstatistic{
     close $clanMembersfh;
     
     for(my $counter=1; $counter <= $familyNumber; $counter++){
-    #for(my $counter=173; $counter <= 173; $counter++){
         my $current_alienresult_folder= $alienresult_basename.$counter."/";
         if(-e $alienresult_basename.$counter."/result.cm"){
             my $alienModelPath = $current_alienresult_folder."result.cm";
