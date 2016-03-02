@@ -30,6 +30,7 @@ data Options = Options
     rfamModelId :: String,                     
     rfamThreshold :: Double,
     alienThreshold :: Double,
+    databaseSize :: Double,
     outputDirectoryPath :: String,
     benchmarkIndex :: Int,
     thresholdSelection :: String,
@@ -50,6 +51,7 @@ options = Options
     outputDirectoryPath = def &= name "o" &= help "Path to output directory",
     alienThreshold = 20 &= name "t" &= help "Bitscore threshold for RNAlien model hits on Rfam fasta, default 20",
     rfamThreshold = 20 &= name "x" &= help "Bitscore threshold for Rfam model hits on Alien fasta, default 20",
+    databaseSize = 1000  &= name "s" &= help "Cmsearch database size in mega bases. default 1000",
     benchmarkIndex = 1 &= name "b" &= help "Index used to identify sRNA tagged RNA families",
     thresholdSelection = "bitscore" &= name "s" &= help "Selection method, (bitscore, evalue), default bitscore",
     linkScores = False &= name "l" &= help "Triggers computation of linkscores via CMCompare",
@@ -57,10 +59,10 @@ options = Options
   } &= summary "RNAlienStatistics" &= help "Florian Eggenhofer - >2013" &= verbosity       
 
 --cmSearchFasta threads rfamCovarianceModelPath outputDirectoryPath "Rfam" False genomesDirectoryPath
-cmSearchFasta :: Int -> String -> Double -> Int -> String -> String -> String -> String -> IO [CMsearchHit]
-cmSearchFasta benchmarkIndex thresholdSelection thresholdScore cpuThreads covarianceModelPath outputDirectory modelType fastapath = do
+cmSearchFasta :: Int -> String -> Double -> Double -> Int -> String -> String -> String -> String -> IO [CMsearchHit]
+cmSearchFasta benchmarkIndex thresholdSelection thresholdScore databaseSize cpuThreads covarianceModelPath outputDirectory modelType fastapath = do
   createDirectoryIfMissing False (outputDirectory ++ "/" ++ modelType)
-  _ <- systemCMsearch cpuThreads " -Z 1000 " covarianceModelPath fastapath (outputDirectory ++ "/" ++ modelType ++ "/" ++ (show benchmarkIndex) ++ ".cmsearch")
+  _ <- systemCMsearch cpuThreads (" -Z " ++ show databaseSize ++ " ") covarianceModelPath fastapath (outputDirectory ++ "/" ++ modelType ++ "/" ++ (show benchmarkIndex) ++ ".cmsearch")
   --_ <- systemCMsearch cpuThreads " " covarianceModelPath fastapath (outputDirectory ++ "/" ++ modelType ++ "/" ++ (show benchmarkIndex) ++ ".cmsearch")
   result <- readCMSearch (outputDirectory ++ "/" ++ modelType ++ "/" ++ (show benchmarkIndex) ++ ".cmsearch")
   if (isLeft result)
@@ -74,10 +76,10 @@ cmSearchFasta benchmarkIndex thresholdSelection thresholdScore cpuThreads covari
        return uniquesignificantHits
 
 --cmSearchFasta threads rfamCovarianceModelPath outputDirectoryPath "Rfam" False genomesDirectoryPath
-cmSearchesFasta :: Int -> String -> Double -> Int -> String -> String -> String -> String -> IO [CMsearchHit]
-cmSearchesFasta benchmarkIndex thresholdSelection thresholdScore cpuThreads covarianceModelPath outputDirectory modelType fastapath = do
+cmSearchesFasta :: Int -> String -> Double -> Double -> Int -> String -> String -> String -> String -> IO [CMsearchHit]
+cmSearchesFasta benchmarkIndex thresholdSelection thresholdScore databaseSize cpuThreads covarianceModelPath outputDirectory modelType fastapath = do
   createDirectoryIfMissing False (outputDirectory ++ "/" ++ modelType)
-  _ <- systemCMsearch cpuThreads " -Z 1000 " covarianceModelPath fastapath (outputDirectory ++ "/" ++ modelType ++ "/" ++ (show benchmarkIndex) ++ ".cmsearch")
+  _ <- systemCMsearch cpuThreads (" -Z " ++ show databaseSize ++ " ") covarianceModelPath fastapath (outputDirectory ++ "/" ++ modelType ++ "/" ++ (show benchmarkIndex) ++ ".cmsearch")
   --_ <- systemCMsearch cpuThreads " " covarianceModelPath fastapath (outputDirectory ++ "/" ++ modelType ++ "/" ++ (show benchmarkIndex) ++ ".cmsearch")
   result <- readCMSearches (outputDirectory ++ "/" ++ modelType ++ "/" ++ (show benchmarkIndex) ++ ".cmsearch")
   if (isLeft result)
@@ -168,8 +170,8 @@ main = do
       alienFastaEntries <- readFile (outputDirectoryPath ++ FP.takeFileName alienFastaFilePath ++ ".entries")                    
       let rfamFastaEntriesNumber = read rfamFastaEntries :: Int
       let alienFastaEntriesNumber = read alienFastaEntries :: Int
-      rfamonAlienResults <- cmSearchesFasta benchmarkIndex thresholdSelection rfamThreshold threads rfamCovarianceModelPath outputDirectoryPath "rfamOnAlien" alienFastaFilePath 
-      alienonRfamResults <- cmSearchFasta benchmarkIndex thresholdSelection alienThreshold threads alienCovarianceModelPath outputDirectoryPath "alienOnRfam" rfamFastaFilePath  
+      rfamonAlienResults <- cmSearchesFasta benchmarkIndex thresholdSelection rfamThreshold databaseSize threads rfamCovarianceModelPath outputDirectoryPath "rfamOnAlien" alienFastaFilePath 
+      alienonRfamResults <- cmSearchFasta benchmarkIndex thresholdSelection alienThreshold databaseSize threads alienCovarianceModelPath outputDirectoryPath "alienOnRfam" rfamFastaFilePath 
       let rfamonAlienResultsNumber = length rfamonAlienResults
       let alienonRfamResultsNumber = length alienonRfamResults
       let rfamonAlienRecovery = (fromIntegral rfamonAlienResultsNumber :: Double) / (fromIntegral alienFastaEntriesNumber :: Double)
