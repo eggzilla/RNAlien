@@ -6,6 +6,7 @@ use diagnostics;
 #use utf8;
 use Data::Dumper;
 use Cwd;
+use Switch;
 $|=1;
 #decideds which benchmark data to process
 my $type = $ARGV[0];
@@ -29,7 +30,7 @@ my $RNAFamilyIdFile;
 my $familyNumber;
 my $resulttempdir;
 my $resultfileprefix;
-my $cpu_cores = 3;
+my $cpu_cores = 30;
 
 
 if($type eq "background"){
@@ -53,7 +54,8 @@ if($type eq "background"){
                 $rfamfasta_basename = "/scr/kronos/egg/rfamfamilyseedfasta/"; #seed fasta
         }
 	$RNAFamilyIdFile = "/scr/kronos/egg/structuredFamilyNameIdGatheringCutoffSorted";
-	$familyNumber = 72;
+        $familyNumber = 56;
+	#$familyNumber = 72; old number includes first mini background set
 	$resulttempdir = "/scr/kronos/egg/temp/AlienStructuredResultStatistics". "$currentresultnumber" . "/";
         $resultfileprefix = "structuredalien". $use_sequences ."output";
 }elsif($type eq "diverse"){
@@ -133,12 +135,12 @@ unless (-d $output_directory_path){
 my $gathering_score_multiplier = 1.0; 
 my $gathering_score_lower_bound;
 if ($threshold_selection eq "bitscore"){   
-    alienresultstatistic($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,$gathering_score_multiplier,$gathering_score_lower_bound,"$output_directory_path" . "bs-" . $gathering_score_multiplier . ".tsv",$cpu_cores,$threshold_selection,"evalue threshold",$use_clans);
+    alienresultstatistic($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,$gathering_score_multiplier,$gathering_score_lower_bound,"$output_directory_path" . "bs-" . $gathering_score_multiplier . ".tsv",$cpu_cores,$threshold_selection,"evalue threshold",$use_clans,$type);
 }else{
     my @evalues = qw(1 1e-3 1e-6 1e-9);
     foreach my $evalue (@evalues){
         my $outputfilePath = "$output_directory_path" . "ev-" . $evalue . ".tsv";
-        alienresultstatistic($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,$gathering_score_multiplier,$gathering_score_lower_bound,$outputfilePath,$cpu_cores,$threshold_selection,$evalue,$use_clans);
+        alienresultstatistic($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,$gathering_score_multiplier,$gathering_score_lower_bound,$outputfilePath,$cpu_cores,$threshold_selection,$evalue,$use_clans,$type);
     }
 }
 
@@ -156,6 +158,7 @@ sub alienresultstatistic{
     my $thresholdSelection = shift;
     my $evalueThreshold = shift;
     my $use_clans = shift;
+    my $type = shift;
     my $output="Index\tRfamName\tRfamId\tLinkscore\trfamMaxLS\talienMaxLS\trfamGatheringThreshold\talienGatheringThreshold\trfamFastaNumber\talienFastaNumber\trfamonAlienNumber\talienonRfamNumber\tRfamonAlienRecovery\tAlienonRfamRecovery\tmeanPairwiseIdentity\tshannonEntropy\tgcContent\tmeanSingleSequenceMFE\tconsensusMFE\tenergyContribution\tcovarianceContribution\tcombinationsPair\tmeanZScore\tSCI\tsvmDecisionValue\tsvmRNAClassProbability\tprediction\tstatSequenceNumber\tstatEffectiveSequences\tstatConsensusLength\tstatW\tstatBasepairs\tstatBifurcations\tstatModel\trelativeEntropyCM\trelativeEntropyHMM\n";
     my $clanMembersFile = "/scr/kronos/egg/clans/family_clan";
     my %clan_members;
@@ -215,6 +218,7 @@ sub alienresultstatistic{
             }
             #set threshold corresponding to bitscore or evalue cutoff
             my $threshold;
+            my $databaseSize;
             if($thresholdSelection eq "bitscore"){
                 my $rfamThresholdUnmodified = $rfamModelNameId[2];
                 my $rfamThreshold;
@@ -229,12 +233,13 @@ sub alienresultstatistic{
                     }       
                 }
                 $threshold = $rfamThreshold;
-                
+                $databaseSize = "";
             }else{
                 $threshold = $evalueThreshold;
+                $databaseSize = setdatabasesize($counter,$type);
             }
-            $output = $output . `RNAlienStatistics -s $thresholdSelection -c $cpu_cores -n $rfamModelName -d $rfamModelId -b $counter -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -t $threshold -x $threshold -o $resulttempdir -z $alienRNAzPath -m $aliencmstatPath`;
-            print "RNAlienStatistics -s $thresholdSelection -c $cpu_cores -n $rfamModelName -d $rfamModelId -b $counter -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -t $threshold -x $threshold -o $resulttempdir -z $alienRNAzPath -m $aliencmstatPath"."\n";
+            $output = $output . `RNAlienStatistics $databaseSize -s $thresholdSelection -c $cpu_cores -n $rfamModelName -d $rfamModelId -b $counter -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -t $threshold -x $threshold -o $resulttempdir -z $alienRNAzPath -m $aliencmstatPath`;
+            print "RNAlienStatistics $databaseSize -s $thresholdSelection -c $cpu_cores -n $rfamModelName -d $rfamModelId -b $counter -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -t $threshold -x $threshold -o $resulttempdir -z $alienRNAzPath -m $aliencmstatPath"."\n";
         }else{
 		print "Does not exist $alienresult_basename.$counter/done";
 	}
@@ -247,3 +252,51 @@ sub alienresultstatistic{
     return 1;
 }
 
+sub setdatabasesize{
+    my $counter = shift;
+    my $type = shift;
+    my $databasesize;
+    if($type eq "diverse"){
+        $databasesize = 1000;
+    }elsif($type eq "sRNA"){
+        $databasesize = 1000;
+    }elsif($type eq "background"){
+        $databasesize = 1000;
+    }else{
+        switch ($counter) {
+            case 7		{ $databasesize = 1; } #RNaseP_bact_a
+            case 8		{ $databasesize = 1; } #RNaseP_bact_b
+            case 16		{ $databasesize = 1; } #phageP-RNA
+            case 17		{ $databasesize = 1; } #FMN
+            case 19		{ $databasesize = 1; } #S15
+            case 20		{ $databasesize = 1; } #SAM
+            case 22		{ $databasesize = 1; } #Purin
+            case 23		{ $databasesize = 1; } #Lysine
+            case 24		{ $databasesize = 1; } #Bacterial_small_SRP
+            case 25		{ $databasesize = 1; } #Cobalamin
+            case 26		{ $databasesize = 1; } #HIV-1_DIS
+            case 27		{ $databasesize = 1; } #SSU_rRNA_bacteria
+            case 29		{ $databasesize = 1; } #IRES_Pesti
+            case 30		{ $databasesize = 1; } #glmS
+            case 32     	{ $databasesize = 1; } #ykoK
+            case 33		{ $databasesize = 1; } #IRES_Cripavirus
+            case 34		{ $databasesize = 1; } #HIV_FE
+            case 35		{ $databasesize = 1; } #TCV_H5
+            case 36     	{ $databasesize = 1; } #Glycine
+            case 39		{ $databasesize = 1; } #c-di-GMP-I
+            case 40		{ $databasesize = 1; } #preQ1-II
+            case 42     	{ $databasesize = 1; } #PK-G12rRNA
+            case 43		{ $databasesize = 1; } #HIV-1_SD
+            case 44		{ $databasesize = 1; } #MFR
+            case 45		{ $databasesize = 1; } #AdoCbl-variant
+            case 46     	{ $databasesize = 1; } #crcB
+            case 47		{ $databasesize = 1; } #c-di-GMP-II
+            case 48     	{ $databasesize = 1; } #THF
+            case 51		{ $databasesize = 1; } #Archea_SRP
+            case 56		{ $databasesize = 1; } #ToxI
+            else		{ $databasesize = 1000; }
+        }
+    }
+    return " -q $databasesize ";
+
+}
