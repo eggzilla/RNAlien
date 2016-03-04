@@ -15,7 +15,7 @@ my $currentresultnumber = $ARGV[1];
 #threshold selection (bitscore, evalue)
 my $threshold_selection = $ARGV[2];
 #use clans for specificity check
-my $use_clans = 0;
+my $use_clans = 1;
 #Sequences to use (seed,full)
 my $use_sequences="seed";
 
@@ -271,19 +271,19 @@ sub setdatabasesize{
             case 28		{ $databasesize = 1; } #RNA-OUT
             case 29		{ $databasesize = 1; } #ctRNA_pT181
             case 36		{ $databasesize = 1; } #ydaO-yuaA
-            case 38		{ $databasesize = 0,001; } #Pox_AX_element
-            case 39		{ $databasesize = 0,001; } #IBV_D-RNA
+            case 38		{ $databasesize = 1; } #Pox_AX_element
+            case 39		{ $databasesize = 1; } #IBV_D-RNA
             case 45		{ $databasesize = 1; } #ROSE
-            case 48		{ $databasesize = 0,001; } #HCV_SLVII
-            case 49		{ $databasesize = 0,001; } #HCV_SLIV
-            case 51		{ $databasesize = 0,001; } #HIV_FE
+            case 48		{ $databasesize = 1; } #HCV_SLVII
+            case 49		{ $databasesize = 1; } #HCV_SLIV
+            case 51		{ $databasesize = 1; } #HIV_FE
             case 56		{ $databasesize = 1; } #RNAIII
             case 57		{ $databasesize = 1; } #Thr_leader
             case 59		{ $databasesize = 1; } #Leu_leader
             case 60		{ $databasesize = 1; } #Trp_leader
             case 61		{ $databasesize = 1; } #His_leader
             case 62		{ $databasesize = 1; } #PreQ1
-            case 63		{ $databasesize = 0,001; } #Flavivirus_DB
+            case 63		{ $databasesize = 1; } #Flavivirus_DB
             case 67		{ $databasesize = 1; } #L13_leader
             case 68		{ $databasesize = 1; } #L19_leader
             case 69		{ $databasesize = 1; } #L20_leader
@@ -297,7 +297,7 @@ sub setdatabasesize{
             case 89		{ $databasesize = 1; } #RF_site5
             case 90		{ $databasesize = 1; } #RF_site9
             case 91		{ $databasesize = 1; } #PK-G12rRNA
-            case 105		{ $databasesize = 0,001; } #AHBV_epsilon
+            case 105		{ $databasesize = 1; } #AHBV_epsilon
             case 106		{ $databasesize = 1; } #CRISPR-DR2
             case 107		{ $databasesize = 1; } #CRISPR-DR3
             case 108		{ $databasesize = 1; } #CRISPR-DR5
@@ -319,19 +319,19 @@ sub setdatabasesize{
             case 129		{ $databasesize = 1; } #SMK_box_riboswitch
             case 130		{ $databasesize = 1; } #rnk_leader
             case 131		{ $databasesize = 1; } #RatA
-            case 132		{ $databasesize = 0,001; } #blv_FSE
+            case 132		{ $databasesize = 1; } #blv_FSE
             case 133		{ $databasesize = 1; } #FourU
             case 134		{ $databasesize = 1; } #fstAT
-            case 135		{ $databasesize = 0,001; } #HSUR
+            case 135		{ $databasesize = 1; } #HSUR
             case 136		{ $databasesize = 1; } #Lambda_thermo
             case 138		{ $databasesize = 1; } #MicX 
             case 139		{ $databasesize = 1; } #symR
             case 140		{ $databasesize = 1; } #PtaRNA1
             case 141		{ $databasesize = 1; } #rdlD
             case 142		{ $databasesize = 1; } #ROSE
-            case 143		{ $databasesize = 0,001; } #HIV_FS2
-            case 144		{ $databasesize = 0,001; } #ovine_lenti_FSE
-            case 145		{ $databasesize = 0,001; } #veev_FSE
+            case 143		{ $databasesize = 1; } #HIV_FS2
+            case 144		{ $databasesize = 1; } #ovine_lenti_FSE
+            case 145		{ $databasesize = 1; } #veev_FSE
             case 153		{ $databasesize = 1; } #SSU_rRNA_archaea
             case 155		{ $databasesize = 1; } #HEARO
             case 156		{ $databasesize = 1; } #STnc630
@@ -350,6 +350,7 @@ sub setdatabasesize{
             case 185		{ $databasesize = 1; } #ToxI
             case 186		{ $databasesize = 1; } #ROSE_3
             else		{ $databasesize = 1000; }
+            }
     }elsif($type eq "sRNA"){
         $databasesize = 1000;
     }elsif($type eq "background"){
@@ -358,7 +359,7 @@ sub setdatabasesize{
         switch ($counter) {
             case 7		{ $databasesize = 1; } #RNaseP_bact_a
             case 8		{ $databasesize = 1; } #RNaseP_bact_b
-            case 16		{ $databasesize = 0,001; } #phageP-RNA
+            case 16		{ $databasesize = 1; } #phageP-RNA
             case 17		{ $databasesize = 1; } #FMN
             case 19		{ $databasesize = 1; } #S15
             case 20		{ $databasesize = 1; } #SAM
@@ -366,19 +367,19 @@ sub setdatabasesize{
             case 23		{ $databasesize = 1; } #Lysine
             case 24		{ $databasesize = 1; } #Bacterial_small_SRP
             case 25		{ $databasesize = 1; } #Cobalamin
-            case 26		{ $databasesize = 0,001; } #HIV-1_DIS
+            case 26		{ $databasesize = 1; } #HIV-1_DIS
             case 27		{ $databasesize = 1; } #SSU_rRNA_bacteria
             case 29		{ $databasesize = 1; } #IRES_Pesti
             case 30		{ $databasesize = 1; } #glmS
             case 32     	{ $databasesize = 1; } #ykoK
             case 33		{ $databasesize = 1; } #IRES_Cripavirus
-            case 34		{ $databasesize = 0,001; } #HIV_FE
-            case 35		{ $databasesize = 0,001; } #TCV_H5
+            case 34		{ $databasesize = 1; } #HIV_FE
+            case 35		{ $databasesize = 1; } #TCV_H5
             case 36     	{ $databasesize = 1; } #Glycine
             case 39		{ $databasesize = 1; } #c-di-GMP-I
             case 40		{ $databasesize = 1; } #preQ1-II
             case 42     	{ $databasesize = 1; } #PK-G12rRNA
-            case 43		{ $databasesize = 0,001; } #HIV-1_SD
+            case 43		{ $databasesize = 1; } #HIV-1_SD
             case 44		{ $databasesize = 1; } #MFR
             case 45		{ $databasesize = 1; } #AdoCbl-variant
             case 46     	{ $databasesize = 1; } #crcB
@@ -389,6 +390,6 @@ sub setdatabasesize{
             else		{ $databasesize = 1000; }
         }
     }
-    return " -q $databasesize ";
+    return " -k $databasesize ";
 
 }
