@@ -18,7 +18,7 @@ import qualified System.FilePath as FP
 import qualified Data.List.Split as DS
 import Text.Printf
 import Bio.RNAzParser
-import Bio.RNAcodeParser
+import qualified Bio.RNAcodeParser as RC
 
 data Options = Options            
   { alienCovarianceModelPath  :: String,
@@ -158,7 +158,7 @@ main = do
   rfamModelExists <- doesFileExist rfamCovarianceModelPath
   verbose <- getVerbosity
   rnazString <- rnazOutput verbose alienrnazPath
-  rnacodeString <- rnacodeOut verbose alienrnacodePath
+  rnacodeString <- rnaCodeOutput verbose alienrnacodePath
   cmStatString <- cmStatOutput verbose aliencmstatPath
   if rfamModelExists
     then do
@@ -299,11 +299,11 @@ rnaCodeOutput verbose rnaCodePath = do
   rnacodePresent <- doesFileExist rnaCodePath
   if rnacodePresent
     then do
-      inputRNACode <- readRNAcode rnaCodePath
+      inputRNACode <- RC.readRNAcode rnaCodePath
       if isRight inputRNACode
         then do
           let rnaCode = fromRight inputRNACode
-          let lowestPvalue = minimum (rnacodeHits rnaCode)
+          let lowestPvalue = minimum (map RC.pvalue (RC.rnacodeHits rnaCode))
           let rnaCodeClassification = if lowestPvalue < 0.05 then "PROTEIN" else "OTHER"
           if (verbose == Loud)
             then do              
