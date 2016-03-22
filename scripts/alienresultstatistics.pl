@@ -242,7 +242,8 @@ sub alienresultstatistic{
             $output = $output . `RNAlienStatistics $databaseSize -s $thresholdSelection -c $cpu_cores -n $rfamModelName -d $rfamModelId -b $counter -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -t $threshold -x $threshold -o $resulttempdir -w $alienRNAcodePath -z $alienRNAzPath -m $aliencmstatPath`;
             print "RNAlienStatistics $databaseSize -s $thresholdSelection -c $cpu_cores -n $rfamModelName -d $rfamModelId -b $counter -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -t $threshold -x $threshold -o $resulttempdir -z $alienRNAzPath -m $aliencmstatPath"."\n";
         }else{
-		print "Does not exist $alienresult_basename.$counter/done";
+            $output = $output . "$counter" . "\t" . "-" . "\t" . "-" . "\t" . "-" . "\t" . "-" . "\t" . "-" . "\t" ."-" . "\t" . "-" . "\t" . "-" . "\t" . "0" . "\t" . "-" . "\t" . "-" . "\t" . "-"  . "\t" . "-" . "\t" . "-" . "\t" . "-" .  "\t" . "-" . "\t" . "-" . "\t" . "-" . "\t" . "-" . "\t" . "-" . "\t" . "-" . "\t" . "-" . "\t" . "-" . "\t" . "-" . "\t" . "-" . "\t" . "-"  . "\t" . "-\t" . "-"  . "\t" . "-\t" . "-\t" . "-\t" . "-\t" . "-\t" . "-\t" . "-\t" . "-\t" . "-\n";
+	    print "Does not exist $alienresult_basename.$counter/done";
 	}
     }
    

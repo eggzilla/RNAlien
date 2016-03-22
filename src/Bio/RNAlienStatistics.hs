@@ -299,7 +299,7 @@ rnaCodeOutput verbose rnaCodePath = do
   rnacodePresent <- doesFileExist rnaCodePath
   if rnacodePresent
     then do
-      inputRNACode <- RC.readRNAcode rnaCodePath
+      inputRNACode <- RC.readRNAcodeTabular rnaCodePath
       if isRight inputRNACode
         then do
           let rnaCode = fromRight inputRNACode
