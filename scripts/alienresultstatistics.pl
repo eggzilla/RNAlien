@@ -34,16 +34,16 @@ my $cpu_cores = 30;
 
 
 if($type eq "background"){
-	$alienresult_basename="/scr/kronos/egg/AlienBackgroundCollected" . "$currentresultnumber" . "/";
-	$rfammodel_basename = "/scr/kronos/egg/AlienTest/sRNAFamilies/all_models/";
+	$alienresult_basename="/scr/coridan/egg/AlienBackgroundCollected" . "$currentresultnumber" . "/";
+	$rfammodel_basename = "/scr/coridan/egg/AlienTest/sRNAFamilies/all_models/";
         if($use_sequences eq "full"){
-		$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyfasta/"; #full fasta
+		$rfamfasta_basename = "/scr/coridan/egg/rfamfamilyfasta/"; #full fasta
 	}else{
-		$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyseedfasta/"; #seed fasta
+		$rfamfasta_basename = "/scr/coridan/egg/rfamfamilyseedfasta/"; #seed fasta
 	}
-	$RNAFamilyIdFile = "/scr/kronos/egg/randomFamilyNameIdGatheringCutoffSorted";
-	$familyNumber = 300;
-	$resulttempdir = "/scr/kronos/egg/temp/AlienRandomResultStatistics". "$currentresultnumber" . "/";
+	$RNAFamilyIdFile = "/scr/coridan/egg/backgroundFamilyNameIdGatheringCutoffSorted";
+	$familyNumber = 712;
+	$resulttempdir = "/scr/coridan/egg/temp/AlienRandomResultStatistics". "$currentresultnumber" . "/";
         $resultfileprefix = "structuredalienbackgroundoutput";
 }elsif($type eq "structured"){
 	$alienresult_basename="/scr/kronos/egg/AlienStructuredResultsCollected" . "$currentresultnumber" . "/";
@@ -73,29 +73,29 @@ if($type eq "background"){
 	$resulttempdir = "/scr/kronos/egg/temp/AlienDiverseResultStatistics". "$currentresultnumber" . "/";
         $resultfileprefix = "diversealien" . $use_sequences . "output";
 }elsif($type eq "blast"){
-        $alienresult_basename="/scr/kronos/egg/alienhmmerblast/blastout/";
-        $rfammodel_basename = "/scr/kronos/egg/AlienTest/sRNAFamilies/all_models/";
+        $alienresult_basename="/scr/coridan/egg/blastout/";
+        $rfammodel_basename = "/scr/coridan/egg/AlienTest/sRNAFamilies/all_models/";
         if($use_sequences eq "full"){
-                $rfamfasta_basename = "/scr/kronos/egg/rfamfamilyfasta/"; #full fasta
+                $rfamfasta_basename = "/scr/coridan/egg/rfamfamilyfasta/"; #full fasta
         }else{
-                $rfamfasta_basename = "/scr/kronos/egg/rfamfamilyseedfasta/"; #seed fasta
+                $rfamfasta_basename = "/scr/coridan/egg/rfamfamilyseedfasta/"; #seed fasta
         }
 
-        $RNAFamilyIdFile = "/scr/kronos/egg/structuredFamilyNameIdGatheringCutoffSorted";
+        $RNAFamilyIdFile = "/scr/coridan/egg/structuredFamilyNameIdGatheringCutoffSorted";
         $familyNumber = 56;
-        $resulttempdir = "/scr/kronos/egg/temp/AlienBlastResultStatistics/";
+        $resulttempdir = "/scr/coridan/egg/temp/AlienBlastResultStatistics/";
         $resultfileprefix = "blastalien" . $use_sequences . "output";
 }elsif($type eq "nhmmer"){
-        $alienresult_basename="/scr/kronos/egg/alienhmmerblast/nhmmerout/";
-        $rfammodel_basename = "/scr/kronos/egg/AlienTest/sRNAFamilies/all_models/";
+        $alienresult_basename="/scr/coridan/egg/nhmmerout/";
+        $rfammodel_basename = "/scr/coridan/egg/AlienTest/sRNAFamilies/all_models/";
         if($use_sequences eq "full"){
-                $rfamfasta_basename = "/scr/kronos/egg/rfamfamilyfasta/"; #full fasta
+                $rfamfasta_basename = "/scr/coridan/egg/rfamfamilyfasta/"; #full fasta
         }else{
-                $rfamfasta_basename = "/scr/kronos/egg/rfamfamilyseedfasta/"; #seed fasta
+                $rfamfasta_basename = "/scr/coridan/egg/rfamfamilyseedfasta/"; #seed fasta
         }
-	$RNAFamilyIdFile = "/scr/kronos/egg/structuredFamilyNameIdGatheringCutoffSorted";
+	$RNAFamilyIdFile = "/scr/coridan/egg/structuredFamilyNameIdGatheringCutoffSorted";
         $familyNumber = 56;
-        $resulttempdir = "/scr/kronos/egg/temp/AlienHmmerResultStatistics/";
+        $resulttempdir = "/scr/coridan/egg/temp/AlienHmmerResultStatistics/";
         $resultfileprefix = "hmmer" . $use_sequences . "output";
 }else{
 	#sRNA
@@ -126,7 +126,7 @@ unless (-d $resulttempdir){
 	#system "rm -r $resulttempdir" or die "Cannot create result tempdir: $!";
 	#mkdir $resulttempdir or die "Cannot create result tempdir: $!";	
 }
-my $output_directory_path = "/scr/kronos/egg/$resultfileprefix$currentresultnumber/";
+my $output_directory_path = "/scr/coridan/egg/$resultfileprefix$currentresultnumber/";
 unless (-d $output_directory_path){
 	mkdir $output_directory_path or die "Cannot create output dir: $!";
 }
@@ -162,17 +162,17 @@ sub alienresultstatistic{
     my $output="Index\tRfamName\tRfamId\tLinkscore\trfamMaxLS\talienMaxLS\trfamGatheringThreshold\talienGatheringThreshold\trfamFastaNumber\talienFastaNumber\trfamonAlienNumber\talienonRfamNumber\tRfamonAlienRecovery\tAlienonRfamRecovery\tmeanPairwiseIdentity\tshannonEntropy\tgcContent\tmeanSingleSequenceMFE\tconsensusMFE\tenergyContribution\tcovarianceContribution\tcombinationsPair\tmeanZScore\tSCI\tsvmDecisionValue\tsvmRNAClassProbability\tprediction\tstatSequenceNumber\tstatEffectiveSequences\tstatConsensusLength\tstatW\tstatBasepairs\tstatBifurcations\tstatModel\trelativeEntropyCM\trelativeEntropyHMM\n";
     my $clanMembersFile = "/scr/kronos/egg/clans/family_clan";
     my %clan_members;
-    open(my $clanMembersfh, "<", $clanMembersFile)
-	or die "Failed to open file: $!\n";
-    while(<$clanMembersfh>) {
-	chomp;
+    #open(my $clanMembersfh, "<", $clanMembersFile)
+#	or die "Failed to open file: $!\n";
+#    while(<$clanMembersfh>) {
+#	chomp;
 	#add to hash
-	my @line = split('\t',$_);
+#	my @line = split('\t',$_);
 	#print "$line[0] - $line[1]";
 	#push( @{ $clan_members {$line[0] } }, $line[1]);
-	$clan_members{$line[0]}=$line[1];
-    }
-    close $clanMembersfh;
+	#$clan_members{$line[0]}=$line[1];
+ #   }
+ #   close $clanMembersfh;
     
     for(my $counter=1; $counter <= $familyNumber; $counter++){
         my $current_alienresult_folder= $alienresult_basename.$counter."/";
