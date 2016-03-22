@@ -226,7 +226,7 @@ main = do
           print rnazString
           print cmStatString
         else do
-          putStrLn (show benchmarkIndex ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ (either id show alienMaxLinkscore) ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ show alienFastaEntriesNumber ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-"  ++ "\t" ++ "-" ++ "\t" ++ rnazString ++ "\t" ++ cmStatString)
+          putStrLn (show benchmarkIndex ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ (either id show alienMaxLinkscore) ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ show alienFastaEntriesNumber ++ "\t" ++ "-" ++ "\t" ++ "-" ++ "\t" ++ "-"  ++ "\t" ++ "-" ++ "\t" ++ rnazString  ++ "\t" ++ rnacodeString ++ "\t" ++ cmStatString)
 
 rnazOutput :: Verbosity -> String -> IO String
 rnazOutput verbose rnazPath = do
