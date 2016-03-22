@@ -34,16 +34,16 @@ my $cpu_cores = 30;
 
 
 if($type eq "background"){
-	$alienresult_basename="/scr/kronos/egg/AlienBackgroundCollected" . "$currentresultnumber" . "/";
-	$rfammodel_basename = "/scr/kronos/egg/AlienTest/sRNAFamilies/all_models/";
+	$alienresult_basename="/scr/coridan/egg/AlienBackgroundCollected" . "$currentresultnumber" . "/";
+	$rfammodel_basename = "/scr/coridan/egg/AlienTest/sRNAFamilies/all_models/";
         if($use_sequences eq "full"){
-		$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyfasta/"; #full fasta
+		$rfamfasta_basename = "/scr/coridan/egg/rfamfamilyfasta/"; #full fasta
 	}else{
-		$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyseedfasta/"; #seed fasta
+		$rfamfasta_basename = "/scr/coridan/egg/rfamfamilyseedfasta/"; #seed fasta
 	}
-	$RNAFamilyIdFile = "/scr/kronos/egg/randomFamilyNameIdGatheringCutoffSorted";
-	$familyNumber = 300;
-	$resulttempdir = "/scr/kronos/egg/temp/AlienRandomResultStatistics". "$currentresultnumber" . "/";
+	$RNAFamilyIdFile = "/scr/coridan/egg/backgroundNameIdGatheringCutoffSorted";
+	$familyNumber = 712;
+	$resulttempdir = "/scr/coridan/egg/temp/AlienRandomResultStatistics". "$currentresultnumber" . "/";
         $resultfileprefix = "structuredalienbackgroundoutput";
 }elsif($type eq "structured"){
 	$alienresult_basename="/scr/kronos/egg/AlienStructuredResultsCollected" . "$currentresultnumber" . "/";
@@ -159,7 +159,7 @@ sub alienresultstatistic{
     my $evalueThreshold = shift;
     my $use_clans = shift;
     my $type = shift;
-    my $output="Index\tRfamName\tRfamId\tLinkscore\trfamMaxLS\talienMaxLS\trfamGatheringThreshold\talienGatheringThreshold\trfamFastaNumber\talienFastaNumber\trfamonAlienNumber\talienonRfamNumber\tRfamonAlienRecovery\tAlienonRfamRecovery\tmeanPairwiseIdentity\tshannonEntropy\tgcContent\tmeanSingleSequenceMFE\tconsensusMFE\tenergyContribution\tcovarianceContribution\tcombinationsPair\tmeanZScore\tSCI\tsvmDecisionValue\tsvmRNAClassProbability\tprediction\tstatSequenceNumber\tstatEffectiveSequences\tstatConsensusLength\tstatW\tstatBasepairs\tstatBifurcations\tstatModel\trelativeEntropyCM\trelativeEntropyHMM\n";
+    my $output="Index\tRfamName\tRfamId\tLinkscore\trfamMaxLS\talienMaxLS\trfamGatheringThreshold\talienGatheringThreshold\trfamFastaNumber\talienFastaNumber\trfamonAlienNumber\talienonRfamNumber\tRfamonAlienRecovery\tAlienonRfamRecovery\tmeanPairwiseIdentity\tshannonEntropy\tgcContent\tmeanSingleSequenceMFE\tconsensusMFE\tenergyContribution\tcovarianceContribution\tcombinationsPair\tmeanZScore\tSCI\tsvmDecisionValue\tsvmRNAClassProbability\tprediction\tRclowestpv\tRcclass\tstatSequenceNumber\tstatEffectiveSequences\tstatConsensusLength\tstatW\tstatBasepairs\tstatBifurcations\tstatModel\trelativeEntropyCM\trelativeEntropyHMM\n";
     my $clanMembersFile = "/scr/kronos/egg/clans/family_clan";
     my %clan_members;
     open(my $clanMembersfh, "<", $clanMembersFile)
@@ -180,6 +180,7 @@ sub alienresultstatistic{
             my $alienModelPath = $current_alienresult_folder."result.cm";
             my $alienFastaPath = $current_alienresult_folder."result.fa";
             my $alienRNAzPath = $current_alienresult_folder."result.rnaz";
+	    my $alienRNAcodePath = $current_alienresult_folder."result.rnacode";
             my $aliencmstatPath = $current_alienresult_folder."result.cmstat";
             #retrieve family specific information
             my @rfamModelNameId = split(/\s+/,$RNAfamilies[($counter - 1)]);
@@ -238,7 +239,7 @@ sub alienresultstatistic{
                 $threshold = $evalueThreshold;
                 $databaseSize = setdatabasesize($counter,$type);
             }
-            $output = $output . `RNAlienStatistics $databaseSize -s $thresholdSelection -c $cpu_cores -n $rfamModelName -d $rfamModelId -b $counter -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -t $threshold -x $threshold -o $resulttempdir -z $alienRNAzPath -m $aliencmstatPath`;
+            $output = $output . `RNAlienStatistics $databaseSize -s $thresholdSelection -c $cpu_cores -n $rfamModelName -d $rfamModelId -b $counter -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -t $threshold -x $threshold -o $resulttempdir -w $alienRNAcodePath -z $alienRNAzPath -m $aliencmstatPath`;
             print "RNAlienStatistics $databaseSize -s $thresholdSelection -c $cpu_cores -n $rfamModelName -d $rfamModelId -b $counter -i $alienModelPath -r $rfamModelPath -a $alienFastaPath -g $rfamFastaPath -t $threshold -x $threshold -o $resulttempdir -z $alienRNAzPath -m $aliencmstatPath"."\n";
         }else{
 		print "Does not exist $alienresult_basename.$counter/done";
