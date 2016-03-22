@@ -26,6 +26,7 @@ data Options = Options
     lengthFilter :: Bool,
     coverageFilter :: Bool,
     singleHitperTax :: Bool,
+    blastSoftmasking :: Bool,
     inputQuerySelectionMethod :: String,
     inputQueryNumber :: Int,
     threads :: Int,
@@ -44,12 +45,13 @@ options = Options
     lengthFilter = True &= name "l" &= help "Filter blast hits per genomic length. Default: True",
     coverageFilter = True &= name "a" &= help "Filter blast hits by coverage of at least 80%. Default: True",
     singleHitperTax = False &= name "s" &= help "Only the best blast hit per taxonomic entry is considered. Default: False",
+    blastSoftmasking = True &= name "m" &= help "Toggles blast softmasking, meaning exclusion of low complexity (repetative) regions in lookup table. Default: True",
     inputQuerySelectionMethod = "filtering" &= name "m" &= help "Method for selection of queries (filtering,clustering). Default: filtering",
     inputQueryNumber = (5 :: Int) &= name "n" &= help "Number of queries used for candidate search. Default: 5",
     threads = 1 &= name "c" &= help "Number of available cpu slots/cores. Default: 1",
     taxonomyRestriction = Nothing &= name "r" &= help "Restrict search space to taxonomic kingdom (bacteria,archea,eukaryia). Default: not set",
     sessionIdentificator = Nothing &= name "d" &= help "Optional session id that is used instead of automatically generated one."
-  } &= summary "RNAlien version 1.0.0" &= help "Florian Eggenhofer, Ivo L. Hofacker, Christian Höner zu Siederdissen - 2013 - 2016" &= verbosity       
+  } &= summary "RNAlien version 1.1.1" &= help "Florian Eggenhofer, Ivo L. Hofacker, Christian Höner zu Siederdissen - 2013 - 2016" &= verbosity       
                 
 main :: IO ()
 main = do
@@ -62,7 +64,7 @@ main = do
   createDirectoryIfMissing False temporaryDirectoryPath
   createDirectoryIfMissing False (temporaryDirectoryPath ++ "log")
   -- Create Log files
-  writeFile (temporaryDirectoryPath ++ "Log") ("RNAlien 1.0.0" ++ "\n")
+  writeFile (temporaryDirectoryPath ++ "Log") ("RNAlien 1.1.1" ++ "\n")
   writeFile (temporaryDirectoryPath ++ "log/warnings") ("")
   logMessage ("Timestamp: " ++ (show timestamp) ++ "\n") temporaryDirectoryPath
   logMessage ("Temporary Directory: " ++ temporaryDirectoryPath ++ "\n") temporaryDirectoryPath
@@ -91,7 +93,7 @@ main = do
               let inputSequence = reformatFasta (head inputFasta)
               initialTaxId <- setInitialTaxId inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
               let checkedTaxonomyRestriction = checkTaxonomyRestriction taxonomyRestriction
-              let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) inputTaxId singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter threads inputBlastDatabase checkedTaxonomyRestriction (setVerbose verboseLevel)
+              let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) inputTaxId singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads inputBlastDatabase checkedTaxonomyRestriction (setVerbose verboseLevel)
               let initialization = ModelConstruction iterationNumber inputSequence [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] []
               logMessage (show initialization) temporaryDirectoryPath
               modelConstructionResults <- modelConstructer staticOptions initialization

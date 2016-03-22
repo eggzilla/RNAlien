@@ -18,6 +18,7 @@ data StaticOptions = StaticOptions
     queryNumber :: Int,
     lengthFilterToggle :: Bool,
     coverageFilterToggle :: Bool,
+    blastSoftmaskingToggle :: Bool,
     cpuThreads :: Int,
     blastDatabase :: Maybe String,
     taxRestriction :: Maybe String,
