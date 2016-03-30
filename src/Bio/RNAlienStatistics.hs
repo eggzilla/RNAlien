@@ -319,6 +319,7 @@ rnaCodeOutput verbose rnaCodePath = do
               return output
             else do
               let output = "-\t" ++ "-"
+              --let output = show (fromLeft inputRNACode)
               return output
     else do
        if (verbose == Loud)

@@ -2,7 +2,7 @@
 -- see http://haskell.org/cabal/users-guide/
 
 name:                RNAlien
-version:             1.1.0
+version:             1.1.1
 synopsis:            Unsupervized construction of RNA family models
 description:         RNAlien is a tool for automatic construction of RNAfamily models from a single sequence.
                      .
@@ -53,8 +53,8 @@ source-repository head
 
 source-repository this
   type:     git
-  location: https://github.com/eggzilla/RNAlien/tree/1.1.0
-  tag:      1.1.0
+  location: https://github.com/eggzilla/RNAlien/tree/1.1.1
+  tag:      1.1.1
                      
 executable RNAlien
   Hs-Source-Dirs:      ./src/Bio/
@@ -77,7 +77,7 @@ executable SelectSequences
 Library
   Hs-Source-Dirs:      ./src/
   ghc-options:         -Wall -O2 -fno-warn-unused-do-bind
-  build-depends:       base >=4.5 && <5, cmdargs, ViennaRNAParser>=1.2.8, process, directory, blastxml>=0.3.2, biofasta, parsec, random, BlastHTTP, biocore, bytestring, Taxonomy >= 1.0.1, either-unwrap, containers, ClustalParser>=1.1.0, EntrezHTTP>=1.0.1, vector, edit-distance, cassava, matrix, hierarchical-clustering, filepath, HTTP, http-conduit, hxt, network, aeson, text, transformers >= 0.4 && <0.5, pureMD5
+  build-depends:       base >=4.5 && <5, cmdargs, ViennaRNAParser>=1.2.9, process, directory, blastxml>=0.3.2, biofasta, parsec, random, BlastHTTP, biocore, bytestring, Taxonomy >= 1.0.1, either-unwrap, containers, ClustalParser>=1.1.0, EntrezHTTP>=1.0.1, vector, edit-distance, cassava, matrix, hierarchical-clustering, filepath, HTTP, http-conduit, hxt, network, aeson, text, transformers >= 0.4 && <0.5, pureMD5
   Exposed-Modules:     Bio.RNAlienData
                        Bio.RNAlienLibrary
                        Bio.RNAcentralHTTP

@@ -1,4 +1,8 @@
 -*-change-log-*-
+1.1.1 Florian Eggenhofer <florian.eggenhofer@informatik.uni-freiburg.de> 23. March 2016
+	* Added a commandlineswitch for softmasking
+	* Improved interface with Alienserver
+
 1.1.0 Florian Eggenhofer <florian.eggenhofer@univie.ac.at> 11. February 2016
 	* Update including changes from 1st review
 	* Cmbuild uses --refine option
