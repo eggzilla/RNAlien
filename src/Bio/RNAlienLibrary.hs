@@ -405,9 +405,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
   let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=5000&EXPECT=" ++ show expectThreshold
   let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
   let softmaskFilter = if (blastSoftmaskingToggle staticOptions) then "&FILTER=True&FILTER=m" else ""
-  let softMaskedQuerySequences = []
-  let querySequences' = if (blastSoftmaskingToggle staticOptions) then softMaskedQuerySequences else inputQuerySequences
-  let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) querySequences'  (Just (hitNumberQuery ++ entrezTaxFilter ++ softmaskFilter ++ registrationInfo)) (Just (5400000000 :: Int))
+  let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) inputQuerySequences  (Just (hitNumberQuery ++ entrezTaxFilter ++ softmaskFilter ++ registrationInfo)) (Just (5400000000 :: Int))
   --appendFile "/scratch/egg/blasttest/queries" ("\nBlast query:\n"  ++ show blastQuery ++ "\n") 
   logVerboseMessage (verbositySwitch staticOptions) ("Sending blast query " ++ (show iterationnumber) ++ "\n") (tempDirPath staticOptions)
   blastOutput <- CE.catch (blastHTTP blastQuery)
@@ -579,7 +577,7 @@ findCutoffforClusterNumber clustaloDendrogram numberOfClusters currentCutoff
     where currentClusterNumber = length (cutAt clustaloDendrogram currentCutoff)
 
 -- Selects Query sequence ids from all collected seqeuences. Queries are then fetched by extractQueries function.
-selectQueries :: StaticOptions -> ModelConstruction -> [(Sequence,Int,L.ByteString)] -> IO [String]
+selectQueries :: StaticOptions -> ModelConstruction -> [(Sequence,Int,L.ByteString)] -> IO [Sequence]
 selectQueries staticOptions modelConstruction selectedCandidates = do
   logVerboseMessage (verbositySwitch staticOptions) "SelectQueries\n" (tempDirPath staticOptions)
   --Extract sequences from modelconstruction
@@ -613,14 +611,16 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
           let cutDendrogram = cutAt clustaloDendrogram dendrogramCutDistance'
           --putStrLn "cutDendrogram: "
           --print cutDendrogram
-          let currentSelectedQueries = take (queryNumber staticOptions) (concatMap (take 1 . elements) cutDendrogram)
+          let querySeqIds = take (queryNumber staticOptions) (concatMap (take 1 . elements) cutDendrogram)
+          --let alignedSequences = fastaSeqData:map nucleotideSequence (concatMap sequenceRecords (taxRecords modelconstruction)) 
+          let currentSelectedQueries = concatMap (\querySeqId -> filter (\alignedSeq -> L.unpack (unSL (seqid alignedSeq)) == querySeqId) alignmentSequences) querySeqIds
           logVerboseMessage (verbositySwitch staticOptions) ("SelectedQueries: " ++ show currentSelectedQueries ++ "\n") (tempDirPath staticOptions)                       
           writeFile (tempDirPath staticOptions ++ show (iterationNumber modelConstruction) ++ "/log" ++ "/13selectedQueries") (showlines currentSelectedQueries)
           CE.evaluate currentSelectedQueries
         else do
           let currentSelectedSequences = filterIdenticalSequences' alignmentSequences (95 :: Double)
-          let currentSelectedQueries = map (L.unpack . unSL . seqid) (take (queryNumber staticOptions) currentSelectedSequences)
-          CE.evaluate currentSelectedQueries
+          --let currentSelectedQueries = map (L.unpack . unSL . seqid) (take (queryNumber staticOptions) currentSelectedSequences)
+          CE.evaluate currentSelectedSequences
           
     else return []
 
@@ -858,7 +858,7 @@ raiseTaxIdLimitEntrez subTreeTaxId taxon = parentNodeTaxId
         --the input taxid is not part of the lineage, therefor we look for further taxids in the lineage after we used the parent tax id of the input node
         parentNodeTaxId = if subTreeTaxId == taxonTaxId taxon then Just (taxonParentTaxId taxon) else linageNodeTaxId
        
-constructNext :: Int -> ModelConstruction -> [(Sequence,Int,L.ByteString)] -> Maybe Int -> Maybe Taxon  -> [String] -> [SearchResult] -> Bool -> ModelConstruction
+constructNext :: Int -> ModelConstruction -> [(Sequence,Int,L.ByteString)] -> Maybe Int -> Maybe Taxon  -> [Sequence] -> [SearchResult] -> Bool -> ModelConstruction
 constructNext currentIterationNumber modelconstruction alignmentResults upperTaxLimit inputTaxonomicContext inputSelectedQueries inputPotentialMembers toggleInfernalAlignmentModeTrue = nextModelConstruction
   where newIterationNumber = currentIterationNumber + 1
         taxEntries = taxRecords modelconstruction ++ buildTaxRecords alignmentResults currentIterationNumber
@@ -916,9 +916,10 @@ extractQueries foundSequenceNumber modelconstruction
   | foundSequenceNumber < 3 = [fastaSeqData] 
   | otherwise = querySequences' 
   where fastaSeqData = inputFasta modelconstruction
-        querySeqIds = selectedQueries modelconstruction
-        alignedSequences = fastaSeqData:map nucleotideSequence (concatMap sequenceRecords (taxRecords modelconstruction)) 
-        querySequences' = concatMap (\querySeqId -> filter (\alignedSeq -> L.unpack (unSL (seqid alignedSeq)) == querySeqId) alignedSequences) querySeqIds
+        --querySeqIds = selectedQueries modelconstruction
+        --alignedSequences = fastaSeqData:map nucleotideSequence (concatMap sequenceRecords (taxRecords modelconstruction)) 
+        --querySequences' = concatMap (\querySeqId -> filter (\alignedSeq -> L.unpack (unSL (seqid alignedSeq)) == querySeqId) alignedSequences) querySeqIds
+        querySequences' = selectedQueries modelconstruction
         
 extractQueryCandidates :: [(Sequence,Int,L.ByteString)] -> V.Vector (Int,Sequence)
 extractQueryCandidates querycandidates = indexedSeqences
