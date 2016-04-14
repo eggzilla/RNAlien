@@ -611,18 +611,25 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
           let cutDendrogram = cutAt clustaloDendrogram dendrogramCutDistance'
           --putStrLn "cutDendrogram: "
           --print cutDendrogram
-          let querySeqIds = take (queryNumber staticOptions) (concatMap (take 1 . elements) cutDendrogram)
-          --let alignedSequences = fastaSeqData:map nucleotideSequence (concatMap sequenceRecords (taxRecords modelconstruction)) 
-          let currentSelectedQueries = concatMap (\querySeqId -> filter (\alignedSeq -> L.unpack (unSL (seqid alignedSeq)) == querySeqId) alignmentSequences) querySeqIds
+          let querySeqIds = map L.pack (take (queryNumber staticOptions) (concatMap (take 1 . elements) cutDendrogram))
+          --let alignedSequences = fastaSeqData:map nucleotideSequence (concatMap sequenceRecords (taxRecords modelconstruction))
+          let currentSelectedQueries = concatMap (filterSequenceById alignmentSequences) querySeqIds
+          --let currentSelectedQueries = concatMap (\querySeqId -> filter (\alignedSeq -> L.unpack (unSL (seqid alignedSeq)) == querySeqId) alignmentSequences) querySeqIds
           logVerboseMessage (verbositySwitch staticOptions) ("SelectedQueries: " ++ show currentSelectedQueries ++ "\n") (tempDirPath staticOptions)                       
           writeFile (tempDirPath staticOptions ++ show (iterationNumber modelConstruction) ++ "/log" ++ "/13selectedQueries") (showlines currentSelectedQueries)
           CE.evaluate currentSelectedQueries
         else do
           let currentSelectedSequences = filterIdenticalSequences' alignmentSequences (95 :: Double)
           --let currentSelectedQueries = map (L.unpack . unSL . seqid) (take (queryNumber staticOptions) currentSelectedSequences)
-          CE.evaluate currentSelectedSequences
-          
+          CE.evaluate currentSelectedSequences       
     else return []
+
+
+filterSequenceById :: [Sequence] -> L.ByteString-> [Sequence]
+filterSequenceById alignmentSequences querySequenceId = filter (seqenceHasId querySequenceId) alignmentSequences
+
+seqenceHasId :: L.ByteString -> Sequence -> Bool
+seqenceHasId querySequenceId alignmentSequence = unSL (seqid alignmentSequence) == querySequenceId
 
 constructModel :: ModelConstruction -> StaticOptions -> IO String
 constructModel modelConstruction staticOptions = do
@@ -916,9 +923,6 @@ extractQueries foundSequenceNumber modelconstruction
   | foundSequenceNumber < 3 = [fastaSeqData] 
   | otherwise = querySequences' 
   where fastaSeqData = inputFasta modelconstruction
-        --querySeqIds = selectedQueries modelconstruction
-        --alignedSequences = fastaSeqData:map nucleotideSequence (concatMap sequenceRecords (taxRecords modelconstruction)) 
-        --querySequences' = concatMap (\querySeqId -> filter (\alignedSeq -> L.unpack (unSL (seqid alignedSeq)) == querySeqId) alignedSequences) querySeqIds
         querySequences' = selectedQueries modelconstruction
         
 extractQueryCandidates :: [(Sequence,Int,L.ByteString)] -> V.Vector (Int,Sequence)
