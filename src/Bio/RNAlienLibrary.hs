@@ -395,16 +395,18 @@ findTaxonomyStart inputBlastDatabase temporaryDirectory querySequence = do
      else error "Find taxonomy start: Could not find blast hits to use as a taxonomic starting point"
 
 searchCandidates :: StaticOptions -> Maybe String -> Int ->  Maybe Int -> Maybe Int -> Double -> [Sequence] -> IO SearchResult
-searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimit lowerTaxLimit expectThreshold querySequences' = do
+searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimit lowerTaxLimit expectThreshold inputQuerySequences = do
   --let fastaSeqData = seqdata _querySequence
-  if (null querySequences') then error "searchCandidates: - head: empty list of query sequences" else return ()
-  let queryLength = fromIntegral (seqlength (head querySequences'))
+  if (null inputQuerySequences) then error "searchCandidates: - head: empty list of query sequences" else return ()
+  let queryLength = fromIntegral (seqlength (head inputQuerySequences))
   let queryIndexString = "1"
   let entrezTaxFilter = buildTaxFilterQuery upperTaxLimit lowerTaxLimit 
   logVerboseMessage (verbositySwitch staticOptions) ("entrezTaxFilter" ++ show entrezTaxFilter ++ "\n") (tempDirPath staticOptions)
   let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=5000&EXPECT=" ++ show expectThreshold
   let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
   let softmaskFilter = if (blastSoftmaskingToggle staticOptions) then "&FILTER=True&FILTER=m" else ""
+  let softMaskedQuerySequences = []
+  let querySequences' = if (blastSoftmaskingToggle staticOptions) then softMaskedQuerySequences else inputQuerySequences
   let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) querySequences'  (Just (hitNumberQuery ++ entrezTaxFilter ++ softmaskFilter ++ registrationInfo)) (Just (5400000000 :: Int))
   --appendFile "/scratch/egg/blasttest/queries" ("\nBlast query:\n"  ++ show blastQuery ++ "\n") 
   logVerboseMessage (verbositySwitch staticOptions) ("Sending blast query " ++ (show iterationnumber) ++ "\n") (tempDirPath staticOptions)
