@@ -70,6 +70,9 @@ import Bio.InfernalParser
 import qualified Data.Text as T
 import qualified Data.Text.IO as TI
 import qualified Data.Text.Encoding as DTE
+import qualified Data.Text.Lazy.Encoding as E
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.IO as TIO
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 modelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
@@ -1672,3 +1675,45 @@ checkTaxonomyRestrictionString restrictionString
   | restrictionString == "bacteria" = Just "bacteria"
   | restrictionString == "eukaryia" = Just "eukaryia"
   | otherwise = Nothing
+
+extractAlignmentSequencesByIds :: String -> String -> IO [Sequence]
+extractAlignmentSequencesByIds stockholmFilePath sequenceIds = do
+  inputSeedAln <- TIO.readFile stockholmFilePath
+  let alnEntries = extractAlignmentSequences inputSeedAln
+  let splitIds = map E.encodeUtf8 (TL.splitOn (TL.pack ",") (TL.pack sequenceIds))
+  let filteredEntries = concatMap (filterSequencesById alnEntries) splitIds
+  return filteredEntries
+ 
+extractAlignmentSequences :: TL.Text -> [Sequence]
+extractAlignmentSequences  seedFamilyAln = rfamIDAndseedFamilySequences
+  where seedFamilyAlnLines = TL.lines seedFamilyAln
+        -- remove empty lines from splitting
+        seedFamilyNonEmpty =  filter (\alnline -> not (TL.empty == alnline)) seedFamilyAlnLines
+        -- remove annotation and spacer lines
+        seedFamilyIdSeqLines =  filter (\alnline -> ((not ((TL.head alnline) == '#'))) && (not ((TL.head alnline) == ' ')) && (not ((TL.head alnline) == '/'))) seedFamilyNonEmpty 
+        -- put id and corresponding seq of each line into a list and remove whitspaces        
+        seedFamilyIdandSeqLines = map TL.words seedFamilyIdSeqLines
+        -- linewise tuples with id and seq without alinment characters - .
+        seedFamilyIdandSeqLineTuples = map (\alnline -> ((head alnline),(filterAlnChars (last alnline)))) seedFamilyIdandSeqLines
+        -- line tuples sorted by id
+        seedFamilyIdandSeqTupleSorted = sortBy (\tuple1 tuple2 -> compare (fst tuple1) (fst tuple2)) seedFamilyIdandSeqLineTuples
+        -- line tuples grouped by id
+        seedFamilyIdandSeqTupleGroups = groupBy (\tuple1 tuple2 -> (fst tuple1) == (fst tuple2)) seedFamilyIdandSeqTupleSorted
+        seedFamilySequences = map mergeIdSeqTuplestoSequence seedFamilyIdandSeqTupleGroups
+        rfamIDAndseedFamilySequences = seedFamilySequences
+
+filterSequencesById :: [Sequence] -> L.ByteString -> [Sequence]
+filterSequencesById alignmentSequences sequenceId = filter (sequenceHasId sequenceId) alignmentSequences
+
+sequenceHasId :: L.ByteString -> Sequence -> Bool
+sequenceHasId sequenceId currentSequence = sequenceId == (unSL (seqid currentSequence))
+
+filterAlnChars :: TL.Text -> TL.Text
+filterAlnChars chars = TL.filter (\char -> (not (char == '-')) && (not (char == '.'))) chars
+
+mergeIdSeqTuplestoSequence :: [(TL.Text,TL.Text)] -> Sequence
+mergeIdSeqTuplestoSequence tuplelist = currentSequence
+  where seqid = fst (head tuplelist)
+        seqdata = TL.concat (map snd tuplelist)
+        currentSequence = Seq (SeqLabel (E.encodeUtf8 seqid)) (SeqData (E.encodeUtf8 seqdata)) Nothing
+
