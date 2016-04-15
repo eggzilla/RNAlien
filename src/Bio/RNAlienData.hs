@@ -35,7 +35,7 @@ data ModelConstruction = ModelConstruction
     taxonomicContext :: Maybe Taxon,
     evalueThreshold :: Double,                     
     alignmentModeInfernal :: Bool,
-    selectedQueries :: [String],
+    selectedQueries :: [Sequence],
     potentialMembers :: [SearchResult]
   } 
 
@@ -47,7 +47,7 @@ instance Show ModelConstruction where
           d = "Upper taxonomy limit: " ++ maybe "not set" show _upperTaxonomyLimit ++ "\n"
           e = "Taxonomic Context: " ++  maybe "not set" show _taxonomicContext ++ "\n"
           g = "Evalue cutoff: " ++ show _evalueThreshold ++ "\n"
-          h = "Selected queries: \n" ++ concatMap (\x -> x ++ "\n") _selectedQueries
+          h = "Selected queries: \n" ++ concatMap show _selectedQueries
           i = "Potential Members: \n" ++ concatMap show _potentialMembers
 
 data TaxonomyRecord = TaxonomyRecord
