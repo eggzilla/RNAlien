@@ -309,28 +309,31 @@ alignmentConstructionWithCandidates currentTaxonomicContext currentUpperTaxonomy
         nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInputWithThreshold           
         return nextModelConstruction 
       else do
-        --select queries
-        currentSelectedQueries <- selectQueries staticOptions modelConstruction alignmentResults
         if (alignmentModeInfernal modelConstruction)
           then do
             logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - infernal mode\n") (tempDirPath staticOptions)
             --prepare next iteration
-            let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults currentUpperTaxonomyLimit currentTaxonomicContext currentSelectedQueries currentPotentialMembers True        
+            let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults currentUpperTaxonomyLimit currentTaxonomicContext [] currentPotentialMembers True        
             constructModel nextModelConstructionInput staticOptions               
             writeFile (iterationDirectory ++ "done") ""
             logMessage (iterationSummaryLog nextModelConstructionInput) (tempDirPath staticOptions)
-            logVerboseMessage (verbositySwitch staticOptions)  (show nextModelConstructionInput) (tempDirPath staticOptions)  ----
-            nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInput           
+            logVerboseMessage (verbositySwitch staticOptions)  (show nextModelConstructionInput) (tempDirPath staticOptions)
+            --select queries
+            currentSelectedQueries <- selectQueries staticOptions modelConstruction alignmentResults
+            let nextModelConstructionInputWithQueries = nextModelConstructionInput {selectedQueries = currentSelectedQueries}
+            nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInputWithQueries
             return nextModelConstruction
           else do
             logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - initial mode\n") (tempDirPath staticOptions)
             --First round enough candidates are available for modelconstruction, alignmentModeInfernal is set to true after this iteration
             --prepare next iteration
+            --select queries
+            currentSelectedQueries <- selectQueries staticOptions modelConstruction alignmentResults
             let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults currentUpperTaxonomyLimit currentTaxonomicContext currentSelectedQueries currentPotentialMembers False       
-            constructModel nextModelConstructionInput staticOptions               
+            constructModel nextModelConstructionInput staticOptions
             let nextModelConstructionInputWithInfernalMode = nextModelConstructionInput {alignmentModeInfernal = True}
             logMessage (iterationSummaryLog  nextModelConstructionInputWithInfernalMode) (tempDirPath staticOptions)
-            logVerboseMessage (verbositySwitch staticOptions)  (show  nextModelConstructionInputWithInfernalMode) (tempDirPath staticOptions) ----
+            logVerboseMessage (verbositySwitch staticOptions)  (show  nextModelConstructionInputWithInfernalMode) (tempDirPath staticOptions)
             writeFile (iterationDirectory ++ "done") ""
             nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInputWithInfernalMode        
             return nextModelConstruction
@@ -587,6 +590,7 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
   let alignedSequences = extractAlignedSequences (iterationNumber modelConstruction) modelConstruction 
   let candidateSequences = extractQueryCandidates selectedCandidates
   let iterationDirectory = tempDirPath staticOptions ++ show (iterationNumber modelConstruction) ++ "/"
+  let stockholmFilepath = iterationDirectory ++ "model" ++ ".stockholm"
   let alignmentSequences = map snd (V.toList (V.concat [candidateSequences,alignedSequences]))
   if length alignmentSequences > 3
     then do
@@ -614,17 +618,23 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
           let cutDendrogram = cutAt clustaloDendrogram dendrogramCutDistance'
           --putStrLn "cutDendrogram: "
           --print cutDendrogram
-          let querySeqIds = map L.pack (take (queryNumber staticOptions) (concatMap (take 1 . elements) cutDendrogram))
+          let currentSelectedSequenceIds = map L.pack (take (queryNumber staticOptions) (concatMap (take 1 . elements) cutDendrogram))
           --let alignedSequences = fastaSeqData:map nucleotideSequence (concatMap sequenceRecords (taxRecords modelconstruction))
-          let currentSelectedQueries = concatMap (filterSequenceById alignmentSequences) querySeqIds
+          let fastaSelectedSequences = concatMap (filterSequenceById alignmentSequences) currentSelectedSequenceIds
+          stockholmSelectedSequences <- extractAlignmentSequencesByIds stockholmFilepath currentSelectedSequenceIds
+          --Stockholm sequnces contain conservation annotation from cmalign in infernal mode
+          let currentSelectedSequences = if (blastSoftmaskingToggle staticOptions) then stockholmSelectedSequences else fastaSelectedSequences
           --let currentSelectedQueries = concatMap (\querySeqId -> filter (\alignedSeq -> L.unpack (unSL (seqid alignedSeq)) == querySeqId) alignmentSequences) querySeqIds
-          logVerboseMessage (verbositySwitch staticOptions) ("SelectedQueries: " ++ show currentSelectedQueries ++ "\n") (tempDirPath staticOptions)                       
-          writeFile (tempDirPath staticOptions ++ show (iterationNumber modelConstruction) ++ "/log" ++ "/13selectedQueries") (showlines currentSelectedQueries)
-          CE.evaluate currentSelectedQueries
+          logVerboseMessage (verbositySwitch staticOptions) ("SelectedQueries: " ++ show currentSelectedSequences ++ "\n") (tempDirPath staticOptions)                       
+          writeFile (tempDirPath staticOptions ++ show (iterationNumber modelConstruction) ++ "/log" ++ "/13selectedQueries") (showlines currentSelectedSequences)
+          CE.evaluate currentSelectedSequences
         else do
-          let currentSelectedSequences = filterIdenticalSequences' alignmentSequences (95 :: Double)
-          --let currentSelectedQueries = map (L.unpack . unSL . seqid) (take (queryNumber staticOptions) currentSelectedSequences)
-          CE.evaluate currentSelectedSequences       
+          let fastaSelectedSequences = filterIdenticalSequences' alignmentSequences (95 :: Double)
+          let currentSelectedSequenceIds = map (unSL . seqid) (take (queryNumber staticOptions) fastaSelectedSequences)
+          stockholmSelectedSequences <- extractAlignmentSequencesByIds stockholmFilepath currentSelectedSequenceIds
+          let currentSelectedSequences = if (blastSoftmaskingToggle staticOptions) then stockholmSelectedSequences else fastaSelectedSequences
+          writeFile (tempDirPath staticOptions ++ show (iterationNumber modelConstruction) ++ "/log" ++ "/13selectedQueries") (showlines currentSelectedSequences)
+          CE.evaluate currentSelectedSequences
     else return []
 
 
@@ -1683,12 +1693,12 @@ checkTaxonomyRestrictionString restrictionString
   | restrictionString == "eukaryia" = Just "eukaryia"
   | otherwise = Nothing
 
-extractAlignmentSequencesByIds :: String -> String -> IO [Sequence]
+extractAlignmentSequencesByIds :: String -> [L.ByteString] -> IO [Sequence]
 extractAlignmentSequencesByIds stockholmFilePath sequenceIds = do
   inputSeedAln <- TIO.readFile stockholmFilePath
   let alnEntries = extractAlignmentSequences inputSeedAln
-  let splitIds = map E.encodeUtf8 (TL.splitOn (TL.pack ",") (TL.pack sequenceIds))
-  let filteredEntries = concatMap (filterSequencesById alnEntries) splitIds
+  --let splitIds = map E.encodeUtf8 (TL.splitOn (TL.pack ",") (TL.pack sequenceIds))
+  let filteredEntries = concatMap (filterSequencesById alnEntries) sequenceIds
   return filteredEntries
  
 extractAlignmentSequences :: TL.Text -> [Sequence]
@@ -1716,11 +1726,11 @@ sequenceHasId :: L.ByteString -> Sequence -> Bool
 sequenceHasId sequenceId currentSequence = sequenceId == (unSL (seqid currentSequence))
 
 filterAlnChars :: TL.Text -> TL.Text
-filterAlnChars chars = TL.filter (\char -> (not (char == '-')) && (not (char == '.'))) chars
+filterAlnChars cs = TL.filter (\c -> (not (c == '-')) && (not (c == '.'))) cs
 
 mergeIdSeqTuplestoSequence :: [(TL.Text,TL.Text)] -> Sequence
 mergeIdSeqTuplestoSequence tuplelist = currentSequence
-  where seqid = fst (head tuplelist)
-        seqdata = TL.concat (map snd tuplelist)
-        currentSequence = Seq (SeqLabel (E.encodeUtf8 seqid)) (SeqData (E.encodeUtf8 seqdata)) Nothing
+  where seqId = fst (head tuplelist)
+        seqData = TL.concat (map snd tuplelist)
+        currentSequence = Seq (SeqLabel (E.encodeUtf8 seqId)) (SeqData (E.encodeUtf8 seqData)) Nothing
 
