@@ -33,12 +33,12 @@ my $familyNumber;
 my $resulttempdir;
 
 if($type eq "structured"){
-	$alienresult_basename="/scr/kronos/egg/AlienStructuredResultsCollected" . "$currentresultnumber" . "/";
-	$rfamstockholm_basename = "/scr/kronos/egg/structuredfamilyrfamstockholm/";
-	$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyseedfasta/";
-	$RNAFamilyIdFile = "/scr/kronos/egg/structuredFamilyNameIdGatheringCutoffSorted";
+	$alienresult_basename="/scr/coridan/egg/AlienStructuredResultsCollected" . "$currentresultnumber" . "/";
+	$rfamstockholm_basename = "/scr/coridan/egg/structuredfamilyrfamstockholm/";
+	$rfamfasta_basename = "/scr/coridan/egg/rfamfamilyseedfasta/";
+	$RNAFamilyIdFile = "/scr/coridan/egg/structuredFamilyNameIdGatheringCutoffSorted";
 	$familyNumber = 56;
-	$resulttempdir = "/scr/kronos/egg/temp/AlienStructuredResultStatistics". "$currentresultnumber" . "/";
+	$resulttempdir = "/scr/coridan/egg/temp/AlienStructuredResultStatistics". "$currentresultnumber" . "/";
 }else{
 	#sRNA
 	$alienresult_basename="/scr/kronos/egg/AlienResultsCollected" . "$currentresultnumber" . "/";
@@ -88,7 +88,7 @@ sub distanceBetweenAlienRfamStockholms{
                 $fasta_identifier =~ s/>//;
                 #$fasta_identifier =~ s/\\K.+$//;
                 if(-e $fstStockholmPath){
-                    $output = $output . `~egg/current/Projects/Haskell/StockholmTools/dist/build/CompareStockholmStructure/CompareStockholmStructure -i $fasta_identifier -a $fstStockholmPath -r $sndStockholmPath -o $resultfolderpath`;
+                    $output = $output . `~egg/current/Projects/Haskell/StockholmTools/dist/build/CompareStockholmStructure/CompareStockholmStructure -i $fasta_identifier -a $fstStockholmPath -r $sndStockholmPath -d P -o $resultfolderpath`;
                 }else{
                     $output = $output . "no stockholm found\n";
                 }
