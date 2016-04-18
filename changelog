@@ -1,4 +1,7 @@
 -*-change-log-*-
+1.1.2 Florian Eggenhofer <florian.eggenhofer@informatik.uni-freiburg.de> 18. April 2016
+        * Fixed a bug in passing softmasking to blast
+        * Performance improvements in query selection
 1.1.1 Florian Eggenhofer <florian.eggenhofer@informatik.uni-freiburg.de> 23. March 2016
 	* Added a commandlineswitch for softmasking
 	* Improved interface with Alienserver

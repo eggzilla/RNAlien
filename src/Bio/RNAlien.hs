@@ -51,7 +51,7 @@ options = Options
     threads = 1 &= name "c" &= help "Number of available cpu slots/cores. Default: 1",
     taxonomyRestriction = Nothing &= name "r" &= help "Restrict search space to taxonomic kingdom (bacteria,archea,eukaryia). Default: not set",
     sessionIdentificator = Nothing &= name "d" &= help "Optional session id that is used instead of automatically generated one."
-  } &= summary "RNAlien version 1.1.1" &= help "Florian Eggenhofer, Ivo L. Hofacker, Christian Höner zu Siederdissen - 2013 - 2016" &= verbosity       
+  } &= summary "RNAlien version 1.1.2" &= help "Florian Eggenhofer, Ivo L. Hofacker, Christian Höner zu Siederdissen - 2013 - 2016" &= verbosity       
                 
 main :: IO ()
 main = do
@@ -64,7 +64,7 @@ main = do
   createDirectoryIfMissing False temporaryDirectoryPath
   createDirectoryIfMissing False (temporaryDirectoryPath ++ "log")
   -- Create Log files
-  writeFile (temporaryDirectoryPath ++ "Log") ("RNAlien 1.1.1" ++ "\n")
+  writeFile (temporaryDirectoryPath ++ "Log") ("RNAlien 1.1.2" ++ "\n")
   writeFile (temporaryDirectoryPath ++ "log/warnings") ("")
   logMessage ("Timestamp: " ++ (show timestamp) ++ "\n") temporaryDirectoryPath
   logMessage ("Temporary Directory: " ++ temporaryDirectoryPath ++ "\n") temporaryDirectoryPath
