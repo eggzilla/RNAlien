@@ -71,6 +71,7 @@ import Bio.InfernalParser
 import qualified Data.Text as T
 import qualified Data.Text.IO as TI
 import qualified Data.Text.Encoding as DTE
+import Control.Monad.State.Lazy
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 modelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
@@ -1608,7 +1609,7 @@ preprocessClustalForRNAztest clustalFilepath reformatedClustalPath = do
       --optID=80;
       if isRight parsedClustalInput
         then do
-          let filteredClustalInput = rnaZSelectSeqs2 (fromRight parsedClustalInput) 500 99
+          let filteredClustalInput = rnaZSelectSeqs2 (fromRight parsedClustalInput) 500 (95 ::Double)
           --writeFile selectedClustalpath (show filteredClustalInput)
           return (Right $ show filteredClustalInput)
         else return (Left (show (fromLeft parsedClustalInput)))
@@ -1620,40 +1621,55 @@ rnaZSelectSeqs2 currentClustalAlignment targetEntries identityCutoff = filteredI
 --  | otherwise = currentClustalAlignment
   where entryVector = V.fromList (alignmentEntries currentClustalAlignment)
         identityMatrix = computeSequenceIdentityMatrix (V.map entryAlignedSequence entryVector)
-        entryIndices = getMatrixAsVector (matrix (V.length entryVector) (V.length entryVector) (\(i,j) -> (i,j)))
-        identityMatrixVector = V.index (getMatrixAsVector identityMatrix)
+        elementNumber = (V.length entryVector)
+        minSeqNumber = 5 :: Int
+        entryIndices = getMatrixAsVector (matrix elementNumber elementNumber (\(i,j) -> (i,j)))
+        identityMatrixVector = V.indexed (getMatrixAsVector identityMatrix)
         --Similarity filter - filter too similar sequences until alive seqs are less then minSeqs
-        filteredIdentityMatrixVector = runState $ V.filterM filterCutoff identityMatrixVector
+        filteredIdentityMatrixVector = V.filter (\(i,ident) -> maybe False (< identityCutoff) ident) identityMatrixVector
+        --filteredIdentityMatrixVector = runState  (V.filterM (filterCutoff identityCutoff minSeqNumber) identityMatrixVector) elementNumber
           
         --filteredEntriesIndices = filterIdentityMatrix  identityMatrix targetEntries entryIndices identityCutoff
         
         --filteredEntries = V.map () filteredEntriesIndices
         --filteredAlignment = ClustalAlignment filteredEntries (conservationTrack currentClustalAlignment)
+--filterIdentityMatrix :: Matrix (Maybe Double)  -> Int -> V.Vector Int -> Double -> V.Vector (Int,Int)
+--filterIdentityMatrix identityMatrix targetEntries entryIndices identityCutoff
+--  | (length filteredEntries) >= targetEntries = filteredEntries
+--  | identityCutoff == (100 :: Int) = filteredEntries
+--  | otherwise = 
+  
+  
 
-filterCutoff :: Double -> Int -> (Int,Maybe Double) -> State Bool
-filterCutoff identityCutoff minSeqNumber (elmindex,elmvalue) = do
-  if isNothing elmvalue
-    then return False
-    else do
-      currentAlive <- getState
-      if currentAlive < minSeqNumber
-        then return True
-        else if (fromJust elmvalue) >= identityCutoff then False else True
+                                       
+--filterCutoff :: Double -> Int -> (Int,Maybe Double) -> Control.Monad.State.Lazy.State Int Bool
+--filterCutoff identityCutoff minSeqNumber (elmindex,elmvalue) = do
+--  if isNothing elmvalue
+--    then return False
+--    else do
+--      currentAlive <- get
+--      if currentAlive < minSeqNumber
+--        then return True
+--        else if (fromJust elmvalue) >= identityCutoff
+--             then do
+--               put (currentAlive - (1 ::Int))
+--               return False
+--             else return True
 
 
-filterIdentityMatrix :: Matrix (Maybe Double)  -> Int -> V.Vector Int -> Double -> V.Vector (Int,Int)
-filterIdentityMatrix identityMatrix targetEntries entryIndices identityCutoff
-  | (length filteredEntries) >= targetEntries = filteredEntries
-  | identityCutoff == (100 :: Int) = filteredEntries
-  | otherwise = filterIdentityMatrix identityMatrix targetEntries entryIndices identityCutoff
-  where filteredEntries = V.filter (\(i,j)-> ) entryIndices
+--filterIdentityMatrix :: Matrix (Maybe Double)  -> Int -> V.Vector Int -> Double -> V.Vector (Int,Int)
+--filterIdentityMatrix identityMatrix targetEntries entryIndices identityCutoff
+--  | (length filteredEntries) >= targetEntries = filteredEntries
+--  | identityCutoff == (100 :: Int) = filteredEntries
+--  | otherwise = filterIdentityMatrix identityMatrix targetEntries entryIndices identityCutoff
+--  where filteredEntries = V.filter (\(i,j)-> ) entryIndices
 
 --RNAz keeps always the first sequence when creating only 1 sample
         
-filterSequenceIdentityEntry matrix identityCutoff entryIndexPair
-  | isJust entry = if (fromJust entry) <= identityCutoff then entryIndexPair else 
-  | isNothing entry = V.null
-  where entry = identityMatrix ! entryIndexPair
+--filterSequenceIdentityEntry matrix identityCutoff entryIndexPair
+--  | isJust entry = if (fromJust entry) <= identityCutoff then entryIndexPair else 
+--  | isNothing entry = V.null
+-- where entry = identityMatrix ! entryIndexPair
 
 computeSequenceIdentityMatrix :: V.Vector String -> Matrix (Maybe Double)
 computeSequenceIdentityMatrix entryVector = matrix (V.length entryVector) (V.length entryVector) (computeSequenceIdentityEntry entryVector)
