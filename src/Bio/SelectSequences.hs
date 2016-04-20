@@ -31,7 +31,7 @@ main = do
         then (return ())
         else (print ("A problem occured selecting sequences: " ++ fromLeft resultStatus))
     else do
-      resultStatus <- preprocessClustalForRNAz inputClustalPath reformatedClustalPath
+      resultStatus <- preprocessClustalForRNAztest inputClustalPath reformatedClustalPath
       if (isRight resultStatus)
-        then (return ())
+        then (print (fromRight resultStatus))
         else (print ("A problem occured selecting sequences: " ++ fromLeft resultStatus))
