@@ -1482,7 +1482,17 @@ constructTaxonomyRecordsCSVTable modelconstruction = csvtable
         csvtable = tableheader ++ tablebody
 
 constructTaxonomyRecordCSVEntries :: TaxonomyRecord -> String
-constructTaxonomyRecordCSVEntries taxRecord = concatMap (\seqrec -> show (recordTaxonomyId taxRecord) ++ ";" ++ show (aligned seqrec) ++ ";" ++ filter (/= ';') (L.unpack (unSL (seqheader (nucleotideSequence seqrec)))) ++ "\n") (sequenceRecords taxRecord)
+constructTaxonomyRecordCSVEntries taxRecord = concatMap (constructTaxonomyRecordCSVEntry taxIdString) (sequenceRecords taxRecord)
+  where taxIdString = show (recordTaxonomyId taxRecord)
+
+constructTaxonomyRecordCSVEntry :: String -> SequenceRecord -> String
+constructTaxonomyRecordCSVEntry taxIdString seqrec = taxIdString ++ ";" ++ show (aligned seqrec) ++ ";" ++ filter checkTaxonomyRecordCSVChar (L.unpack (unSL (seqheader (nucleotideSequence seqrec)))) ++ "\n"
+
+checkTaxonomyRecordCSVChar :: Char -> Bool
+checkTaxonomyRecordCSVChar c
+  | c == '"' = False
+  | c == ';' = False
+  | otherwise = True
 
 setVerbose :: Verbosity -> Bool
 setVerbose verbosityLevel
