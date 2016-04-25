@@ -45,7 +45,7 @@ options = Options
     lengthFilter = True &= name "l" &= help "Filter blast hits per genomic length. Default: True",
     coverageFilter = True &= name "a" &= help "Filter blast hits by coverage of at least 80%. Default: True",
     singleHitperTax = False &= name "s" &= help "Only the best blast hit per taxonomic entry is considered. Default: False",
-    blastSoftmasking = True &= name "f" &= help "Toggles blast softmasking, meaning exclusion of low complexity (repetative) regions in lookup table. Default: True",
+    blastSoftmasking = False &= name "f" &= help "Toggles blast query softmasking, meaning masking of non-conserved regions on the query. Default: False",
     inputQuerySelectionMethod = "filtering" &= name "m" &= help "Method for selection of queries (filtering,clustering). Default: filtering",
     inputQueryNumber = (5 :: Int) &= name "n" &= help "Number of queries used for candidate search. Default: 5",
     threads = 1 &= name "c" &= help "Number of available cpu slots/cores. Default: 1",
