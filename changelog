@@ -1,4 +1,7 @@
 -*-change-log-*-
+1.1.3 Florian Eggenhofer <florian.eggenhofer@informatik.uni-freiburg.de> 25. April 2016
+        * Fixed wrong description for softmasking commandline switch
+	* Fixed encoding tabular iteration progress output
 1.1.2 Florian Eggenhofer <florian.eggenhofer@informatik.uni-freiburg.de> 18. April 2016
         * Fixed a bug in passing softmasking to blast
         * Performance improvements in query selection
