@@ -1609,79 +1609,61 @@ preprocessClustalForRNAztest clustalFilepath reformatedClustalPath = do
       --optID=80;
       if isRight parsedClustalInput
         then do
-          let filteredClustalInput = rnaZSelectSeqs2 (fromRight parsedClustalInput) 500 (95 ::Double)
+          let filteredClustalInput = rnaZSelectSeqs2 (fromRight parsedClustalInput) 5 (95 ::Double)
           --writeFile selectedClustalpath (show filteredClustalInput)
           return (Right $ show filteredClustalInput)
         else return (Left (show (fromLeft parsedClustalInput)))
     else return (Right clustalFilepath)
 
 --rnaZSelectSeqs2 :: ClustalAlignment -> Int -> Double -> ClustalAlignment
-rnaZSelectSeqs2 currentClustalAlignment targetEntries identityCutoff = filteredIdentityMatrixVector
+rnaZSelectSeqs2 currentClustalAlignment targetEntries identityCutoff = filteredEntryIdentities
 --  | targetEntries < numberOfEntries = rnaZSelectSeqs filteredAlignment targetEntries (identityCutoff - 1)
 --  | otherwise = currentClustalAlignment
   where entryVector = V.fromList (alignmentEntries currentClustalAlignment)
+        totalSeqNumber = (V.length entryVector)
         identityMatrix = computeSequenceIdentityMatrix (V.map entryAlignedSequence entryVector)
-        elementNumber = (V.length entryVector)
         minSeqNumber = 5 :: Int
-        entryIndices = getMatrixAsVector (matrix elementNumber elementNumber (\(i,j) -> (i,j)))
-        identityMatrixVector = V.indexed (getMatrixAsVector identityMatrix)
+        entryIdentities = catMaybes (toList identityMatrix)
         --Similarity filter - filter too similar sequences until alive seqs are less then minSeqs
-        filteredIdentityMatrixVector = V.filter (\(i,ident) -> maybe False (< identityCutoff) ident) identityMatrixVector
-        --filteredIdentityMatrixVector = runState  (V.filterM (filterCutoff identityCutoff minSeqNumber) identityMatrixVector) elementNumber
-          
-        --filteredEntriesIndices = filterIdentityMatrix  identityMatrix targetEntries entryIndices identityCutoff
+        entriesToDiscard = filterIdentityMatrix identityCutoff minSeqNumber totalSeqNumber [] entryIdentities
+        --entriesToKeep = (\\) [1..totalSeqNumber] entriesToDiscard
+        filteredEntryIdentities = filter (discardIdentityEntry entriesToDiscard) entryIdentities
+        --Optimize mean pairwise similarity (greedily) - remove worst sequence until desired number is reached
         
-        --filteredEntries = V.map () filteredEntriesIndices
-        --filteredAlignment = ClustalAlignment filteredEntries (conservationTrack currentClustalAlignment)
---filterIdentityMatrix :: Matrix (Maybe Double)  -> Int -> V.Vector Int -> Double -> V.Vector (Int,Int)
---filterIdentityMatrix identityMatrix targetEntries entryIndices identityCutoff
---  | (length filteredEntries) >= targetEntries = filteredEntries
---  | identityCutoff == (100 :: Int) = filteredEntries
---  | otherwise = 
+
+filterIdentityMatrix :: Double -> Int -> Int-> [Int] -> [(Int,Int,Double)] -> [Int]
+filterIdentityMatrix identityCutoff minSeqNumber totalSeqNumber filteredIds entryIdentities
+    | (totalSeqNumber - (length filteredIds)) <= minSeqNumber = []
+    | identityCutoff == (100 :: Double) = []
+    | null entryIdentities  = []
+    | otherwise = entryresult ++ filterIdentityMatrix identityCutoff minSeqNumber totalSeqNumber (filteredIds ++ entryresult) (tail entryIdentities)
+      where currentEntry = head entryIdentities
+            entryresult = checkIdentityEntry identityCutoff filteredIds currentEntry
+
+checkIdentityEntry :: Double -> [Int] -> (Int,Int,Double) -> [Int]
+checkIdentityEntry identityCutoff filteredIds (i,j,ident)
+  | elem i filteredIds = []
+  | elem j filteredIds = []
+  | ident > identityCutoff = [j]
+  | otherwise = []
   
-  
-
-                                       
---filterCutoff :: Double -> Int -> (Int,Maybe Double) -> Control.Monad.State.Lazy.State Int Bool
---filterCutoff identityCutoff minSeqNumber (elmindex,elmvalue) = do
---  if isNothing elmvalue
---    then return False
---    else do
---      currentAlive <- get
---      if currentAlive < minSeqNumber
---        then return True
---        else if (fromJust elmvalue) >= identityCutoff
---             then do
---               put (currentAlive - (1 ::Int))
---               return False
---             else return True
-
-
---filterIdentityMatrix :: Matrix (Maybe Double)  -> Int -> V.Vector Int -> Double -> V.Vector (Int,Int)
---filterIdentityMatrix identityMatrix targetEntries entryIndices identityCutoff
---  | (length filteredEntries) >= targetEntries = filteredEntries
---  | identityCutoff == (100 :: Int) = filteredEntries
---  | otherwise = filterIdentityMatrix identityMatrix targetEntries entryIndices identityCutoff
---  where filteredEntries = V.filter (\(i,j)-> ) entryIndices
-
---RNAz keeps always the first sequence when creating only 1 sample
-        
---filterSequenceIdentityEntry matrix identityCutoff entryIndexPair
---  | isJust entry = if (fromJust entry) <= identityCutoff then entryIndexPair else 
---  | isNothing entry = V.null
--- where entry = identityMatrix ! entryIndexPair
-
-computeSequenceIdentityMatrix :: V.Vector String -> Matrix (Maybe Double)
+discardIdentityEntry :: [Int] -> (Int,Int,Double) -> Bool
+discardIdentityEntry entriesToDiscard (i,j,_)
+  | elem i entriesToDiscard = False
+  | elem j entriesToDiscard = False
+  | otherwise = True
+                        
+computeSequenceIdentityMatrix :: V.Vector String -> Matrix (Maybe (Int,Int,Double))
 computeSequenceIdentityMatrix entryVector = matrix (V.length entryVector) (V.length entryVector) (computeSequenceIdentityEntry entryVector)
 
 -- Computes Sequenceidentity once for each pair and not vs itself
-computeSequenceIdentityEntry :: V.Vector String -> (Int,Int) -> Maybe Double
+computeSequenceIdentityEntry :: V.Vector String -> (Int,Int) -> Maybe (Int,Int,Double)
 computeSequenceIdentityEntry entryVector (row,col)
-  | i < j = Just $ stringIdentity (entryVector V.! i) (entryVector V.! j)
+  | i < j = Just $ (row,col,ident)
   | otherwise = Nothing
   where i=row-1
         j=col-1
-
+        ident=stringIdentity (entryVector V.! i) (entryVector V.! j)
 
 -- Iteratively removes sequences with decreasing similarity until target number of alignment entries is reached.
 rnaZSelectSeqs :: ClustalAlignment -> Int -> Double -> ClustalAlignment
