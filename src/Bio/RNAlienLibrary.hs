@@ -1,5 +1,5 @@
 -- | This module contains functions for RNAlien
-
+{-# LANGUAGE RankNTypes #-}
 module Bio.RNAlienLibrary (
                            module Bio.RNAlienData,
                            createSessionID,
@@ -1616,7 +1616,7 @@ preprocessClustalForRNAztest clustalFilepath reformatedClustalPath = do
     else return (Right clustalFilepath)
 
 --rnaZSelectSeqs2 :: ClustalAlignment -> Int -> Double -> ClustalAlignment
-rnaZSelectSeqs2 currentClustalAlignment targetEntries identityCutoff = filteredEntryIdentities
+rnaZSelectSeqs2 currentClustalAlignment targetEntries identityCutoff = newClustalAlignment
 --  | targetEntries < numberOfEntries = rnaZSelectSeqs filteredAlignment targetEntries (identityCutoff - 1)
 --  | otherwise = currentClustalAlignment
   where entryVector = V.fromList (alignmentEntries currentClustalAlignment)
@@ -1625,18 +1625,49 @@ rnaZSelectSeqs2 currentClustalAlignment targetEntries identityCutoff = filteredE
         minSeqNumber = 5 :: Int
         entryIdentities = catMaybes (toList identityMatrix)
         --Similarity filter - filter too similar sequences until alive seqs are less then minSeqs
-        entriesToDiscard = filterIdentityMatrix identityCutoff minSeqNumber totalSeqNumber [] entryIdentities
-        --entriesToKeep = (\\) [1..totalSeqNumber] entriesToDiscard
+        entriesToDiscard = preFilterIdentityMatrix identityCutoff minSeqNumber totalSeqNumber [] entryIdentities
         filteredEntryIdentities = filter (discardIdentityEntry entriesToDiscard) entryIdentities
         --Optimize mean pairwise similarity (greedily) - remove worst sequence until desired number is reached
-        
+        optimalIdentity = 80 :: Double
+        selectedEntryIndices = greedyFilterIdentityEntries optimalIdentity minSeqNumber totalSeqNumber filteredEntryIdentities
+        selectedEntries = map (\ind -> entryVector V.! ind) selectedEntryIndices
+        selectedEntryHeader = map entrySequenceIdentifier selectedEntries
+        selectedEntrySequences = map entryAlignedSequence selectedEntries
+        reformattedEntrySequences = map (map reformatRNACodeAln) selectedEntrySequences
+        gapfreeEntrySequences = Data.List.transpose (filter (\a -> not (all isGap a)) (Data.List.transpose reformattedEntrySequences))
+        gapfreeEntries = map (\(a,b) -> ClustalAlignmentEntry a  b)(zip selectedEntryHeader gapfreeEntrySequences)
+        newClustalAlignment = currentClustalAlignment {alignmentEntries = gapfreeEntries}
 
-filterIdentityMatrix :: Double -> Int -> Int-> [Int] -> [(Int,Int,Double)] -> [Int]
-filterIdentityMatrix identityCutoff minSeqNumber totalSeqNumber filteredIds entryIdentities
+isGap :: Char -> Bool
+isGap a = a == '-'
+
+greedyFilterIdentityEntries :: Double -> Int -> Int -> [(Int,Int,Double)] -> [Int]
+greedyFilterIdentityEntries optimalIdentity minSeqNumber totalSeqNumber entryIdentities
+    | (totalSeqNumber - (length filteredEntryIdentitiesIndices)) <= minSeqNumber = filteredEntryIdentitiesIndices
+    | null entryIdentities  = []
+    | otherwise = selectedEntries
+      where filteredEntryIdentitiesIndices = nub (map (\(a,_,_) -> a) entryIdentities)
+            costPerEntry = map (entryCost optimalIdentity entryIdentities) filteredEntryIdentitiesIndices
+            sortedCostPerEntry = sortBy compareEntryCost costPerEntry
+            selectedEntries = map fst (take minSeqNumber sortedCostPerEntry)
+            
+            
+
+compareEntryCost :: forall t t1 a. Ord a => (t, a) -> (t1, a) -> Ordering            
+compareEntryCost (_,costA) (_,costB) = compare costA costB
+   
+            
+entryCost :: Double -> [(Int,Int,Double)] -> Int -> (Int,Double)
+entryCost optimalIdentity entryIdentities currentIndex = (currentIndex,cost)
+  where entryIdentites = filter (\(a,_,_) -> a == currentIndex) entryIdentities
+        cost = foldr (\(_,_,ident) acc -> acc + ((ident - optimalIdentity) * (ident - optimalIdentity))) (0 :: Double) entryIdentites
+
+preFilterIdentityMatrix :: Double -> Int -> Int-> [Int] -> [(Int,Int,Double)] -> [Int]
+preFilterIdentityMatrix identityCutoff minSeqNumber totalSeqNumber filteredIds entryIdentities
     | (totalSeqNumber - (length filteredIds)) <= minSeqNumber = []
     | identityCutoff == (100 :: Double) = []
     | null entryIdentities  = []
-    | otherwise = entryresult ++ filterIdentityMatrix identityCutoff minSeqNumber totalSeqNumber (filteredIds ++ entryresult) (tail entryIdentities)
+    | otherwise = entryresult ++ preFilterIdentityMatrix identityCutoff minSeqNumber totalSeqNumber (filteredIds ++ entryresult) (tail entryIdentities)
       where currentEntry = head entryIdentities
             entryresult = checkIdentityEntry identityCutoff filteredIds currentEntry
 

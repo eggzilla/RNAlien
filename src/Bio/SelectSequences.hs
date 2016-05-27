@@ -33,5 +33,5 @@ main = do
     else do
       resultStatus <- preprocessClustalForRNAztest inputClustalPath reformatedClustalPath
       if (isRight resultStatus)
-        then (print (fromRight resultStatus))
+        then (putStr (fromRight resultStatus))
         else (print ("A problem occured selecting sequences: " ++ fromLeft resultStatus))
