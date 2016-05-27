@@ -1603,33 +1603,30 @@ preprocessClustalForRNAztest clustalFilepath reformatedClustalPath = do
       let selectedClustalpath = clustalFilepath ++ ".selected"
       parsedClustalInput <- readClustalAlignment clustalFilepath
       --maxSeqs=6;
-      --minSeqs=2;
+      let maxSeqNumber = 6 :: Int
       --nSamples=1;
-      --maxID=99;
-      --optID=80;
+      let maximalIidentity = 95 :: Double
+      let optimalIdentity= 80 :: Double
       if isRight parsedClustalInput
         then do
-          let filteredClustalInput = rnaZSelectSeqs2 (fromRight parsedClustalInput) 5 (95 ::Double)
+          let filteredClustalInput = rnaZSelectSeqs2 (fromRight parsedClustalInput) maxSeqNumber maximalIidentity optimalIdentity
           --writeFile selectedClustalpath (show filteredClustalInput)
           return (Right $ show filteredClustalInput)
         else return (Left (show (fromLeft parsedClustalInput)))
     else return (Right clustalFilepath)
 
---rnaZSelectSeqs2 :: ClustalAlignment -> Int -> Double -> ClustalAlignment
-rnaZSelectSeqs2 currentClustalAlignment targetEntries identityCutoff = newClustalAlignment
---  | targetEntries < numberOfEntries = rnaZSelectSeqs filteredAlignment targetEntries (identityCutoff - 1)
---  | otherwise = currentClustalAlignment
+rnaZSelectSeqs2 :: ClustalAlignment -> Int -> Double -> Double -> ClustalAlignment
+rnaZSelectSeqs2 currentClustalAlignment maxSeqNumber identityCutoff optimalIdentity = newClustalAlignment
   where entryVector = V.fromList (alignmentEntries currentClustalAlignment)
         totalSeqNumber = (V.length entryVector)
         identityMatrix = computeSequenceIdentityMatrix (V.map entryAlignedSequence entryVector)
-        minSeqNumber = 5 :: Int
+        --minSeqNumber = 5 :: Int
         entryIdentities = catMaybes (toList identityMatrix)
         --Similarity filter - filter too similar sequences until alive seqs are less then minSeqs
-        entriesToDiscard = preFilterIdentityMatrix identityCutoff minSeqNumber totalSeqNumber [] entryIdentities
+        entriesToDiscard = preFilterIdentityMatrix identityCutoff maxSeqNumber totalSeqNumber [] entryIdentities
         filteredEntryIdentities = filter (discardIdentityEntry entriesToDiscard) entryIdentities
         --Optimize mean pairwise similarity (greedily) - remove worst sequence until desired number is reached
-        optimalIdentity = 80 :: Double
-        selectedEntryIndices = greedyFilterIdentityEntries optimalIdentity minSeqNumber totalSeqNumber filteredEntryIdentities
+        selectedEntryIndices = greedyFilterIdentityEntries optimalIdentity maxSeqNumber totalSeqNumber filteredEntryIdentities
         selectedEntries = map (\ind -> entryVector V.! ind) selectedEntryIndices
         selectedEntryHeader = map entrySequenceIdentifier selectedEntries
         selectedEntrySequences = map entryAlignedSequence selectedEntries
@@ -1651,16 +1648,14 @@ greedyFilterIdentityEntries optimalIdentity minSeqNumber totalSeqNumber entryIde
             sortedCostPerEntry = sortBy compareEntryCost costPerEntry
             selectedEntries = map fst (take minSeqNumber sortedCostPerEntry)
             
-            
-
 compareEntryCost :: forall t t1 a. Ord a => (t, a) -> (t1, a) -> Ordering            
 compareEntryCost (_,costA) (_,costB) = compare costA costB
-   
             
 entryCost :: Double -> [(Int,Int,Double)] -> Int -> (Int,Double)
 entryCost optimalIdentity entryIdentities currentIndex = (currentIndex,cost)
   where entryIdentites = filter (\(a,_,_) -> a == currentIndex) entryIdentities
-        cost = foldr (\(_,_,ident) acc -> acc + ((ident - optimalIdentity) * (ident - optimalIdentity))) (0 :: Double) entryIdentites
+        --cost = foldr (\(_,_,ident) acc -> acc + ((ident - optimalIdentity) * (ident - optimalIdentity))) (0 :: Double) entryIdentites
+        cost = foldr (\(_,_,ident) acc -> acc + (abs(ident - optimalIdentity))) (0 :: Double) entryIdentites
 
 preFilterIdentityMatrix :: Double -> Int -> Int-> [Int] -> [(Int,Int,Double)] -> [Int]
 preFilterIdentityMatrix identityCutoff minSeqNumber totalSeqNumber filteredIds entryIdentities
