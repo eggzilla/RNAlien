@@ -1634,8 +1634,16 @@ rnaZSelectSeqs2 currentClustalAlignment seqenceNumber optimalIdentity maximalIde
         --reformattedEntrySequences = map (map reformatRNACodeAln) selectedEntrySequences
         gapfreeEntrySequences = Data.List.transpose (filter (\a -> not (all isGap a)) (Data.List.transpose selectedEntrySequences))
         gapfreeEntries = map (\(a,b) -> ClustalAlignmentEntry a  b)(zip selectedEntryHeader gapfreeEntrySequences)
-        newClustalAlignment = currentClustalAlignment {alignmentEntries = gapfreeEntries}
+        emptyConservationTrack = setEmptyConservationTrack gapfreeEntries (conservationTrack currentClustalAlignment)
+        newClustalAlignment = currentClustalAlignment {alignmentEntries = gapfreeEntries, conservationTrack = emptyConservationTrack}
 
+setEmptyConservationTrack :: [ClustalAlignmentEntry] -> String -> String
+setEmptyConservationTrack alnentries currentConservationTrack
+  | null alnentries = currentConservationTrack 
+  | otherwise = newConservationTrack 
+      where trackLength = length (entryAlignedSequence (head alnentries))
+            newConservationTrack = replicate (trackLength + 0)' ' 
+                              
 isGap :: Char -> Bool
 isGap a = a == '-'
 
