@@ -25,17 +25,20 @@ my $alienresult_basename;
 my $rfammodel_basename;
 #contains all full seed alignment sequences as RfamID .fa fasta files
 my $rfamfasta_basename;
+#contains seed alignments as RfamID .fa fasta files
+my $rfamstockholm_basename;
+
 my $RNAFamilyIdFile;
 my $familyNumber;
 my $resulttempdir;
 
 if($type eq "structured"){
-	$alienresult_basename="/scr/kronos/egg/AlienStructuredResultsCollected" . "$currentresultnumber" . "/";
-	$rfammodel_basename = "/scr/kronos/egg/AlienTest/sRNAFamilies/all_models/";
-	$rfamfasta_basename = "/scr/kronos/egg/rfamfamilyseedfasta/";
-	$RNAFamilyIdFile = "/scr/kronos/egg/structuredFamilyNameIdGatheringCutoffSorted";
+	$alienresult_basename="/scr/coridan/egg/AlienStructuredResultsCollected" . "$currentresultnumber" . "/";
+	$rfamstockholm_basename = "/scr/coridan/egg/structuredfamilyrfamstockholm/";
+	$rfamfasta_basename = "/scr/coridan/egg/rfamfamilyseedfasta/";
+	$RNAFamilyIdFile = "/scr/coridan/egg/structuredFamilyNameIdGatheringCutoffSorted";
 	$familyNumber = 56;
-	$resulttempdir = "/scr/kronos/egg/temp/AlienStructuredResultStatistics". "$currentresultnumber" . "/";
+	$resulttempdir = "/scr/coridan/egg/temp/AlienStructuredResultStatistics". "$currentresultnumber" . "/";
 }else{
 	#sRNA
 	$alienresult_basename="/scr/kronos/egg/AlienResultsCollected" . "$currentresultnumber" . "/";
@@ -50,7 +53,59 @@ if($type eq "structured"){
 unless(-d "/scr/kronos/egg/iterationdistance$currentresultnumber/"){
     mkdir "/scr/kronos/egg/iterationdistance$currentresultnumber/";
 }
-normalizedDistanceOverIterations($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,"/scr/kronos/egg/iterationdistance$currentresultnumber/");
+distanceBetweenAlienRfamStockholms($familyNumber,$alienresult_basename,$rfamstockholm_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,"/scr/kronos/egg/iterationdistance$currentresultnumber/");
+#normalizedDistanceOverIterations($familyNumber,$alienresult_basename,$rfammodel_basename,$rfamfasta_basename,$RNAFamilyIdFile,$resulttempdir,"/scr/kronos/egg/iterationdistance$currentresultnumber/");
+
+sub distanceBetweenAlienRfamStockholms{
+    #retrieve common sequence identifier
+    #compare stockholmstructre and parse result back
+    my $familyNumber = shift;
+    my $alienresult_basename = shift;
+    my $rfamstockholm_basename = shift;
+    my $rfamfasta_basename = shift;
+    my $RNAFamilyIdFile = shift;
+    my $resulttempdir = shift;
+    my $resultfolderpath = shift;
+    my $outputfilePath= $resultfolderpath . "distancestructureupdatenone.dist";
+    my $output;
+    for(my $counter=1; $counter <= $familyNumber; $counter++){
+        my $current_alienresult_folder= $alienresult_basename.$counter."/";
+        if(-e $alienresult_basename.$counter."/done"){
+            #print "$alienresult_basename$counter\n";
+            my $fstStockholmPath = "$rfamstockholm_basename/$counter.stockholm";
+            my $sndStockholmPath = "$alienresult_basename"."$counter"."/result.stockholm";
+            my $inputFastaPath = "$alienresult_basename"."$counter"."/result.fa";
+            if(-e $inputFastaPath){
+                my @fastacontent;
+                open(my $fastafh, "<", $inputFastaPath)
+                    or die "Failed to open file: $!\n";
+                while(<$fastafh>) {
+                    chomp;
+                    push @fastacontent, $_;
+                }
+                close $fastafh;
+                my $fasta_identifier = $fastacontent[0];
+                $fasta_identifier =~ s/>//;
+                #$fasta_identifier =~ s/\\K.+$//;
+                if(-e $fstStockholmPath){
+                    $output = $output . `~egg/current/Projects/Haskell/StockholmTools/dist/build/CompareStockholmStructure/CompareStockholmStructure -i $fasta_identifier -a $fstStockholmPath -r $sndStockholmPath -d P -o $resultfolderpath`;
+                }else{
+                    $output = $output . "no stockholm found\n";
+                }
+
+            }
+        }else{
+            $output = $output . "no inputfasta found\n";
+        }
+    }
+
+    open(my $outputfh, ">", $outputfilePath)
+        or die "Failed to open file: $!\n";
+    print $outputfh $output;
+    close $outputfh;
+    return 1;
+}
+
 
 sub normalizedDistanceBetweenFirstStockholms{
     #retrieve common sequence identifier

@@ -27,7 +27,6 @@ module Bio.RNAlienLibrary (
                            rnaZEvalOutput,
                            reformatFasta,
                            checkTaxonomyRestriction,
-                           preprocessClustalForRNAztest,
                            evaluePartitionTrimCMsearchHits
                            )
 where
@@ -68,10 +67,13 @@ import Network.HTTP
 import qualified Bio.RNAcodeParser as RC
 import Bio.RNAcentralHTTP
 import Bio.InfernalParser
+--import Control.Monad.State.Lazy
 import qualified Data.Text as T
 import qualified Data.Text.IO as TI
 import qualified Data.Text.Encoding as DTE
-import Control.Monad.State.Lazy
+import qualified Data.Text.Lazy.Encoding as E
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.IO as TIO
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 modelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
@@ -308,28 +310,31 @@ alignmentConstructionWithCandidates currentTaxonomicContext currentUpperTaxonomy
         nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInputWithThreshold           
         return nextModelConstruction 
       else do
-        --select queries
-        currentSelectedQueries <- selectQueries staticOptions modelConstruction alignmentResults
         if (alignmentModeInfernal modelConstruction)
           then do
             logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - infernal mode\n") (tempDirPath staticOptions)
             --prepare next iteration
-            let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults currentUpperTaxonomyLimit currentTaxonomicContext currentSelectedQueries currentPotentialMembers True        
+            let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults currentUpperTaxonomyLimit currentTaxonomicContext [] currentPotentialMembers True        
             constructModel nextModelConstructionInput staticOptions               
             writeFile (iterationDirectory ++ "done") ""
             logMessage (iterationSummaryLog nextModelConstructionInput) (tempDirPath staticOptions)
-            logVerboseMessage (verbositySwitch staticOptions)  (show nextModelConstructionInput) (tempDirPath staticOptions)  ----
-            nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInput           
+            logVerboseMessage (verbositySwitch staticOptions)  (show nextModelConstructionInput) (tempDirPath staticOptions)
+            --select queries
+            currentSelectedQueries <- selectQueries staticOptions modelConstruction alignmentResults
+            let nextModelConstructionInputWithQueries = nextModelConstructionInput {selectedQueries = currentSelectedQueries}
+            nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInputWithQueries
             return nextModelConstruction
           else do
             logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - initial mode\n") (tempDirPath staticOptions)
             --First round enough candidates are available for modelconstruction, alignmentModeInfernal is set to true after this iteration
             --prepare next iteration
-            let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults currentUpperTaxonomyLimit currentTaxonomicContext currentSelectedQueries currentPotentialMembers False       
-            constructModel nextModelConstructionInput staticOptions               
-            let nextModelConstructionInputWithInfernalMode = nextModelConstructionInput {alignmentModeInfernal = True}
+            let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults currentUpperTaxonomyLimit currentTaxonomicContext [] currentPotentialMembers False       
+            constructModel nextModelConstructionInput staticOptions
+            currentSelectedQueries <- selectQueries staticOptions modelConstruction alignmentResults
+            --select queries
+            let nextModelConstructionInputWithInfernalMode = nextModelConstructionInput {alignmentModeInfernal = True, selectedQueries = currentSelectedQueries}
             logMessage (iterationSummaryLog  nextModelConstructionInputWithInfernalMode) (tempDirPath staticOptions)
-            logVerboseMessage (verbositySwitch staticOptions)  (show  nextModelConstructionInputWithInfernalMode) (tempDirPath staticOptions) ----
+            logVerboseMessage (verbositySwitch staticOptions)  (show  nextModelConstructionInputWithInfernalMode) (tempDirPath staticOptions)
             writeFile (iterationDirectory ++ "done") ""
             nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInputWithInfernalMode        
             return nextModelConstruction
@@ -397,17 +402,17 @@ findTaxonomyStart inputBlastDatabase temporaryDirectory querySequence = do
      else error "Find taxonomy start: Could not find blast hits to use as a taxonomic starting point"
 
 searchCandidates :: StaticOptions -> Maybe String -> Int ->  Maybe Int -> Maybe Int -> Double -> [Sequence] -> IO SearchResult
-searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimit lowerTaxLimit expectThreshold querySequences' = do
+searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimit lowerTaxLimit expectThreshold inputQuerySequences = do
   --let fastaSeqData = seqdata _querySequence
-  if (null querySequences') then error "searchCandidates: - head: empty list of query sequences" else return ()
-  let queryLength = fromIntegral (seqlength (head querySequences'))
+  if (null inputQuerySequences) then error "searchCandidates: - head: empty list of query sequences" else return ()
+  let queryLength = fromIntegral (seqlength (head inputQuerySequences))
   let queryIndexString = "1"
   let entrezTaxFilter = buildTaxFilterQuery upperTaxLimit lowerTaxLimit 
   logVerboseMessage (verbositySwitch staticOptions) ("entrezTaxFilter" ++ show entrezTaxFilter ++ "\n") (tempDirPath staticOptions)
   let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=5000&EXPECT=" ++ show expectThreshold
   let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
-  let softmaskFilter = "&FILTER=True&FILTER=m"
-  let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) querySequences'  (Just (hitNumberQuery ++ entrezTaxFilter ++ softmaskFilter ++ registrationInfo)) (Just (5400000000 :: Int))
+  let softmaskFilter = if (blastSoftmaskingToggle staticOptions) then "&FILTER=True&FILTER=m" else ""
+  let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) inputQuerySequences  (Just (hitNumberQuery ++ entrezTaxFilter ++ softmaskFilter ++ registrationInfo)) (Just (5400000000 :: Int))
   --appendFile "/scratch/egg/blasttest/queries" ("\nBlast query:\n"  ++ show blastQuery ++ "\n") 
   logVerboseMessage (verbositySwitch staticOptions) ("Sending blast query " ++ (show iterationnumber) ++ "\n") (tempDirPath staticOptions)
   blastOutput <- CE.catch (blastHTTP blastQuery)
@@ -579,13 +584,14 @@ findCutoffforClusterNumber clustaloDendrogram numberOfClusters currentCutoff
     where currentClusterNumber = length (cutAt clustaloDendrogram currentCutoff)
 
 -- Selects Query sequence ids from all collected seqeuences. Queries are then fetched by extractQueries function.
-selectQueries :: StaticOptions -> ModelConstruction -> [(Sequence,Int,L.ByteString)] -> IO [String]
+selectQueries :: StaticOptions -> ModelConstruction -> [(Sequence,Int,L.ByteString)] -> IO [Sequence]
 selectQueries staticOptions modelConstruction selectedCandidates = do
   logVerboseMessage (verbositySwitch staticOptions) "SelectQueries\n" (tempDirPath staticOptions)
   --Extract sequences from modelconstruction
   let alignedSequences = extractAlignedSequences (iterationNumber modelConstruction) modelConstruction 
   let candidateSequences = extractQueryCandidates selectedCandidates
   let iterationDirectory = tempDirPath staticOptions ++ show (iterationNumber modelConstruction) ++ "/"
+  let stockholmFilepath = iterationDirectory ++ "model" ++ ".stockholm"
   let alignmentSequences = map snd (V.toList (V.concat [candidateSequences,alignedSequences]))
   if length alignmentSequences > 3
     then do
@@ -613,16 +619,31 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
           let cutDendrogram = cutAt clustaloDendrogram dendrogramCutDistance'
           --putStrLn "cutDendrogram: "
           --print cutDendrogram
-          let currentSelectedQueries = take (queryNumber staticOptions) (concatMap (take 1 . elements) cutDendrogram)
-          logVerboseMessage (verbositySwitch staticOptions) ("SelectedQueries: " ++ show currentSelectedQueries ++ "\n") (tempDirPath staticOptions)                       
-          writeFile (tempDirPath staticOptions ++ show (iterationNumber modelConstruction) ++ "/log" ++ "/13selectedQueries") (showlines currentSelectedQueries)
-          CE.evaluate currentSelectedQueries
+          let currentSelectedSequenceIds = map L.pack (take (queryNumber staticOptions) (concatMap (take 1 . elements) cutDendrogram))
+          --let alignedSequences = fastaSeqData:map nucleotideSequence (concatMap sequenceRecords (taxRecords modelconstruction))
+          let fastaSelectedSequences = concatMap (filterSequenceById alignmentSequences) currentSelectedSequenceIds
+          stockholmSelectedSequences <- extractAlignmentSequencesByIds stockholmFilepath currentSelectedSequenceIds
+          --Stockholm sequnces contain conservation annotation from cmalign in infernal mode
+          let currentSelectedSequences = if (blastSoftmaskingToggle staticOptions) then stockholmSelectedSequences else fastaSelectedSequences
+          --let currentSelectedQueries = concatMap (\querySeqId -> filter (\alignedSeq -> L.unpack (unSL (seqid alignedSeq)) == querySeqId) alignmentSequences) querySeqIds
+          logVerboseMessage (verbositySwitch staticOptions) ("SelectedQueries: " ++ show currentSelectedSequences ++ "\n") (tempDirPath staticOptions)                       
+          writeFile (tempDirPath staticOptions ++ show (iterationNumber modelConstruction) ++ "/log" ++ "/13selectedQueries") (showlines currentSelectedSequences)
+          CE.evaluate currentSelectedSequences
         else do
-          let currentSelectedSequences = filterIdenticalSequences' alignmentSequences (95 :: Double)
-          let currentSelectedQueries = map (L.unpack . unSL . seqid) (take (queryNumber staticOptions) currentSelectedSequences)
-          CE.evaluate currentSelectedQueries
-          
+          let fastaSelectedSequences = filterIdenticalSequences' alignmentSequences (95 :: Double)
+          let currentSelectedSequenceIds = map (unSL . seqid) (take (queryNumber staticOptions) fastaSelectedSequences)
+          stockholmSelectedSequences <- extractAlignmentSequencesByIds stockholmFilepath currentSelectedSequenceIds
+          let currentSelectedSequences = if (blastSoftmaskingToggle staticOptions) then stockholmSelectedSequences else fastaSelectedSequences
+          writeFile (tempDirPath staticOptions ++ show (iterationNumber modelConstruction) ++ "/log" ++ "/13selectedQueries") (showlines currentSelectedSequences)
+          CE.evaluate currentSelectedSequences
     else return []
+
+
+filterSequenceById :: [Sequence] -> L.ByteString-> [Sequence]
+filterSequenceById alignmentSequences querySequenceId = filter (seqenceHasId querySequenceId) alignmentSequences
+
+seqenceHasId :: L.ByteString -> Sequence -> Bool
+seqenceHasId querySequenceId alignmentSequence = unSL (seqid alignmentSequence) == querySequenceId
 
 constructModel :: ModelConstruction -> StaticOptions -> IO String
 constructModel modelConstruction staticOptions = do
@@ -794,12 +815,12 @@ filterIdenticalSequences' (headEntry:rest) identitycutoff = result
         result = headEntry:filterIdenticalSequences' filteredEntries identitycutoff
 filterIdenticalSequences' [] _ = []
 
--- | Filter alignment entries by similiarity  
-filterIdenticalAlignmentEntry :: [ClustalAlignmentEntry] -> Double -> [ClustalAlignmentEntry]
-filterIdenticalAlignmentEntry (headEntry:rest) identitycutoff = result
-  where filteredEntries = filter (\x -> (stringIdentity (entryAlignedSequence headEntry) (entryAlignedSequence x)) < identitycutoff) rest
-        result = headEntry:filterIdenticalAlignmentEntry filteredEntries identitycutoff
-filterIdenticalAlignmentEntry [] _ = []
+---- | Filter alignment entries by similiarity  
+--filterIdenticalAlignmentEntry :: [ClustalAlignmentEntry] -> Double -> [ClustalAlignmentEntry]
+--filterIdenticalAlignmentEntry (headEntry:rest) identitycutoff = result
+--  where filteredEntries = filter (\x -> (stringIdentity (entryAlignedSequence headEntry) (entryAlignedSequence x)) < identitycutoff) rest
+--        result = headEntry:filterIdenticalAlignmentEntry filteredEntries identitycutoff
+--filterIdenticalAlignmentEntry [] _ = []
 
 isUnSimilarSequence :: [Sequence] -> Double -> Sequence -> Bool
 isUnSimilarSequence collectedSequences identitycutoff checkSequence = any (\ x -> (sequenceIdentity checkSequence x) < identitycutoff) collectedSequences
@@ -858,7 +879,7 @@ raiseTaxIdLimitEntrez subTreeTaxId taxon = parentNodeTaxId
         --the input taxid is not part of the lineage, therefor we look for further taxids in the lineage after we used the parent tax id of the input node
         parentNodeTaxId = if subTreeTaxId == taxonTaxId taxon then Just (taxonParentTaxId taxon) else linageNodeTaxId
        
-constructNext :: Int -> ModelConstruction -> [(Sequence,Int,L.ByteString)] -> Maybe Int -> Maybe Taxon  -> [String] -> [SearchResult] -> Bool -> ModelConstruction
+constructNext :: Int -> ModelConstruction -> [(Sequence,Int,L.ByteString)] -> Maybe Int -> Maybe Taxon  -> [Sequence] -> [SearchResult] -> Bool -> ModelConstruction
 constructNext currentIterationNumber modelconstruction alignmentResults upperTaxLimit inputTaxonomicContext inputSelectedQueries inputPotentialMembers toggleInfernalAlignmentModeTrue = nextModelConstruction
   where newIterationNumber = currentIterationNumber + 1
         taxEntries = taxRecords modelconstruction ++ buildTaxRecords alignmentResults currentIterationNumber
@@ -916,9 +937,7 @@ extractQueries foundSequenceNumber modelconstruction
   | foundSequenceNumber < 3 = [fastaSeqData] 
   | otherwise = querySequences' 
   where fastaSeqData = inputFasta modelconstruction
-        querySeqIds = selectedQueries modelconstruction
-        alignedSequences = fastaSeqData:map nucleotideSequence (concatMap sequenceRecords (taxRecords modelconstruction)) 
-        querySequences' = concatMap (\querySeqId -> filter (\alignedSeq -> L.unpack (unSL (seqid alignedSeq)) == querySeqId) alignedSequences) querySeqIds
+        querySequences' = selectedQueries modelconstruction
         
 extractQueryCandidates :: [(Sequence,Int,L.ByteString)] -> V.Vector (Int,Sequence)
 extractQueryCandidates querycandidates = indexedSeqences
@@ -1464,7 +1483,17 @@ constructTaxonomyRecordsCSVTable modelconstruction = csvtable
         csvtable = tableheader ++ tablebody
 
 constructTaxonomyRecordCSVEntries :: TaxonomyRecord -> String
-constructTaxonomyRecordCSVEntries taxRecord = concatMap (\seqrec -> show (recordTaxonomyId taxRecord) ++ ";" ++ show (aligned seqrec) ++ ";" ++ filter (/= ';') (L.unpack (unSL (seqheader (nucleotideSequence seqrec)))) ++ "\n") (sequenceRecords taxRecord)
+constructTaxonomyRecordCSVEntries taxRecord = concatMap (constructTaxonomyRecordCSVEntry taxIdString) (sequenceRecords taxRecord)
+  where taxIdString = show (recordTaxonomyId taxRecord)
+
+constructTaxonomyRecordCSVEntry :: String -> SequenceRecord -> String
+constructTaxonomyRecordCSVEntry taxIdString seqrec = taxIdString ++ ";" ++ show (aligned seqrec) ++ ";" ++ filter checkTaxonomyRecordCSVChar (L.unpack (unSL (seqheader (nucleotideSequence seqrec)))) ++ "\n"
+
+checkTaxonomyRecordCSVChar :: Char -> Bool
+checkTaxonomyRecordCSVChar c
+  | c == '"' = False
+  | c == ';' = False
+  | otherwise = True
 
 setVerbose :: Verbosity -> Bool
 setVerbose verbosityLevel
@@ -1494,11 +1523,11 @@ evaluateConstructionResult staticOptions mCResult = do
     then do 
       let resultRNAz = tempDirPath staticOptions ++ "result.rnaz"
       let resultRNAcode = tempDirPath staticOptions ++ "result.rnacode"
-      let sequenceNumber = 6 :: Int
+      let seqNumber = 6 :: Int
       let optimalIdentity = 80 :: Double
       let maximalIdentity = 99 :: Double
       let referenceSequence = True
-      rnazClustalpath <- preprocessClustalForRNAcodeExternal clustalFilepath reformatedClustalPath sequenceNumber (truncate optimalIdentity) (truncate maximalIdentity) referenceSequence
+      rnazClustalpath <- preprocessClustalForRNAcodeExternal clustalFilepath reformatedClustalPath seqNumber (truncate optimalIdentity) (truncate maximalIdentity) referenceSequence
       if isRight rnazClustalpath
         then do
           systemRNAz "-l" (fromRight rnazClustalpath) resultRNAz 
@@ -1553,9 +1582,12 @@ preprocessClustalForRNAzExternal clustalFilepath reformatedClustalPath seqenceNu
   let sequenceNumberOption = " -n "  ++ show seqenceNumber ++ " "
   let optimalIdentityOption = " -i "  ++ show optimalIdentity  ++ " "
   let maximalIdentityOption = " --max-id="  ++ show maximalIdenity  ++ " "
-  let referenceSequenceOption = if referenceSequence then " " else " -x "                            
-  system ("rnazSelectSeqs.pl " ++ reformatedClustalPath ++ " " ++ sequenceNumberOption ++ optimalIdentityOption ++ maximalIdentityOption ++ referenceSequenceOption ++" >" ++ selectedClustalpath)
-  return (Right selectedClustalpath)
+  let referenceSequenceOption = if referenceSequence then " " else " -x "
+  let syscall = ("rnazSelectSeqs.pl " ++ reformatedClustalPath ++ " " ++ sequenceNumberOption ++ optimalIdentityOption ++ maximalIdentityOption ++ referenceSequenceOption ++  " >" ++ selectedClustalpath)
+  --putStrLn syscall
+  system syscall
+  selectedClustalText <- readFile selectedClustalpath
+  return (Right selectedClustalText)
 
 -- | Call for external preprocessClustalForRNAcode - RNAcode additionally to RNAz requirements does not accept pipe,underscore, doublepoint symbols
 preprocessClustalForRNAcodeExternal :: String -> String -> Int -> Int -> Int -> Bool -> IO (Either String String)
@@ -1572,50 +1604,53 @@ preprocessClustalForRNAcodeExternal clustalFilepath reformatedClustalPath seqenc
   let sequenceNumberOption = " -n "  ++ show seqenceNumber  ++ " "
   let optimalIdentityOption = " -i "  ++ show optimalIdentity  ++ " "
   let maximalIdentityOption = " --max-id="  ++ show maximalIdenity  ++ " "
-  let referenceSequenceOption = if referenceSequence then " " else " -x "       
-  system ("rnazSelectSeqs.pl " ++ reformatedClustalPath ++ " " ++ sequenceNumberOption ++ optimalIdentityOption ++ maximalIdentityOption ++ referenceSequenceOption ++  " >" ++ selectedClustalpath)
-  return (Right selectedClustalpath)
+  let referenceSequenceOption = if referenceSequence then " " else " -x "
+  let syscall = ("rnazSelectSeqs.pl " ++ reformatedClustalPath ++ " " ++ sequenceNumberOption ++ optimalIdentityOption ++ maximalIdentityOption ++ referenceSequenceOption ++  " >" ++ selectedClustalpath)
+  --putStrLn syscall
+  system syscall
+  selectedClustalText <- readFile selectedClustalpath
+  return (Right selectedClustalText)
 
 -- | RNAz can process 500 sequences at max. Using rnazSelectSeqs to isolate representative sample. rnazSelectSeqs only accepts - gap characters, alignment is reformatted accordingly.
-preprocessClustalForRNAz :: String -> String -> IO (Either String String)
-preprocessClustalForRNAz clustalFilepath reformatedClustalPath = do
-  clustalText <- TI.readFile clustalFilepath
-  let clustalTextLines = T.lines clustalText
-  if length clustalTextLines > 5
-    then do 
+--preprocessClustalForRNAz :: String -> String -> IO (Either String String)
+--preprocessClustalForRNAz clustalFilepath reformatedClustalPath = do
+--  clustalText <- TI.readFile clustalFilepath
+--  let clustalTextLines = T.lines clustalText
+--  if length clustalTextLines > 5
+--    then do 
       --change clustal format for rnazSelectSeqs.pl
-      let reformatedClustalString = T.map reformatAln clustalText
-      TI.writeFile reformatedClustalPath reformatedClustalString
+--      let reformatedClustalString = T.map reformatAln clustalText
+--      TI.writeFile reformatedClustalPath reformatedClustalString
       --select representative entries from result.Clustal with select_sequences
-      let selectedClustalpath = clustalFilepath ++ ".selected"
-      parsedClustalInput <- readClustalAlignment clustalFilepath
-      if isRight parsedClustalInput
-        then do
-          let filteredClustalInput = rnaZSelectSeqs (fromRight parsedClustalInput) 500 99
-          writeFile selectedClustalpath (show filteredClustalInput)
-          return (Right selectedClustalpath)
-        else return (Left (show (fromLeft parsedClustalInput)))
-    else return (Right clustalFilepath)
+--      let selectedClustalpath = clustalFilepath ++ ".selected"
+--      parsedClustalInput <- readClustalAlignment clustalFilepath
+--      if isRight parsedClustalInput
+--        then do
+--          let filteredClustalInput = rnaZSelectSeqs (fromRight parsedClustalInput) 500 99
+          --writeFile selectedClustalpath (show filteredClustalInput)
+--          return (Right filteredClustalInput)
+--        else return (Left (show (fromLeft parsedClustal)))
+--    else return (Right clustalFilepath)
 
-preprocessClustalForRNAztest :: String -> String -> Int -> Double -> Double -> Bool -> IO (Either String String)
-preprocessClustalForRNAztest clustalFilepath reformatedClustalPath seqenceNumber optimalIdentity maximalIdenity referenceSequence = do
+preprocessClustalForRNAz :: String -> String -> Int -> Double -> Double -> Bool -> IO (Either String String)
+preprocessClustalForRNAz clustalFilepath _ seqenceNumber optimalIdentity maximalIdenity referenceSequence = do
   clustalText <- TI.readFile clustalFilepath
   let clustalTextLines = T.lines clustalText
   if length clustalTextLines > 5
     then do 
       --change clustal format for rnazSelectSeqs.pl
-      let reformatedClustalString = T.map reformatAln clustalText
-      TI.writeFile reformatedClustalPath reformatedClustalString
+      --let reformatedClustalString = T.map reformatAln clustalText
+      --TI.writeFile reformatedClustalPath reformatedClustalString
       --select representative entries from result.Clustal with select_sequences
-      let selectedClustalpath = clustalFilepath ++ ".selected"
+      --let selectedClustalpath = clustalFilepath ++ ".selected"
       parsedClustalInput <- readClustalAlignment clustalFilepath
       if isRight parsedClustalInput
         then do
           let filteredClustalInput = rnaZSelectSeqs2 (fromRight parsedClustalInput) seqenceNumber optimalIdentity maximalIdenity referenceSequence
           --writeFile selectedClustalpath (show filteredClustalInput)
-          return (Right $ show filteredClustalInput)
+          return (Right (show filteredClustalInput))
         else return (Left (show (fromLeft parsedClustalInput)))
-    else return (Right clustalFilepath)
+    else return (Right (show clustalText))
 
 rnaZSelectSeqs2 :: ClustalAlignment -> Int -> Double -> Double -> Bool -> ClustalAlignment
 rnaZSelectSeqs2 currentClustalAlignment seqenceNumber optimalIdentity maximalIdenity referenceSequence = newClustalAlignment
@@ -1627,11 +1662,10 @@ rnaZSelectSeqs2 currentClustalAlignment seqenceNumber optimalIdentity maximalIde
         entriesToDiscard = preFilterIdentityMatrix maximalIdenity seqenceNumber totalSeqNumber [] entryIdentities
         filteredEntryIdentities = filter (discardIdentityEntry entriesToDiscard) entryIdentities
         --Optimize mean pairwise similarity (greedily) - remove worst sequence until desired number is reached
-        selectedEntryIndices = greedyFilterIdentityEntries optimalIdentity seqenceNumber totalSeqNumber filteredEntryIdentities
+        selectedEntryIndices = greedyFilterIdentityEntries optimalIdentity seqenceNumber totalSeqNumber referenceSequence filteredEntryIdentities 
         selectedEntries = map (\ind -> entryVector V.! ind) selectedEntryIndices
         selectedEntryHeader = map entrySequenceIdentifier selectedEntries
-        selectedEntrySequences = map entryAlignedSequence selectedEntries
-        --reformattedEntrySequences = map (map reformatRNACodeAln) selectedEntrySequences
+        selectedEntrySequences = map entryAlignedSequence selectedEntries           
         gapfreeEntrySequences = Data.List.transpose (filter (\a -> not (all isGap a)) (Data.List.transpose selectedEntrySequences))
         gapfreeEntries = map (\(a,b) -> ClustalAlignmentEntry a  b)(zip selectedEntryHeader gapfreeEntrySequences)
         emptyConservationTrack = setEmptyConservationTrack gapfreeEntries (conservationTrack currentClustalAlignment)
@@ -1647,16 +1681,22 @@ setEmptyConservationTrack alnentries currentConservationTrack
 isGap :: Char -> Bool
 isGap a = a == '-'
 
-greedyFilterIdentityEntries :: Double -> Int -> Int -> [(Int,Int,Double)] -> [Int]
-greedyFilterIdentityEntries optimalIdentity seqenceNumber totalSeqNumber entryIdentities
-    | totalSeqNumber <= seqenceNumber  = filteredEntryIdentitiesIndices
+greedyFilterIdentityEntries :: Double -> Int -> Int -> Bool -> [(Int,Int,Double)] -> [Int]
+greedyFilterIdentityEntries optimalIdentity seqenceNumber totalSeqNumber useReferenceSequence entryIdentities
+    | totalSeqNumber <= seqenceNumber = filteredEntryIdentitiesIndices
     | null entryIdentities  = []
-    | otherwise = selectedEntries
+    | otherwise = selectedEntriesWithRef
       where filteredEntryIdentitiesIndices = nub (map (\(a,_,_) -> a) entryIdentities)
             costPerEntry = map (entryCost optimalIdentity entryIdentities) filteredEntryIdentitiesIndices
             sortedCostPerEntry = sortBy compareEntryCost costPerEntry
             selectedEntries = map fst (take seqenceNumber sortedCostPerEntry)
-            
+            selectedEntriesWithRef = addReferenceSequenceIndex useReferenceSequence selectedEntries
+
+addReferenceSequenceIndex :: Bool -> [Int] -> [Int]                                     
+addReferenceSequenceIndex useReferenceSequence selectedEntries
+  | useReferenceSequence = if elem 0 selectedEntries then selectedEntries else (take (length selectedEntries - 1) selectedEntries) ++ [0]
+  | otherwise =  selectedEntries
+                                     
 compareEntryCost :: forall t t1 a. Ord a => (t, a) -> (t1, a) -> Ordering            
 compareEntryCost (_,costA) (_,costB) = compare costA costB
             
@@ -1701,13 +1741,13 @@ computeSequenceIdentityEntry entryVector (row,col)
         ident=stringIdentity (entryVector V.! i) (entryVector V.! j)
 
 -- Iteratively removes sequences with decreasing similarity until target number of alignment entries is reached.
-rnaZSelectSeqs :: ClustalAlignment -> Int -> Double -> ClustalAlignment
-rnaZSelectSeqs currentClustalAlignment targetEntries identityCutoff
-  | targetEntries < numberOfEntries = rnaZSelectSeqs filteredAlignment targetEntries (identityCutoff - 1)
-  | otherwise = currentClustalAlignment
-  where numberOfEntries =  length (alignmentEntries currentClustalAlignment) 
-        filteredEntries = filterIdenticalAlignmentEntry (alignmentEntries currentClustalAlignment) identityCutoff 
-        filteredAlignment = ClustalAlignment filteredEntries (conservationTrack currentClustalAlignment)
+--rnaZSelectSeqs :: ClustalAlignment -> Int -> Double -> ClustalAlignment
+--rnaZSelectSeqs currentClustalAlignment targetEntries identityCutoff
+--  | targetEntries < numberOfEntries = rnaZSelectSeqs filteredAlignment targetEntries (identityCutoff - 1)
+--  | otherwise = currentClustalAlignment
+--  where numberOfEntries =  length (alignmentEntries currentClustalAlignment) 
+--        filteredEntries = filterIdenticalAlignmentEntry (alignmentEntries currentClustalAlignment) identityCutoff 
+--        filteredAlignment = ClustalAlignment filteredEntries (conservationTrack currentClustalAlignment)
 
 reformatRNACodeAln :: Char -> Char 
 reformatRNACodeAln c
@@ -1788,3 +1828,45 @@ checkTaxonomyRestrictionString restrictionString
   | restrictionString == "bacteria" = Just "bacteria"
   | restrictionString == "eukaryia" = Just "eukaryia"
   | otherwise = Nothing
+
+extractAlignmentSequencesByIds :: String -> [L.ByteString] -> IO [Sequence]
+extractAlignmentSequencesByIds stockholmFilePath sequenceIds = do
+  inputSeedAln <- TIO.readFile stockholmFilePath
+  let alnEntries = extractAlignmentSequences inputSeedAln
+  --let splitIds = map E.encodeUtf8 (TL.splitOn (TL.pack ",") (TL.pack sequenceIds))
+  let filteredEntries = concatMap (filterSequencesById alnEntries) sequenceIds
+  return filteredEntries
+ 
+extractAlignmentSequences :: TL.Text -> [Sequence]
+extractAlignmentSequences  seedFamilyAln = rfamIDAndseedFamilySequences
+  where seedFamilyAlnLines = TL.lines seedFamilyAln
+        -- remove empty lines from splitting
+        seedFamilyNonEmpty =  filter (\alnline -> not (TL.empty == alnline)) seedFamilyAlnLines
+        -- remove annotation and spacer lines
+        seedFamilyIdSeqLines =  filter (\alnline -> ((not ((TL.head alnline) == '#'))) && (not ((TL.head alnline) == ' ')) && (not ((TL.head alnline) == '/'))) seedFamilyNonEmpty 
+        -- put id and corresponding seq of each line into a list and remove whitspaces        
+        seedFamilyIdandSeqLines = map TL.words seedFamilyIdSeqLines
+        -- linewise tuples with id and seq without alinment characters - .
+        seedFamilyIdandSeqLineTuples = map (\alnline -> ((head alnline),(filterAlnChars (last alnline)))) seedFamilyIdandSeqLines
+        -- line tuples sorted by id
+        seedFamilyIdandSeqTupleSorted = sortBy (\tuple1 tuple2 -> compare (fst tuple1) (fst tuple2)) seedFamilyIdandSeqLineTuples
+        -- line tuples grouped by id
+        seedFamilyIdandSeqTupleGroups = groupBy (\tuple1 tuple2 -> (fst tuple1) == (fst tuple2)) seedFamilyIdandSeqTupleSorted
+        seedFamilySequences = map mergeIdSeqTuplestoSequence seedFamilyIdandSeqTupleGroups
+        rfamIDAndseedFamilySequences = seedFamilySequences
+
+filterSequencesById :: [Sequence] -> L.ByteString -> [Sequence]
+filterSequencesById alignmentSequences sequenceId = filter (sequenceHasId sequenceId) alignmentSequences
+
+sequenceHasId :: L.ByteString -> Sequence -> Bool
+sequenceHasId sequenceId currentSequence = sequenceId == (unSL (seqid currentSequence))
+
+filterAlnChars :: TL.Text -> TL.Text
+filterAlnChars cs = TL.filter (\c -> (not (c == '-')) && (not (c == '.'))) cs
+
+mergeIdSeqTuplestoSequence :: [(TL.Text,TL.Text)] -> Sequence
+mergeIdSeqTuplestoSequence tuplelist = currentSequence
+  where seqId = fst (head tuplelist)
+        seqData = TL.concat (map snd tuplelist)
+        currentSequence = Seq (SeqLabel (E.encodeUtf8 seqId)) (SeqData (E.encodeUtf8 seqData)) Nothing
+
