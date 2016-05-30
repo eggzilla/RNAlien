@@ -1,4 +1,7 @@
 -*-change-log-*-
+1.2.1 Florian Eggenhofer <egg@cs.uni-freiburg.de> 30. May 2016
+        * Added RNAcentralRequest utility
+        * Fixed a bug in parsing RNAcentral response headers
 1.2.0 Florian Eggenhofer <egg@cs.uni-freiburg.de> 30. May 2016
         * Added cmsearchToBED utility
 1.1.3 Florian Eggenhofer <egg@cs.uni-freiburg.de> 25. April 2016

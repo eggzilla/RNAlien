@@ -6,6 +6,7 @@
 --   
 module Bio.RNAcentralHTTP (rnaCentralHTTP,
                       buildSequenceViaMD5Query,
+                      buildStringViaMD5Query,                        
                       getRNACentralEntries,
                       showRNAcentralAlienEvaluation,
                       RNAcentralEntryResponse,
@@ -29,9 +30,9 @@ import Data.Aeson.Types
 -- | Data structure for RNAcentral entry response
 data RNAcentralEntryResponse = RNAcentralEntryResponse
   {
-    _count :: Int,
-    _next :: Maybe Text,
-    _previous :: Maybe Text,
+    count :: Int,
+    next :: Maybe Text,
+    previous :: Maybe Text,
     results :: [RNAcentralEntry]
   }
   deriving (Show, Eq, Generic)
@@ -44,13 +45,13 @@ instance FromJSON RNAcentralEntryResponse
 
 data RNAcentralEntry = RNAcentralEntry
   {
-    _url :: Text,
+    url :: Text,
     rnacentral_id :: Text,
     md5 :: Text,
-    _sequence :: Text,
+    sequence :: Text,
     length :: Int,
-    _xrefs :: Text,
-    _publications :: Text
+    xrefs :: Text,
+    publications :: Text
   }
   deriving (Show, Eq, Generic)
 
@@ -65,13 +66,18 @@ startSession :: String -> IO (Either String RNAcentralEntryResponse)
 startSession query' = do
   requestXml <- withSocketsDo
       $ sendQuery query'
+  --putStr (L8.unpack requestXml)
   let eitherErrorResponse = eitherDecode requestXml :: Either String RNAcentralEntryResponse
   return eitherErrorResponse
   
 -- | Send query and return response XML
 sendQuery :: String -> IO L8.ByteString
-sendQuery query' = simpleHttp ("http://rnacentral.org/api/v1/rna/" ++ query')
-
+sendQuery query' = do
+   let address = "http://rnacentral.org/api/v1/rna/"
+   let request = address ++ query'
+   --putStrLn request
+   simpleHttp request
+   
 -- | Function for querying the RNAcentral REST interface.
 rnaCentralHTTP :: String -> IO (Either String RNAcentralEntryResponse)
 rnaCentralHTTP query' = do
@@ -88,13 +94,21 @@ getRNACentralEntries queries = do
   responses <- mapM delayedRNACentralHTTP queries
   return responses
 
+--Build a query from a input sequence
 buildSequenceViaMD5Query :: Sequence -> String
 buildSequenceViaMD5Query s = qString
   where querySequence = unSD (seqdata s)
         querySequenceUreplacedwithT = L8.map bsreplaceUT querySequence
         md5Sequence = M.md5 querySequenceUreplacedwithT
-        qString = "?md5=" ++ (show md5Sequence)
+        qString = "?md5=" ++ show md5Sequence
 
+--Build a query from a input string
+buildStringViaMD5Query :: String -> String
+buildStringViaMD5Query s = qString
+  where querySequenceUreplacedwithT = L8.map bsreplaceUT (L8.pack s)
+        md5Sequence = M.md5 querySequenceUreplacedwithT
+        qString = "?md5=" ++ show md5Sequence
+                  
 showRNAcentralAlienEvaluation :: [(Either String RNAcentralEntryResponse)] -> String
 showRNAcentralAlienEvaluation responses = output
   where resultEntries = Prelude.concatMap results (rights responses)
