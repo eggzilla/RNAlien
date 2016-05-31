@@ -1,4 +1,7 @@
 -*-change-log-*-
+1.2.2 Florian Eggenhofer <egg@cs.uni-freiburg.de> 1. June 2016
+	* Fixed a bug building RNAcentral query and improved formatting of
+	corresponding output
 1.2.1 Florian Eggenhofer <egg@cs.uni-freiburg.de> 30. May 2016
         * Added RNAcentralRequest utility
         * Fixed a bug in parsing RNAcentral response headers

@@ -99,14 +99,16 @@ buildSequenceViaMD5Query :: Sequence -> String
 buildSequenceViaMD5Query s = qString
   where querySequence = unSD (seqdata s)
         querySequenceUreplacedwithT = L8.map bsreplaceUT querySequence
-        md5Sequence = M.md5 querySequenceUreplacedwithT
+        querySequenceU2Twolb = L8.filter (\a -> a /= '\n') querySequenceUreplacedwithT
+        md5Sequence = M.md5 querySequenceU2Twolb
         qString = "?md5=" ++ show md5Sequence
 
 --Build a query from a input string
 buildStringViaMD5Query :: String -> String
 buildStringViaMD5Query s = qString
   where querySequenceUreplacedwithT = L8.map bsreplaceUT (L8.pack s)
-        md5Sequence = M.md5 querySequenceUreplacedwithT
+        querySequenceU2Twolb = L8.filter (\a -> a /= '\n') querySequenceUreplacedwithT
+        md5Sequence = M.md5 querySequenceU2Twolb
         qString = "?md5=" ++ show md5Sequence
                   
 showRNAcentralAlienEvaluation :: [(Either String RNAcentralEntryResponse)] -> String
@@ -114,7 +116,7 @@ showRNAcentralAlienEvaluation responses = output
   where resultEntries = Prelude.concatMap results (rights responses)
         resulthead = "rnacentral_id\tmd5\tlength\n"
         resultentries = Prelude.concatMap showRNAcentralAlienEvaluationLine resultEntries
-        output = if resultentries == [] then resulthead ++ "No matching sequences found in RNAcentral\n" else resulthead ++ resultentries
+        output = if resultentries == [] then "No matching sequences found in RNAcentral\n" else resulthead ++ resultentries
         
 showRNAcentralAlienEvaluationLine :: RNAcentralEntry -> String
 showRNAcentralAlienEvaluationLine entry = unpack (rnacentral_id entry) ++ "\t" ++ unpack (md5 entry) ++ "\t" ++ show (Bio.RNAcentralHTTP.length entry) ++"\n"
@@ -123,3 +125,4 @@ bsreplaceUT :: Char -> Char
 bsreplaceUT a
   | a == 'U' = 'T'
   | otherwise = a
+
