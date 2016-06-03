@@ -4,11 +4,24 @@
 -- | Convert cmsearch output to Browser Extensible Data (BED) format
 --   Testcommand: cmsearchToBED -i /path/to/test.clustal
 module Main where
-    
+import Prelude hiding (name)
 import System.Console.CmdArgs    
 import Bio.RNAlienLibrary
 import Data.Either.Unwrap
 import qualified Data.ByteString.Lazy.Char8 as L
+import qualified Data.Text as T
+
+data BedEntry = BedEntry    
+  { chrom :: T.Text,
+    chromStart :: Int,
+    chromEnd  :: Int,
+    chromName :: Maybe T.Text,
+    score :: Maybe Int,
+    strand :: Maybe Char,
+    thickStart :: Maybe Int,
+    thickEnd :: Maybe Int,
+    itemRgb :: Maybe String
+  } deriving (Show, Eq, Read) 
 
 data Options = Options            
   { cmsearchPath :: String,
@@ -42,8 +55,33 @@ convertcmSearchToBED inputcmsearch trackName trackColor
   | null cmHits = Left "cmsearch file contains no hits" 
   | otherwise = Right (bedHeader ++ bedEntries)
   where cmHits = cmsearchHits inputcmsearch
-        bedHeader = "browser position chr7:127471196-127495720\nbrowser hide all\ntrack name=\"cmsearch hits\" description=\"cmsearch hits\" visibility=2\nitemRgb=\"On\"\n"
+        bedHeader = "browser position " ++ browserPosition ++ "\nbrowser hide all\ntrack name=\"cmsearch hits\" description=\"cmsearch hits\" visibility=2 itemRgb=\"On\"\n"
         bedEntries = concatMap (cmsearchHitToBEDentry trackName trackColor) cmHits
+        browserPosition = L.unpack (hitSequenceHeader firstHit) ++ ":" ++ entryStart firstHit ++ "-" ++ entryEnd firstHit
+        firstHit = (head cmHits)        
 
 cmsearchHitToBEDentry :: String -> String -> CMsearchHit -> String
-cmsearchHitToBEDentry hitName hitColor cmHit = L.unpack (hitSequenceHeader cmHit) ++ "\t" ++ show (hitStart cmHit) ++ "\t" ++ show (hitEnd cmHit) ++ "\t" ++ (hitName) ++ "\t" ++ "0" ++ "\t" ++ [(hitStrand cmHit)] ++ "\t" ++ show (hitStart cmHit) ++ "\t" ++ show (hitEnd cmHit) ++ hitColor ++ "\n"
+cmsearchHitToBEDentry hitName hitColor cmHit = entryline
+  where entryline = L.unpack (hitSequenceHeader cmHit) ++ "\t" ++ entryStart cmHit ++ "\t" ++ entryEnd cmHit++ "\t" ++ (hitName) ++ "\t" ++ "0" ++ "\t" ++ [(hitStrand cmHit)] ++ "\t" ++ show (hitStart cmHit) ++ "\t" ++ show (hitEnd cmHit) ++ "\t" ++ hitColor ++ "\n"
+        --entrystart = if (hitStrand cmHit) == '+' then show (hitStart cmHit) else show (hitEnd cmHit)
+        --entryend = if (hitStrand cmHit) == '+' then show (hitEnd cmHit) else show (hitStart cmHit)
+
+entryStart cmHit
+  | (hitStrand cmHit) == '+' = show (hitStart cmHit)
+  | otherwise = show (hitEnd cmHit)
+
+entryEnd cmHit
+  | (hitStrand cmHit) == '+' = show (hitEnd cmHit)
+  | otherwise = show (hitStart cmHit) 
+
+--orderBedHit :: BedEntry -> BedEntry -> Ord
+--orderBedHit firstHit secondHit
+--  | hitStart firstHit > hitStart secondHit = GT
+--  | hitStart firstHit < hitStart secondHit = LT
+--  | hitStart firstHit == hitStart secondHit = orderBedHit2 firstHit secondHit
+
+--orderBedHit :: BedEntry -> BedEntry -> Ord
+--orderBedHit firstHit secondHit
+--  | hitEnd firstHit > hitStart secondHit = GT
+--  | hitStart firstHit < hitStart secondHit = LT
+--  | hitStart firstHit == hitStart secondHit = orderBedHit2 firstHit secondHit
