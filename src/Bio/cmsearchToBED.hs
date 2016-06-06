@@ -7,10 +7,10 @@ module Main where
 import Prelude 
 import System.Console.CmdArgs    
 import Bio.RNAlienLibrary
---import Data.Either
 import Data.Either.Unwrap 
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.Text as T
+import Data.List
 
 data Bed = Bed
   { browserPostition :: T.Text,
@@ -65,18 +65,20 @@ data Options = Options
     inputTrackName :: String,
     inputTrackDescription :: String,
     inputItemRgb :: Bool,
-    inputTrackColor :: String
+    inputTrackColor :: String,
+    sortBed :: Bool
   } deriving (Show,Data,Typeable)
 
 options :: Options
 options = Options
   { cmsearchPath = def &= name "i" &= help "Path to input cmsearch file",
-    inputBrowserSettings = "browser hide all" &= name "s" &= help "Browser settings. Default: browser hide all",
+    inputBrowserSettings = "browser hide all" &= name "b" &= help "Browser settings. Default: browser hide all",
     inputBedVisibility = (2 :: Int) &= name "y" &= help "Name of the track Default: predictedRNA",
     inputTrackName = "predictedRNA" &= name "n" &= help "Name of the track Default: predictedRNA",
     inputTrackDescription = "RNA loci predicted by cmsearch" &= name "d" &= help "Description of the track. Default: RNA loci predicted by cmsearch",
-    inputItemRgb = True &= name "r" &= help "RGB Color of the track. Default: On",
-    inputTrackColor = "255,0,0" &= name "c" &= help "RGB Color of the track. Default: 255,0,0"
+    inputItemRgb = True &= name "r" &= help "RGB Color of the track. Default: True",
+    inputTrackColor = "255,0,0" &= name "c" &= help "RGB Color of the track. Default: 255,0,0",
+    sortBed = True &= name "s" &= help "Sort entries of Bed file by start end end cooridinates. Default: True"
   } &= summary "cmsearchToBED - Converts cmsearch file hits to BED file entries" &= help "Florian Eggenhofer 2016" &= verbosity       
             
 main :: IO ()
@@ -85,7 +87,7 @@ main = do
   parsedCmsearch <- readCMSearch cmsearchPath
   if (isRight parsedCmsearch)
      then do
-       let outputBED = convertcmSearchToBED (fromRight parsedCmsearch) inputBrowserSettings inputTrackName inputTrackDescription inputTrackColor inputBedVisibility inputItemRgb
+       let outputBED = convertcmSearchToBED (fromRight parsedCmsearch) inputBrowserSettings inputTrackName inputTrackDescription inputTrackColor inputBedVisibility inputItemRgb sortBed
        if (isRight outputBED)
          then print (fromRight outputBED)
          else putStr (fromLeft outputBED)
@@ -101,16 +103,17 @@ main = do
 --        browserPosition = L.unpack (hitSequenceHeader firstHit) ++ ":" ++ entryStart firstHit ++ "-" ++ entryEnd firstHit
 --        firstHit = (head cmHits)        
 
-convertcmSearchToBED :: CMsearch -> String -> String -> String -> String -> Int -> Bool -> Either String Bed
-convertcmSearchToBED inputcmsearch inputBrowserSettings trackName trackDescription trackColor inputBedVisibility inputItemRgb
+convertcmSearchToBED :: CMsearch -> String -> String -> String -> String -> Int -> Bool -> Bool -> Either String Bed
+convertcmSearchToBED inputcmsearch inputBrowserSettings trackName trackDescription trackColor inputBedVisibility inputItemRgb sortBed
   | null cmHits = Left "cmsearch file contains no hits"
   | otherwise = Right bed
   where cmHits = cmsearchHits inputcmsearch
         --bedHeader = "browser position " ++ browserPosition ++ "\nbrowser hide all\ntrack name=\"cmsearch hits\" description=\"cmsearch hits\" visibility=2 itemRgb=\"On\"\n"
         bedEntries = map (cmsearchHitToBEDentry trackName trackColor) cmHits
+        sortedBedEntries = if sortBed then sortBy orderBedEntry bedEntries else bedEntries
         currentBrowserPosition = L.unpack (hitSequenceHeader firstHit) ++ ":" ++ entryStart firstHit ++ "-" ++ entryEnd firstHit
         firstHit = (head cmHits)
-        bed = Bed (T.pack currentBrowserPosition) (T.pack inputBrowserSettings) (T.pack trackName) (T.pack trackDescription) inputBedVisibility inputItemRgb bedEntries
+        bed = Bed (T.pack currentBrowserPosition) (T.pack inputBrowserSettings) (T.pack trackName) (T.pack trackDescription) inputBedVisibility inputItemRgb sortedBedEntries
 
 cmsearchHitToBEDentry :: String -> String -> CMsearchHit -> BedEntry
 cmsearchHitToBEDentry hitName hitColor cmHit = entry
@@ -142,14 +145,18 @@ entryEnd cmHit
   | (hitStrand cmHit) == '+' = show (hitEnd cmHit)
   | otherwise = show (hitStart cmHit) 
 
---orderBedHit :: BedEntry -> BedEntry -> Ord
---orderBedHit firstHit secondHit
---  | hitStart firstHit > hitStart secondHit = GT
---  | hitStart firstHit < hitStart secondHit = LT
---  | hitStart firstHit == hitStart secondHit = orderBedHit2 firstHit secondHit
+orderBedEntry :: BedEntry -> BedEntry -> Ordering
+orderBedEntry firstHit secondHit
+  | start1 > start2 = GT
+  | start1 < start2 = LT
+  | otherwise = orderBedEntryEnd firstHit secondHit
+    where start1 = chromStart firstHit
+          start2 = chromStart secondHit
 
---orderBedHit :: BedEntry -> BedEntry -> Ord
---orderBedHit firstHit secondHit
---  | hitEnd firstHit > hitStart secondHit = GT
---  | hitStart firstHit < hitStart secondHit = LT
---  | hitStart firstHit == hitStart secondHit = orderBedHit2 firstHit secondHit
+orderBedEntryEnd :: BedEntry -> BedEntry -> Ordering
+orderBedEntryEnd firstHit secondHit
+  | end1 > end2 = GT
+  | end1 < end2 = LT
+  | otherwise = EQ
+    where end1 = chromEnd firstHit
+          end2 = chromEnd secondHit
