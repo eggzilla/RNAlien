@@ -53,7 +53,7 @@ instance Show BedEntry where
           c = show _chromEnd ++ "\t"
           d = maybe "" T.unpack _chromName ++ "\t"
           e = maybe "" show _score ++ "\t"
-          f = maybe "" show _strand ++ "\t"
+          f = maybe "" (\s -> [s])  _strand ++ "\t"
           g = maybe "" show _thickStart ++ "\t"
           h = maybe "" show _thickEnd ++ "\t"
           i = maybe "" T.unpack _color ++ "\n"
@@ -66,19 +66,21 @@ data Options = Options
     inputTrackDescription :: String,
     inputItemRgb :: Bool,
     inputTrackColor :: String,
-    sortBed :: Bool
+    sortBed :: Bool,
+    withHeader :: Bool
   } deriving (Show,Data,Typeable)
 
 options :: Options
 options = Options
   { cmsearchPath = def &= name "i" &= help "Path to input cmsearch file",
     inputBrowserSettings = "browser hide all" &= name "b" &= help "Browser settings. Default: browser hide all",
-    inputBedVisibility = (2 :: Int) &= name "y" &= help "Name of the track Default: predictedRNA",
-    inputTrackName = "predictedRNA" &= name "n" &= help "Name of the track Default: predictedRNA",
+    inputBedVisibility = (2 :: Int) &= name "y" &= help "Visibility setting of track. Default: 2",
+    inputTrackName = "PredictedRNA" &= name "n" &= help "Name of the track Default: PredictedRNA",
     inputTrackDescription = "RNA loci predicted by cmsearch" &= name "d" &= help "Description of the track. Default: RNA loci predicted by cmsearch",
     inputItemRgb = True &= name "r" &= help "RGB Color of the track. Default: True",
     inputTrackColor = "255,0,0" &= name "c" &= help "RGB Color of the track. Default: 255,0,0",
-    sortBed = True &= name "s" &= help "Sort entries of Bed file by start end end cooridinates. Default: True"
+    sortBed = True &= name "s" &= help "Sort entries of Bed file by start end end cooridinates. Default: True",
+    withHeader = True &= name "w" &= help "Output contains bed header. Default: True"
   } &= summary "cmsearchToBED - Converts cmsearch file hits to BED file entries" &= help "Florian Eggenhofer 2016" &= verbosity       
             
 main :: IO ()
@@ -89,7 +91,12 @@ main = do
      then do
        let outputBED = convertcmSearchToBED (fromRight parsedCmsearch) inputBrowserSettings inputTrackName inputTrackDescription inputTrackColor inputBedVisibility inputItemRgb sortBed
        if (isRight outputBED)
-         then print (fromRight outputBED)
+         then
+           if withHeader
+             then print (fromRight outputBED)
+             else do
+               let output = concatMap show (bedEntries (fromRight outputBED))
+               putStr output
          else putStr (fromLeft outputBED)
      else (putStr ("A problem occured converting from cmsearch to BED format:\n " ++ show (fromLeft parsedCmsearch)))
 
@@ -111,8 +118,8 @@ convertcmSearchToBED inputcmsearch inputBrowserSettings trackName trackDescripti
         --bedHeader = "browser position " ++ browserPosition ++ "\nbrowser hide all\ntrack name=\"cmsearch hits\" description=\"cmsearch hits\" visibility=2 itemRgb=\"On\"\n"
         bedEntries = map (cmsearchHitToBEDentry trackName trackColor) cmHits
         sortedBedEntries = if sortBed then sortBy orderBedEntry bedEntries else bedEntries
-        currentBrowserPosition = L.unpack (hitSequenceHeader firstHit) ++ ":" ++ entryStart firstHit ++ "-" ++ entryEnd firstHit
-        firstHit = (head cmHits)
+        currentBrowserPosition = T.unpack (chrom firstEntry) ++ ":" ++ show (chromStart firstEntry) ++ "-" ++ show (chromEnd firstEntry)
+        firstEntry = (head sortedBedEntries)
         bed = Bed (T.pack currentBrowserPosition) (T.pack inputBrowserSettings) (T.pack trackName) (T.pack trackDescription) inputBedVisibility inputItemRgb sortedBedEntries
 
 cmsearchHitToBEDentry :: String -> String -> CMsearchHit -> BedEntry
