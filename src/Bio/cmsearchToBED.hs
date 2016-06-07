@@ -43,11 +43,14 @@ data BedEntry = BedEntry
     strand :: Maybe Char,
     thickStart :: Maybe Int,
     thickEnd :: Maybe Int,
-    color :: Maybe T.Text
+    color :: Maybe T.Text,
+    blockCount :: Maybe Int,
+    blockSizes :: Maybe [Int],
+    blockStarts :: Maybe [Int]
   } deriving (Eq, Read) 
 
 instance Show BedEntry where
-  show (BedEntry _chrom _chromStart _chromEnd _chromName _score _strand _thickStart _thickEnd _color) = a ++ b ++ c ++ d ++ e ++ f ++ g ++ h ++ i
+  show (BedEntry _chrom _chromStart _chromEnd _chromName _score _strand _thickStart _thickEnd _color _blockCount _blockSizes _blockStarts) = a ++ b ++ c ++ d ++ e ++ f ++ g ++ h ++ i ++ j ++ k ++ l
     where a = T.unpack _chrom ++ "\t" 
           b = show _chromStart ++ "\t" 
           c = show _chromEnd ++ "\t"
@@ -56,8 +59,11 @@ instance Show BedEntry where
           f = maybe "" (\s -> [s])  _strand ++ "\t"
           g = maybe "" show _thickStart ++ "\t"
           h = maybe "" show _thickEnd ++ "\t"
-          i = maybe "" T.unpack _color ++ "\n"
-
+          i = maybe "" T.unpack _color ++ "\t"
+          j = maybe "" show _blockCount ++ "\t" 
+          k = maybe "" (\sizes -> intercalate "," (map show sizes)) _blockSizes ++ "\t"
+          l = maybe "" (\starts -> intercalate "," (map show starts)) _blockStarts ++ "\n"
+          
 data Options = Options            
   { cmsearchPath :: String,
     inputBrowserSettings :: String,
@@ -124,7 +130,7 @@ convertcmSearchToBED inputcmsearch inputBrowserSettings trackName trackDescripti
 
 cmsearchHitToBEDentry :: String -> String -> CMsearchHit -> BedEntry
 cmsearchHitToBEDentry hitName hitColor cmHit = entry
-  where entry = BedEntry  chromosome entrystart entryend (Just (T.pack hitName)) entryscore entrystrand thickstart thickend entrycolor
+  where entry = BedEntry  chromosome entrystart entryend (Just (T.pack hitName)) entryscore entrystrand thickstart thickend entrycolor blocks blockSize blockStart
         chromosome = T.pack (L.unpack (hitSequenceHeader cmHit)) 
         --entryline = L.unpack (hitSequenceHeader cmHit) ++ "\t" ++ entryStart cmHit ++ "\t" ++ entryEnd cmHit++ "\t" ++ (hitName) ++ "\t" ++ "0" ++ "\t" ++ [(hitStrand cmHit)] ++ "\t" ++ show (hitStart cmHit) ++ "\t" ++ show (hitEnd cmHit) ++ "\t" ++ hitColor ++ "\n"
         entrystart = if hitStrand cmHit == '+' then hitStart cmHit else hitEnd cmHit
@@ -134,6 +140,9 @@ cmsearchHitToBEDentry hitName hitColor cmHit = entry
         thickstart = Just entrystart
         thickend = Just entryend
         entrycolor = Just (T.pack hitColor)
+        blocks = Just (1 :: Int)
+        blockSize = Just [(entryend - entrystart)]
+        blockStart = Just [(0 :: Int)]
         
 
 --cmsearchHitToBEDentry :: String -> String -> CMsearchHit -> String
