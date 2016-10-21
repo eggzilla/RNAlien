@@ -2,4 +2,4 @@ flags: {}
 packages:
 - '.'
 compiler-check: newer-minor
-resolver: lts-5.10
+resolver: lts-6.22
