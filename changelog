@@ -1,22 +1,24 @@
 -*-change-log-*-
-1.2.2 Florian Eggenhofer <egg@cs.uni-freiburg.de> 1. June 2016
+1.2.3 Florian Eggenhofer <egg@informatik.uni-freiburg.de> 21. October 2016
+	* Added cmsearch output to BED12 converter for genome browser integration
+	* Updated dependency versions and version number output
+1.2.2 Florian Eggenhofer <egg@informatik.uni-freiburg.de> 1. June 2016
 	* Fixed a bug building RNAcentral query and improved formatting of
 	corresponding output
-1.2.1 Florian Eggenhofer <egg@cs.uni-freiburg.de> 30. May 2016
+1.2.1 Florian Eggenhofer <egg@informatik.uni-freiburg.de> 30. May 2016
         * Added RNAcentralRequest utility
         * Fixed a bug in parsing RNAcentral response headers
-1.2.0 Florian Eggenhofer <egg@cs.uni-freiburg.de> 30. May 2016
+1.2.0 Florian Eggenhofer <egg@informatik.uni-freiburg.de> 30. May 2016
         * Added cmsearchToBED utility
-1.1.3 Florian Eggenhofer <egg@cs.uni-freiburg.de> 25. April 2016
+1.1.3 Florian Eggenhofer <egg@informatik.uni-freiburg.de> 25. April 2016
         * Fixed wrong description for softmasking commandline switch
 	* Fixed encoding tabular iteration progress output
-1.1.2 Florian Eggenhofer <egg@cs.uni-freiburg.de> 18. April 2016
+1.1.2 Florian Eggenhofer <egg@informatik.uni-freiburg.de> 18. April 2016
         * Fixed a bug in passing softmasking to blast
         * Performance improvements in query selection
-1.1.1 Florian Eggenhofer <florian.eggenhofer@informatik.uni-freiburg.de> 23. March 2016
+1.1.1 Florian Eggenhofer <egg@informatik.uni-freiburg.de> 23. March 2016
 	* Added a commandlineswitch for softmasking
 	* Improved interface with Alienserver
-
 1.1.0 Florian Eggenhofer <florian.eggenhofer@univie.ac.at> 11. February 2016
 	* Update including changes from 1st review
 	* Cmbuild uses --refine option
