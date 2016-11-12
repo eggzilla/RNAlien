@@ -1,4 +1,8 @@
 -*-change-log-*-
+1.2.6 Florian Eggenhofer <egg@informatik.uni-freiburg.de> 12. November 2016
+	* Changed NCBI URL to HTTPS and updated libary constraints
+1.2.5 Florian Eggenhofer <egg@informatik.uni-freiburg.de> 26. October 2016
+	* Updated stack.yaml
 1.2.4 Florian Eggenhofer <egg@informatik.uni-freiburg.de> 24. October 2016
 	* Support for GHC-8.0.1
 1.2.3 Florian Eggenhofer <egg@informatik.uni-freiburg.de> 21. October 2016

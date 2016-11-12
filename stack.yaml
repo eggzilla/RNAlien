@@ -2,7 +2,8 @@ flags: {}
 packages:
 - '.'
 extra-deps:
-- EntrezHTTP-1.0.2
+- EntrezHTTP-1.0.3
+- BlastHTTP-1.2.1  
 - ParsecTools-0.0.2.0
 - RNAlien-1.2.5
 - Taxonomy-1.0.2
