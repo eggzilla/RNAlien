@@ -1652,14 +1652,14 @@ reformatAln c
 -- | Check if alien can connect to NCBI
 checkNCBIConnection :: IO (Either String String)
 checkNCBIConnection = do
-   response <- simpleHTTP (getRequest "http://www.ncbi.nlm.nih.gov")
+   response <- simpleHTTP (getRequest "https://www.ncbi.nlm.nih.gov")
    if isRight response
      then do
        let rightResponse = fromRight response
        if rspCode rightResponse == (2,0,0)
          then return (Right ("Network connection with NCBI server is ok: "  ++ show (rspCode rightResponse)))
-         else return (Left ("Could not connect to NCBI server \"http://www.ncbi.nlm.nih.gov\". Response Code: " ++ show (rspCode rightResponse)))
-     else return (Left ("Could not connect to NCBI server: \"http://www.ncbi.nlm.nih.gov\": " ++ show (fromLeft response)))
+         else return (Left ("Could not connect to NCBI server \"https://www.ncbi.nlm.nih.gov\". Response Code: " ++ show (rspCode rightResponse)))
+     else return (Left ("Could not connect to NCBI server: \"https://www.ncbi.nlm.nih.gov\": " ++ show (fromLeft response)))
 
 -- | Blast evalue is set stricter in inital alignment mode
 setBlastExpectThreshold :: ModelConstruction -> Double
