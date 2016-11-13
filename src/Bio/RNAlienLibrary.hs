@@ -43,6 +43,7 @@ import Bio.ClustalParser
 import Data.Int (Int16)
 import Bio.RNAlienData
 import qualified Data.ByteString.Lazy.Char8 as L
+import qualified Data.ByteString.Char8 as B
 import Bio.Taxonomy 
 import Data.Either.Unwrap
 import Data.Maybe
@@ -63,7 +64,8 @@ import qualified Control.Exception.Base as CE
 import Bio.RNAfoldParser
 import Bio.RNAalifoldParser
 import Bio.RNAzParser
-import Network.HTTP
+import qualified Network.HTTP.Conduit as N
+import Network.HTTP.Types.Status
 import qualified Bio.RNAcodeParser as RC
 import Bio.RNAcentralHTTP
 import Bio.InfernalParser
@@ -1652,14 +1654,13 @@ reformatAln c
 -- | Check if alien can connect to NCBI
 checkNCBIConnection :: IO (Either String String)
 checkNCBIConnection = do
-   response <- simpleHTTP (getRequest "https://www.ncbi.nlm.nih.gov")
-   if isRight response
-     then do
-       let rightResponse = fromRight response
-       if rspCode rightResponse == (2,0,0)
-         then return (Right ("Network connection with NCBI server is ok: "  ++ show (rspCode rightResponse)))
-         else return (Left ("Could not connect to NCBI server \"https://www.ncbi.nlm.nih.gov\". Response Code: " ++ show (rspCode rightResponse)))
-     else return (Left ("Could not connect to NCBI server: \"https://www.ncbi.nlm.nih.gov\": " ++ show (fromLeft response)))
+   req <- N.parseRequest "https://www.ncbi.nlm.nih.gov"
+   manager <- N.newManager N.tlsManagerSettings
+   response <- N.httpLbs req manager
+   let sta = N.responseStatus response
+   if statusIsSuccessful sta
+     then return (Right ("Network connection with NCBI server was successful"))
+     else return (Left ("Could not connect to NCBI server \"https://www.ncbi.nlm.nih.gov\". Response Code: " ++ show (statusCode sta) ++ " \n" ++ B.unpack (statusMessage sta)))
 
 -- | Blast evalue is set stricter in inital alignment mode
 setBlastExpectThreshold :: ModelConstruction -> Double
