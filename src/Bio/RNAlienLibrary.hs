@@ -67,7 +67,7 @@ import Bio.RNAzParser
 import qualified Network.HTTP.Conduit as N
 import Network.HTTP.Types.Status
 import qualified Bio.RNAcodeParser as RC
-import Bio.RNAcentralHTTP
+import qualified Bio.RNAcentralHTTP as RCH
 import Bio.InfernalParser
 import qualified Data.Text as T
 import qualified Data.Text.IO as TI
@@ -1511,9 +1511,9 @@ evaluateConstructionResult staticOptions mCResult = do
   let cmFilepath = tempDirPath staticOptions ++ "result.cm"
   let resultSequences = (inputFasta mCResult):map nucleotideSequence (concatMap sequenceRecords (taxRecords mCResult))
   let resultNumber = length resultSequences + 1 
-  let rnaCentralQueries = map buildSequenceViaMD5Query resultSequences    
-  rnaCentralEntries <- getRNACentralEntries rnaCentralQueries
-  let rnaCentralEvaluationResult = showRNAcentralAlienEvaluation rnaCentralEntries
+  let rnaCentralQueries = map RCH.buildSequenceViaMD5Query resultSequences    
+  rnaCentralEntries <- RCH.getRNACentralEntries rnaCentralQueries
+  let rnaCentralEvaluationResult = RCH.showRNAcentralAlienEvaluation rnaCentralEntries
   writeFile (tempDirPath staticOptions ++ "result.rnacentral") rnaCentralEvaluationResult
   systemCMalign ("--outformat=Clustal --cpu " ++ show (cpuThreads staticOptions)) cmFilepath fastaFilepath clustalFilepath
   let resultModelStatistics = tempDirPath staticOptions ++ "result.cmstat"

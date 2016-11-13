@@ -6,8 +6,6 @@
 module Main where
     
 import System.Console.CmdArgs    
-import Bio.RNAlienLibrary
-import Data.Either.Unwrap
 import Bio.RNAcentralHTTP
 
 data Options = Options            
