@@ -54,7 +54,7 @@ options = Options
     threads = 1 &= name "c" &= help "Number of available cpu slots/cores. Default: 1",
     taxonomyRestriction = Nothing &= name "r" &= help "Restrict search space to taxonomic kingdom (bacteria,archea,eukaryia). Default: not set",
     sessionIdentificator = Nothing &= name "d" &= help "Optional session id that is used instead of automatically generated one.",
-    performEvaluation = True &= name "x" &= help "Skip evaluation step. Default: False"
+    performEvaluation = True &= name "x" &= help "Perform evaluation step. Default: True"
   } &= summary ("RNAlien " ++ alienVersion) &= help "Florian Eggenhofer, Ivo L. Hofacker, Christian Höner zu Siederdissen - 2013 - 2017" &= verbosity       
                 
 main :: IO ()

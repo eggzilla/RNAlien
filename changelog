@@ -1,4 +1,6 @@
 -*-change-log-*-
+1.2.8 Florian Eggenhofer <egg@cs.uni-freiburg.de> 1. January 2017
+	* Added a commandline switch to turn switch the evaluation step on and off
 1.2.7 Florian Eggenhofer <egg@informatik.uni-freiburg.de> 13. November 2016
 	* Fixed a bug in inital connection check with HTTPS
 1.2.6 Florian Eggenhofer <egg@informatik.uni-freiburg.de> 12. November 2016
