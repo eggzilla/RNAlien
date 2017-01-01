@@ -33,7 +33,8 @@ data Options = Options
     inputQueryNumber :: Int,
     threads :: Int,
     taxonomyRestriction :: Maybe String,
-    sessionIdentificator :: Maybe String
+    sessionIdentificator :: Maybe String,
+    performEvaluation :: Bool
   } deriving (Show,Data,Typeable)
 
 options :: Options
@@ -52,8 +53,9 @@ options = Options
     inputQueryNumber = (5 :: Int) &= name "n" &= help "Number of queries used for candidate search. Default: 5",
     threads = 1 &= name "c" &= help "Number of available cpu slots/cores. Default: 1",
     taxonomyRestriction = Nothing &= name "r" &= help "Restrict search space to taxonomic kingdom (bacteria,archea,eukaryia). Default: not set",
-    sessionIdentificator = Nothing &= name "d" &= help "Optional session id that is used instead of automatically generated one."
-  } &= summary ("RNAlien " ++ alienVersion) &= help "Florian Eggenhofer, Ivo L. Hofacker, Christian Höner zu Siederdissen - 2013 - 2016" &= verbosity       
+    sessionIdentificator = Nothing &= name "d" &= help "Optional session id that is used instead of automatically generated one.",
+    performEvaluation = True &= name "x" &= help "Skip evaluation step. Default: False"
+  } &= summary ("RNAlien " ++ alienVersion) &= help "Florian Eggenhofer, Ivo L. Hofacker, Christian Höner zu Siederdissen - 2013 - 2017" &= verbosity       
                 
 main :: IO ()
 main = do
@@ -100,11 +102,16 @@ main = do
               logMessage (show initialization) temporaryDirectoryPath
               modelConstructionResults <- modelConstructer staticOptions initialization
               let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults
-              resultEvaluation <- evaluateConstructionResult staticOptions modelConstructionResults
-              appendFile (temporaryDirectoryPath ++ "Log") resultEvaluation
               writeFile (temporaryDirectoryPath ++ "result.csv") resultTaxonomyRecordsCSVTable
-              resultSummary modelConstructionResults staticOptions
-              writeFile (temporaryDirectoryPath ++ "done") ""
+              if performEvaluation
+                then do
+                  resultEvaluation <- evaluateConstructionResult staticOptions modelConstructionResults
+                  appendFile (temporaryDirectoryPath ++ "Log") resultEvaluation
+                  resultSummary modelConstructionResults staticOptions
+                  writeFile (temporaryDirectoryPath ++ "done") ""
+                else do
+                  resultSummary modelConstructionResults staticOptions
+                  writeFile (temporaryDirectoryPath ++ "done") ""
 
 alienVersion :: String
 alienVersion = showVersion version
