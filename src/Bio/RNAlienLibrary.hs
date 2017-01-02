@@ -75,7 +75,7 @@ import qualified Data.Text.Encoding as DTE
 import qualified Data.Text.Lazy.Encoding as E
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.IO as TIO
-
+import Text.Printf
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 modelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
 modelConstructer staticOptions modelConstruction = do
@@ -1647,14 +1647,21 @@ preprocessClustalForRNAz clustalFilepath _ seqenceNumber optimalIdentity maximal
       parsedClustalInput <- readClustalAlignment clustalFilepath
       if isRight parsedClustalInput
         then do
-          let filteredClustalInput = rnaZSelectSeqs2 (fromRight parsedClustalInput) seqenceNumber optimalIdentity maximalIdenity referenceSequence
+          let (idMatrix,filteredClustalInput) = rnaZSelectSeqs2 (fromRight parsedClustalInput) seqenceNumber optimalIdentity maximalIdenity referenceSequence
+          let formatedIdMatrix = fmap formatIdMatrix idMatrix
+          --print (prettyMatrix formatedIdMatrix)
+          print formatedIdMatrix
           --writeFile selectedClustalpath (show filteredClustalInput)
           return (Right (show filteredClustalInput))
         else return (Left (show (fromLeft parsedClustalInput)))
     else return (Right (show clustalText))
 
-rnaZSelectSeqs2 :: ClustalAlignment -> Int -> Double -> Double -> Bool -> ClustalAlignment
-rnaZSelectSeqs2 currentClustalAlignment seqenceNumber optimalIdentity maximalIdenity referenceSequence = newClustalAlignment
+formatIdMatrix :: Maybe (Int,Int,Double) -> String
+formatIdMatrix (Just (_,_,c)) = printf "%.2f" c
+formatIdMatrix _ = "-"
+  
+rnaZSelectSeqs2 :: ClustalAlignment -> Int -> Double -> Double -> Bool -> (Matrix (Maybe (Int,Int,Double)),ClustalAlignment)
+rnaZSelectSeqs2 currentClustalAlignment seqenceNumber optimalIdentity maximalIdenity referenceSequence = (identityMatrix,newClustalAlignment)
   where entryVector = V.fromList (alignmentEntries currentClustalAlignment)
         totalSeqNumber = (V.length entryVector)
         identityMatrix = computeSequenceIdentityMatrix (V.map entryAlignedSequence entryVector)
@@ -1739,7 +1746,16 @@ computeSequenceIdentityEntry entryVector (row,col)
   | otherwise = Nothing
   where i=row-1
         j=col-1
-        ident=stringIdentity (entryVector V.! i) (entryVector V.! j)
+        --gaps in both sequences need to be removed, because they count as match
+        ientry  = (entryVector V.! i)
+        jentry = (entryVector V.! j)
+        (gfi,gfj) = unzip (filter notDoubleGap (zip ientry jentry))
+        ident=stringIdentity gfi gfj
+
+notDoubleGap :: (Char,Char) -> Bool
+notDoubleGap (a,b)
+  | a == '-' && b == '-' = False
+  | otherwise = True
 
 -- Iteratively removes sequences with decreasing similarity until target number of alignment entries is reached.
 --rnaZSelectSeqs :: ClustalAlignment -> Int -> Double -> ClustalAlignment
