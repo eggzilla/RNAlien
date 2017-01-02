@@ -39,7 +39,7 @@ main = do
         then (return ())
         else (print ("A problem occured selecting sequences: " ++ fromLeft resultStatus))
     else do
-      resultStatus <- preprocessClustalForRNAztest inputClustalPath reformatedClustalPath seqenceNumber optimalIdentity maximalIdenity referenceSequence
+      resultStatus <- preprocessClustalForRNAz inputClustalPath reformatedClustalPath seqenceNumber optimalIdentity maximalIdenity referenceSequence
       if (isRight resultStatus)
         then (putStr (fromRight resultStatus))
         else (print ("A problem occured selecting sequences: " ++ fromLeft resultStatus))

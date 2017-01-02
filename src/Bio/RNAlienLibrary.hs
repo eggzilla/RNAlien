@@ -1,5 +1,5 @@
 -- | This module contains functions for RNAlien
-
+{-# LANGUAGE RankNTypes #-}
 module Bio.RNAlienLibrary (
                            module Bio.RNAlienData,
                            createSessionID,
@@ -816,12 +816,12 @@ filterIdenticalSequences' (headEntry:rest) identitycutoff = result
         result = headEntry:filterIdenticalSequences' filteredEntries identitycutoff
 filterIdenticalSequences' [] _ = []
 
--- | Filter alignment entries by similiarity  
-filterIdenticalAlignmentEntry :: [ClustalAlignmentEntry] -> Double -> [ClustalAlignmentEntry]
-filterIdenticalAlignmentEntry (headEntry:rest) identitycutoff = result
-  where filteredEntries = filter (\x -> (stringIdentity (entryAlignedSequence headEntry) (entryAlignedSequence x)) < identitycutoff) rest
-        result = headEntry:filterIdenticalAlignmentEntry filteredEntries identitycutoff
-filterIdenticalAlignmentEntry [] _ = []
+---- | Filter alignment entries by similiarity  
+--filterIdenticalAlignmentEntry :: [ClustalAlignmentEntry] -> Double -> [ClustalAlignmentEntry]
+--filterIdenticalAlignmentEntry (headEntry:rest) identitycutoff = result
+--  where filteredEntries = filter (\x -> (stringIdentity (entryAlignedSequence headEntry) (entryAlignedSequence x)) < identitycutoff) rest
+--        result = headEntry:filterIdenticalAlignmentEntry filteredEntries identitycutoff
+--filterIdenticalAlignmentEntry [] _ = []
 
 isUnSimilarSequence :: [Sequence] -> Double -> Sequence -> Bool
 isUnSimilarSequence collectedSequences identitycutoff checkSequence = any (\ x -> (sequenceIdentity checkSequence x) < identitycutoff) collectedSequences
@@ -1524,7 +1524,11 @@ evaluateConstructionResult staticOptions mCResult = do
     then do 
       let resultRNAz = tempDirPath staticOptions ++ "result.rnaz"
       let resultRNAcode = tempDirPath staticOptions ++ "result.rnacode"
-      rnazClustalpath <- preprocessClustalForRNAcodeExternal clustalFilepath reformatedClustalPath
+      let seqNumber = 6 :: Int
+      let optimalIdentity = 80 :: Double
+      let maximalIdentity = 99 :: Double
+      let referenceSequence = True
+      rnazClustalpath <- preprocessClustalForRNAcodeExternal clustalFilepath reformatedClustalPath seqNumber (truncate optimalIdentity) (truncate maximalIdentity) referenceSequence
       if isRight rnazClustalpath
         then do
           systemRNAz "-l" (fromRight rnazClustalpath) resultRNAz 
@@ -1568,20 +1572,27 @@ showRNACodeHits :: RC.RNAcodeHit -> String
 showRNACodeHits rnacodeHit = show (RC.hss rnacodeHit) ++ "\t" ++ show (RC.frame rnacodeHit) ++ "\t" ++ show (RC.hitLength rnacodeHit) ++ "\t"++ show (RC.from rnacodeHit) ++ "\t" ++ show (RC.to rnacodeHit) ++ "\t" ++ (RC.name rnacodeHit) ++ "\t" ++ show (RC.start rnacodeHit) ++ "\t" ++ show (RC.end rnacodeHit) ++ "\t" ++ show (RC.score rnacodeHit) ++ show (RC.pvalue rnacodeHit) ++ "\n"
 
 -- | Call for external preprocessClustalForRNAz
-preprocessClustalForRNAzExternal :: String -> String -> IO (Either String String)
-preprocessClustalForRNAzExternal clustalFilepath reformatedClustalPath = do
+preprocessClustalForRNAzExternal :: String -> String -> Int -> Int -> Int -> Bool -> IO (Either String String)
+preprocessClustalForRNAzExternal clustalFilepath reformatedClustalPath seqenceNumber optimalIdentity maximalIdenity referenceSequence = do
   clustalText <- TI.readFile clustalFilepath
   --change clustal format for rnazSelectSeqs.pl
   let reformatedClustalText = T.map reformatAln clustalText
   TI.writeFile reformatedClustalPath reformatedClustalText
   --select representative entries from result.Clustal with select_sequences
   let selectedClustalpath = clustalFilepath ++ ".selected"
-  system ("rnazSelectSeqs.pl " ++ reformatedClustalPath ++ " >" ++ selectedClustalpath)
-  return (Right selectedClustalpath)
+  let sequenceNumberOption = " -n "  ++ show seqenceNumber ++ " "
+  let optimalIdentityOption = " -i "  ++ show optimalIdentity  ++ " "
+  let maximalIdentityOption = " --max-id="  ++ show maximalIdenity  ++ " "
+  let referenceSequenceOption = if referenceSequence then " " else " -x "
+  let syscall = ("rnazSelectSeqs.pl " ++ reformatedClustalPath ++ " " ++ sequenceNumberOption ++ optimalIdentityOption ++ maximalIdentityOption ++ referenceSequenceOption ++  " >" ++ selectedClustalpath)
+  --putStrLn syscall
+  system syscall
+  selectedClustalText <- readFile selectedClustalpath
+  return (Right selectedClustalText)
 
 -- | Call for external preprocessClustalForRNAcode - RNAcode additionally to RNAz requirements does not accept pipe,underscore, doublepoint symbols
-preprocessClustalForRNAcodeExternal :: String -> String -> IO (Either String String)
-preprocessClustalForRNAcodeExternal clustalFilepath reformatedClustalPath = do
+preprocessClustalForRNAcodeExternal :: String -> String -> Int -> Int -> Int -> Bool -> IO (Either String String)
+preprocessClustalForRNAcodeExternal clustalFilepath reformatedClustalPath seqenceNumber optimalIdentity maximalIdenity referenceSequence = do
   clustalText <- TI.readFile clustalFilepath
   --change clustal format for rnazSelectSeqs.pl
   let clustalTextLines = T.lines clustalText
@@ -1591,39 +1602,153 @@ preprocessClustalForRNAcodeExternal clustalFilepath reformatedClustalPath = do
   TI.writeFile reformatedClustalPath (headerClustalTextLines `T.append` (T.singleton '\n') `T.append` reformatedClustalText)
   --select representative entries from result.Clustal with select_sequences
   let selectedClustalpath = clustalFilepath ++ ".selected"
-  system ("rnazSelectSeqs.pl " ++ reformatedClustalPath ++ " >" ++ selectedClustalpath)
-  return (Right selectedClustalpath)
+  let sequenceNumberOption = " -n "  ++ show seqenceNumber  ++ " "
+  let optimalIdentityOption = " -i "  ++ show optimalIdentity  ++ " "
+  let maximalIdentityOption = " --max-id="  ++ show maximalIdenity  ++ " "
+  let referenceSequenceOption = if referenceSequence then " " else " -x "
+  let syscall = ("rnazSelectSeqs.pl " ++ reformatedClustalPath ++ " " ++ sequenceNumberOption ++ optimalIdentityOption ++ maximalIdentityOption ++ referenceSequenceOption ++  " >" ++ selectedClustalpath)
+  --putStrLn syscall
+  system syscall
+  selectedClustalText <- readFile selectedClustalpath
+  return (Right selectedClustalText)
 
 -- | RNAz can process 500 sequences at max. Using rnazSelectSeqs to isolate representative sample. rnazSelectSeqs only accepts - gap characters, alignment is reformatted accordingly.
-preprocessClustalForRNAz :: String -> String -> IO (Either String String)
-preprocessClustalForRNAz clustalFilepath reformatedClustalPath = do
+--preprocessClustalForRNAz :: String -> String -> IO (Either String String)
+--preprocessClustalForRNAz clustalFilepath reformatedClustalPath = do
+--  clustalText <- TI.readFile clustalFilepath
+--  let clustalTextLines = T.lines clustalText
+--  if length clustalTextLines > 5
+--    then do 
+      --change clustal format for rnazSelectSeqs.pl
+--      let reformatedClustalString = T.map reformatAln clustalText
+--      TI.writeFile reformatedClustalPath reformatedClustalString
+      --select representative entries from result.Clustal with select_sequences
+--      let selectedClustalpath = clustalFilepath ++ ".selected"
+--      parsedClustalInput <- readClustalAlignment clustalFilepath
+--      if isRight parsedClustalInput
+--        then do
+--          let filteredClustalInput = rnaZSelectSeqs (fromRight parsedClustalInput) 500 99
+          --writeFile selectedClustalpath (show filteredClustalInput)
+--          return (Right filteredClustalInput)
+--        else return (Left (show (fromLeft parsedClustal)))
+--    else return (Right clustalFilepath)
+
+preprocessClustalForRNAz :: String -> String -> Int -> Double -> Double -> Bool -> IO (Either String String)
+preprocessClustalForRNAz clustalFilepath _ seqenceNumber optimalIdentity maximalIdenity referenceSequence = do
   clustalText <- TI.readFile clustalFilepath
   let clustalTextLines = T.lines clustalText
-  if length clustalTextLines > 500
+  if length clustalTextLines > 5
     then do 
       --change clustal format for rnazSelectSeqs.pl
-      let reformatedClustalString = T.map reformatAln clustalText
-      TI.writeFile reformatedClustalPath reformatedClustalString
+      --let reformatedClustalString = T.map reformatAln clustalText
+      --TI.writeFile reformatedClustalPath reformatedClustalString
       --select representative entries from result.Clustal with select_sequences
-      let selectedClustalpath = clustalFilepath ++ ".selected"
+      --let selectedClustalpath = clustalFilepath ++ ".selected"
       parsedClustalInput <- readClustalAlignment clustalFilepath
       if isRight parsedClustalInput
         then do
-          let filteredClustalInput = rnaZSelectSeqs (fromRight parsedClustalInput) 500 99
-          writeFile selectedClustalpath (show filteredClustalInput)
-          return (Right selectedClustalpath)
+          let filteredClustalInput = rnaZSelectSeqs2 (fromRight parsedClustalInput) seqenceNumber optimalIdentity maximalIdenity referenceSequence
+          --writeFile selectedClustalpath (show filteredClustalInput)
+          return (Right (show filteredClustalInput))
         else return (Left (show (fromLeft parsedClustalInput)))
-    else return (Right clustalFilepath)
+    else return (Right (show clustalText))
 
+rnaZSelectSeqs2 :: ClustalAlignment -> Int -> Double -> Double -> Bool -> ClustalAlignment
+rnaZSelectSeqs2 currentClustalAlignment seqenceNumber optimalIdentity maximalIdenity referenceSequence = newClustalAlignment
+  where entryVector = V.fromList (alignmentEntries currentClustalAlignment)
+        totalSeqNumber = (V.length entryVector)
+        identityMatrix = computeSequenceIdentityMatrix (V.map entryAlignedSequence entryVector)
+        entryIdentities = catMaybes (toList identityMatrix)
+        --Similarity filter - filter too similar sequences until alive seqs are less then minSeqs
+        entriesToDiscard = preFilterIdentityMatrix maximalIdenity seqenceNumber totalSeqNumber [] entryIdentities
+        filteredEntryIdentities = filter (discardIdentityEntry entriesToDiscard) entryIdentities
+        --Optimize mean pairwise similarity (greedily) - remove worst sequence until desired number is reached
+        selectedEntryIndices = greedyFilterIdentityEntries optimalIdentity seqenceNumber totalSeqNumber referenceSequence filteredEntryIdentities 
+        selectedEntries = map (\ind -> entryVector V.! ind) selectedEntryIndices
+        selectedEntryHeader = map entrySequenceIdentifier selectedEntries
+        selectedEntrySequences = map entryAlignedSequence selectedEntries           
+        gapfreeEntrySequences = Data.List.transpose (filter (\a -> not (all isGap a)) (Data.List.transpose selectedEntrySequences))
+        gapfreeEntries = map (\(a,b) -> ClustalAlignmentEntry a  b)(zip selectedEntryHeader gapfreeEntrySequences)
+        emptyConservationTrack = setEmptyConservationTrack gapfreeEntries (conservationTrack currentClustalAlignment)
+        newClustalAlignment = currentClustalAlignment {alignmentEntries = gapfreeEntries, conservationTrack = emptyConservationTrack}
+
+setEmptyConservationTrack :: [ClustalAlignmentEntry] -> String -> String
+setEmptyConservationTrack alnentries currentConservationTrack
+  | null alnentries = currentConservationTrack 
+  | otherwise = newConservationTrack 
+      where trackLength = length (entryAlignedSequence (head alnentries))
+            newConservationTrack = replicate (trackLength + 0)' ' 
+                              
+isGap :: Char -> Bool
+isGap a = a == '-'
+
+greedyFilterIdentityEntries :: Double -> Int -> Int -> Bool -> [(Int,Int,Double)] -> [Int]
+greedyFilterIdentityEntries optimalIdentity seqenceNumber totalSeqNumber useReferenceSequence entryIdentities
+    | totalSeqNumber <= seqenceNumber = filteredEntryIdentitiesIndices
+    | null entryIdentities  = []
+    | otherwise = selectedEntriesWithRef
+      where filteredEntryIdentitiesIndices = nub (map (\(a,_,_) -> a) entryIdentities)
+            costPerEntry = map (entryCost optimalIdentity entryIdentities) filteredEntryIdentitiesIndices
+            sortedCostPerEntry = sortBy compareEntryCost costPerEntry
+            selectedEntries = map fst (take seqenceNumber sortedCostPerEntry)
+            selectedEntriesWithRef = addReferenceSequenceIndex useReferenceSequence selectedEntries
+
+addReferenceSequenceIndex :: Bool -> [Int] -> [Int]                                     
+addReferenceSequenceIndex useReferenceSequence selectedEntries
+  | useReferenceSequence = if elem 0 selectedEntries then selectedEntries else (take (length selectedEntries - 1) selectedEntries) ++ [0]
+  | otherwise =  selectedEntries
+                                     
+compareEntryCost :: forall t t1 a. Ord a => (t, a) -> (t1, a) -> Ordering            
+compareEntryCost (_,costA) (_,costB) = compare costA costB
+            
+entryCost :: Double -> [(Int,Int,Double)] -> Int -> (Int,Double)
+entryCost optimalIdentity entryIdentities currentIndex = (currentIndex,cost)
+  where entryIdentites = filter (\(a,_,_) -> a == currentIndex) entryIdentities
+        --cost = foldr (\(_,_,ident) acc -> acc + ((ident - optimalIdentity) * (ident - optimalIdentity))) (0 :: Double) entryIdentites
+        cost = foldr (\(_,_,ident) acc -> acc + (abs(ident - optimalIdentity))) (0 :: Double) entryIdentites
+
+preFilterIdentityMatrix :: Double -> Int -> Int-> [Int] -> [(Int,Int,Double)] -> [Int]
+preFilterIdentityMatrix identityCutoff minSeqNumber totalSeqNumber filteredIds entryIdentities
+    | (totalSeqNumber - (length filteredIds)) <= minSeqNumber = []
+    | identityCutoff == (100 :: Double) = []
+    | null entryIdentities  = []
+    | otherwise = entryresult ++ preFilterIdentityMatrix identityCutoff minSeqNumber totalSeqNumber (filteredIds ++ entryresult) (tail entryIdentities)
+      where currentEntry = head entryIdentities
+            entryresult = checkIdentityEntry identityCutoff filteredIds currentEntry
+
+checkIdentityEntry :: Double -> [Int] -> (Int,Int,Double) -> [Int]
+checkIdentityEntry identityCutoff filteredIds (i,j,ident)
+  | elem i filteredIds = []
+  | elem j filteredIds = []
+  | ident > identityCutoff = [j]
+  | otherwise = []
+  
+discardIdentityEntry :: [Int] -> (Int,Int,Double) -> Bool
+discardIdentityEntry entriesToDiscard (i,j,_)
+  | elem i entriesToDiscard = False
+  | elem j entriesToDiscard = False
+  | otherwise = True
+                        
+computeSequenceIdentityMatrix :: V.Vector String -> Matrix (Maybe (Int,Int,Double))
+computeSequenceIdentityMatrix entryVector = matrix (V.length entryVector) (V.length entryVector) (computeSequenceIdentityEntry entryVector)
+
+-- Computes Sequenceidentity once for each pair and not vs itself
+computeSequenceIdentityEntry :: V.Vector String -> (Int,Int) -> Maybe (Int,Int,Double)
+computeSequenceIdentityEntry entryVector (row,col)
+  | i < j = Just $ (row,col,ident)
+  | otherwise = Nothing
+  where i=row-1
+        j=col-1
+        ident=stringIdentity (entryVector V.! i) (entryVector V.! j)
 
 -- Iteratively removes sequences with decreasing similarity until target number of alignment entries is reached.
-rnaZSelectSeqs :: ClustalAlignment -> Int -> Double -> ClustalAlignment
-rnaZSelectSeqs currentClustalAlignment targetEntries identityCutoff
-  | targetEntries < numberOfEntries = rnaZSelectSeqs filteredAlignment targetEntries (identityCutoff - 1)
-  | otherwise = currentClustalAlignment
-  where numberOfEntries =  length (alignmentEntries currentClustalAlignment) 
-        filteredEntries = filterIdenticalAlignmentEntry (alignmentEntries currentClustalAlignment) identityCutoff 
-        filteredAlignment = ClustalAlignment filteredEntries (conservationTrack currentClustalAlignment)
+--rnaZSelectSeqs :: ClustalAlignment -> Int -> Double -> ClustalAlignment
+--rnaZSelectSeqs currentClustalAlignment targetEntries identityCutoff
+--  | targetEntries < numberOfEntries = rnaZSelectSeqs filteredAlignment targetEntries (identityCutoff - 1)
+--  | otherwise = currentClustalAlignment
+--  where numberOfEntries =  length (alignmentEntries currentClustalAlignment) 
+--        filteredEntries = filterIdenticalAlignmentEntry (alignmentEntries currentClustalAlignment) identityCutoff 
+--        filteredAlignment = ClustalAlignment filteredEntries (conservationTrack currentClustalAlignment)
 
 reformatRNACodeAln :: Char -> Char 
 reformatRNACodeAln c
