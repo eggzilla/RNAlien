@@ -839,7 +839,9 @@ blastMatchesPresent blastResult
 -- | Compute identity of sequences
 stringIdentity :: String -> String -> Double
 stringIdentity string1 string2 = identityPercent
-   where distance = ED.levenshteinDistance ED.defaultEditCosts string1 string2
+   where distance = ED.levenshteinDistance costs string1 string2
+         --Replication of RNAz select sequences requires only allowing substitutions
+         costs = ED.defaultEditCosts {ED.deletionCosts = ED.ConstantCost 100,ED.insertionCosts = ED.ConstantCost 100,ED.transpositionCosts = ED.ConstantCost 100}
          maximumDistance = maximum [length string1,length string2]
          identityPercent = 100 - ((fromIntegral distance/fromIntegral maximumDistance) * (read "100" ::Double))
 
@@ -1657,7 +1659,7 @@ preprocessClustalForRNAz clustalFilepath _ seqenceNumber optimalIdentity maximal
     else return (Right (show clustalText))
 
 formatIdMatrix :: Maybe (Int,Int,Double) -> String
-formatIdMatrix (Just (_,_,c)) = printf "%.2f" c
+formatIdMatrix (Just (a,b,c)) = show a ++ "," ++ show b ++ "," ++ printf "%.2f" c
 formatIdMatrix _ = "-"
   
 rnaZSelectSeqs2 :: ClustalAlignment -> Int -> Double -> Double -> Bool -> (Matrix (Maybe (Int,Int,Double)),ClustalAlignment)
