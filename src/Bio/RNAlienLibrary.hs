@@ -76,6 +76,7 @@ import qualified Data.Text.Lazy.Encoding as E
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.IO as TIO
 import Text.Printf
+import qualified Debug.Trace as DT
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 modelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
 modelConstructer staticOptions modelConstruction = do
@@ -843,7 +844,7 @@ stringIdentity string1 string2 = identityPercent
          --Replication of RNAz select sequences requires only allowing substitutions
          costs = ED.defaultEditCosts {ED.deletionCosts = ED.ConstantCost 100,ED.insertionCosts = ED.ConstantCost 100,ED.transpositionCosts = ED.ConstantCost 100}
          maximumDistance = maximum [length string1,length string2]
-         identityPercent = 100 - ((fromIntegral distance/fromIntegral maximumDistance) * (read "100" ::Double))
+         identityPercent = 1 - (fromIntegral distance/fromIntegral maximumDistance)
 
 -- | Compute identity of sequences
 sequenceIdentity :: Sequence -> Sequence -> Double
@@ -1669,7 +1670,6 @@ rnaZSelectSeqs2 currentClustalAlignment targetSeqNumber optimalIdentity maximalI
         entryIdentities = catMaybes (toList identityMatrix)
         --entryIdentityVector = V.fromList (catMaybes (toList identityMatrix))
         entryIdentityVector = V.map fromJust (V.filter isJust (getMatrixAsVector identityMatrix))
-        --TODO: getMatrixAsVector
         --Similarity filter - filter too similar sequences until alive seqs are less then minSeqs
         entriesToDiscard = preFilterIdentityMatrix maximalIdentity targetSeqNumber totalSeqNumber [] entryIdentities
         allEntries = [1..totalSeqNumber]
@@ -1677,8 +1677,10 @@ rnaZSelectSeqs2 currentClustalAlignment targetSeqNumber optimalIdentity maximalI
         --preFilteredEntryIdentities = filter (discardIdentityEntry entriesToDiscard) entryIdentities
         --Optimize mean pairwise similarity (greedily) - remove worst sequence until desired number is reached
         costList = map (computeEntryCost optimalIdentity entryIdentityVector (V.fromList allEntries)) allEntries
-        sortedCostList = sortBy compareEntryCost2 costList
-        selectedEntryIndices = [1] ++ map fst (take (targetSeqNumber -1) sortedCostList)
+        revSortedCostList = reverse sortedCostList
+        sortedCostList = (sortBy compareEntryCost2 costList)
+        sclstring = map (\(a,b) -> "r" ++ "(" ++ show (a -1) ++ "," ++ show b ++ ")") revSortedCostList
+        selectedEntryIndices =  DT.trace (show sclstring) ([1] ++ map fst (take (targetSeqNumber -1) sortedCostList))
         selectedEntries = map (\ind -> entryVector V.! (ind-1)) selectedEntryIndices
         selectedEntryHeader = map entrySequenceIdentifier selectedEntries
         selectedEntrySequences = map entryAlignedSequence selectedEntries           
@@ -1686,6 +1688,7 @@ rnaZSelectSeqs2 currentClustalAlignment targetSeqNumber optimalIdentity maximalI
         gapfreeEntries = map (\(a,b) -> ClustalAlignmentEntry a  b)(zip selectedEntryHeader gapfreeEntrySequences)
         emptyConservationTrack = setEmptyConservationTrack gapfreeEntries (conservationTrack currentClustalAlignment)
         newClustalAlignment = currentClustalAlignment {alignmentEntries = gapfreeEntries, conservationTrack = emptyConservationTrack}
+
 
 setEmptyConservationTrack :: [ClustalAlignmentEntry] -> String -> String
 setEmptyConservationTrack alnentries currentConservationTrack
@@ -1708,9 +1711,6 @@ greedyFilterIdentityEntries2 optimalIdentity seqenceNumber useReferenceSequence 
             maxCost = maximumBy compareEntryCost2 costList
             maxEntry = fst maxCost
             remainingEntryIndices = (entryIndices \\ [maxEntry])            
-            --remainingEntryIndices = Debug.Trace.trace ("removed:" ++ show maxEntry) (entryIndices \\ [maxEntry])
-            --remainingEntryIdentities = Debug.Trace.trace (show costList) entryIdentities
-            --remainingEntryIdentities = Debug.Trace.trace (show costList) (filter (discardIdentityEntry [maxEntry]) entryIdentities)
 
 computeEntryCost :: Double -> V.Vector (Int,Int,Double) -> V.Vector Int -> Int -> (Int,Double)
 computeEntryCost optimalIdentity allIdentities indices currentIndex = (currentIndex,entryCost)
@@ -1727,8 +1727,8 @@ isJIdx :: Int -> (Int,Int,Double) -> Bool
 isJIdx currentIdx (_,j,_) = currentIdx == j
 
 computeCost :: Double -> (Int,Int,Double) -> Double
-computeCost optimalIdentity (_,_,c) = (c - optimalIdentity) * (c - optimalIdentity)
-          
+--computeCost optimalIdentity (_,_,c) = (c - optimalIdentity) * (c - optimalIdentity)
+computeCost optimalIdentity (_,_,c) = (c - 0.8) * (c - 0.8)
 -- greedyFilterIdentityEntries :: Double -> Int -> Int -> Bool -> [(Int,Int,Double)] -> [Int]
 -- greedyFilterIdentityEntries optimalIdentity seqenceNumber totalSeqNumber useReferenceSequence entryIdentities
 --     | totalSeqNumber <= seqenceNumber = filteredEntryIdentitiesIndices
