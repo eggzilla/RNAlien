@@ -24,6 +24,7 @@ module Bio.RNAlienLibrary (
                            checkNCBIConnection,
                            preprocessClustalForRNAz,
                            preprocessClustalForRNAzExternal,
+                           preprocessClustalForRNAcodeExternal,
                            rnaZEvalOutput,
                            reformatFasta,
                            checkTaxonomyRestriction,
@@ -1634,6 +1635,8 @@ preprocessClustalForRNAz clustalFilepath _ seqenceNumber optimalIdentity maximal
           --let formatedIdMatrix = fmap formatIdMatrix idMatrix
           --print formatedIdMatrix
           --writeFile selectedClustalpath (show filteredClustalInput)
+          --filteredClustalInputText = T.pack (show filteredClustalInput)
+          --reformatedFilteredClustalInput = T.unpack ()
           return (Right (show filteredClustalInput))
         else return (Left (show (fromLeft parsedClustalInput)))
     else return (Right (show clustalText))
@@ -1645,8 +1648,10 @@ formatIdMatrix _ = "-"
 rnaZSelectSeqs2 :: ClustalAlignment -> Int -> Double -> Double -> Bool -> (Matrix (Maybe (Int,Int,Double)),ClustalAlignment)
 rnaZSelectSeqs2 currentClustalAlignment targetSeqNumber optimalIdentity maximalIdentity referenceSequence = (identityMatrix,newClustalAlignment)
   where entryVector = V.fromList (alignmentEntries currentClustalAlignment)
+        entrySequences = V.map entryAlignedSequence entryVector
+        entryReformattedSequences = V.map (map reformatRNACodeAln) entrySequences
         totalSeqNumber = (V.length entryVector)
-        identityMatrix = computeSequenceIdentityMatrix (V.map entryAlignedSequence entryVector)
+        identityMatrix = computeSequenceIdentityMatrix entryReformattedSequences
         entryIdentities = catMaybes (toList identityMatrix)
         --entryIdentityVector = V.fromList (catMaybes (toList identityMatrix))
         entryIdentityVector = V.map fromJust (V.filter isJust (getMatrixAsVector identityMatrix))
@@ -1663,10 +1668,13 @@ rnaZSelectSeqs2 currentClustalAlignment targetSeqNumber optimalIdentity maximalI
         --selectedEntryIndices =  DT.trace (show sclstring) ([1] ++ map fst (take (targetSeqNumber -1) sortedCostList))
         selectedEntryIndices = [1] ++ map fst (take (targetSeqNumber -1) sortedCostList)
         selectedEntries = map (\ind -> entryVector V.! (ind-1)) selectedEntryIndices
-        selectedEntryHeader = map entrySequenceIdentifier selectedEntries
-        selectedEntrySequences = map entryAlignedSequence selectedEntries           
+        selectedEntryHeaders = map entrySequenceIdentifier selectedEntries
+        --Special header for RNAcode
+        rnaCodeSelectedEntryHeader = map (map reformatRNACodeAln) selectedEntryHeaders
+        --selectedEntrySequences = map entryAlignedSequence selectedEntries
+        selectedEntrySequences = map (\ind -> entryReformattedSequences V.! (ind-1)) selectedEntryIndices
         gapfreeEntrySequences = Data.List.transpose (filter (\a -> not (all isGap a)) (Data.List.transpose selectedEntrySequences))
-        gapfreeEntries = map (\(a,b) -> ClustalAlignmentEntry a  b)(zip selectedEntryHeader gapfreeEntrySequences)
+        gapfreeEntries = map (\(a,b) -> ClustalAlignmentEntry a  b)(zip rnaCodeSelectedEntryHeader gapfreeEntrySequences)
         emptyConservationTrack = setEmptyConservationTrack gapfreeEntries (conservationTrack currentClustalAlignment)
         newClustalAlignment = currentClustalAlignment {alignmentEntries = gapfreeEntries, conservationTrack = emptyConservationTrack}
 
@@ -1679,8 +1687,9 @@ setEmptyConservationTrack alnentries currentConservationTrack
             newConservationTrack = replicate (trackLength + 0)' ' 
                               
 isGap :: Char -> Bool
-isGap a = a == '-'
-
+isGap a 
+  | a == '-' = True
+  | otherwise = False
 
 greedyFilterIdentityEntries2 :: Double -> Int -> Bool -> V.Vector (Int,Int,Double) -> [Int] -> [Int] 
 greedyFilterIdentityEntries2 optimalIdentity seqenceNumber useReferenceSequence entryIdentities entryIndices
