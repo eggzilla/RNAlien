@@ -36,7 +36,7 @@ main = do
     then do
       resultStatus <- preprocessClustalForRNAzExternal inputClustalPath reformatedClustalPath seqenceNumber (truncate optimalIdentity) (truncate maximalIdenity) referenceSequence
       if (isRight resultStatus)
-        then (return ())
+        then (putStr (fromRight resultStatus))
         else (print ("A problem occured selecting sequences: " ++ fromLeft resultStatus))
     else do
       resultStatus <- preprocessClustalForRNAz inputClustalPath reformatedClustalPath seqenceNumber optimalIdentity maximalIdenity referenceSequence
