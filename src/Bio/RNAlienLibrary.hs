@@ -24,6 +24,7 @@ module Bio.RNAlienLibrary (
                            checkNCBIConnection,
                            preprocessClustalForRNAz,
                            preprocessClustalForRNAzExternal,
+                           preprocessClustalForRNAcodeExternal,
                            rnaZEvalOutput,
                            reformatFasta,
                            checkTaxonomyRestriction,
@@ -1634,18 +1635,12 @@ preprocessClustalForRNAz clustalFilepath _ seqenceNumber optimalIdentity maximal
   let clustalTextLines = T.lines clustalText
   if length clustalTextLines > 5
     then do 
-      --change clustal format for rnazSelectSeqs.pl
-      --let reformatedClustalString = T.map reformatAln clustalText
-      --TI.writeFile reformatedClustalPath reformatedClustalString
-      --select representative entries from result.Clustal with select_sequences
-      --let selectedClustalpath = clustalFilepath ++ ".selected"
       parsedClustalInput <- readClustalAlignment clustalFilepath
       if isRight parsedClustalInput
         then do
           let (idMatrix,filteredClustalInput) = rnaZSelectSeqs2 (fromRight parsedClustalInput) seqenceNumber optimalIdentity maximalIdenity referenceSequence
           --let formatedIdMatrix = fmap formatIdMatrix idMatrix
           --print formatedIdMatrix
-          --writeFile selectedClustalpath (show filteredClustalInput)
           return (Right (show filteredClustalInput))
         else return (Left (show (fromLeft parsedClustalInput)))
     else return (Right (show clustalText))
@@ -1657,24 +1652,19 @@ formatIdMatrix _ = "-"
 rnaZSelectSeqs2 :: ClustalAlignment -> Int -> Double -> Double -> Bool -> (Matrix (Maybe (Int,Int,Double)),ClustalAlignment)
 rnaZSelectSeqs2 currentClustalAlignment targetSeqNumber optimalIdentity maximalIdentity referenceSequence = (identityMatrix,newClustalAlignment)
   where entryVector = V.fromList (alignmentEntries currentClustalAlignment)
+        entrySequences = V.map entryAlignedSequence entryVector
+        entryReformatedSequences = V.map (map reformatRNACodeAln) entrySequences
         totalSeqNumber = (V.length entryVector)
-        alignedSequences = V.map entryAlignedSequence entryVector
-        reformatedAlignedSequences = V.map (T.map reformatRNACodeAln) alignedSequences
-        identityMatrix = computeSequenceIdentityMatrix reformatedAlignedSequences
-        entryIdentities = catMaybes (toList identityMatrix)
-        --entryIdentityVector = V.fromList (catMaybes (toList identityMatrix))
+        identityMatrix = computeSequenceIdentityMatrix entryReformatedSequences
         entryIdentityVector = V.map fromJust (V.filter isJust (getMatrixAsVector identityMatrix))
+        entryIdentities = V.toList entryIdentityVector
         --Similarity filter - filter too similar sequences until alive seqs are less then minSeqs
         entriesToDiscard = preFilterIdentityMatrix maximalIdentity targetSeqNumber totalSeqNumber [] entryIdentities
         allEntries = [1..totalSeqNumber]
-        preFilteredEntries = allEntries \\ entriesToDiscard
-        --preFilteredEntryIdentities = filter (discardIdentityEntry entriesToDiscard) entryIdentities
+        prefilteredEntries = allEntries \\ entriesToDiscard
         --Optimize mean pairwise similarity (greedily) - remove worst sequence until desired number is reached
-        costList = map (computeEntryCost optimalIdentity entryIdentityVector (V.fromList allEntries)) allEntries
-        revSortedCostList = reverse sortedCostList
+        costList = map (computeEntryCost optimalIdentity entryIdentityVector) prefilteredEntries
         sortedCostList = (sortBy compareEntryCost2 costList)
-        sclstring = map (\(a,b) -> "r" ++ "(" ++ show (a -1) ++ "," ++ show b ++ ")") revSortedCostList
-        --selectedEntryIndices =  DT.trace (show sclstring) ([1] ++ map fst (take (targetSeqNumber -1) sortedCostList))
         selectedEntryIndices = [1] ++ map fst (take (targetSeqNumber -1) sortedCostList)
         selectedEntries = map (\ind -> entryVector V.! (ind-1)) selectedEntryIndices
         selectedEntryHeader = map entrySequenceIdentifier selectedEntries
@@ -1695,22 +1685,12 @@ setEmptyConservationTrack alnentries currentConservationTrack
             newConservationTrack = T.replicate (trackLength + 0) (T.pack " ")
                               
 isGap :: Char -> Bool
-isGap a = a == '-'
+isGap a 
+  | a == '-' = True
+  | otherwise = False
 
-
-greedyFilterIdentityEntries2 :: Double -> Int -> Bool -> V.Vector (Int,Int,Double) -> [Int] -> [Int] 
-greedyFilterIdentityEntries2 optimalIdentity seqenceNumber useReferenceSequence entryIdentities entryIndices
-    | totalSeqNumber <= seqenceNumber = entryIndices
-    | null entryIdentities  = entryIndices
-    | otherwise = greedyFilterIdentityEntries2 optimalIdentity seqenceNumber useReferenceSequence entryIdentities remainingEntryIndices
-      where totalSeqNumber = length entryIndices
-            costList = map (computeEntryCost optimalIdentity entryIdentities (V.fromList entryIndices)) (entryIndices \\ [1])
-            maxCost = maximumBy compareEntryCost2 costList
-            maxEntry = fst maxCost
-            remainingEntryIndices = (entryIndices \\ [maxEntry])            
-
-computeEntryCost :: Double -> V.Vector (Int,Int,Double) -> V.Vector Int -> Int -> (Int,Double)
-computeEntryCost optimalIdentity allIdentities indices currentIndex = (currentIndex,entryCost)
+computeEntryCost :: Double -> V.Vector (Int,Int,Double) -> Int -> (Int,Double)
+computeEntryCost optimalIdentity allIdentities currentIndex = (currentIndex,entryCost)
   where entryCost = V.sum (V.map (computeCost optimalIdentity) entryIdentities)
         entryIdentities = getEntryIdentities currentIndex allIdentities
 
@@ -1725,22 +1705,15 @@ isJIdx currentIdx (_,j,_) = currentIdx == j
 computeCost :: Double -> (Int,Int,Double) -> Double
 computeCost optimalIdentity (_,_,c) = (c - optimalIdentity) * (c - optimalIdentity)
 
-addReferenceSequenceIndex :: Bool -> [Int] -> [Int]                                     
-addReferenceSequenceIndex useReferenceSequence selectedEntries
-  | useReferenceSequence = if elem 0 selectedEntries then selectedEntries else (take (length selectedEntries - 1) selectedEntries) ++ [0]
-  | otherwise =  selectedEntries
-
-compareEntryCost2 :: (Int, Double) -> (Int, Double) -> Ordering            
+compareEntryCost2 :: (Int, Double) -> (Int, Double) -> Ordering 
 compareEntryCost2 (_,costA) (_,costB) = compare costA costB
-    
-compareEntryCost :: forall t t1 a. Ord a => (t, a) -> (t1, a) -> Ordering            
-compareEntryCost (_,costA) (_,costB) = compare costA costB
 
+-- TODO change to vector
 preFilterIdentityMatrix :: Double -> Int -> Int-> [Int] -> [(Int,Int,Double)] -> [Int]
 preFilterIdentityMatrix identityCutoff minSeqNumber totalSeqNumber filteredIds entryIdentities
     | (totalSeqNumber - (length filteredIds)) <= minSeqNumber = []
     | identityCutoff == (100 :: Double) = []
-    | null entryIdentities  = []
+    | Prelude.null entryIdentities  = []
     | otherwise = entryresult ++ preFilterIdentityMatrix identityCutoff minSeqNumber totalSeqNumber (filteredIds ++ entryresult) (tail entryIdentities)
       where currentEntry = head entryIdentities
             entryresult = checkIdentityEntry identityCutoff filteredIds currentEntry
@@ -1751,12 +1724,6 @@ checkIdentityEntry identityCutoff filteredIds (i,j,ident)
   | elem j filteredIds = []
   | ident > identityCutoff = [j]
   | otherwise = []
-  
-discardIdentityEntry :: V.Vector Int -> (Int,Int,Double) -> Bool
-discardIdentityEntry entriesToDiscard (i,j,_)
-  | V.elem i entriesToDiscard = False
-  | V.elem j entriesToDiscard = False
-  | otherwise = True
                         
 computeSequenceIdentityMatrix :: V.Vector T.Text -> Matrix (Maybe (Int,Int,Double))
 computeSequenceIdentityMatrix entryVector = matrix (V.length entryVector) (V.length entryVector) (computeSequenceIdentityEntry entryVector)
