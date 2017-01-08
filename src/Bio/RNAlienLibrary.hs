@@ -76,6 +76,7 @@ import qualified Data.Text.Lazy.Encoding as E
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.IO as TIO
 import Text.Printf
+import qualified Data.Text.Metrics as TM
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 modelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
@@ -690,7 +691,7 @@ constructModel modelConstruction staticOptions = do
        mlocarnaAlignment <- readStructuralClustalAlignment locarnaFilepath
        logEither mlocarnaAlignment (tempDirPath staticOptions)
        let stockholAlignment = convertClustaltoStockholm (fromRight mlocarnaAlignment)
-       writeFile stockholmFilepath stockholAlignment
+       TI.writeFile stockholmFilepath stockholAlignment
        _ <- systemCMbuild cmBuildOptions stockholmFilepath cmFilepath cmBuildFilepath
        _ <- systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
        return cmFilepath
@@ -836,7 +837,18 @@ blastMatchesPresent blastResult
   | null resultList = False
   | otherwise = True
   where resultList = concatMap matches (concatMap hits (results blastResult))
-                                
+
+-- | Compute identity of sequences
+textIdentity :: T.Text -> T.Text -> Double
+textIdentity text1 text2 = identityPercent
+   where distance = TM.hamming text1 text2
+         --Replication of RNAz select sequences requires only allowing substitutions
+         --costs = ED.defaultEditCosts {ED.deletionCosts = ED.ConstantCost 100,ED.insertionCosts = ED.ConstantCost 100,ED.transpositionCosts = ED.ConstantCost 100}
+         maximumDistance = maximum [T.length text1, T.length text2]
+         distanceDouble = toInteger ( fromJust distance )
+         identityPercent = 1 - (fromIntegral distanceDouble/fromIntegral maximumDistance)
+ 
+                     
 -- | Compute identity of sequences
 stringIdentity :: String -> String -> Double
 stringIdentity string1 string2 = identityPercent
@@ -1294,30 +1306,30 @@ convertFastaFoldStockholm fastasequence foldedStructure = stockholmOutput
         bottom = "//"
         stockholmOutput = alnHeader ++ entrystring ++ structureString ++ bottom
                    
-convertClustaltoStockholm :: StructuralClustalAlignment -> String
+convertClustaltoStockholm :: StructuralClustalAlignment -> T.Text
 convertClustaltoStockholm parsedMlocarnaAlignment = stockholmOutput
-  where alnHeader = "# STOCKHOLM 1.0\n\n"
+  where alnHeader = T.pack "# STOCKHOLM 1.0\n\n"
         clustalAlignment = structuralAlignmentEntries parsedMlocarnaAlignment
         uniqueIds = nub (map entrySequenceIdentifier clustalAlignment)
         mergedEntries = map (mergeEntry clustalAlignment) uniqueIds
-        maxIdentifierLenght = maximum (map (length . entrySequenceIdentifier) clustalAlignment)
+        maxIdentifierLenght = maximum (map (T.length . entrySequenceIdentifier) clustalAlignment)
         spacerLength' = maxIdentifierLenght + 2
-        stockholmEntries = concatMap (buildStockholmAlignmentEntries spacerLength') mergedEntries
-        structureString = "#=GC SS_cons" ++ replicate (spacerLength' - 12) ' ' ++ secondaryStructureTrack parsedMlocarnaAlignment ++ "\n"
-        bottom = "//"
-        stockholmOutput = alnHeader ++ stockholmEntries ++ structureString ++ bottom
+        stockholmEntries = T.concat (map (buildStockholmAlignmentEntries spacerLength') mergedEntries)
+        structureString = (T.pack "#=GC SS_cons") `T.append` T.replicate (spacerLength' - 12) (T.pack " ")  `T.append` secondaryStructureTrack parsedMlocarnaAlignment `T.append` (T.pack "\n")
+        bottom = T.pack "//"
+        stockholmOutput = alnHeader `T.append` stockholmEntries `T.append` structureString `T.append` bottom
 
-mergeEntry :: [ClustalAlignmentEntry] -> String -> ClustalAlignmentEntry
+mergeEntry :: [ClustalAlignmentEntry] -> T.Text -> ClustalAlignmentEntry
 mergeEntry clustalAlignment uniqueId = mergedEntry
   where idEntries = filter (\entry -> entrySequenceIdentifier entry==uniqueId) clustalAlignment
-        mergedSeq = foldr ((++) . entryAlignedSequence) "" idEntries
+        mergedSeq = foldr ((T.append) . entryAlignedSequence) (T.pack "") idEntries
         mergedEntry = ClustalAlignmentEntry uniqueId mergedSeq
 
-buildStockholmAlignmentEntries :: Int -> ClustalAlignmentEntry -> String
+buildStockholmAlignmentEntries :: Int -> ClustalAlignmentEntry -> T.Text
 buildStockholmAlignmentEntries inputSpacerLength entry = entrystring
-  where idLength = length (filter (/= '\n') (entrySequenceIdentifier entry))
-        spacer = replicate (inputSpacerLength - idLength) ' '
-        entrystring = entrySequenceIdentifier entry ++ spacer ++ entryAlignedSequence entry ++ "\n"
+  where idLength = T.length (T.filter (/= '\n') (entrySequenceIdentifier entry))
+        spacer = T.replicate (inputSpacerLength - idLength) (T.pack " ")
+        entrystring = entrySequenceIdentifier entry `T.append` spacer `T.append` entryAlignedSequence entry `T.append` (T.pack "\n")
 
 retrieveTaxonomicContextEntrez :: Int -> IO (Maybe Taxon)
 retrieveTaxonomicContextEntrez inputTaxId = do
@@ -1646,7 +1658,9 @@ rnaZSelectSeqs2 :: ClustalAlignment -> Int -> Double -> Double -> Bool -> (Matri
 rnaZSelectSeqs2 currentClustalAlignment targetSeqNumber optimalIdentity maximalIdentity referenceSequence = (identityMatrix,newClustalAlignment)
   where entryVector = V.fromList (alignmentEntries currentClustalAlignment)
         totalSeqNumber = (V.length entryVector)
-        identityMatrix = computeSequenceIdentityMatrix (V.map entryAlignedSequence entryVector)
+        alignedSequences = V.map entryAlignedSequence entryVector
+        reformatedAlignedSequences = V.map (T.map reformatRNACodeAln) alignedSequences
+        identityMatrix = computeSequenceIdentityMatrix reformatedAlignedSequences
         entryIdentities = catMaybes (toList identityMatrix)
         --entryIdentityVector = V.fromList (catMaybes (toList identityMatrix))
         entryIdentityVector = V.map fromJust (V.filter isJust (getMatrixAsVector identityMatrix))
@@ -1664,19 +1678,21 @@ rnaZSelectSeqs2 currentClustalAlignment targetSeqNumber optimalIdentity maximalI
         selectedEntryIndices = [1] ++ map fst (take (targetSeqNumber -1) sortedCostList)
         selectedEntries = map (\ind -> entryVector V.! (ind-1)) selectedEntryIndices
         selectedEntryHeader = map entrySequenceIdentifier selectedEntries
-        selectedEntrySequences = map entryAlignedSequence selectedEntries           
-        gapfreeEntrySequences = Data.List.transpose (filter (\a -> not (all isGap a)) (Data.List.transpose selectedEntrySequences))
-        gapfreeEntries = map (\(a,b) -> ClustalAlignmentEntry a  b)(zip selectedEntryHeader gapfreeEntrySequences)
+        reformatedSelectedEntryHeader =  map (T.map reformatRNACodeId) selectedEntryHeader
+        selectedEntrySequences = map (\ind -> reformatedAlignedSequences V.! (ind-1)) selectedEntryIndices
+        --gapfreeEntrySequences = T.transpose (T.filter (\a -> not (T.all isGap a)) (T.transpose selectedEntrySequences))
+        gapfreeEntrySequences = T.transpose (filter (\a -> not (T.all isGap a)) (T.transpose selectedEntrySequences))                        
+        gapfreeEntries = map (\(a,b) -> ClustalAlignmentEntry a  b)(zip reformatedSelectedEntryHeader gapfreeEntrySequences)
         emptyConservationTrack = setEmptyConservationTrack gapfreeEntries (conservationTrack currentClustalAlignment)
         newClustalAlignment = currentClustalAlignment {alignmentEntries = gapfreeEntries, conservationTrack = emptyConservationTrack}
 
 
-setEmptyConservationTrack :: [ClustalAlignmentEntry] -> String -> String
+setEmptyConservationTrack :: [ClustalAlignmentEntry] -> T.Text -> T.Text
 setEmptyConservationTrack alnentries currentConservationTrack
   | null alnentries = currentConservationTrack 
   | otherwise = newConservationTrack 
-      where trackLength = length (entryAlignedSequence (head alnentries))
-            newConservationTrack = replicate (trackLength + 0)' ' 
+      where trackLength = T.length (entryAlignedSequence (head alnentries))
+            newConservationTrack = T.replicate (trackLength + 0) (T.pack " ")
                               
 isGap :: Char -> Bool
 isGap a = a == '-'
@@ -1742,11 +1758,11 @@ discardIdentityEntry entriesToDiscard (i,j,_)
   | V.elem j entriesToDiscard = False
   | otherwise = True
                         
-computeSequenceIdentityMatrix :: V.Vector String -> Matrix (Maybe (Int,Int,Double))
+computeSequenceIdentityMatrix :: V.Vector T.Text -> Matrix (Maybe (Int,Int,Double))
 computeSequenceIdentityMatrix entryVector = matrix (V.length entryVector) (V.length entryVector) (computeSequenceIdentityEntry entryVector)
 
--- Computes Sequenceidentity once for each pair and not vs itself
-computeSequenceIdentityEntry :: V.Vector String -> (Int,Int) -> Maybe (Int,Int,Double)
+-- Computes Sequence identity once for each pair and not vs itself
+computeSequenceIdentityEntry :: V.Vector T.Text -> (Int,Int) -> Maybe (Int,Int,Double)
 computeSequenceIdentityEntry entryVector (row,col)
   | i < j = Just $ (row,col,ident)
   | otherwise = Nothing
@@ -1755,14 +1771,26 @@ computeSequenceIdentityEntry entryVector (row,col)
         --gaps in both sequences need to be removed, because they count as match
         ientry  = (entryVector V.! i)
         jentry = (entryVector V.! j)
-        (gfi,gfj) = unzip (filter notDoubleGap (zip ientry jentry))
-        ident=stringIdentity gfi gfj
-
+        (gfi,gfj) = unzip (filter notDoubleGap (T.zip ientry jentry))
+        gfitext = T.pack gfi
+        gfjtext = T.pack gfj    
+        --ident=stringIdentity gfi gfj
+        ident=textIdentity gfitext gfjtext
+               
 notDoubleGap :: (Char,Char) -> Bool
 notDoubleGap (a,b)
   | a == '-' && b == '-' = False
   | otherwise = True
 
+reformatRNACodeId :: Char -> Char 
+reformatRNACodeId c
+  | c == ':' = '-'
+  | c == '|' = '-'
+  | c == '.' = '-'
+  | c == '~' = '-'
+  | c == '_' = '-'
+  | otherwise = c
+                
 reformatRNACodeAln :: Char -> Char 
 reformatRNACodeAln c
   | c == ':' = '-'
