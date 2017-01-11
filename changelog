@@ -1,4 +1,8 @@
 -*-change-log-*-
+1.2.9 Florian Eggenhofer <egg@cs.uni-freiburg.de> 8. January 2017
+	* Dropped dependency on rnazSelectSequences.pl for evaluation step
+	* Select sequences can now print a similarity matrix
+	* Internal sequence selection is substantially faster due to text-metrics
 1.2.8 Florian Eggenhofer <egg@cs.uni-freiburg.de> 1. January 2017
 	* Added a commandline switch to turn switch the evaluation step on and off
 1.2.7 Florian Eggenhofer <egg@informatik.uni-freiburg.de> 13. November 2016
