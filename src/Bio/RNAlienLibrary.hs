@@ -1545,19 +1545,21 @@ evaluateConstructionResult staticOptions mCResult = do
       let maximalIdentity = 99 :: Double
       let referenceSequence = True
       --rnazClustalpath <- preprocessClustalForRNAcodeExternal clustalFilepath reformatedClustalPath seqNumber (truncate optimalIdentity) (truncate maximalIdentity) referenceSequence
-      rnazClustalpath <- preprocessClustalForRNAz clustalFilepath reformatedClustalPath seqNumber optimalIdentity maximalIdentity referenceSequence                        
-      if isRight rnazClustalpath
+      preprocessingOutput <- preprocessClustalForRNAz clustalFilepath reformatedClustalPath seqNumber optimalIdentity maximalIdentity referenceSequence                        
+      if isRight preprocessingOutput
         then do
-          systemRNAz "-l" (fromRight rnazClustalpath) resultRNAz 
+          let rightPreprocessingOutput = fromRight preprocessingOutput
+          let rnazClustalpath = snd rightPreprocessingOutput
+          systemRNAz "-l" rnazClustalpath resultRNAz 
           inputRNAz <- readRNAz resultRNAz
           let rnaZString = rnaZEvalOutput inputRNAz
-          RC.systemRNAcode " -t " (fromRight rnazClustalpath) resultRNAcode
+          RC.systemRNAcode " -t " rnazClustalpath resultRNAcode
           inputRNAcode <- RC.readRNAcodeTabular resultRNAcode
           let rnaCodeString = rnaCodeEvalOutput inputRNAcode
           return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: " ++ rnaZString ++ "\nRNAcode output for result alignment:\n" ++ rnaCodeString ++ "\nSequences found by RNAlien with RNAcentral entry:\n" ++ rnaCentralEvaluationResult)
         else do
-          logWarning ("Running RNAz for result evalution encountered a problem:" ++ fromLeft rnazClustalpath) (tempDirPath staticOptions) 
-          return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: Running RNAz for result evalution encountered a problem\n" ++ fromLeft rnazClustalpath ++ "\n" ++ "Sequences found by RNAlien with RNAcentral entry:\n" ++ rnaCentralEvaluationResult)
+          logWarning ("Running RNAz for result evalution encountered a problem:" ++ fromLeft preprocessingOutput) (tempDirPath staticOptions) 
+          return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAz statistics for result alignment: Running RNAz for result evalution encountered a problem\n" ++ fromLeft preprocessingOutput ++ "\n" ++ "Sequences found by RNAlien with RNAcentral entry:\n" ++ rnaCentralEvaluationResult)
     else do
       logWarning "Message: RNAlien could not find additional covariant sequences\n Could not run RNAz statistics. Could not run RNAz statistics with a single sequence.\n" (tempDirPath staticOptions) 
       return ("\nEvaluation of RNAlien result :\nCMstat statistics for result.cm\n" ++ cmstatString ++ "\nRNAlien could not find additional covariant sequences. Could not run RNAz statistics with a single sequence.\n\nSequences found by RNAlien with RNAcentral entry:\n" ++ rnaCentralEvaluationResult)
@@ -1589,7 +1591,7 @@ showRNACodeHits :: RC.RNAcodeHit -> String
 showRNACodeHits rnacodeHit = show (RC.hss rnacodeHit) ++ "\t" ++ show (RC.frame rnacodeHit) ++ "\t" ++ show (RC.hitLength rnacodeHit) ++ "\t"++ show (RC.from rnacodeHit) ++ "\t" ++ show (RC.to rnacodeHit) ++ "\t" ++ (RC.name rnacodeHit) ++ "\t" ++ show (RC.start rnacodeHit) ++ "\t" ++ show (RC.end rnacodeHit) ++ "\t" ++ show (RC.score rnacodeHit) ++ show (RC.pvalue rnacodeHit) ++ "\n"
 
 -- | Call for external preprocessClustalForRNAz
-preprocessClustalForRNAzExternal :: String -> String -> Int -> Int -> Int -> Bool -> IO (Either String String)
+preprocessClustalForRNAzExternal :: String -> String -> Int -> Int -> Int -> Bool -> IO (Either String (String,String))
 preprocessClustalForRNAzExternal clustalFilepath reformatedClustalPath seqenceNumber optimalIdentity maximalIdenity referenceSequence = do
   clustalText <- TI.readFile clustalFilepath
   --change clustal format for rnazSelectSeqs.pl
@@ -1605,10 +1607,10 @@ preprocessClustalForRNAzExternal clustalFilepath reformatedClustalPath seqenceNu
   --putStrLn syscall
   system syscall
   selectedClustalText <- readFile selectedClustalpath
-  return (Right selectedClustalText)
+  return (Right ([],selectedClustalText))
 
 -- | Call for external preprocessClustalForRNAcode - RNAcode additionally to RNAz requirements does not accept pipe,underscore, doublepoint symbols
-preprocessClustalForRNAcodeExternal :: String -> String -> Int -> Int -> Int -> Bool -> IO (Either String String)
+preprocessClustalForRNAcodeExternal :: String -> String -> Int -> Int -> Int -> Bool -> IO (Either String (String,String))
 preprocessClustalForRNAcodeExternal clustalFilepath reformatedClustalPath seqenceNumber optimalIdentity maximalIdenity referenceSequence = do
   clustalText <- TI.readFile clustalFilepath
   --change clustal format for rnazSelectSeqs.pl
@@ -1627,23 +1629,24 @@ preprocessClustalForRNAcodeExternal clustalFilepath reformatedClustalPath seqenc
   --putStrLn syscall
   system syscall
   selectedClustalText <- readFile selectedClustalpath
-  return (Right selectedClustalText)
+  return (Right ([],selectedClustalText))
 
-preprocessClustalForRNAz :: String -> String -> Int -> Double -> Double -> Bool -> IO (Either String String)
+preprocessClustalForRNAz :: String -> String -> Int -> Double -> Double -> Bool -> IO (Either String (String,String))
 preprocessClustalForRNAz clustalFilepath _ seqenceNumber optimalIdentity maximalIdenity referenceSequence = do
   clustalText <- TI.readFile clustalFilepath
-  let clustalTextLines = T.lines clustalText
+  let clustalTextLines = T.lines clustalText                        
   if length clustalTextLines > 5
     then do 
       parsedClustalInput <- readClustalAlignment clustalFilepath
       if isRight parsedClustalInput
         then do
           let (idMatrix,filteredClustalInput) = rnaZSelectSeqs2 (fromRight parsedClustalInput) seqenceNumber optimalIdentity maximalIdenity referenceSequence
-          --let formatedIdMatrix = fmap formatIdMatrix idMatrix
-          --print formatedIdMatrix
-          return (Right (show filteredClustalInput))
+          let selectedClustalpath = clustalFilepath ++ ".selected"
+          writeFile selectedClustalpath (show filteredClustalInput)
+          let formatedIdMatrix = show (fmap formatIdMatrix idMatrix)
+          return (Right (formatedIdMatrix,selectedClustalpath))
         else return (Left (show (fromLeft parsedClustalInput)))
-    else return (Right (show clustalText))
+    else return (Right ([],clustalFilepath))
 
 formatIdMatrix :: Maybe (Int,Int,Double) -> String
 formatIdMatrix (Just (_,_,c)) = printf "%.2f" c
@@ -1653,7 +1656,7 @@ rnaZSelectSeqs2 :: ClustalAlignment -> Int -> Double -> Double -> Bool -> (Matri
 rnaZSelectSeqs2 currentClustalAlignment targetSeqNumber optimalIdentity maximalIdentity referenceSequence = (identityMatrix,newClustalAlignment)
   where entryVector = V.fromList (alignmentEntries currentClustalAlignment)
         entrySequences = V.map entryAlignedSequence entryVector
-        entryReformatedSequences = V.map (map reformatRNACodeAln) entrySequences
+        entryReformatedSequences = V.map (T.map reformatRNACodeAln) entrySequences
         totalSeqNumber = (V.length entryVector)
         identityMatrix = computeSequenceIdentityMatrix entryReformatedSequences
         entryIdentityVector = V.map fromJust (V.filter isJust (getMatrixAsVector identityMatrix))
@@ -1669,7 +1672,7 @@ rnaZSelectSeqs2 currentClustalAlignment targetSeqNumber optimalIdentity maximalI
         selectedEntries = map (\ind -> entryVector V.! (ind-1)) selectedEntryIndices
         selectedEntryHeader = map entrySequenceIdentifier selectedEntries
         reformatedSelectedEntryHeader =  map (T.map reformatRNACodeId) selectedEntryHeader
-        selectedEntrySequences = map (\ind -> reformatedAlignedSequences V.! (ind-1)) selectedEntryIndices
+        selectedEntrySequences = map (\ind -> entryReformatedSequences V.! (ind-1)) selectedEntryIndices
         --gapfreeEntrySequences = T.transpose (T.filter (\a -> not (T.all isGap a)) (T.transpose selectedEntrySequences))
         gapfreeEntrySequences = T.transpose (filter (\a -> not (T.all isGap a)) (T.transpose selectedEntrySequences))                        
         gapfreeEntries = map (\(a,b) -> ClustalAlignmentEntry a  b)(zip reformatedSelectedEntryHeader gapfreeEntrySequences)
