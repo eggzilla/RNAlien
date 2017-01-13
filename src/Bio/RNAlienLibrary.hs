@@ -1759,6 +1759,7 @@ reformatRNACodeId c
   | c == '.' = '-'
   | c == '~' = '-'
   | c == '_' = '-'
+  | c == '/' = '-'             
   | otherwise = c
                 
 reformatRNACodeAln :: Char -> Char 
