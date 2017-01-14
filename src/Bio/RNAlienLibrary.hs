@@ -1635,25 +1635,33 @@ preprocessClustalForRNAz :: String -> String -> Int -> Double -> Double -> Bool 
 preprocessClustalForRNAz clustalFilepath _ seqenceNumber optimalIdentity maximalIdenity referenceSequence = do
   clustalText <- TI.readFile clustalFilepath
   let clustalTextLines = T.lines clustalText                        
+  parsedClustalInput <- readClustalAlignment clustalFilepath
+  let selectedClustalpath = clustalFilepath ++ ".selected"                      
   if length clustalTextLines > 5
     then do 
-      parsedClustalInput <- readClustalAlignment clustalFilepath
       if isRight parsedClustalInput
         then do
-          let (idMatrix,filteredClustalInput) = rnaZSelectSeqs2 (fromRight parsedClustalInput) seqenceNumber optimalIdentity maximalIdenity referenceSequence
-          let selectedClustalpath = clustalFilepath ++ ".selected"
+          let (idMatrix,filteredClustalInput) = rnaCodeSelectSeqs2 (fromRight parsedClustalInput) seqenceNumber optimalIdentity maximalIdenity referenceSequence         
           writeFile selectedClustalpath (show filteredClustalInput)
           let formatedIdMatrix = show (fmap formatIdMatrix idMatrix)
           return (Right (formatedIdMatrix,selectedClustalpath))
         else return (Left (show (fromLeft parsedClustalInput)))
-    else return (Right ([],clustalFilepath))
+    else do
+      let clustalTextLines = T.lines clustalText
+      let headerClustalTextLines = T.unlines (take 2 clustalTextLines)
+      let headerlessClustalTextLines = T.unlines (drop 2 clustalTextLines)
+      let reformatedClustalText = T.map reformatRNACodeAln headerlessClustalTextLines
+      TI.writeFile selectedClustalpath (headerClustalTextLines `T.append` (T.singleton '\n') `T.append` reformatedClustalText)
+      return (Right ([],clustalFilepath))
 
 formatIdMatrix :: Maybe (Int,Int,Double) -> String
 formatIdMatrix (Just (_,_,c)) = printf "%.2f" c
 formatIdMatrix _ = "-"
-  
-rnaZSelectSeqs2 :: ClustalAlignment -> Int -> Double -> Double -> Bool -> (Matrix (Maybe (Int,Int,Double)),ClustalAlignment)
-rnaZSelectSeqs2 currentClustalAlignment targetSeqNumber optimalIdentity maximalIdentity referenceSequence = (identityMatrix,newClustalAlignment)
+
+
+-- | Sequence preselection for RNAz and RNAcode                   
+rnaCodeSelectSeqs2 :: ClustalAlignment -> Int -> Double -> Double -> Bool -> (Matrix (Maybe (Int,Int,Double)),ClustalAlignment)
+rnaCodeSelectSeqs2 currentClustalAlignment targetSeqNumber optimalIdentity maximalIdentity referenceSequence = (identityMatrix,newClustalAlignment)
   where entryVector = V.fromList (alignmentEntries currentClustalAlignment)
         entrySequences = V.map entryAlignedSequence entryVector
         entryReformatedSequences = V.map (T.map reformatRNACodeAln) entrySequences
@@ -1668,7 +1676,9 @@ rnaZSelectSeqs2 currentClustalAlignment targetSeqNumber optimalIdentity maximalI
         --Optimize mean pairwise similarity (greedily) - remove worst sequence until desired number is reached
         costList = map (computeEntryCost optimalIdentity entryIdentityVector) prefilteredEntries
         sortedCostList = (sortBy compareEntryCost2 costList)
-        selectedEntryIndices = [1] ++ map fst (take (targetSeqNumber -1) sortedCostList)
+        sortedIndices = map fst sortedCostList                
+        --selectedEntryIndices = [1] ++ map fst (take (targetSeqNumber -1) sortedCostList)
+        selectedEntryIndices = selectEntryIndices referenceSequence targetSeqNumber sortedIndices  
         selectedEntries = map (\ind -> entryVector V.! (ind-1)) selectedEntryIndices
         selectedEntryHeader = map entrySequenceIdentifier selectedEntries
         reformatedSelectedEntryHeader =  map (T.map reformatRNACodeId) selectedEntryHeader
@@ -1679,7 +1689,13 @@ rnaZSelectSeqs2 currentClustalAlignment targetSeqNumber optimalIdentity maximalI
         emptyConservationTrack = setEmptyConservationTrack gapfreeEntries (conservationTrack currentClustalAlignment)
         newClustalAlignment = currentClustalAlignment {alignmentEntries = gapfreeEntries, conservationTrack = emptyConservationTrack}
 
-
+selectEntryIndices :: Bool -> Int -> [Int] -> [Int]
+selectEntryIndices referenceSequence targetSeqNumber sortedIndices
+  | referenceSequence = if elem (1 :: Int) firstX then firstX else 1:firstXm1
+  | otherwise = firstX
+    where firstXm1 = take (targetSeqNumber - 1)  sortedIndices
+          firstX = take targetSeqNumber sortedIndices
+    
 setEmptyConservationTrack :: [ClustalAlignmentEntry] -> T.Text -> T.Text
 setEmptyConservationTrack alnentries currentConservationTrack
   | null alnentries = currentConservationTrack 
