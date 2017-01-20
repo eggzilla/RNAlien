@@ -1,4 +1,6 @@
 -*-change-log-*-
+1.3.0 Florian Eggenhofer <egg@cs.uni-freiburg.de> 20. January 2017
+	* Included bugfix from ViennaRNAparser concerning RNAalifold systemcall
 1.2.9 Florian Eggenhofer <egg@cs.uni-freiburg.de> 8. January 2017
 	* Dropped dependency on rnazSelectSequences.pl for evaluation step
 	* Select sequences can now print a similarity matrix
