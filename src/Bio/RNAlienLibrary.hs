@@ -1526,7 +1526,7 @@ evaluateConstructionResult staticOptions mCResult = do
   let reformatedClustalPath = evaluationDirectoryFilepath ++ "result.clustal.reformated"
   let cmFilepath = tempDirPath staticOptions ++ "result.cm"
   let resultSequences = (inputFasta mCResult):map nucleotideSequence (concatMap sequenceRecords (taxRecords mCResult))
-  let resultNumber = length resultSequences + 1 
+  let resultNumber = length resultSequences 
   let rnaCentralQueries = map RCH.buildSequenceViaMD5Query resultSequences    
   rnaCentralEntries <- RCH.getRNACentralEntries rnaCentralQueries
   let rnaCentralEvaluationResult = RCH.showRNAcentralAlienEvaluation rnaCentralEntries
