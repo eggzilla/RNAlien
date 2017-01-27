@@ -85,7 +85,7 @@ main = do
           logMessage "Error: Input fasta file is empty.\n" temporaryDirectoryPath
         else do
           let iterationNumber = 0
-          let tools = ["mlocarna","RNAfold","RNAalifold","cmcalibrate","cmstat","cmbuild","RNAz","RNAcode"]
+          let tools = if inputQuerySelectionMethod == "clustering" then ["clustalo","mlocarna","RNAfold","RNAalifold","cmcalibrate","cmstat","cmbuild","RNAz","RNAcode"] else ["mlocarna","RNAfold","RNAalifold","cmcalibrate","cmstat","cmbuild","RNAz","RNAcode"]
           toolsCheck <- checkTools tools inputQuerySelectionMethod temporaryDirectoryPath
           -- Check required commandline tools
           if isLeft toolsCheck
@@ -93,7 +93,7 @@ main = do
               putStrLn ("Error - Not all required tools could be found in $PATH: " ++ fromLeft toolsCheck ++ "\n")
               logMessage ("Error - Not all required tools could be found in $PATH: " ++ fromLeft toolsCheck ++ "\n") temporaryDirectoryPath
             else do
-              logToolVersions temporaryDirectoryPath
+              logToolVersions inputQuerySelectionMethod temporaryDirectoryPath
               let inputSequence = reformatFasta (head inputFasta)
               initialTaxId <- setInitialTaxId inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
               let checkedTaxonomyRestriction = checkTaxonomyRestriction taxonomyRestriction

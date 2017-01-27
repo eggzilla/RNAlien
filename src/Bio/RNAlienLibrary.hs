@@ -1466,25 +1466,32 @@ checkTools tools temporaryDirectoryPath selectedQuerySelectionMethod = do
       logMessage ("Tools : " ++ intercalate "," tools ++ "\n") temporaryDirectoryPath
       return (Right "Tools ok")
 
-logToolVersions :: String -> IO ()
-logToolVersions temporaryDirectoryPath = do
+logToolVersions :: String -> String -> IO ()
+logToolVersions inputQuerySelectionMethod temporaryDirectoryPath = do
   let clustaloversionpath = temporaryDirectoryPath ++ "log/clustalo.version"
   let mlocarnaversionpath = temporaryDirectoryPath ++ "log/mlocarna.version"
   let rnafoldversionpath = temporaryDirectoryPath ++ "log/RNAfold.version"
   let infernalversionpath = temporaryDirectoryPath ++ "log/Infernal.version"
-  _ <- system ("clustalo --version >" ++ clustaloversionpath)
+  --_ <- system ("clustalo --version >" ++ clustaloversionpath)
   _ <- system ("mlocarna --version >" ++ mlocarnaversionpath)
   _ <- system ("RNAfold --version >" ++ rnafoldversionpath)
   _ <- system ("cmcalibrate -h >" ++ infernalversionpath)  
   -- _ <- system ("RNAz" ++ rnazversionpath)
   -- _ <- system ("CMCompare >" ++ infernalversionpath)
-  clustaloversion <- readFile clustaloversionpath
   mlocarnaversion <- readFile mlocarnaversionpath
   rnafoldversion <- readFile rnafoldversionpath 
   infernalversionOutput <- readFile infernalversionpath
   let infernalversion = lines infernalversionOutput !! 1
-  let messageString = "Clustalo version: " ++ clustaloversion ++ "mlocarna version: " ++ mlocarnaversion  ++ "RNAfold version: " ++ rnafoldversion  ++ "infernalversion: " ++ infernalversion ++ "\n"
-  logMessage messageString temporaryDirectoryPath
+  if inputQuerySelectionMethod == "clustering"
+     then do
+       _ <- system ("clustalo --version >" ++ clustaloversionpath)
+       clustaloversion <- readFile clustaloversionpath
+       let messageString = "Clustalo version: " ++ clustaloversion ++ "mlocarna version: " ++ mlocarnaversion  ++ "RNAfold version: " ++ rnafoldversion  ++ "infernalversion: " ++ infernalversion ++ "\n"
+       logMessage messageString temporaryDirectoryPath
+     else do
+       let messageString = "mlocarna version: " ++ mlocarnaversion  ++ "RNAfold version: " ++ rnafoldversion  ++ "infernalversion: " ++ infernalversion ++ "\n"
+       logMessage messageString temporaryDirectoryPath
+
 
 checkTool :: String -> IO (Either String String)
 checkTool tool = do
