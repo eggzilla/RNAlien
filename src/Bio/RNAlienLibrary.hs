@@ -851,13 +851,13 @@ textIdentity text1 text2 = identityPercent
  
                      
 -- | Compute identity of sequences
-stringIdentity :: String -> String -> Double
-stringIdentity string1 string2 = identityPercent
-   where distance = ED.levenshteinDistance costs string1 string2
-         --Replication of RNAz select sequences requires only allowing substitutions
-         costs = ED.defaultEditCosts {ED.deletionCosts = ED.ConstantCost 100,ED.insertionCosts = ED.ConstantCost 100,ED.transpositionCosts = ED.ConstantCost 100}
-         maximumDistance = maximum [length string1,length string2]
-         identityPercent = 1 - (fromIntegral distance/fromIntegral maximumDistance)
+-- stringIdentity :: String -> String -> Double
+-- stringIdentity string1 string2 = identityPercent
+--    where distance = ED.levenshteinDistance costs string1 string2
+--          --Replication of RNAz select sequences requires only allowing substitutions
+--          costs = ED.defaultEditCosts {ED.deletionCosts = ED.ConstantCost 100,ED.insertionCosts = ED.ConstantCost 100,ED.transpositionCosts = ED.ConstantCost 100}
+--          maximumDistance = maximum [length string1,length string2]
+--          identityPercent = 1 - (fromIntegral distance/fromIntegral maximumDistance)
 
 -- | Compute identity of sequences
 sequenceIdentity :: Sequence -> Sequence -> Double
@@ -1647,9 +1647,9 @@ preprocessClustalForRNAz clustalFilepath _ seqenceNumber optimalIdentity maximal
           return (Right (formatedIdMatrix,selectedClustalpath))
         else return (Left (show (fromLeft parsedClustalInput)))
     else do
-      let clustalTextLines = T.lines clustalText
-      let headerClustalTextLines = T.unlines (take 2 clustalTextLines)
-      let headerlessClustalTextLines = T.unlines (drop 2 clustalTextLines)
+      let clustalLines = T.lines clustalText
+      let headerClustalTextLines = T.unlines (take 2 clustalLines)
+      let headerlessClustalTextLines = T.unlines (drop 2 clustalLines)
       let reformatedClustalText = T.map reformatRNACodeAln headerlessClustalTextLines
       TI.writeFile selectedClustalpath (headerClustalTextLines `T.append` (T.singleton '\n') `T.append` reformatedClustalText)
       return (Right ([],clustalFilepath))
