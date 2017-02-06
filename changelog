@@ -1,4 +1,6 @@
 -*-change-log-*-
+1.3.1 Florian Eggenhofer <egg@cs.uni-freiburg.de> 6. February 2017
+	* Updated version constraints for ClustalParser supporting multi-line consensus secondary structure
 1.3.0 Florian Eggenhofer <egg@cs.uni-freiburg.de> 20. January 2017
 	* Included bugfix from ViennaRNAparser concerning RNAalifold systemcall
 1.2.9 Florian Eggenhofer <egg@cs.uni-freiburg.de> 8. January 2017
