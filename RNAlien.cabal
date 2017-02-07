@@ -1,5 +1,5 @@
 name:                RNAlien
-version:             1.3.1
+version:             1.3.2
 synopsis:            Unsupervized construction of RNA family models
 description:         RNAlien is a tool for automatic construction of RNAfamily models from a single sequence.
                      .
@@ -50,8 +50,8 @@ source-repository head
 
 source-repository this
   type:     git
-  location: https://github.com/eggzilla/RNAlien/tree/1.3.1
-  tag:      1.3.1
+  location: https://github.com/eggzilla/RNAlien/tree/1.3.2
+  tag:      1.3.2
                      
 executable RNAlien
   Hs-Source-Dirs:      ./src/Bio/
