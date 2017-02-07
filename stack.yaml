@@ -2,7 +2,7 @@ flags: {}
 packages:
 - '.'
 extra-deps:
-- ClustalParser-1.2.0
+- ClustalParser-1.2.1
 - EntrezHTTP-1.0.3
 - ParsecTools-0.0.2.0
 - Taxonomy-1.0.2
