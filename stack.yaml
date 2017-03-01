@@ -1,11 +1,6 @@
 flags: {}
 packages:
 - '.'
-extra-deps:
-- ClustalParser-1.2.1
-- EntrezHTTP-1.0.3
-- ParsecTools-0.0.2.0
-- Taxonomy-1.0.2
-- ViennaRNAParser-1.3.2
+extra-deps: []
 compiler-check: newer-minor
-resolver: lts-7.14
+resolver: lts-8.2
