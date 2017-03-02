@@ -55,7 +55,7 @@ options = Options
     taxonomyRestriction = Nothing &= name "r" &= help "Restrict search space to taxonomic kingdom (bacteria,archea,eukaryia). Default: not set",
     sessionIdentificator = Nothing &= name "d" &= help "Optional session id that is used instead of automatically generated one.",
     performEvaluation = True &= name "x" &= help "Perform evaluation step. Default: True"
-  } &= summary ("RNAlien " ++ alienVersion) &= help "Florian Eggenhofer, Ivo L. Hofacker, Christian Höner zu Siederdissen - 2013 - 2017" &= verbosity       
+  } &= summary ("RNAlien " ++ alienVersion) &= help "Florian Eggenhofer, Ivo L. Hofacker, Christian Hoener zu Siederdissen - 2013 - 2017" &= verbosity       
                 
 main :: IO ()
 main = do
