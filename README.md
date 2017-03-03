@@ -23,15 +23,29 @@ TaxonomyTools which can be used to visualise the organisms included in a RNAlien
     *   [RNAz](https://www.tbi.univie.ac.at/~wash/RNAz/)
     *   [ViennaRNApackage](http://www.tbi.univie.ac.at/RNA/index.html#download)
 
+    ### <u>Installation via bioconda</u>
+
+     RNAlien can be installed with all dependencies via [conda](https://conda.io/docs/install/quick.html). Once you have conda installed simply type:
+
+         conda install -c bioconda rnalien=1.3.4 
+
+    ### <u>Available as docker container</u>
+
+     RNAlien is available with all dependencies via [biocontainer](https://quay.io/repository/biocontainers/rnalien). Install
+     [docker](https://www.docker.com/get-docker)
+
+         docker pull quay.io/biocontainers/rnalien:1.3.4--pl5.22.0_0
+         docker run -i -t quay.io/biocontainers/rnalien:1.3.4--pl5.22.0_0 bash
+
     ### <u>Installation via cabal-install</u>
 
-     RNAlien is implemented in Haskell and can be installed via the Haskell package distribution sytem [cabal](https://www.haskell.org/cabal/). Once you have cabal installed simply type:
+    RNAlien is implemented in Haskell and can be installed via the Haskell package distribution sytem [cabal](https://www.haskell.org/cabal/). Once you have cabal installed simply type:
 
          cabal install RNAlien
 
    ### <u>Installation via stackage</u>
 
-     RNAlien can also be install via the Haskell package distribution sytem [Stackage](https://www.stackage.org/), which guarantees consistent package builds.     Once you have stackage installed simply type:
+     RNAlien can also be install via the Haskell package distribution sytem [Stackage](https://www.stackage.org/), which guarantees consistent package builds. Once you have stackage installed simply type:
 
          stack install RNAlien
 
