@@ -35,6 +35,17 @@ TaxonomyTools which can be used to visualise the organisms included in a RNAlien
 
          stack install RNAlien
 
+   ### <u>Installation via Conda</u>
+   
+     RNAalien is also available as Conda package: https://anaconda.org/bioconda/rnalien
+ 
+        conda install -c bioconda -c conda-forege rnalien
+
+   ### <u>Docker and rkt Container for RNAlient</u>
+   
+     A Container for Docker and rkt is available from https://quay.io/repository/biocontainers/rnalien
+
+
 
    ### <u>Precompiled Executables</u>
 
