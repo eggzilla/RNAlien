@@ -1,4 +1,6 @@
 -*-change-log-*-
+1.3.5 Florian Eggenhofer <egg@cs.uni-freiburg.de> 5. March 2017
+	* Added a commandline switch to check setup and network connection, improved tempdir handling
 1.3.4 Florian Eggenhofer <egg@cs.uni-freiburg.de> 2. March 2017
 	* More changes toward bioconda compatibility, changed compiler optimization flag to -O
 1.3.3 Florian Eggenhofer <egg@cs.uni-freiburg.de> 1. March 2017

@@ -1,5 +1,5 @@
 name:                RNAlien
-version:             1.3.4
+version:             1.3.5
 synopsis:            Unsupervized construction of RNA family models
 description:         RNAlien is a tool for automatic construction of RNAfamily models from a single sequence.
                      .
