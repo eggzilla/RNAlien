@@ -1,4 +1,7 @@
 -*-change-log-*-
+1.3.6 Florian Eggenhofer <egg@cs.uni-freiburg.de> 5. March 2017
+	* SelectSequences moved to own repository, removed tool from package
+	* Clustal result file is now also written without evaluation step
 1.3.5 Florian Eggenhofer <egg@cs.uni-freiburg.de> 5. March 2017
 	* Added a commandline switch to check setup and network connection, improved tempdir handling
 1.3.4 Florian Eggenhofer <egg@cs.uni-freiburg.de> 2. March 2017

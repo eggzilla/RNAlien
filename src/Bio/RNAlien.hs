@@ -5,10 +5,10 @@
 --   For more information on RNA family models consult <http://>
 --   Testcommand: dist/build/RNAlien/RNAlien -i ~egg/initialfasta/RybB.fa -c 3 -o /scr/kronos/egg/temp/ > ~egg/Desktop/alieninitialtest
 module Main where
-    
-import System.Console.CmdArgs    
-import System.Directory 
-import Bio.Sequence.Fasta 
+
+import System.Console.CmdArgs
+import System.Directory
+import Bio.Sequence.Fasta
 import Bio.RNAlienData
 import Bio.RNAlienLibrary
 import Data.Maybe
@@ -18,8 +18,8 @@ import qualified System.FilePath as FP
 import Paths_RNAlien (version)
 import Data.Version (showVersion)
 
-data Options = Options            
-  { inputFastaFilePath :: String,     
+data Options = Options
+  { inputFastaFilePath :: String,
     outputPath :: String,
     inputTaxId :: Maybe Int,
     inputnSCICutoff :: Maybe Double,
@@ -40,12 +40,12 @@ data Options = Options
 
 options :: Options
 options = Options
-  { inputFastaFilePath = def &= name "i" &= help "Path to input fasta file",                       
+  { inputFastaFilePath = def &= name "i" &= help "Path to input fasta file",
     outputPath = def &= name "o" &= help "Path to output directory. Default: current working directory",
     inputTaxId = Nothing &= name "t" &= help "NCBI taxonomy ID number of input RNA organism",
-    inputnSCICutoff = (Just (1 :: Double)) &= name "z" &= help "Only candidate sequences with a normalized structure conservation index (nSCI) higher than this value are accepted. Default: 1",
-    inputEvalueCutoff = (Just (0.001 :: Double)) &= name "e" &= help "Evalue cutoff for cmsearch filtering. Default: 0.001",
-    inputBlastDatabase = Just "nt" &= name "b" &= help "Specify name of blast database to use. Default: nt",                    
+    inputnSCICutoff = Just (1 :: Double) &= name "z" &= help "Only candidate sequences with a normalized structure conservation index (nSCI) higher than this value are accepted. Default: 1",
+    inputEvalueCutoff = Just (0.001 :: Double) &= name "e" &= help "Evalue cutoff for cmsearch filtering. Default: 0.001",
+    inputBlastDatabase = Just "nt" &= name "b" &= help "Specify name of blast database to use. Default: nt",
     lengthFilter = True &= name "l" &= help "Filter blast hits per genomic length. Default: True",
     coverageFilter = True &= name "a" &= help "Filter blast hits by coverage of at least 80%. Default: True",
     singleHitperTax = False &= name "s" &= help "Only the best blast hit per taxonomic entry is considered. Default: False",
@@ -57,8 +57,8 @@ options = Options
     sessionIdentificator = Nothing &= name "d" &= help "Optional session id that is used instead of automatically generated one.",
     performEvaluation = True &= name "x" &= help "Perform evaluation step. Default: True",
     checkSetup = False &= name "g" &= help "Just prints installed tool versions and performs connection check. Default: False"
-  } &= summary ("RNAlien " ++ alienVersion) &= help "Florian Eggenhofer, Ivo L. Hofacker, Christian Hoener zu Siederdissen - 2013 - 2017" &= verbosity       
-                
+  } &= summary ("RNAlien " ++ alienVersion) &= help "Florian Eggenhofer, Ivo L. Hofacker, Christian Hoener zu Siederdissen - 2013 - 2017" &= verbosity
+
 main :: IO ()
 main = do
   Options{..} <- cmdArgs options
@@ -69,7 +69,7 @@ main = do
   timestamp <- getCurrentTime
   currentWorkDirectory <- getCurrentDirectory
   let selectedOutputPath = if null outputPath then currentWorkDirectory else outputPath
-  let temporaryDirectoryPath = FP.addTrailingPathSeparator selectedOutputPath ++ sessionId ++ "/"            
+  let temporaryDirectoryPath = FP.addTrailingPathSeparator selectedOutputPath ++ sessionId ++ "/"
   createDirectoryIfMissing False temporaryDirectoryPath
   networkCheck <- checkNCBIConnection
   if checkSetup
@@ -79,7 +79,7 @@ main = do
       let toolCheckResult = either id id toolsCheck
       let networkCheckResult = either id id networkCheck
       writeFile setupCheckPath (toolCheckResult ++ "\n" ++ networkCheckResult ++ "\n")
-    else do
+    else
       if isLeft networkCheck
         then do
           putStrLn ("Error - Could not contact NCBI server: " ++ fromLeft networkCheck ++ "\n")
@@ -97,10 +97,10 @@ main = do
                putStrLn "Error: Input fasta file is empty."
                logMessage "Error: Input fasta file is empty.\n" temporaryDirectoryPath
              else do
-               let iterationNumber = 0        
+               let iterationNumber = 0
                toolsCheck <- checkTools tools inputQuerySelectionMethod temporaryDirectoryPath
                if isLeft toolsCheck
-                 then do 
+                 then do
                    putStrLn ("Error - Not all required tools could be found in $PATH: " ++ fromLeft toolsCheck ++ "\n")
                    logMessage ("Error - Not all required tools could be found in $PATH: " ++ fromLeft toolsCheck ++ "\n") temporaryDirectoryPath
                  else do

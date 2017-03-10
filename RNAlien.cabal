@@ -1,5 +1,5 @@
 name:                RNAlien
-version:             1.3.5
+version:             1.3.6
 synopsis:            Unsupervized construction of RNA family models
 description:         RNAlien is a tool for automatic construction of RNAfamily models from a single sequence.
                      .
@@ -50,8 +50,8 @@ source-repository head
 
 source-repository this
   type:     git
-  location: https://github.com/eggzilla/RNAlien/tree/1.3.4
-  tag:      1.3.4
+  location: https://github.com/eggzilla/RNAlien/tree/1.3.6
+  tag:      1.3.6
                      
 executable RNAlien
   Hs-Source-Dirs:      ./src/Bio/
@@ -64,12 +64,6 @@ executable RNAlienStatistics
   main-is:             RNAlienStatistics.hs
   ghc-options:         -Wall -O
   build-depends:       base >=4.5 && <5, cmdargs, cassava, vector, process, bytestring, either-unwrap, RNAlien, directory, biofasta, biocore, split, filepath, ViennaRNAParser>=1.3.2
-
-executable SelectSequences
-  Hs-Source-Dirs:      ./src/Bio/
-  main-is:             SelectSequences.hs
-  ghc-options:         -Wall -O
-  build-depends:       base >=4.5 && <5, cmdargs, either-unwrap, RNAlien
 
 executable cmsearchToBed
   Hs-Source-Dirs:      ./src/Bio/
