@@ -27,15 +27,15 @@ TaxonomyTools which can be used to visualise the organisms included in a RNAlien
 
      RNAlien can be installed with all dependencies via [conda](https://conda.io/docs/install/quick.html). Once you have conda installed simply type:
 
-         conda install -c bioconda rnalien=1.3.4 
+         conda install -c bioconda rnalien=1.3.7 
 
     ### <u>Available as docker container</u>
 
      RNAlien is available with all dependencies via [biocontainer](https://quay.io/repository/biocontainers/rnalien). Install
      [docker](https://www.docker.com/get-docker)
 
-         docker pull quay.io/biocontainers/rnalien:1.3.4--pl5.22.0_0
-         docker run -i -t quay.io/biocontainers/rnalien:1.3.4--pl5.22.0_0 bash
+         docker pull quay.io/biocontainers/rnalien:1.3.7--pl5.22.0_0
+         docker run -i -t quay.io/biocontainers/rnalien:1.3.7--pl5.22.0_0 bash
 
     ### <u>Installation via cabal-install</u>
 
