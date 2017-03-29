@@ -1,4 +1,4 @@
-#![RNAlien](http://www.tbi.univie.ac.at/~egg/RNAlien.png "RNAlien") 
+![RNAlien](http://www.tbi.univie.ac.at/~egg/RNAlien.png "RNAlien") 
 =========
 RNAlien is a tool for automatic construction of RNAfamily models from a single sequence.
 
@@ -6,7 +6,7 @@ It is available as a commandline tool, for testing or construction of few sequen
 
 The source code of RNAlien, as well as the webserver is open source and available via GitHub and Hackage (License GPL-3):
 
-*   [![GitHub](https://img.shields.io/github/tag/eggzilla/RNAlien.svg)](https://github.com/eggzilla/RNAlien) [![Build Status](https://travis-ci.org/eggzilla/RNAlien.svg?branch=master)] (https://travis-ci.org/eggzilla/RNAlien) [![Hackage](https://img.shields.io/hackage/v/RNAlien.svg)](https://hackage.haskell.org/package/RNAlien) [![Bioconda](https://anaconda.org/bioconda/rnalien/badges/version.svg)](https://anaconda.org/bioconda/rnalien)
+*   [![GitHub](https://img.shields.io/github/tag/eggzilla/RNAlien.svg)](https://github.com/eggzilla/RNAlien) [![Build Status](https://travis-ci.org/eggzilla/RNAlien.svg?branch=master)](https://travis-ci.org/eggzilla/RNAlien) [![Hackage](https://img.shields.io/hackage/v/RNAlien.svg)](https://hackage.haskell.org/package/RNAlien) [![Bioconda](https://anaconda.org/bioconda/rnalien/badges/version.svg)](https://anaconda.org/bioconda/rnalien)
 *   [![GitHub](https://img.shields.io/github/tag/eggzilla/AlienServer.svg)](https://github.com/eggzilla/AlienServer) [![Build Status](https://travis-ci.org/eggzilla/AlienServer.svg?branch=master)](https://travis-ci.org/eggzilla/AlienServer) 
 
 TaxonomyTools which can be used to visualise the organisms included in a RNAlien result can be found here (License GPL-3):
