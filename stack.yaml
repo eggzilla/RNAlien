@@ -1,6 +1,18 @@
 flags: {}
 packages:
-- '.'
-extra-deps: []
+- .
+- ../BlastHTTP
+- ../BiobaseBlast
+- ../Taxonomy
+extra-deps:
+- BiobaseTypes-0.1.2.1
+- BiobaseXNA-0.9.3.1
+- BlastHTTP-1.3.0
+- DPutils-0.0.1.0
+- OrderedBits-0.0.1.2
+- PrimitiveArray-0.8.0.1
+- bimaps-0.1.0.2
+- intern-0.9.1.4
+- BiobaseBlast-0.2.1.0
 compiler-check: newer-minor
-resolver: lts-8.2
+resolver: lts-9.1
