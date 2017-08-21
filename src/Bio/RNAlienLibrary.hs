@@ -39,7 +39,7 @@ import Data.List
 import Data.Char
 import Bio.Core.Sequence
 import Bio.Sequence.Fasta
-import Bio.BlastXML
+import qualified Biobase.BLAST.Types as BB 
 import Bio.ClustalParser
 import Data.Int (Int16)
 import Bio.RNAlienData
@@ -72,7 +72,6 @@ import qualified Bio.RNAcentralHTTP as RCH
 import Bio.InfernalParser
 import qualified Data.Text as T
 import qualified Data.Text.IO as TI
-import qualified Data.Text.Encoding as DTE
 import qualified Data.Text.Lazy.Encoding as E
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.IO as TIO
@@ -384,7 +383,7 @@ findTaxonomyStart inputBlastDatabase temporaryDirectory querySequence = do
   let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
   let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") inputBlastDatabase [querySequence] (Just (hitNumberQuery ++ registrationInfo)) (Just (5400000000 :: Int))
   logMessage "No tax id provided - Sending find taxonomy start blast query \n" temporaryDirectory
-  blastOutput <- CE.catch (blastHTTP blastQuery)
+  blastOutput <- CE.catch (blastTabularHTTP blastQuery)
                        (\e -> do let err = show (e :: CE.IOException)
                                  logWarning ("Warning: Blast attempt failed:" ++ " " ++ err) temporaryDirectory
                                  error "findTaxonomyStart: Blast attempt failed"
@@ -420,7 +419,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
   let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) inputQuerySequences  (Just (hitNumberQuery ++ entrezTaxFilter ++ softmaskFilter ++ registrationInfo)) (Just (5400000000 :: Int))
   --appendFile "/scratch/egg/blasttest/queries" ("\nBlast query:\n"  ++ show blastQuery ++ "\n") 
   logVerboseMessage (verbositySwitch staticOptions) ("Sending blast query " ++ show iterationnumber ++ "\n") (tempDirPath staticOptions)
-  blastOutput <- CE.catch (blastHTTP blastQuery)
+  blastOutput <- CE.catch (blastTabularHTTP blastQuery)
                        (\e -> do let err = show (e :: CE.IOException)
                                  logWarning ("Warning: Blast attempt failed:" ++ " " ++ err) (tempDirPath staticOptions)
                                  return (Left ""))
@@ -438,7 +437,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
        -- if (null taxIdFromEntrySummaries) then (error "searchCandidates: - head: empty list of taxonomy entry summary for best hit")  else return ()
        -- let rightBestTaxIdResult = head taxIdFromEntrySummaries
        -- logVerboseMessage (verbositySwitch staticOptions) ("rightbestTaxIdResult: " ++ (show rightBestTaxIdResult) ++ "\n") (tempDirPath staticOptions)
-       let blastHits = concatMap hits (results rightBlast)
+       let blastHits =  concatMap (V.toList . BB.hitLines) rightBlast
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_2blastHits") (showlines blastHits)
        --filter by length
        let blastHitsFilteredByLength = filterByHitLength blastHits queryLength (lengthFilterToggle staticOptions)
@@ -462,8 +461,8 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
        --let (_, filteredBlastResults) = filterByNeighborhoodTreeConditional alignndmentModeInfernalToggle upperTaxLimit blastHitsWithTaxId (inputTaxNodes staticOptions) (fromJust upperTaxLimit) (singleHitperTaxToggle staticOptions)
        --writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_5filteredBlastResults") (showlines filteredBlastResults)
        -- Coordinate generation
-       let nonEmptyfilteredBlastResults = filter (\(blasthit,_) -> not (null (matches blasthit))) blastHitsFilteredByParentTaxIdWithParentTaxId
-       let requestedSequenceElements = map (getRequestedSequenceElement queryLength) nonEmptyfilteredBlastResults
+       --let nonEmptyfilteredBlastResults = filter (\(blasthit,_) -> not (null (matches blastHit))) blastHitsFilteredByParentTaxIdWithParentTaxId
+       let requestedSequenceElements = map (getRequestedSequenceElement queryLength) blastHitsFilteredByParentTaxIdWithParentTaxId --  nonEmptyfilteredBlastResults
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++  "_6requestedSequenceElements") (showlines requestedSequenceElements)
        -- Retrieval of full sequences from entrez
        --fullSequencesWithSimilars <- retrieveFullSequences requestedSequenceElements
@@ -477,12 +476,12 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
            let fullSequences = filterIdenticalSequences fullSequencesWithSimilars 100
            --let fullSequencesWithOrigin = map (\(parsedFasta,taxid,seqSubject) -> (parsedFasta,taxid,seqSubject,'B')) fullSequences
            writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10fullSequences") (showlines fullSequences)
-           let maybeFractionEvalueMatch = getHitWithFractionEvalue rightBlast
+           let maybeFractionEvalueMatch = getHitWithFractionEvalue blastHits
            if isNothing maybeFractionEvalueMatch
              then CE.evaluate (SearchResult [] Nothing)
              else do
                let fractionEvalueMatch = fromJust maybeFractionEvalueMatch
-               let dbSize = computeDataBaseSize (e_val fractionEvalueMatch) (bits fractionEvalueMatch) (fromIntegral queryLength ::Double)
+               let dbSize = computeDataBaseSize (BB.eValue fractionEvalueMatch) (BB.bitScore fractionEvalueMatch) (fromIntegral queryLength ::Double)
                CE.evaluate (SearchResult fullSequences (Just dbSize))
      else CE.evaluate (SearchResult [] Nothing)
 
@@ -833,11 +832,11 @@ firstOfTriple :: (t, t1, t2) -> t
 firstOfTriple (a,_,_) = a
 
 -- | Check if the result field of BlastResult is filled and if hits are present
-blastMatchesPresent :: BlastResult -> Bool
-blastMatchesPresent blastResult
-  | null resultList = False
+blastMatchesPresent :: [BB.BlastTabularResult] -> Bool
+blastMatchesPresent blastResults
+  | resultNumber == 0 = False
   | otherwise = True
-  where resultList = concatMap matches (concatMap hits (results blastResult))
+  where resultNumber = foldr ((+) . length . BB.hitLines) 0 blastResults
 
 -- | Compute identity of sequences
 textIdentity :: T.Text -> T.Text -> Double
@@ -1075,7 +1074,7 @@ extractAlignedSequences iterationnumber modelconstruction
         --alignedSeqRecords = filter (\seqRec -> (aligned seqRec) > 0) seqRecords 
         indexedSeqRecords = V.map (\(number,seq') -> (number + 1,seq')) (V.indexed (V.fromList (inputSequence : map nucleotideSequence seqRecords)))
 
-filterByParentTaxId :: [(BlastHit,Int)] -> Bool -> [(BlastHit,Int)]
+filterByParentTaxId :: [(BB.BlastTabularHit,Int)] -> Bool -> [(BB.BlastTabularHit,Int)]
 filterByParentTaxId blastHitsWithParentTaxId singleHitPerParentTaxId
   |  singleHitPerParentTaxId = singleBlastHitperParentTaxId
   |  otherwise = blastHitsWithParentTaxId
@@ -1083,42 +1082,42 @@ filterByParentTaxId blastHitsWithParentTaxId singleHitPerParentTaxId
         blastHitsWithParentTaxIdGroupedByParentTaxId = groupBy sameTaxId blastHitsWithParentTaxIdSortedByParentTaxId
         singleBlastHitperParentTaxId = map (maximumBy compareHitEValue) blastHitsWithParentTaxIdGroupedByParentTaxId
 
-filterByHitLength :: [BlastHit] -> Int -> Bool -> [BlastHit]
+filterByHitLength :: [BB.BlastTabularHit] -> Int -> Bool -> [BB.BlastTabularHit]
 filterByHitLength blastHits queryLength filterOn
   | filterOn = filteredBlastHits
   | otherwise = blastHits
   where filteredBlastHits = filter (hitLengthCheck queryLength) blastHits
 
 -- | Hits should have a compareable length to query
-hitLengthCheck :: Int -> BlastHit -> Bool
+hitLengthCheck :: Int -> BB.BlastTabularHit -> Bool
 hitLengthCheck queryLength blastHit = lengthStatus
-  where  blastMatches = matches blastHit
-         minHfrom = minimum (map h_from blastMatches)
-         minHfromHSP = fromJust (find (\hsp -> minHfrom == h_from hsp) blastMatches)
-         maxHto = maximum (map h_to blastMatches)
-         maxHtoHSP = fromJust (find (\hsp -> maxHto == h_to hsp) blastMatches)
-         minHonQuery = q_from minHfromHSP
-         maxHonQuery = q_to maxHtoHSP
-         startCoordinate = minHfrom - minHonQuery
-         endCoordinate = maxHto + (queryLength - maxHonQuery)
-         fullSeqLength = endCoordinate - startCoordinate
-         lengthStatus = fullSeqLength < (queryLength * 3)
+  where  -- blastMatches = matches blastHit
+         -- minHfrom = BB.hitSeqStart blastHit
+         -- minHfromHSP = BB.hitSeqEnd blastHit
+         -- maxHto = maximum (map h_to blastMatches)
+         -- maxHtoHSP = fromJust (find (\hsp -> maxHto == h_to hsp) blastMatches)
+         -- minHonQuery = q_from minHfromHSP
+         -- maxHonQuery = q_to maxHtoHSP
+         -- startCoordinate = minHfrom - minHonQuery
+         -- endCoordinate = maxHto + (queryLength - maxHonQuery)
+         -- fullSeqLength = endCoordinate - startCoordinate
+         genomicHitLength = abs ((BB.hitSeqStart blastHit) - (BB.hitSeqEnd blastHit))
+         lengthStatus = genomicHitLength < (queryLength * 3)
 
-filterByCoverage :: [BlastHit] -> Int -> Bool -> [BlastHit]
+filterByCoverage :: [BB.BlastTabularHit] -> Int -> Bool -> [BB.BlastTabularHit]
 filterByCoverage blastHits queryLength filterOn
   | filterOn = filteredBlastHits
   | otherwise = blastHits
   where filteredBlastHits = filter (coverageCheck queryLength) blastHits
 
 -- | Hits should have a compareable length to query
-coverageCheck :: Int -> BlastHit -> Bool
+coverageCheck :: Int -> BB.BlastTabularHit -> Bool
 coverageCheck queryLength blastHit = coverageStatus
-  where  blastMatches = matches blastHit
-         maxIdentity = fromIntegral (maximum (map (snd . Bio.BlastXML.identity) blastMatches))
-         coverageStatus = (maxIdentity/fromIntegral queryLength)* (100 :: Double) >= (80 :: Double)
+  where  identicalNucleotides =  (BB.seqIdentity blastHit) * (fromIntegral (BB.alignmentLength blastHit))
+         coverageStatus = (identicalNucleotides/fromIntegral queryLength)* (100 :: Double) >= (80 :: Double)
 
 -- | Wrapper for retrieveFullSequence that rerequests incomplete return sequees
-retrieveFullSequences :: StaticOptions -> [(String,Int,Int,String,T.Text,Int,L.ByteString)] -> IO [(Sequence,Int,L.ByteString)]
+retrieveFullSequences :: StaticOptions -> [(String,Int,Int,String,Int,L.ByteString)] -> IO [(Sequence,Int,L.ByteString)]
 retrieveFullSequences staticOptions requestedSequences = do
   fullSequences <- mapM (retrieveFullSequence (tempDirPath staticOptions)) requestedSequences
   if any (isNothing . firstOfTriple) fullSequences
@@ -1134,8 +1133,8 @@ retrieveFullSequences staticOptions requestedSequences = do
       CE.evaluate unwrappedRetrievals
     else CE.evaluate (map (\(x,y,z) -> (fromJust x,y,z)) fullSequences)
 
-retrieveFullSequence :: String -> (String,Int,Int,String,T.Text,Int,L.ByteString) -> IO (Maybe Sequence,Int,L.ByteString)
-retrieveFullSequence temporaryDirectoryPath (nucleotideId,seqStart,seqStop,strand,_,taxid,subject') = do
+retrieveFullSequence :: String -> (String,Int,Int,String,Int,L.ByteString) -> IO (Maybe Sequence,Int,L.ByteString)
+retrieveFullSequence temporaryDirectoryPath (nucleotideId,seqStart,seqStop,strand,taxid,subject') = do
   let program' = Just "efetch"
   let database' = Just "nucleotide"
   let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
@@ -1156,34 +1155,32 @@ retrieveFullSequence temporaryDirectoryPath (nucleotideId,seqStart,seqStop,stran
             then return (Nothing,taxid,subject')
             else CE.evaluate (Just parsedFasta,taxid,subject')
 
-getRequestedSequenceElement :: Int -> (BlastHit,Int) -> (String,Int,Int,String,T.Text,Int,L.ByteString)
+getRequestedSequenceElement :: Int -> (BB.BlastTabularHit,Int) -> (String,Int,Int,String,Int,L.ByteString)
 getRequestedSequenceElement queryLength (blastHit,taxid)
   | blastHitIsReverseComplement (blastHit,taxid) = getReverseRequestedSequenceElement queryLength (blastHit,taxid)
   | otherwise = getForwardRequestedSequenceElement queryLength (blastHit,taxid)
 
-blastHitIsReverseComplement :: (BlastHit,Int) -> Bool
+blastHitIsReverseComplement :: (BB.BlastTabularHit,Int) -> Bool
 blastHitIsReverseComplement (blastHit,_) = isReverse
-  where blastMatch = head (matches blastHit)
-        firstHSPfrom = h_from blastMatch
-        firstHSPto = h_to blastMatch
-        isReverse = firstHSPfrom > firstHSPto
+  where     isReverse = BB.hitSeqStart blastHit > BB.hitSeqEnd blastHit
 
-getForwardRequestedSequenceElement :: Int -> (BlastHit,Int) -> (String,Int,Int,String,T.Text,Int,L.ByteString)
-getForwardRequestedSequenceElement queryLength (blastHit,taxid) = (geneIdentifier',startcoordinate,endcoordinate,strand,accession',taxid,subjectBlast)
-   where    accession' = extractAccession blastHit
-            subjectBlast = unSL (subject blastHit)
+getForwardRequestedSequenceElement :: Int -> (BB.BlastTabularHit,Int) -> (String,Int,Int,String,Int,L.ByteString)
+getForwardRequestedSequenceElement queryLength (blastHit,taxid) = (geneIdentifier',startcoordinate,endcoordinate,strand,taxid,subjectBlast)
+   where    subjectBlast = BB.subjectId blastHit
             geneIdentifier' = extractGeneId blastHit
-            blastMatch = head (matches blastHit)
-            blastHitOriginSequenceLength = slength blastHit
-            minHfrom = h_from blastMatch
-            maxHto = h_to blastMatch
-            minHonQuery = q_from blastMatch
-            maxHonQuery = q_to blastMatch
+            -- is not available in tabular blast output
+            --blastHitOriginSequenceLength = slength blastHit
+            minHfrom = BB.hitSeqStart blastHit
+            maxHto = BB.hitSeqEnd blastHit
+            minHonQuery = BB.queryStart blastHit
+            maxHonQuery = BB.queryEnd blastHit
             --unsafe coordinates may exceed length of available sequence
             unsafestartcoordinate = minHfrom - minHonQuery
             unsafeendcoordinate = maxHto + (queryLength - maxHonQuery)
             startcoordinate = lowerBoundryCoordinateSetter 0 unsafestartcoordinate
-            endcoordinate = upperBoundryCoordinateSetter blastHitOriginSequenceLength unsafeendcoordinate
+            -- Not available in tabular blast output, restricting to maxHto
+            --endcoordinate = upperBoundryCoordinateSetter blastHitOriginSequenceLength unsafeendcoordinate
+            endcoordinate = upperBoundryCoordinateSetter maxHto unsafeendcoordinate
             strand = "1"
             ---- 
             --blastMatches = matches blastHit
@@ -1211,22 +1208,23 @@ upperBoundryCoordinateSetter upperBoundry currentValue
   | currentValue > upperBoundry = upperBoundry
   | otherwise = currentValue
 
-getReverseRequestedSequenceElement :: Int -> (BlastHit,Int) -> (String,Int,Int,String,T.Text,Int,L.ByteString)
-getReverseRequestedSequenceElement queryLength (blastHit,taxid) = (geneIdentifier',startcoordinate,endcoordinate,strand,accession',taxid,subjectBlast)
-   where   accession' = extractAccession blastHit
-           subjectBlast = unSL (subject blastHit)
+getReverseRequestedSequenceElement :: Int -> (BB.BlastTabularHit,Int) -> (String,Int,Int,String,Int,L.ByteString)
+getReverseRequestedSequenceElement queryLength (blastHit,taxid) = (geneIdentifier',startcoordinate,endcoordinate,strand,taxid,subjectBlast)
+   where   subjectBlast = BB.subjectId blastHit
            geneIdentifier' = extractGeneId blastHit
-           blastMatch = head (matches blastHit)
-           blastHitOriginSequenceLength = slength blastHit
-           maxHfrom = h_from blastMatch
-           minHto = h_to blastMatch
-           minHonQuery = q_from blastMatch
-           maxHonQuery = q_to blastMatch
+           -- is not available in tabular blast output
+           --blastHitOriginSequenceLength = slength blastHit
+           maxHfrom =  BB.hitSeqStart blastHit
+           minHto =  BB.hitSeqEnd blastHit
+           minHonQuery =  BB.queryStart blastHit
+           maxHonQuery = BB.queryEnd blastHit
            --unsafe coordinates may exceed length of avialable sequence
            unsafestartcoordinate = maxHfrom + minHonQuery
            unsafeendcoordinate = minHto - (queryLength - maxHonQuery)
            startcoordinate = lowerBoundryCoordinateSetter 0 unsafeendcoordinate
-           endcoordinate = upperBoundryCoordinateSetter blastHitOriginSequenceLength unsafestartcoordinate
+           -- Not available in tabular blast output, restricting to maxHto
+           --endcoordinate = upperBoundryCoordinateSetter blastHitOriginSequenceLength unsafestartcoordinate
+           endcoordinate = upperBoundryCoordinateSetter maxHfrom unsafestartcoordinate
            strand = "2"
            --
            --blastMatches = matches blastHit
@@ -1269,16 +1267,16 @@ constructCMsearchFilePaths :: String -> (Int, Sequence) -> String
 constructCMsearchFilePaths currentDirectory (fastaIdentifier, _) = currentDirectory ++ show fastaIdentifier ++".cmsearch"
 
 -- Smaller e-Values are greater, the maximum function is applied
-compareHitEValue :: (BlastHit,Int) -> (BlastHit,Int) -> Ordering
+compareHitEValue :: (BB.BlastTabularHit,Int) -> (BB.BlastTabularHit,Int) -> Ordering
 compareHitEValue (hit1,_) (hit2,_)
-  | hitEValue hit1 > hitEValue hit2 = LT
-  | hitEValue hit1 < hitEValue hit2 = GT
+  | BB.eValue hit1 > BB.eValue hit2 = LT
+  | BB.eValue hit1 < BB.eValue hit2 = GT
   -- in case of equal evalues the first hit is selected
-  | hitEValue hit1 == hitEValue hit2 = GT
+  | BB.eValue hit1 == BB.eValue hit2 = GT
 -- comparing (hitEValue . Down . fst)
 compareHitEValue (_,_) (_,_) = EQ
 
-compareTaxId :: (BlastHit,Int) -> (BlastHit,Int) -> Ordering
+compareTaxId :: (BB.BlastTabularHit,Int) -> (BB.BlastTabularHit,Int) -> Ordering
 compareTaxId (_,taxId1) (_,taxId2)
   | taxId1 > taxId2 = LT
   | taxId1 < taxId2 = GT
@@ -1286,12 +1284,12 @@ compareTaxId (_,taxId1) (_,taxId2)
   | taxId1 == taxId2 = EQ
 compareTaxId (_,_)  (_,_) = EQ
 
-sameTaxId :: (BlastHit,Int) -> (BlastHit,Int) -> Bool
+sameTaxId :: (BB.BlastTabularHit,Int) -> (BB.BlastTabularHit,Int) -> Bool
 sameTaxId (_,taxId1) (_,taxId2) = taxId1 == taxId2
 
 -- | NCBI uses the e-Value of the best HSP as the Hits e-Value
-hitEValue :: BlastHit -> Double
-hitEValue hit = minimum (map e_val (matches hit))
+--hitEValue :: BlastHit -> Double
+--hitEValue hit = minimum (map e_val (matches hit))
 
 convertFastaFoldStockholm :: Sequence -> String -> String
 convertFastaFoldStockholm fastasequence foldedStructure = stockholmOutput
@@ -1352,7 +1350,7 @@ retrieveTaxonomicContextEntrez inputTaxId = do
               then error "Retrieved taxonomic context taxon from NCBI Entrez with empty lineage, cannot proceed."
               else return (Just taxon)
 
-retrieveParentTaxIdEntrez :: [(BlastHit,Int)] -> IO [(BlastHit,Int)]
+retrieveParentTaxIdEntrez :: [(BB.BlastTabularHit,Int)] -> IO [(BB.BlastTabularHit,Int)]
 retrieveParentTaxIdEntrez blastHitsWithHitTaxids =
   if not (null blastHitsWithHitTaxids)
      then do
@@ -1373,20 +1371,20 @@ retrieveParentTaxIdEntrez blastHitsWithHitTaxids =
     else return []
 
 -- | Wrapper functions that ensures that only 20 queries are sent per request
-retrieveParentTaxIdsEntrez :: [(BlastHit,Int)] -> IO [(BlastHit,Int)]
+retrieveParentTaxIdsEntrez :: [(BB.BlastTabularHit,Int)] -> IO [(BB.BlastTabularHit,Int)]
 retrieveParentTaxIdsEntrez taxIdwithBlastHits = do
   let splits = portionListElements taxIdwithBlastHits 20
   taxIdsOutput <- mapM retrieveParentTaxIdEntrez splits
   return (concat taxIdsOutput)
 
 -- | Wrapper functions that ensures that only 20 queries are sent per request
-retrieveBlastHitsTaxIdEntrez :: [BlastHit] -> IO [([BlastHit],String)]
+retrieveBlastHitsTaxIdEntrez :: [BB.BlastTabularHit] -> IO [([BB.BlastTabularHit],String)]
 retrieveBlastHitsTaxIdEntrez blastHits = do
   let splits = portionListElements blastHits 20
   mapM retrieveBlastHitTaxIdEntrez splits
 
 
-retrieveBlastHitTaxIdEntrez :: [BlastHit] -> IO ([BlastHit],String)
+retrieveBlastHitTaxIdEntrez :: [BB.BlastTabularHit] -> IO ([BB.BlastTabularHit],String)
 retrieveBlastHitTaxIdEntrez blastHits =
   if not (null blastHits)
      then do
@@ -1411,30 +1409,30 @@ extractTaxIdFromEntrySummaries input
         hitTaxIdStrings = map extractTaxIdfromDocumentSummary blastHitSummaries
         hitTaxIds = map readInt hitTaxIdStrings
 
-extractAccession :: BlastHit -> T.Text
-extractAccession currentBlastHit = accession'
-  where splitedFields = T.splitOn (T.pack "|") (DTE.decodeUtf8 (L.toStrict (hitId currentBlastHit)))
-        accession' =  splitedFields !! 3
+-- extractAccession :: BlastTabularHit -> T.Text
+-- extractAccession currentBlastHit = accession'
+--   where splitedFields = T.splitOn (T.pack "|") (B.unpack (BB.subjectId currentBlastHit))
+--         accession' =  splitedFields !! 3
 
-extractGeneId :: BlastHit -> String
+extractGeneId :: BB.BlastTabularHit -> String
 extractGeneId currentBlastHit = nucleotideId
-  where truncatedId = drop 3 (L.unpack (hitId currentBlastHit))
+  where truncatedId = drop 3 (L.unpack (BB.subjectId currentBlastHit))
         pipeSymbolIndex = fromJust (elemIndex '|' truncatedId)
         nucleotideId = take pipeSymbolIndex truncatedId
 
 extractTaxIdfromDocumentSummary :: EntrezDocSum -> String
 extractTaxIdfromDocumentSummary documentSummary = itemContent (fromJust (find (\item -> "TaxId" == itemName item) (summaryItems documentSummary)))
 
-getBestHit :: BlastResult -> BlastHit
-getBestHit blastResult
-  | null (concatMap hits (results blastResult)) = error "getBestHit - head: empty list"
-  | otherwise = head (hits (head (results blastResult)))
+getBestHit :: [BB.BlastTabularResult] -> BB.BlastTabularHit
+getBestHit blastResults
+  | not (blastMatchesPresent blastResults) = error "getBestHit - head: empty list"
+  | otherwise = V.head $ V.concat (map BB.hitLines blastResults)
 
 -- Blast returns low evalues with zero instead of the exact number
-getHitWithFractionEvalue :: BlastResult -> Maybe BlastMatch
-getHitWithFractionEvalue blastResult
-  | null (concatMap hits (results blastResult)) = Nothing
-  | otherwise = find (\match -> e_val match /= (0 ::Double)) (concatMap matches (concatMap hits (results blastResult)))
+getHitWithFractionEvalue :: [BB.BlastTabularHit] -> Maybe BB.BlastTabularHit
+getHitWithFractionEvalue hits
+  | null hits = Nothing
+  | otherwise = find (\hit -> BB.eValue hit /= (0 ::Double)) hits
 
 showlines :: Show a => [a] -> String
 showlines = concatMap (\x -> show x ++ "\n")
