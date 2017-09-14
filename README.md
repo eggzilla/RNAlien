@@ -27,7 +27,7 @@ TaxonomyTools which can be used to visualise the organisms included in a RNAlien
 
      RNAlien can be installed with all dependencies via [conda](https://conda.io/docs/install/quick.html). Once you have conda installed simply type:
 
-         conda install -c bioconda rnalien=1.3.7 
+         conda install -c bioconda -c conda-forge rnalien=1.3.7 
 
     ### <u>Available as docker container</u>
 
