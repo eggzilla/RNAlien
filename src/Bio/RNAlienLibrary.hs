@@ -1417,8 +1417,9 @@ extractTaxIdFromEntrySummaries input
 extractGeneId :: BB.BlastTabularHit -> String
 extractGeneId currentBlastHit = nucleotideId
   where truncatedId = drop 3 (L.unpack (BB.subjectId currentBlastHit))
-        pipeSymbolIndex = fromJust (elemIndex '|' truncatedId)
+        pipeSymbolIndex = if (isJust pipeIndex) then fromJust pipeIndex else error ("Malformated gene id: " ++ show truncatedId ++ "\n")
         nucleotideId = take pipeSymbolIndex truncatedId
+        pipeIndex = (elemIndex '|' truncatedId)
 
 extractTaxIdfromDocumentSummary :: EntrezDocSum -> String
 extractTaxIdfromDocumentSummary documentSummary = itemContent (fromJust (find (\item -> "TaxId" == itemName item) (summaryItems documentSummary)))
