@@ -3,8 +3,8 @@
 module Bio.RNAlienData where
 
 import qualified Data.ByteString.Lazy.Char8 as L
-import Bio.Core.Sequence
-import Bio.Sequence.Fasta
+import Biobase.Fasta.Types
+import Biobase.Fasta.Export
 import Bio.Taxonomy
 
 -- | Static construction options
@@ -28,21 +28,21 @@ data StaticOptions = StaticOptions
 -- | Keeps track of model construction 
 data ModelConstruction = ModelConstruction
   { iterationNumber :: Int,
-    inputFasta :: Sequence,
+    inputFasta :: Fasta,
     taxRecords :: [TaxonomyRecord],
     --Taxonomy ID of the highest node in taxonomic subtree used in search
     upperTaxonomyLimit :: Maybe Int,
     taxonomicContext :: Maybe Taxon,
     evalueThreshold :: Double,
     alignmentModeInfernal :: Bool,
-    selectedQueries :: [Sequence],
+    selectedQueries :: [Fasta],
     potentialMembers :: [SearchResult]
   }
 
 instance Show ModelConstruction where
   show (ModelConstruction _iterationNumber _inputFasta _taxRecords _upperTaxonomyLimit _taxonomicContext _evalueThreshold _alignmentModeInfernal _selectedQueries _potentialMembers) = a ++ b ++ c ++ d ++ e ++ g ++ h ++ i
     where a = "Modelconstruction iteration: " ++ show _iterationNumber ++ "\n"
-          b = "Input fasta:\n" ++ L.unpack (unSL (seqheader _inputFasta))  ++ "\n" ++ L.unpack (unSD (seqdata _inputFasta)) ++ "\n"
+          b = "Input fasta:\n" ++ L.unpack (fastaHeader _inputFasta)  ++ "\n" ++ L.unpack (fastaSequence _inputFasta) ++ "\n"
           c = show _taxRecords
           d = "Upper taxonomy limit: " ++ maybe "not set" show _upperTaxonomyLimit ++ "\n"
           e = "Taxonomic Context: " ++  maybe "not set" show _taxonomicContext ++ "\n"
@@ -62,7 +62,7 @@ instance Show TaxonomyRecord where
 
 data SequenceRecord = SequenceRecord
   { --Sequence consisting of SeqLabel, and SeqData
-    nucleotideSequence :: Sequence,
+    nucleotideSequence :: Fasta,
     -- 0 is unaligned, number is the iteration the sequence has been included into the alignment
     aligned  :: Int,
     recordDescription :: L.ByteString
@@ -101,7 +101,7 @@ data CMsearchHit = CMsearchHit
   } deriving (Show, Eq, Read)
 
 data SearchResult = SearchResult
-  { candidates :: [(Sequence,Int,L.ByteString)],
+  { candidates :: [(Fasta,Int,L.ByteString)],
     blastDatabaseSize :: Maybe Double
   }
 

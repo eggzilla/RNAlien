@@ -22,6 +22,7 @@ import Data.Aeson
 import GHC.Generics
 import qualified Data.Digest.Pure.MD5 as M
 import Data.Either
+import Biobase.Fasta.Types
 
 --Datatypes
 -- | Data structure for RNAcentral entry response
@@ -91,9 +92,10 @@ getRNACentralEntries queries = do
   mapM delayedRNACentralHTTP queries
 
 --Build a query from a input sequence
-buildSequenceViaMD5Query :: L8.ByteString -> String
-buildSequenceViaMD5Query querySequence = qString
-  where querySequenceUreplacedwithT = L8.map bsreplaceUT querySequence
+buildSequenceViaMD5Query :: Fasta -> String
+buildSequenceViaMD5Query s = qString
+  where querySequence = fastaSequence s
+        querySequenceUreplacedwithT = L8.map bsreplaceUT querySequence
         querySequenceU2Twolb = L8.filter ((/= '\n')) querySequenceUreplacedwithT
         md5Sequence = M.md5 querySequenceU2Twolb
         qString = "?md5=" ++ show md5Sequence
