@@ -15,14 +15,12 @@ module Bio.RNAcentralHTTP (rnaCentralHTTP,
 
 import Network.HTTP.Conduit
 import qualified Data.ByteString.Lazy.Char8 as L8
-import Network
+import Network.Socket
 import Control.Concurrent
 import Data.Text
 import Data.Aeson
 import GHC.Generics
 import qualified Data.Digest.Pure.MD5 as M
-import Bio.Core.Sequence
-import Bio.Sequence.Fasta
 import Data.Either
 
 --Datatypes
@@ -93,10 +91,9 @@ getRNACentralEntries queries = do
   mapM delayedRNACentralHTTP queries
 
 --Build a query from a input sequence
-buildSequenceViaMD5Query :: Sequence -> String
-buildSequenceViaMD5Query s = qString
-  where querySequence = unSD (seqdata s)
-        querySequenceUreplacedwithT = L8.map bsreplaceUT querySequence
+buildSequenceViaMD5Query :: L8.ByteString -> String
+buildSequenceViaMD5Query querySequence = qString
+  where querySequenceUreplacedwithT = L8.map bsreplaceUT querySequence
         querySequenceU2Twolb = L8.filter ((/= '\n')) querySequenceUreplacedwithT
         md5Sequence = M.md5 querySequenceU2Twolb
         qString = "?md5=" ++ show md5Sequence
