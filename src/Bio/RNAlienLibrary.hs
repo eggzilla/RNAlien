@@ -38,7 +38,8 @@ import Text.ParserCombinators.Parsec
 import Data.List
 import Data.Char
 import Biobase.Fasta.Types
-import Biobase.Blast.Types.
+import Biobase.Fasta.Export
+import qualified Biobase.BLAST.Types as J
 import Bio.ClustalParser
 import Data.Int (Int16)
 import Bio.RNAlienData
@@ -436,7 +437,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
        -- if (null taxIdFromEntrySummaries) then (error "searchCandidates: - head: empty list of taxonomy entry summary for best hit")  else return ()
        -- let rightBestTaxIdResult = head taxIdFromEntrySummaries
        -- logVerboseMessage (verbositySwitch staticOptions) ("rightbestTaxIdResult: " ++ (show rightBestTaxIdResult) ++ "\n") (tempDirPath staticOptions)
-       let blastHits = concatMap hits (results rightBlast)
+       let blastHits = concatMap J.hits (results rightBlast)
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_2blastHits") (showlines blastHits)
        --filter by length
        let blastHitsFilteredByLength = filterByHitLength blastHits queryLength (lengthFilterToggle staticOptions)
@@ -831,11 +832,11 @@ firstOfTriple :: (t, t1, t2) -> t
 firstOfTriple (a,_,_) = a
 
 -- | Check if the result field of BlastResult is filled and if hits are present
-blastMatchesPresent :: BlastResult -> Bool
-blastMatchesPresent blastResult
+blastMatchesPresent :: J.BlastJSON2 -> Bool
+blastMatchesPresent blastJS2
   | null resultList = False
   | otherwise = True
-  where resultList = concatMap matches (concatMap hits (results blastResult))
+  where resultList = concatMap J.hsps (concatMap J.hits (J.search . J.results . J.report . J.blastoutput2 $ blastJS2))
 
 -- | Compute identity of sequences
 textIdentity :: T.Text -> T.Text -> Double
@@ -1073,7 +1074,7 @@ extractAlignedSequences iterationnumber modelconstruction
         --alignedSeqRecords = filter (\seqRec -> (aligned seqRec) > 0) seqRecords 
         indexedSeqRecords = V.map (\(number,seq') -> (number + 1,seq')) (V.indexed (V.fromList (inputSequence : map nucleotideSequence seqRecords)))
 
-filterByParentTaxId :: [(BlastHit,Int)] -> Bool -> [(BlastHit,Int)]
+filterByParentTaxId :: [(J.Hit,Int)] -> Bool -> [(J.Hit,Int)]
 filterByParentTaxId blastHitsWithParentTaxId singleHitPerParentTaxId
   |  singleHitPerParentTaxId = singleBlastHitperParentTaxId
   |  otherwise = blastHitsWithParentTaxId
@@ -1081,14 +1082,14 @@ filterByParentTaxId blastHitsWithParentTaxId singleHitPerParentTaxId
         blastHitsWithParentTaxIdGroupedByParentTaxId = groupBy sameTaxId blastHitsWithParentTaxIdSortedByParentTaxId
         singleBlastHitperParentTaxId = map (maximumBy compareHitEValue) blastHitsWithParentTaxIdGroupedByParentTaxId
 
-filterByHitLength :: [BlastHit] -> Int -> Bool -> [BlastHit]
+filterByHitLength :: [J.Hit] -> Int -> Bool -> [J.Hit]
 filterByHitLength blastHits queryLength filterOn
   | filterOn = filteredBlastHits
   | otherwise = blastHits
   where filteredBlastHits = filter (hitLengthCheck queryLength) blastHits
 
 -- | Hits should have a compareable length to query
-hitLengthCheck :: Int -> BlastHit -> Bool
+hitLengthCheck :: Int -> J.Hit -> Bool
 hitLengthCheck queryLength blastHit = lengthStatus
   where  blastMatches = matches blastHit
          minHfrom = minimum (map h_from blastMatches)
@@ -1102,17 +1103,17 @@ hitLengthCheck queryLength blastHit = lengthStatus
          fullSeqLength = endCoordinate - startCoordinate
          lengthStatus = fullSeqLength < (queryLength * 3)
 
-filterByCoverage :: [BlastHit] -> Int -> Bool -> [BlastHit]
+filterByCoverage :: [J.Hit] -> Int -> Bool -> [J.Hit]
 filterByCoverage blastHits queryLength filterOn
   | filterOn = filteredBlastHits
   | otherwise = blastHits
   where filteredBlastHits = filter (coverageCheck queryLength) blastHits
 
 -- | Hits should have a compareable length to query
-coverageCheck :: Int -> BlastHit -> Bool
-coverageCheck queryLength blastHit = coverageStatus
-  where  blastMatches = matches blastHit
-         maxIdentity = fromIntegral (maximum (map (snd . Bio.BlastXML.identity) blastMatches))
+coverageCheck :: Int -> J.Hit -> Bool
+coverageCheck queryLength hit = coverageStatus
+  where  hsps = J.hsps hit
+         maxIdentity = fromIntegral (maximum (map J.identity blastMatches))
          coverageStatus = (maxIdentity/fromIntegral queryLength)* (100 :: Double) >= (80 :: Double)
 
 -- | Wrapper for retrieveFullSequence that rerequests incomplete return sequees
@@ -1154,19 +1155,19 @@ retrieveFullSequence temporaryDirectoryPath (nucleotideId,seqStart,seqStop,stran
             then return (Nothing,taxid,subject')
             else CE.evaluate (Just parsedFasta,taxid,subject')
 
-getRequestedSequenceElement :: Int -> (BlastHit,Int) -> (String,Int,Int,String,T.Text,Int,L.ByteString)
+getRequestedSequenceElement :: Int -> (J.Hit,Int) -> (String,Int,Int,String,T.Text,Int,L.ByteString)
 getRequestedSequenceElement queryLength (blastHit,taxid)
   | blastHitIsReverseComplement (blastHit,taxid) = getReverseRequestedSequenceElement queryLength (blastHit,taxid)
   | otherwise = getForwardRequestedSequenceElement queryLength (blastHit,taxid)
 
-blastHitIsReverseComplement :: (BlastHit,Int) -> Bool
+blastHitIsReverseComplement :: (J.Hit,Int) -> Bool
 blastHitIsReverseComplement (blastHit,_) = isReverse
   where blastMatch = head (matches blastHit)
         firstHSPfrom = h_from blastMatch
         firstHSPto = h_to blastMatch
         isReverse = firstHSPfrom > firstHSPto
 
-getForwardRequestedSequenceElement :: Int -> (BlastHit,Int) -> (String,Int,Int,String,T.Text,Int,L.ByteString)
+getForwardRequestedSequenceElement :: Int -> (J.Hit,Int) -> (String,Int,Int,String,T.Text,Int,L.ByteString)
 getForwardRequestedSequenceElement queryLength (blastHit,taxid) = (geneIdentifier',startcoordinate,endcoordinate,strand,accession',taxid,subjectBlast)
    where    accession' = extractAccession blastHit
             subjectBlast = unSL (subject blastHit)
@@ -1209,7 +1210,7 @@ upperBoundryCoordinateSetter upperBoundry currentValue
   | currentValue > upperBoundry = upperBoundry
   | otherwise = currentValue
 
-getReverseRequestedSequenceElement :: Int -> (BlastHit,Int) -> (String,Int,Int,String,T.Text,Int,L.ByteString)
+getReverseRequestedSequenceElement :: Int -> (J.Hit,Int) -> (String,Int,Int,String,T.Text,Int,L.ByteString)
 getReverseRequestedSequenceElement queryLength (blastHit,taxid) = (geneIdentifier',startcoordinate,endcoordinate,strand,accession',taxid,subjectBlast)
    where   accession' = extractAccession blastHit
            subjectBlast = unSL (subject blastHit)
@@ -1267,7 +1268,7 @@ constructCMsearchFilePaths :: String -> (Int, Fasta) -> String
 constructCMsearchFilePaths currentDirectory (fastaIdentifier, _) = currentDirectory ++ show fastaIdentifier ++".cmsearch"
 
 -- Smaller e-Values are greater, the maximum function is applied
-compareHitEValue :: (BlastHit,Int) -> (BlastHit,Int) -> Ordering
+compareHitEValue :: (J.Hit,Int) -> (J.Hit,Int) -> Ordering
 compareHitEValue (hit1,_) (hit2,_)
   | hitEValue hit1 > hitEValue hit2 = LT
   | hitEValue hit1 < hitEValue hit2 = GT
@@ -1276,7 +1277,7 @@ compareHitEValue (hit1,_) (hit2,_)
 -- comparing (hitEValue . Down . fst)
 compareHitEValue (_,_) (_,_) = EQ
 
-compareTaxId :: (BlastHit,Int) -> (BlastHit,Int) -> Ordering
+compareTaxId :: (J.Hit,Int) -> (J.Hit,Int) -> Ordering
 compareTaxId (_,taxId1) (_,taxId2)
   | taxId1 > taxId2 = LT
   | taxId1 < taxId2 = GT
@@ -1284,11 +1285,11 @@ compareTaxId (_,taxId1) (_,taxId2)
   | taxId1 == taxId2 = EQ
 compareTaxId (_,_)  (_,_) = EQ
 
-sameTaxId :: (BlastHit,Int) -> (BlastHit,Int) -> Bool
+sameTaxId :: (J.Hit,Int) -> (J.Hit,Int) -> Bool
 sameTaxId (_,taxId1) (_,taxId2) = taxId1 == taxId2
 
 -- | NCBI uses the e-Value of the best HSP as the Hits e-Value
-hitEValue :: BlastHit -> Double
+hitEValue :: J.Hit -> Double
 hitEValue hit = minimum (map e_val (matches hit))
 
 convertFastaFoldStockholm :: Fasta -> String -> String
@@ -1350,7 +1351,7 @@ retrieveTaxonomicContextEntrez inputTaxId = do
               then error "Retrieved taxonomic context taxon from NCBI Entrez with empty lineage, cannot proceed."
               else return (Just taxon)
 
-retrieveParentTaxIdEntrez :: [(BlastHit,Int)] -> IO [(BlastHit,Int)]
+retrieveParentTaxIdEntrez :: [(J.Hit,Int)] -> IO [(J.Hit,Int)]
 retrieveParentTaxIdEntrez blastHitsWithHitTaxids =
   if not (null blastHitsWithHitTaxids)
      then do
@@ -1371,20 +1372,20 @@ retrieveParentTaxIdEntrez blastHitsWithHitTaxids =
     else return []
 
 -- | Wrapper functions that ensures that only 20 queries are sent per request
-retrieveParentTaxIdsEntrez :: [(BlastHit,Int)] -> IO [(BlastHit,Int)]
+retrieveParentTaxIdsEntrez :: [(J.Hit,Int)] -> IO [(J.Hit,Int)]
 retrieveParentTaxIdsEntrez taxIdwithBlastHits = do
   let splits = portionListElements taxIdwithBlastHits 20
   taxIdsOutput <- mapM retrieveParentTaxIdEntrez splits
   return (concat taxIdsOutput)
 
 -- | Wrapper functions that ensures that only 20 queries are sent per request
-retrieveBlastHitsTaxIdEntrez :: [BlastHit] -> IO [([BlastHit],String)]
+retrieveBlastHitsTaxIdEntrez :: [J.Hit] -> IO [([J.Hit],String)]
 retrieveBlastHitsTaxIdEntrez blastHits = do
   let splits = portionListElements blastHits 20
   mapM retrieveBlastHitTaxIdEntrez splits
 
 
-retrieveBlastHitTaxIdEntrez :: [BlastHit] -> IO ([BlastHit],String)
+retrieveBlastHitTaxIdEntrez :: [J.Hit] -> IO ([J.Hit],String)
 retrieveBlastHitTaxIdEntrez blastHits =
   if not (null blastHits)
      then do
@@ -1409,12 +1410,12 @@ extractTaxIdFromEntrySummaries input
         hitTaxIdStrings = map extractTaxIdfromDocumentSummary blastHitSummaries
         hitTaxIds = map readInt hitTaxIdStrings
 
-extractAccession :: BlastHit -> T.Text
+extractAccession :: J.Hit -> T.Text
 extractAccession currentBlastHit = accession'
   where splitedFields = T.splitOn (T.pack "|") (DTE.decodeUtf8 (L.toStrict (hitId currentBlastHit)))
         accession' =  splitedFields !! 3
 
-extractGeneId :: BlastHit -> String
+extractGeneId :: J.Hit -> String
 extractGeneId currentBlastHit = nucleotideId
   where truncatedId = drop 3 (L.unpack (hitId currentBlastHit))
         pipeSymbolIndex = fromJust (elemIndex '|' truncatedId)
@@ -1423,13 +1424,13 @@ extractGeneId currentBlastHit = nucleotideId
 extractTaxIdfromDocumentSummary :: EntrezDocSum -> String
 extractTaxIdfromDocumentSummary documentSummary = itemContent (fromJust (find (\item -> "TaxId" == itemName item) (summaryItems documentSummary)))
 
-getBestHit :: BlastResult -> BlastHit
-getBestHit blastResult
-  | null (concatMap hits (results blastResult)) = error "getBestHit - head: empty list"
-  | otherwise = head (hits (head (results blastResult)))
+getBestHit :: J.BlastJSON2 -> J.Hit
+getBestHit blastJS2
+  | null (J.hits (J.search . J.results . J.report . J.blastoutput2 $ blastJS2)) = error "getBestHit - head: empty list"
+  | otherwise = head (J.hits (J.search . J.results . J.report . J.blastoutput2 $ blastJS2))
 
 -- Blast returns low evalues with zero instead of the exact number
-getHitWithFractionEvalue :: BlastResult -> Maybe BlastMatch
+getHitWithFractionEvalue :: J.BlastJSON2 -> Maybe J.Hsp
 getHitWithFractionEvalue blastResult
   | null (concatMap hits (results blastResult)) = Nothing
   | otherwise = find (\match -> e_val match /= (0 ::Double)) (concatMap matches (concatMap hits (results blastResult)))
