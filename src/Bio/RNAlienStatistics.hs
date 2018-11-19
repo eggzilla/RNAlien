@@ -11,8 +11,9 @@ import System.Process
 import qualified Data.ByteString.Lazy.Char8 as L
 import Bio.RNAlienLibrary
 import System.Directory
-import Bio.Core.Sequence
-import Bio.Sequence.Fasta
+import Biobase.Fasta.Types
+import Biobase.Fasta.Streaming
+import Biobase.Fasta.Export
 import Data.List
 import qualified System.FilePath as FP
 import qualified Data.List.Split as DS
@@ -116,17 +117,17 @@ trimCMsearchFastaFile :: String -> String -> String -> CMsearch -> String -> IO 
 trimCMsearchFastaFile genomesDirectory outputFolder modelType cmsearch fastafile  = do
   let fastaInputPath = genomesDirectory ++ "/" ++ fastafile
   let fastaOutputPath = outputFolder ++ "/" ++ modelType ++ "/" ++ fastafile
-  fastaSequences <- readFasta fastaInputPath
+  fastaSequences <- parseFastaFile fastaInputPath
   let trimmedSequence = trimCMsearchSequence cmsearch (head fastaSequences)
-  writeFasta fastaOutputPath [trimmedSequence]
+  writeFastaFile fastaOutputPath [trimmedSequence]
 
-trimCMsearchSequence :: CMsearch -> Sequence -> Sequence
+trimCMsearchSequence :: CMsearch -> Fasta -> Fasta
 trimCMsearchSequence cmSearchResult inputSequence = subSequence
   where hitScoreEntry = head (cmsearchHits cmSearchResult)
-        sequenceString = L.unpack (unSD (seqdata inputSequence))
+        sequenceString = L.unpack (fastaSequence inputSequence)
         sequenceSubstring = cmSearchsubString (hitStart hitScoreEntry) (hitEnd hitScoreEntry) sequenceString
-        newSequenceHeader =  L.pack (L.unpack (unSL (seqheader inputSequence)) ++ "cmS_" ++ show (hitStart hitScoreEntry) ++ "_" ++ show (hitEnd hitScoreEntry) ++ "_" ++ show (hitStrand hitScoreEntry))
-        subSequence = Seq (SeqLabel newSequenceHeader) (SeqData (L.pack sequenceSubstring)) Nothing
+        newSequenceHeader =  L.pack (L.unpack (fastaHeader inputSequence) ++ "cmS_" ++ show (hitStart hitScoreEntry) ++ "_" ++ show (hitEnd hitScoreEntry) ++ "_" ++ show (hitStrand hitScoreEntry))
+        subSequence = Fasta newSequenceHeader (L.pack sequenceSubstring)
 
 --With paralogs allowed
 cmSearchSameHit :: CMsearchHit -> CMsearchHit -> Bool

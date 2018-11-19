@@ -39,6 +39,7 @@ import Data.List
 import Data.Char
 import Biobase.Fasta.Types
 import Biobase.Fasta.Export
+import qualified Biobase.Fasta.Streaming as BFS
 import qualified Biobase.BLAST.Types as J
 import Bio.ClustalParser
 import Data.Int (Int16)
@@ -72,14 +73,12 @@ import qualified Bio.RNAcentralHTTP as RCH
 import Bio.InfernalParser
 import qualified Data.Text as T
 import qualified Data.Text.IO as TI
-import qualified Data.Text.Encoding as DTE
 import qualified Data.Text.Lazy.Encoding as E
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.IO as TIO
 import Text.Printf
 import qualified Data.Text.Metrics as TM
 import Control.Monad
-import Control.Arrow
 import qualified Data.Sequence as DS
 import Data.Foldable
 
@@ -208,7 +207,7 @@ modelConstructionResult staticOptions modelConstruction = do
       logMessage "Message: No sequences found that statisfy filters. Try to reconstruct model with less strict cutoff parameters." outputDirectory
       let alignedSequences = extractAlignedSequences (iterationNumber modelConstruction) modelConstruction
       let alignmentSequences = map snd (V.toList (V.concat [alignedSequences]))
-      writeFasta preliminaryFastaPath alignmentSequences
+      writeFastaFile preliminaryFastaPath alignmentSequences
       let cmBuildFilepath = iterationDirectory ++ "model" ++ ".cmbuild"
       let refinedAlignmentFilepath = iterationDirectory ++ "modelrefined" ++ ".stockholm"
       let cmBuildOptions ="--refine " ++ refinedAlignmentFilepath
@@ -519,7 +518,7 @@ alignCandidatesInfernalMode staticOptions modelConstruction multipleSearchResult
   let cmSearchFastaFilePaths = map (constructFastaFilePaths iterationDirectory) indexedCandidateSequenceList
   let cmSearchFilePaths = map (constructCMsearchFilePaths iterationDirectory) indexedCandidateSequenceList
   let covarianceModelPath = tempDirPath staticOptions ++ show (iterationNumber modelConstruction - 1) ++ "/" ++ "model.cm"
-  mapM_ (\(number,_nucleotideSequence) -> writeFasta (iterationDirectory ++ show number ++ ".fa") [_nucleotideSequence]) indexedCandidateSequenceList
+  mapM_ (\(number,_nucleotideSequence) -> writeFastaFile (iterationDirectory ++ show number ++ ".fa") [_nucleotideSequence]) indexedCandidateSequenceList
   let zippedFastaCMSearchResultPaths = zip cmSearchFastaFilePaths cmSearchFilePaths
   --check with cmSearch
   mapM_ (uncurry (systemCMsearch (cpuThreads staticOptions) ("-Z " ++ show (fromJust blastDbSize)) covarianceModelPath)) zippedFastaCMSearchResultPaths
@@ -545,9 +544,9 @@ alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultP
   --write Fasta sequences
   let inputFastaFilepath = iterationDirectory ++ "input.fa"
   let inputFoldFilepath = iterationDirectory ++ "input.fold"
-  writeFasta (iterationDirectory ++ "input.fa") [inputFasta modelConstruction]
+  writeFastaFile (iterationDirectory ++ "input.fa") [inputFasta modelConstruction]
   logMessage (showlines (V.toList candidateSequences)) (tempDirPath staticOptions)
-  V.mapM_ (\(number,nucleotideSequence') -> writeFasta (iterationDirectory ++ show number ++ ".fa") [nucleotideSequence']) candidateSequences
+  V.mapM_ (\(number,nucleotideSequence') -> writeFastaFile (iterationDirectory ++ show number ++ ".fa") [nucleotideSequence']) candidateSequences
   let candidateFastaFilepath = V.toList (V.map (\(number,_) -> iterationDirectory ++ show number ++ ".fa") candidateSequences)
   let candidateFoldFilepath = V.toList (V.map (\(number,_) -> iterationDirectory ++ show number ++ ".fold") candidateSequences)
   let locarnainClustalw2FormatFilepath =  V.toList (V.map (\(number,_) -> iterationDirectory ++ show number ++ "." ++ "clustalmlocarna") candidateSequences)
@@ -604,7 +603,7 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
       if (querySelectionMethod staticOptions) == "clustering"
         then do
           --write Fasta sequences
-          writeFasta (iterationDirectory ++ "query" ++ ".fa") alignmentSequences
+          writeFastaFile (iterationDirectory ++ "query" ++ ".fa") alignmentSequences
           let fastaFilepath = iterationDirectory ++ "query" ++ ".fa"
           let clustaloFilepath = iterationDirectory ++ "query" ++ ".clustalo"
           let clustaloDistMatrixPath = iterationDirectory ++ "query" ++ ".matrix"
@@ -659,7 +658,7 @@ constructModel modelConstruction staticOptions = do
   let outputDirectory = tempDirPath staticOptions ++ show (iterationNumber modelConstruction - 1) ++ "/"
   let alignmentSequences = map snd (V.toList (V.concat [alignedSequences]))
   --write Fasta sequences
-  writeFasta (outputDirectory ++ "model" ++ ".fa") alignmentSequences
+  writeFastaFile (outputDirectory ++ "model" ++ ".fa") alignmentSequences
   let fastaFilepath = outputDirectory ++ "model" ++ ".fa"
   let locarnaFilepath = outputDirectory ++ "model" ++ ".mlocarna"
   let stockholmFilepath = outputDirectory ++ "model" ++ ".stockholm"
@@ -1149,11 +1148,12 @@ retrieveFullSequence temporaryDirectoryPath (nucleotideId,seqStart,seqStop,stran
                         return [])
   if null result
     then return (Nothing,taxid,subject')
-    else
-      if null ((mkSeqs . L.lines) (L.pack result))
+    else do
+      let parsedFastas = (BFS.parseFasta (L.pack result))
+      if (null parsedFastas)
         then return (Nothing,taxid,subject')
         else do
-          let parsedFasta = head ((mkSeqs . L.lines) (L.pack result))
+          let parsedFasta = head parsedFastas
           if L.null (fastaSequence parsedFasta)
             then return (Nothing,taxid,subject')
             else CE.evaluate (Just parsedFasta,taxid,subject')

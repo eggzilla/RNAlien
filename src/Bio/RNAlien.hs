@@ -8,7 +8,6 @@ module Main where
 
 import System.Console.CmdArgs
 import System.Directory
-import Bio.Sequence.Fasta
 import Bio.RNAlienData
 import Bio.RNAlienLibrary
 import Data.Maybe
@@ -17,6 +16,7 @@ import Data.Time
 import qualified System.FilePath as FP
 import Paths_RNAlien (version)
 import Data.Version (showVersion)
+import Biobase.Fasta.Streaming
 
 data Options = Options
   { inputFastaFilePath :: String,
@@ -91,7 +91,7 @@ main = do
            writeFile (temporaryDirectoryPath ++ "log/warnings") ("")
            logMessage ("Timestamp: " ++ (show timestamp) ++ "\n") temporaryDirectoryPath
            logMessage ("Temporary Directory: " ++ temporaryDirectoryPath ++ "\n") temporaryDirectoryPath
-           inputFasta <- readFasta inputFastaFilePath
+           inputFasta <- parseFastaFile inputFastaFilePath
            if null inputFasta
              then do
                putStrLn "Error: Input fasta file is empty."

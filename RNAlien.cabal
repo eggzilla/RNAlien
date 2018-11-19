@@ -27,14 +27,14 @@ description:         RNAlien is a tool for automatic construction of RNAfamily m
                      .
                      * <https://www.tbi.univie.ac.at/~wash/RNAz/ RNAz>
                      .
-                     * <http://wash.github.io/rnacode/ RNAcode>                        
+                     * <http://wash.github.io/rnacode/ RNAcode>
                      .
                      * <http://www.tbi.univie.ac.at/RNA/index.html#download ViennaRNA package>
                      .
                      Installation via cabal-install:
                      .
                      > cabal install RNAlien
-                     
+
 license:             GPL-3
 license-file:        LICENSE
 author:              Florian Eggenhofer
@@ -52,38 +52,45 @@ source-repository this
   type:     git
   location: https://github.com/eggzilla/RNAlien/tree/1.4.0
   tag:      1.4.0
-                     
+
 executable RNAlien
   Hs-Source-Dirs:      ./src/Bio/
-  main-is:	       RNAlien.hs   
-  ghc-options:         -Wall 
+  main-is:	           RNAlien.hs
+  ghc-options:         -Wall
+  default-language:    Haskell2010
+  other-modules:       Paths_RNAlien
   build-depends:       base >=4.5 && <5, cmdargs, directory, BiobaseFasta>=0.2.0.0, random, containers, RNAlien, time, either-unwrap, filepath
 
 executable RNAlienStatistics
   Hs-Source-Dirs:      ./src/Bio/
   main-is:             RNAlienStatistics.hs
-  ghc-options:         -Wall 
+  ghc-options:         -Wall
+  default-language:    Haskell2010
+  other-modules:       Paths_RNAlien
   build-depends:       base >=4.5 && <5, cmdargs, cassava, vector, process, bytestring, either-unwrap, RNAlien, directory, BiobaseFasta >=0.2.0.0, split, filepath, ViennaRNAParser>=1.3.2
 
 executable cmsearchToBed
   Hs-Source-Dirs:      ./src/Bio/
   main-is:             cmsearchToBED.hs
-  ghc-options:         -Wall 
+  ghc-options:         -Wall
+  default-language:    Haskell2010
+  other-modules:       Paths_RNAlien
   build-depends:       base >=4.5 && <5, cmdargs, either-unwrap, RNAlien, bytestring, text
 
 executable RNAcentralHTTPRequest
   Hs-Source-Dirs:      ./src/Bio/
   main-is:             RNAcentralHTTPRequest.hs
-  ghc-options:         -Wall 
+  ghc-options:         -Wall
+  default-language:    Haskell2010
+  other-modules:       Paths_RNAlien
   build-depends:       base >=4.5 && <5, cmdargs, either-unwrap, RNAlien
-  
+
 Library
   Hs-Source-Dirs:      ./src/
   ghc-options:         -Wall -fno-warn-unused-do-bind
+  default-language:    Haskell2010
   build-depends:       base >=4.5 && <5, cmdargs, ViennaRNAParser>=1.3.2, process, directory, BiobaseFasta>=0.2.0.0, BiobaseBlast>=0.3.0.0, parsec, random, BlastHTTP>=1.3.0, bytestring, Taxonomy >= 1.0.3, either-unwrap, containers, ClustalParser>=1.2.1, EntrezHTTP>=1.1.0, vector, edit-distance, cassava, matrix, hierarchical-clustering, filepath, HTTP, http-conduit, hxt, network, aeson, text, transformers, pureMD5, http-types, text-metrics
   Exposed-Modules:     Bio.RNAlienData
                        Bio.RNAlienLibrary
                        Bio.RNAcentralHTTP
                        Bio.InfernalParser
-
-

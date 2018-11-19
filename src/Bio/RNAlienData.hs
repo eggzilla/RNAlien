@@ -4,7 +4,7 @@ module Bio.RNAlienData where
 
 import qualified Data.ByteString.Lazy.Char8 as L
 import Biobase.Fasta.Types
-import Biobase.Fasta.Export
+import Biobase.Fasta.Export()
 import Bio.Taxonomy
 
 -- | Static construction options
@@ -25,7 +25,7 @@ data StaticOptions = StaticOptions
     verbositySwitch :: Bool
   } deriving (Show)
 
--- | Keeps track of model construction 
+-- | Keeps track of model construction
 data ModelConstruction = ModelConstruction
   { iterationNumber :: Int,
     inputFasta :: Fasta,
@@ -73,17 +73,17 @@ instance Show SequenceRecord where
     where a = "Record Description: " ++ L.unpack _recordDescription ++ "\n"
           b = "Aligned in iteration: " ++ show _aligned ++ "\n"
           c = "Sequence:" ++ show _nucleotideSequence ++ "\n"
--- |  
+-- |
 data CMsearch = CMsearch
   { queryCMfile :: String,
     targetSequenceDatabase :: String,
     numberOfWorkerThreads :: String,
     cmsearchHits :: [CMsearchHit]
 --    hitAlignments :: [CMsearchHitAlignment]
---    internalCMPipelineStatisticsSummary                 
+--    internalCMPipelineStatisticsSummary
   } deriving (Show, Eq, Read)
 
--- |  
+-- |
 data CMsearchHit = CMsearchHit
   { hitRank :: Int,
     hitSignificance :: Char,
@@ -110,7 +110,7 @@ instance Show SearchResult where
     where a = "SearchResults :\n " ++ concatMap show _candidates ++ "\n"
           b = "BlastDb Size: " ++ show _blastDatabaseSize ++ "\n"
 
--- |  
+-- |
 data CMstat = CMstat
   { statIndex :: Int,
     statName :: String,
@@ -141,4 +141,3 @@ instance Show CMstat where
           j = "Modeltype: " ++ show _statModel ++ "\n"
           k = "Relative Entropy CM: " ++ show _relativeEntropyCM ++ "\n"
           l = "Relative Entropy HMM: " ++ show _relativeEntropyHMM ++ "\n"
-
