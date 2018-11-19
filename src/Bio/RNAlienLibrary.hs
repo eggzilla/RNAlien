@@ -448,11 +448,11 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_3ablastHitsFilteredByLength") (showlines blastHitsFilteredByCoverage)
        --tag BlastHits with TaxId
        --blastHitsWithTaxIdOutput <- retrieveBlastHitsTaxIdEntrez blastHitsFilteredByCoverage
-       let blastHitsWithTaxIdOutput = extractBlastHitsTaxId blastHitsFilteredByCoverage
+       let blastHitsWithTaxId = extractBlastHitsTaxId blastHitsFilteredByCoverage
        --let uncheckedBlastHitsWithTaxIdList = map (Control.Arrow.second extractTaxIdFromEntrySummaries) blastHitsWithTaxIdOutput
        --let checkedBlastHitsWithTaxId = filter (\(_,taxids) -> not (null taxids)) uncheckedBlastHitsWithTaxIdList
        --todo checked blasthittaxidswithblasthits need to be merged as taxid blasthit pairs
-       let blastHitsWithTaxId = zip (concatMap fst checkedBlastHitsWithTaxId) (concatMap snd checkedBlastHitsWithTaxId)
+       --let blastHitsWithTaxId = zip (concatMap fst checkedBlastHitsWithTaxId) (concatMap snd checkedBlastHitsWithTaxId)
        blastHitsWithParentTaxIdOutput <- retrieveParentTaxIdsEntrez blastHitsWithTaxId
        --let blastHitsWithParentTaxId = concat blastHitsWithParentTaxIdOutput
        -- filter by ParentTaxId (only one hit per TaxId)
@@ -839,7 +839,7 @@ blastMatchesPresent :: J.BlastJSON2 -> Bool
 blastMatchesPresent blastJS2
   | null resultList = False
   | otherwise = True
-  where resultList = concatMap J.hsps (concatMap J.hits (J.search . J.results . J.report . J.blastoutput2 $ blastJS2))
+  where resultList = concatMap J.hsps ((Data.Foldable.toList . J.hits . J.search . J.results . J.report . J.blastoutput2 $ blastJS2))
 
 -- | Compute identity of sequences
 textIdentity :: T.Text -> T.Text -> Double
@@ -938,6 +938,7 @@ trimCMsearchHit cmSearchResult (inputSequence,b,c) = (subSequence,b,c)
         sequenceString = L.unpack (fastaSequence inputSequence)
         sequenceSubstring = cmSearchsubString (hitStart hitScoreEntry) (hitEnd hitScoreEntry) sequenceString
         --extend original seqheader
+        newSequenceHeader = L.pack (L.unpack (fastaHeader inputSequence) ++ "cmS_" ++ show (hitStart hitScoreEntry) ++ "_" ++ show (hitEnd hitScoreEntry) ++ "_" ++ show (hitStrand hitScoreEntry))
         subSequence = Fasta newSequenceHeader (L.pack sequenceSubstring)
 
 -- | Extract a substring with coordinates from cmsearch, first nucleotide has index 1
@@ -1171,8 +1172,8 @@ blastHitIsReverseComplement (blastHit,_) = isReverse
 
 getForwardRequestedSequenceElement :: Int -> (J.Hit,Int) -> (String,Int,Int,String,T.Text,Int,L.ByteString)
 getForwardRequestedSequenceElement queryLength (blastHit,taxid) = (geneIdentifier',startcoordinate,endcoordinate,strand,accession',taxid,subjectBlast)
-   where    accession' = extractAccession blastHit
-            subjectBlast = unSL (subject blastHit)
+   where    accession' = J.accession . head . J.description $ blastHit
+            subjectBlast = E.encodeUtf8 . TL.fromStrict . J.title . head . J.description $ blastHit
             geneIdentifier' = extractGeneId blastHit
             blastMatch = head (J.hsps blastHit)
             blastHitOriginSequenceLength = J.len blastHit
@@ -1214,11 +1215,11 @@ upperBoundryCoordinateSetter upperBoundry currentValue
 
 getReverseRequestedSequenceElement :: Int -> (J.Hit,Int) -> (String,Int,Int,String,T.Text,Int,L.ByteString)
 getReverseRequestedSequenceElement queryLength (blastHit,taxid) = (geneIdentifier',startcoordinate,endcoordinate,strand,accession',taxid,subjectBlast)
-   where   accession' = extractAccession blastHit
-           subjectBlast = unSL (subject blastHit)
+   where   accession' = J.accession . head . J.description $ blastHit
+           subjectBlast = E.encodeUtf8 . TL.fromStrict . J.title . head . J.description $ blastHit
            geneIdentifier' = extractGeneId blastHit
            blastMatch = head (J.hsps blastHit)
-           blastHitOriginSequenceLength = slength blastHit
+           blastHitOriginSequenceLength = J.len blastHit
            maxHfrom = J.hit_from blastMatch
            minHto = J.hit_to blastMatch
            minHonQuery = J.query_from blastMatch
@@ -1381,9 +1382,9 @@ retrieveParentTaxIdsEntrez taxIdwithBlastHits = do
   return (concat taxIdsOutput)
 
 -- | Extract taxids from JSON2 blasthit
-extractBlastHitsTaxId :: DS.Seq J.Hit -> [([J.Hit],String)]
+extractBlastHitsTaxId :: DS.Seq J.Hit -> [(J.Hit,Int)]
 extractBlastHitsTaxId blastHits = do
-  map (\a -> (a,J.taxid . J.description $ a)) blastHits
+  map (\a -> (a,J.taxid . head . J.description $ a)) (Data.Foldable.toList blastHits)
 
 
 -- | Wrapper functions that ensures that only 20 queries are sent per request
@@ -1420,12 +1421,12 @@ extractTaxIdFromEntrySummaries input
 
 extractAccession :: J.Hit -> T.Text
 extractAccession currentBlastHit = accession'
-  where splitedFields = T.splitOn (T.pack "|") (DTE.decodeUtf8 (L.toStrict (J.id . J.description currentBlastHit)))
+  where splitedFields = T.splitOn (T.pack "|") (J.id . head . J.description $ currentBlastHit)
         accession' =  splitedFields !! 3
 
 extractGeneId :: J.Hit -> String
 extractGeneId currentBlastHit = nucleotideId
-  where truncatedId = drop 3 (L.unpack (J.id . J.description currentBlastHit))
+  where truncatedId = drop 3 (T.unpack (J.id (head (J.description currentBlastHit))))
         pipeSymbolIndex = fromJust (elemIndex '|' truncatedId)
         nucleotideId = take pipeSymbolIndex truncatedId
 
@@ -1435,7 +1436,7 @@ extractTaxIdfromDocumentSummary documentSummary = itemContent (fromJust (find (\
 getBestHit :: J.BlastJSON2 -> J.Hit
 getBestHit blastJS2
   | null (J.hits (J.search . J.results . J.report . J.blastoutput2 $ blastJS2)) = error "getBestHit - head: empty list"
-  | otherwise = head (J.hits (J.search . J.results . J.report . J.blastoutput2 $ blastJS2))
+  | otherwise = DS.index (J.hits (J.search . J.results . J.report . J.blastoutput2 $ blastJS2)) 1
 
 -- Blast returns low evalues with zero instead of the exact number
 getHitWithFractionEvalue :: J.BlastJSON2 -> Maybe J.Hsp
