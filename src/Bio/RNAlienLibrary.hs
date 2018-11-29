@@ -410,7 +410,7 @@ findTaxonomyStart inputBlastDatabase temporaryDirectory querySequence = do
 searchCandidates :: StaticOptions -> Maybe String -> Int ->  Maybe Int -> Maybe Int -> Double -> [Fasta] -> IO SearchResult
 searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimit lowerTaxLimit expectThreshold inputQuerySequences = do
   Control.Monad.when (null inputQuerySequences) $ error "searchCandidates: - head: empty list of query sequences"
-  let queryLength = fromIntegral (L.length (fastaHeader (head inputQuerySequences)))
+  let queryLength = fromIntegral (L.length (fastaSequence (head inputQuerySequences)))
   let queryIndexString = "1"
   let entrezTaxFilter = buildTaxFilterQuery upperTaxLimit lowerTaxLimit
   logVerboseMessage (verbositySwitch staticOptions) ("entrezTaxFilter" ++ show entrezTaxFilter ++ "\n") (tempDirPath staticOptions)
