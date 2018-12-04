@@ -49,7 +49,7 @@ import qualified Data.ByteString.Char8 as B
 import Bio.Taxonomy
 import Data.Either.Unwrap
 import Data.Maybe
-import Bio.EntrezHTTP
+import Biobase.Entrez.HTTP
 import System.Exit
 import Data.Either (lefts,rights,Either)
 import qualified Text.EditDistance as ED
@@ -438,7 +438,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
        -- if (null taxIdFromEntrySummaries) then (error "searchCandidates: - head: empty list of taxonomy entry summary for best hit")  else return ()
        -- let rightBestTaxIdResult = head taxIdFromEntrySummaries
        -- logVerboseMessage (verbositySwitch staticOptions) ("rightbestTaxIdResult: " ++ (show rightBestTaxIdResult) ++ "\n") (tempDirPath staticOptions)
-       let blastHits = J.hits (J.search . J.results . J.report . J.blastoutput2 $ rightBlast)
+       let blastHits = J._hits (J._search . J._results . J._report . J._blastoutput2 $ rightBlast)
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_2blastHits") (showlines blastHits)
        --filter by length
        let blastHitsFilteredByLength = filterByHitLength blastHits queryLength (lengthFilterToggle staticOptions)
@@ -463,7 +463,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
        --let (_, filteredBlastResults) = filterByNeighborhoodTreeConditional alignndmentModeInfernalToggle upperTaxLimit blastHitsWithTaxId (inputTaxNodes staticOptions) (fromJust upperTaxLimit) (singleHitperTaxToggle staticOptions)
        --writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_5filteredBlastResults") (showlines filteredBlastResults)
        -- Coordinate generation
-       let nonEmptyfilteredBlastResults = filter (\(blasthit,_) -> not (null (J.hsps blasthit))) blastHitsFilteredByParentTaxIdWithParentTaxId
+       let nonEmptyfilteredBlastResults = filter (\(blasthit,_) -> not (null (J._hsps blasthit))) blastHitsFilteredByParentTaxIdWithParentTaxId
        let requestedSequenceElements = map (getRequestedSequenceElement queryLength) nonEmptyfilteredBlastResults
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++  "_6requestedSequenceElements") (showlines requestedSequenceElements)
        -- Retrieval of full sequences from entrez
@@ -483,7 +483,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
              then CE.evaluate (SearchResult [] Nothing)
              else do
                let fractionEvalueMatch = fromJust maybeFractionEvalueMatch
-               let dbSize = computeDataBaseSize (J.evalue fractionEvalueMatch) (J.bit_score fractionEvalueMatch) (fromIntegral queryLength ::Double)
+               let dbSize = computeDataBaseSize (J._evalue fractionEvalueMatch) (J._bit_score fractionEvalueMatch) (fromIntegral queryLength ::Double)
                CE.evaluate (SearchResult fullSequences (Just dbSize))
      else CE.evaluate (SearchResult [] Nothing)
 
@@ -838,7 +838,7 @@ blastMatchesPresent :: J.BlastJSON2 -> Bool
 blastMatchesPresent blastJS2
   | null resultList = False
   | otherwise = True
-  where resultList = concatMap J.hsps ((Data.Foldable.toList . J.hits . J.search . J.results . J.report . J.blastoutput2 $ blastJS2))
+  where resultList = concatMap J._hsps ((Data.Foldable.toList . J._hits . J._search . J._results . J._report . J._blastoutput2 $ blastJS2))
 
 -- | Compute identity of sequences
 textIdentity :: T.Text -> T.Text -> Double
@@ -1093,13 +1093,13 @@ filterByHitLength blastHits queryLength filterOn
 -- | Hits should have a compareable length to query
 hitLengthCheck :: Int -> J.Hit -> Bool
 hitLengthCheck queryLength blastHit = lengthStatus
-  where  hsps = J.hsps blastHit
-         minHfrom = minimum (map J.hit_from hsps)
-         minHfromHSP = fromJust (find (\hsp -> minHfrom == J.hit_from hsp) hsps)
-         maxHto = maximum (map J.hit_to hsps)
-         maxHtoHSP = fromJust (find (\hsp -> maxHto == J.hit_to hsp) hsps)
-         minHonQuery = J.query_from minHfromHSP
-         maxHonQuery = J.query_to maxHtoHSP
+  where  hsps = J._hsps blastHit
+         minHfrom = minimum (map J._hit_from hsps)
+         minHfromHSP = fromJust (find (\hsp -> minHfrom == J._hit_from hsp) hsps)
+         maxHto = maximum (map J._hit_to hsps)
+         maxHtoHSP = fromJust (find (\hsp -> maxHto == J._hit_to hsp) hsps)
+         minHonQuery = J._query_from minHfromHSP
+         maxHonQuery = J._query_to maxHtoHSP
          startCoordinate = minHfrom - minHonQuery
          endCoordinate = maxHto + (queryLength - maxHonQuery)
          fullSeqLength = endCoordinate - startCoordinate
@@ -1114,8 +1114,8 @@ filterByCoverage blastHits queryLength filterOn
 -- | Hits should have a compareable length to query
 coverageCheck :: Int -> J.Hit -> Bool
 coverageCheck queryLength hit = coverageStatus
-  where  hsps = J.hsps hit
-         maxIdentity = fromIntegral (maximum (map J.identity hsps))
+  where  hsps = J._hsps hit
+         maxIdentity = fromIntegral (maximum (map J._identity hsps))
          coverageStatus = (maxIdentity/fromIntegral queryLength)* (100 :: Double) >= (80 :: Double)
 
 -- | Wrapper for retrieveFullSequence that rerequests incomplete return sequees
@@ -1165,22 +1165,22 @@ getRequestedSequenceElement queryLength (blastHit,taxid)
 
 blastHitIsReverseComplement :: (J.Hit,Int) -> Bool
 blastHitIsReverseComplement (blastHit,_) = isReverse
-  where blastMatch = head (J.hsps blastHit)
-        firstHSPfrom = J.hit_from blastMatch
-        firstHSPto = J.hit_to blastMatch
+  where blastMatch = head (J._hsps blastHit)
+        firstHSPfrom = J._hit_from blastMatch
+        firstHSPto = J._hit_to blastMatch
         isReverse = firstHSPfrom > firstHSPto
 
 getForwardRequestedSequenceElement :: Int -> (J.Hit,Int) -> (String,Int,Int,String,T.Text,Int,L.ByteString)
 getForwardRequestedSequenceElement queryLength (blastHit,taxid) = (geneIdentifier',startcoordinate,endcoordinate,strand,accession',taxid,subjectBlast)
-   where    accession' = J.accession . head . J.description $ blastHit
-            subjectBlast = E.encodeUtf8 . TL.fromStrict . J.title . head . J.description $ blastHit
+   where    accession' = J._accession . head . J._description $ blastHit
+            subjectBlast = E.encodeUtf8 . TL.fromStrict . J._title . head . J._description $ blastHit
             geneIdentifier' = extractGeneId blastHit
-            blastMatch = head (J.hsps blastHit)
-            blastHitOriginSequenceLength = J.len blastHit
-            minHfrom = J.hit_from blastMatch
-            maxHto = J.hit_to blastMatch
-            minHonQuery = J.query_from blastMatch
-            maxHonQuery = J.query_to blastMatch
+            blastMatch = head (J._hsps blastHit)
+            blastHitOriginSequenceLength = J._len blastHit
+            minHfrom = J._hit_from blastMatch
+            maxHto = J._hit_to blastMatch
+            minHonQuery = J._query_from blastMatch
+            maxHonQuery = J._query_to blastMatch
             --unsafe coordinates may exceed length of available sequence
             unsafestartcoordinate = minHfrom - minHonQuery
             unsafeendcoordinate = maxHto + (queryLength - maxHonQuery)
@@ -1215,15 +1215,15 @@ upperBoundryCoordinateSetter upperBoundry currentValue
 
 getReverseRequestedSequenceElement :: Int -> (J.Hit,Int) -> (String,Int,Int,String,T.Text,Int,L.ByteString)
 getReverseRequestedSequenceElement queryLength (blastHit,taxid) = (geneIdentifier',startcoordinate,endcoordinate,strand,accession',taxid,subjectBlast)
-   where   accession' = J.accession . head . J.description $ blastHit
-           subjectBlast = E.encodeUtf8 . TL.fromStrict . J.title . head . J.description $ blastHit
+   where   accession' = J._accession . head . J._description $ blastHit
+           subjectBlast = E.encodeUtf8 . TL.fromStrict . J._title . head . J._description $ blastHit
            geneIdentifier' = extractGeneId blastHit
-           blastMatch = head (J.hsps blastHit)
-           blastHitOriginSequenceLength = J.len blastHit
-           maxHfrom = J.hit_from blastMatch
-           minHto = J.hit_to blastMatch
-           minHonQuery = J.query_from blastMatch
-           maxHonQuery = J.query_to blastMatch
+           blastMatch = head (J._hsps blastHit)
+           blastHitOriginSequenceLength = J._len blastHit
+           maxHfrom = J._hit_from blastMatch
+           minHto = J._hit_to blastMatch
+           minHonQuery = J._query_from blastMatch
+           maxHonQuery = J._query_to blastMatch
            --unsafe coordinates may exceed length of avialable sequence
            unsafestartcoordinate = maxHfrom + minHonQuery
            unsafeendcoordinate = minHto - (queryLength - maxHonQuery)
@@ -1293,7 +1293,7 @@ sameTaxId (_,taxId1) (_,taxId2) = taxId1 == taxId2
 
 -- | NCBI uses the e-Value of the best HSP as the Hits e-Value
 hitEValue :: J.Hit -> Double
-hitEValue currentHit = minimum (map J.evalue (J.hsps currentHit))
+hitEValue currentHit = minimum (map J._evalue (J._hsps currentHit))
 
 convertFastaFoldStockholm :: Fasta -> String -> String
 convertFastaFoldStockholm fastasequence foldedStructure = stockholmOutput
@@ -1384,7 +1384,7 @@ retrieveParentTaxIdsEntrez taxIdwithBlastHits = do
 -- | Extract taxids from JSON2 blasthit
 extractBlastHitsTaxId :: DS.Seq J.Hit -> [(J.Hit,Int)]
 extractBlastHitsTaxId blastHits = do
-  map (\a -> (a,J.taxid . head . J.description $ a)) (Data.Foldable.toList blastHits)
+  map (\a -> (a,J._taxid . head . J._description $ a)) (Data.Foldable.toList blastHits)
 
 
 -- | Wrapper functions that ensures that only 20 queries are sent per request
@@ -1421,12 +1421,12 @@ extractTaxIdFromEntrySummaries input
 
 extractAccession :: J.Hit -> T.Text
 extractAccession currentBlastHit = accession'
-  where splitedFields = T.splitOn (T.pack "|") (J.id . head . J.description $ currentBlastHit)
+  where splitedFields = T.splitOn (T.pack "|") (J._id . head . J._description $ currentBlastHit)
         accession' =  splitedFields !! 3
 
 extractGeneId :: J.Hit -> String
 extractGeneId currentBlastHit = nucleotideId
-  where truncatedId = drop 3 (T.unpack (J.id (head (J.description currentBlastHit))))
+  where truncatedId = drop 3 (T.unpack (J._id (head (J._description currentBlastHit))))
         pipeSymbolIndex = fromJust (elemIndex '|' truncatedId)
         nucleotideId = take pipeSymbolIndex truncatedId
 
@@ -1435,15 +1435,15 @@ extractTaxIdfromDocumentSummary documentSummary = itemContent (fromJust (find (\
 
 getBestHit :: J.BlastJSON2 -> J.Hit
 getBestHit blastJS2
-  | null (J.hits (J.search . J.results . J.report . J.blastoutput2 $ blastJS2)) = error "getBestHit - head: empty list"
-  | otherwise = DS.index (J.hits (J.search . J.results . J.report . J.blastoutput2 $ blastJS2)) 1
+  | null (J._hits (J._search . J._results . J._report . J._blastoutput2 $ blastJS2)) = error "getBestHit - head: empty list"
+  | otherwise = DS.index (J._hits (J._search . J._results . J._report . J._blastoutput2 $ blastJS2)) 1
 
 -- Blast returns low evalues with zero instead of the exact number
 getHitWithFractionEvalue :: J.BlastJSON2 -> Maybe J.Hsp
 getHitWithFractionEvalue blastJS2
   | null currentHits = Nothing
-  | otherwise = find (\hsp -> J.evalue hsp /= (0 ::Double)) (concatMap J.hsps currentHits)
-  where currentHits = J.hits . J.search . J.results . J.report . J.blastoutput2 $ blastJS2
+  | otherwise = find (\hsp -> J._evalue hsp /= (0 ::Double)) (concatMap J._hsps currentHits)
+  where currentHits = J._hits . J._search . J._results . J._report . J._blastoutput2 $ blastJS2
 
 showlines :: (Show a, Foldable t) => t a -> String
 showlines = concatMap (\x -> show x ++ "\n")
