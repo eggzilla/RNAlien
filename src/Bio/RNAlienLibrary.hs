@@ -544,7 +544,7 @@ alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultP
   --write Fasta sequences
   let inputFastaFilepath = iterationDirectory ++ "input.fa"
   let inputFoldFilepath = iterationDirectory ++ "input.fold"
-  writeFastaFile (iterationDirectory ++ "input.fa") [inputFasta modelConstruction]
+  writeFastaFile (iterationDirectory ++ "input.fa") [(head (inputFasta modelConstruction))]
   logMessage (showlines (V.toList candidateSequences)) (tempDirPath staticOptions)
   V.mapM_ (\(number,nucleotideSequence') -> writeFastaFile (iterationDirectory ++ show number ++ ".fa") [nucleotideSequence']) candidateSequences
   let candidateFastaFilepath = V.toList (V.map (\(number,_) -> iterationDirectory ++ show number ++ ".fa") candidateSequences)
@@ -554,7 +554,7 @@ alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultP
   let locarnaFilepath = V.toList (V.map (\(number,_) -> iterationDirectory ++ show number ++ "." ++ "mlocarna") candidateSequences)
   alignSequences "locarna" " --write-structure --free-endgaps=++-- " (replicate (V.length candidateSequences) inputFastaFilepath) candidateFastaFilepath locarnainClustalw2FormatFilepath locarnaFilepath
   --compute SequenceIdentities
-  let sequenceIdentities = V.map (\(_,s) -> sequenceIdentity (inputFasta modelConstruction) s/(100 :: Double)) candidateSequences
+  let sequenceIdentities = V.map (\(_,s) -> sequenceIdentity (head (inputFasta modelConstruction)) s/(100 :: Double)) candidateSequences
   --compute SCI
   systemRNAfold inputFastaFilepath inputFoldFilepath
   inputfoldResult <- readRNAfold inputFoldFilepath
@@ -952,7 +952,7 @@ cmSearchsubString startSubString endSubString inputString
 
 extractQueries :: Int -> ModelConstruction -> [Fasta]
 extractQueries foundSequenceNumber modelconstruction
-  | foundSequenceNumber < 3 = [fastaSeqData]
+  | foundSequenceNumber < 3 = fastaSeqData
   | otherwise = querySequences'
   where fastaSeqData = inputFasta modelconstruction
         querySequences' = selectedQueries modelconstruction
@@ -1068,13 +1068,13 @@ extractCandidateSequences candidates' = indexedSeqences
 
 extractAlignedSequences :: Int -> ModelConstruction ->  V.Vector (Int,Fasta)
 extractAlignedSequences iterationnumber modelconstruction
-  | iterationnumber == 0 =  V.map (\(number,seq') -> (number + 1,seq')) (V.indexed (V.fromList [inputSequence]))
+  | iterationnumber == 0 =  V.map (\(number,seq') -> (number + 1,seq')) (V.indexed (V.fromList inputSequence))
   | otherwise = indexedSeqRecords
   where inputSequence = inputFasta modelconstruction
         seqRecordsperTaxrecord = map sequenceRecords (taxRecords modelconstruction)
         seqRecords = concat seqRecordsperTaxrecord
         --alignedSeqRecords = filter (\seqRec -> (aligned seqRec) > 0) seqRecords
-        indexedSeqRecords = V.map (\(number,seq') -> (number + 1,seq')) (V.indexed (V.fromList (inputSequence : map nucleotideSequence seqRecords)))
+        indexedSeqRecords = V.map (\(number,seq') -> (number + 1,seq')) (V.indexed (V.fromList (inputSequence ++ map nucleotideSequence seqRecords)))
 
 filterByParentTaxId :: [(J.Hit,Int)] -> Bool -> [(J.Hit,Int)]
 filterByParentTaxId blastHitsWithParentTaxId singleHitPerParentTaxId
@@ -1539,7 +1539,7 @@ evaluateConstructionResult staticOptions mCResult = do
   createDirectoryIfMissing False evaluationDirectoryFilepath
   let reformatedClustalPath = evaluationDirectoryFilepath ++ "result.clustal.reformated"
   let cmFilepath = tempDirPath staticOptions ++ "result.cm"
-  let resultSequences = inputFasta mCResult:map nucleotideSequence (concatMap sequenceRecords (taxRecords mCResult))
+  let resultSequences = inputFasta mCResult ++ map nucleotideSequence (concatMap sequenceRecords (taxRecords mCResult))
   let resultNumber = length resultSequences
   let rnaCentralQueries = map RCH.buildSequenceViaMD5Query resultSequences
   rnaCentralEntries <- RCH.getRNACentralEntries rnaCentralQueries

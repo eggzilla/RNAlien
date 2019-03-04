@@ -4,7 +4,7 @@ module Bio.RNAlienData where
 
 import qualified Data.ByteString.Lazy.Char8 as L
 import Biobase.Fasta.Types
-import Biobase.Fasta.Export()
+import Biobase.Fasta.Export(prettyPrintFasta)
 import Bio.Taxonomy
 
 -- | Static construction options
@@ -28,7 +28,7 @@ data StaticOptions = StaticOptions
 -- | Keeps track of model construction
 data ModelConstruction = ModelConstruction
   { iterationNumber :: Int,
-    inputFasta :: Fasta,
+    inputFasta :: [Fasta],
     taxRecords :: [TaxonomyRecord],
     --Taxonomy ID of the highest node in taxonomic subtree used in search
     upperTaxonomyLimit :: Maybe Int,
@@ -42,7 +42,7 @@ data ModelConstruction = ModelConstruction
 instance Show ModelConstruction where
   show (ModelConstruction _iterationNumber _inputFasta _taxRecords _upperTaxonomyLimit _taxonomicContext _evalueThreshold _alignmentModeInfernal _selectedQueries _potentialMembers) = a ++ b ++ c ++ d ++ e ++ g ++ h ++ i
     where a = "Modelconstruction iteration: " ++ show _iterationNumber ++ "\n"
-          b = "Input fasta:\n" ++ L.unpack (fastaHeader _inputFasta)  ++ "\n" ++ L.unpack (fastaSequence _inputFasta) ++ "\n"
+          b = "Input fasta:\n" ++ concatMap (prettyPrintFasta 80) _inputFasta  -- L.unpack (fastaHeader _inputFasta)  ++ "\n" ++ L.unpack (fastaSequence _inputFasta) ++ "\n"
           c = show _taxRecords
           d = "Upper taxonomy limit: " ++ maybe "not set" show _upperTaxonomyLimit ++ "\n"
           e = "Taxonomic Context: " ++  maybe "not set" show _taxonomicContext ++ "\n"

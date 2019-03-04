@@ -109,7 +109,7 @@ main = do
                    initialTaxId <- setInitialTaxId inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
                    let checkedTaxonomyRestriction = checkTaxonomyRestriction taxonomyRestriction
                    let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) inputTaxId singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads inputBlastDatabase checkedTaxonomyRestriction (setVerbose verboseLevel)
-                   let initialization = ModelConstruction iterationNumber inputSequence [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] []
+                   let initialization = ModelConstruction iterationNumber inputFasta [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] []
                    logMessage (show initialization) temporaryDirectoryPath
                    modelConstructionResults <- modelConstructer staticOptions initialization
                    let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults
