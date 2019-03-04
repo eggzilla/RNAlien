@@ -1,4 +1,6 @@
 -*-change-log-*-
+1.5.0 Florian Eggenhofer <egg@cd.uni-freiburg.de> 4. March 2019
+	* Enabled initatzalization from multi-line fasta
 1.4.0 Florian Eggenhofer <egg@cs.uni-freiburg.de> 9. December 2018
 	* Switched to Biobase libraries
 	* RNAlien is now using json based blast requests
