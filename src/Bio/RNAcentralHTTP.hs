@@ -15,6 +15,7 @@ module Bio.RNAcentralHTTP (rnaCentralHTTP,
 
 import Network.HTTP.Conduit
 import qualified Data.ByteString.Lazy.Char8 as L8
+import qualified Data.ByteString.Char8 as BS8
 import Network.Socket
 import Control.Concurrent
 import Data.Text
@@ -22,7 +23,8 @@ import Data.Aeson
 import GHC.Generics
 import qualified Data.Digest.Pure.MD5 as M
 import Data.Either
-import Biobase.Fasta.Types
+import Biobase.Fasta.Strict
+import Biobase.Types.BioSequence
 
 --Datatypes
 -- | Data structure for RNAcentral entry response
@@ -91,10 +93,17 @@ getRNACentralEntries :: [String] -> IO [Either String RNAcentralEntryResponse]
 getRNACentralEntries queries = do
   mapM delayedRNACentralHTTP queries
 
---Build a query from a input sequence
-buildSequenceViaMD5Query :: Fasta -> String
+-- | Build a query from a input sequence
+--
+-- TODO [chzs] consider using strict bytestring as long as possible.
+--
+-- TODO [chzs] consider giving useful typelevel names to the types in @Fasta@.
+-- One may give a type-level name to the sequence identifier, and an identifier
+-- (like @DNA@) to the biosequence type.
+
+buildSequenceViaMD5Query :: Fasta () () -> String
 buildSequenceViaMD5Query s = qString
-  where querySequence = fastaSequence s
+  where querySequence = L8.fromStrict . _bioSequence $ _fasta s
         querySequenceUreplacedwithT = L8.map bsreplaceUT querySequence
         querySequenceU2Twolb = L8.filter ((/= '\n')) querySequenceUreplacedwithT
         md5Sequence = M.md5 querySequenceU2Twolb
