@@ -37,8 +37,8 @@ import qualified System.FilePath as FP
 import Text.ParserCombinators.Parsec
 import Data.List
 import Data.Char
-import Biobase.Fasta.Types
-import Biobase.Fasta.Export
+import Biobase.Fasta.Strict
+--import Biobase.Fasta.Export
 import qualified Biobase.Fasta.Streaming as BFS
 import qualified Biobase.BLAST.Types as J
 import Bio.ClustalParser
