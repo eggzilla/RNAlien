@@ -39,7 +39,7 @@ import Data.List
 import Data.Char
 import Biobase.Fasta.Strict
 --import Biobase.Fasta.Export
-import qualified Biobase.Fasta.Streaming as BFS
+--import qualified Biobase.Fasta.Streaming as BFS
 import qualified Biobase.BLAST.Types as J
 import Bio.ClustalParser
 import Data.Int (Int16)
@@ -1149,7 +1149,8 @@ retrieveFullSequence temporaryDirectoryPath (nucleotideId,seqStart,seqStop,stran
   if null result
     then return (Nothing,taxid,subject')
     else do
-      let parsedFastas = (BFS.parseFasta (L.pack result))
+      --let parsedFastas = (BFS.parseFasta (L.pack result))
+      let parsedFastas = byteStringToFasta (L.pack result)
       if (null parsedFastas)
         then return (Nothing,taxid,subject')
         else do
