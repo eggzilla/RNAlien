@@ -1150,7 +1150,7 @@ retrieveFullSequence temporaryDirectoryPath (nucleotideId,seqStart,seqStop,stran
     then return (Nothing,taxid,subject')
     else do
       --let parsedFastas = (BFS.parseFasta (L.pack result))
-      let parsedFastas = byteStringToFasta (L.pack result)
+      let parsedFastas = bytestringToMultiFasta (L.pack result)
       if (null parsedFastas)
         then return (Nothing,taxid,subject')
         else do
