@@ -30,14 +30,14 @@ data StaticOptions = StaticOptions
 -- | Keeps track of model construction
 data ModelConstruction = ModelConstruction
   { iterationNumber :: Int,
-    inputFasta :: [Fasta L.ByteString DNA],
+    inputFasta :: [Fasta () ()],
     taxRecords :: [TaxonomyRecord],
     --Taxonomy ID of the highest node in taxonomic subtree used in search
     upperTaxonomyLimit :: Maybe Int,
     taxonomicContext :: Maybe Taxon,
     evalueThreshold :: Double,
     alignmentModeInfernal :: Bool,
-    selectedQueries :: [Fasta L.ByteString DNA],
+    selectedQueries :: [Fasta () ()],
     potentialMembers :: [SearchResult]
   }
 
@@ -65,7 +65,7 @@ instance Show TaxonomyRecord where
 
 data SequenceRecord = SequenceRecord
   { --Sequence consisting of SeqLabel, and SeqData
-    nucleotideSequence :: Fasta L.ByteString DNA,
+    nucleotideSequence :: Fasta () (),
     -- 0 is unaligned, number is the iteration the sequence has been included into the alignment
     aligned  :: Int,
     recordDescription :: L.ByteString
@@ -104,7 +104,7 @@ data CMsearchHit = CMsearchHit
   } deriving (Show, Eq, Read)
 
 data SearchResult = SearchResult
-  { candidates :: [(Fasta L.ByteString DNA,Int,L.ByteString)],
+  { candidates :: [(Fasta () (),Int,L.ByteString)],
     blastDatabaseSize :: Maybe Double
   }
 
