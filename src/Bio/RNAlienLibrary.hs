@@ -862,7 +862,7 @@ textIdentity text1 text2 = identityPercent
 --          identityPercent = 1 - (fromIntegral distance/fromIntegral maximumDistance)
 
 -- | Compute identity of sequences
-sequenceIdentity :: Fasta -> Fasta L.ByteString DNA -> Double
+sequenceIdentity :: Fasta L.ByteString DNA -> Fasta L.ByteString DNA -> Double
 sequenceIdentity sequence1 sequence2 = identityPercent
   where distance = ED.levenshteinDistance ED.defaultEditCosts sequence1string sequence2string
         sequence1string = L.unpack (fastaSequence sequence1)
@@ -1837,7 +1837,7 @@ setBlastExpectThreshold modelConstruction
   | otherwise = 0.1 :: Double
 
 reformatFasta :: Fasta L.ByteString DNA -> Fasta L.ByteString DNA
-reformatFasta input = Fasta L.ByteString DNA (fastaHeader input) updatedSequence
+reformatFasta input = Fasta (fastaHeader input) updatedSequence
   where updatedSequence = L.pack (map reformatFastaSequence (L.unpack (fastaSequence input)))
 
 reformatFastaSequence :: Char -> Char
@@ -1911,4 +1911,4 @@ mergeIdSeqTuplestoSequence :: [(TL.Text,TL.Text)] -> Fasta L.ByteString DNA
 mergeIdSeqTuplestoSequence tuplelist = currentSequence
   where seqId = fst (head tuplelist)
         seqData = TL.concat (map snd tuplelist)
-        currentSequence = Fasta L.ByteString DNA (E.encodeUtf8 seqId) (E.encodeUtf8 seqData)
+        currentSequence = Fasta (E.encodeUtf8 seqId) (E.encodeUtf8 seqData)
