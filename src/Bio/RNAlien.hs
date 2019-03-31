@@ -91,7 +91,7 @@ main = do
            writeFile (temporaryDirectoryPath ++ "log/warnings") ("")
            logMessage ("Timestamp: " ++ (show timestamp) ++ "\n") temporaryDirectoryPath
            logMessage ("Temporary Directory: " ++ temporaryDirectoryPath ++ "\n") temporaryDirectoryPath
-           inputFasta <- parseFastaFile inputFastaFilePath
+           inputFasta <- readFastaFile inputFastaFilePath
            if null inputFasta
              then do
                putStrLn "Error: Input fasta file is empty."

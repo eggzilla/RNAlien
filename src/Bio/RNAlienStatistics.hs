@@ -9,17 +9,17 @@ import System.Console.CmdArgs
 import Data.Either.Unwrap
 import System.Process
 import qualified Data.ByteString.Lazy.Char8 as L
+import qualified Data.ByteString.Char8 as B
 import Bio.RNAlienLibrary
 import System.Directory
-import Biobase.Fasta.Types
-import Biobase.Fasta.Streaming
-import Biobase.Fasta.Export
+import Biobase.Fasta.Strict
 import Data.List
 import qualified System.FilePath as FP
 import qualified Data.List.Split as DS
 import Text.Printf
 import Bio.RNAzParser
 import qualified Bio.RNAcodeParser as RC
+import Biobase.Types.BioSequence
 
 data Options = Options
   { alienCovarianceModelPath  :: String,
@@ -117,17 +117,17 @@ trimCMsearchFastaFile :: String -> String -> String -> CMsearch -> String -> IO 
 trimCMsearchFastaFile genomesDirectory outputFolder modelType cmsearch fastafile  = do
   let fastaInputPath = genomesDirectory ++ "/" ++ fastafile
   let fastaOutputPath = outputFolder ++ "/" ++ modelType ++ "/" ++ fastafile
-  fastaSequences <- parseFastaFile fastaInputPath
+  fastaSequences <- readFastaFile fastaInputPath
   let trimmedSequence = trimCMsearchSequence cmsearch (head fastaSequences)
   writeFastaFile fastaOutputPath [trimmedSequence]
 
-trimCMsearchSequence :: CMsearch -> Fasta -> Fasta
+trimCMsearchSequence :: CMsearch -> Fasta () () -> Fasta () ()
 trimCMsearchSequence cmSearchResult inputSequence = subSequence
   where hitScoreEntry = head (cmsearchHits cmSearchResult)
-        sequenceString = L.unpack (fastaSequence inputSequence)
+        sequenceString = show (_fasta inputSequence)
         sequenceSubstring = cmSearchsubString (hitStart hitScoreEntry) (hitEnd hitScoreEntry) sequenceString
-        newSequenceHeader =  L.pack (L.unpack (fastaHeader inputSequence) ++ "cmS_" ++ show (hitStart hitScoreEntry) ++ "_" ++ show (hitEnd hitScoreEntry) ++ "_" ++ show (hitStrand hitScoreEntry))
-        subSequence = Fasta newSequenceHeader (L.pack sequenceSubstring)
+        newSequenceHeader = SequenceIdentifier (B.pack (show (_header inputSequence) ++ "cmS_" ++ show (hitStart hitScoreEntry) ++ "_" ++ show (hitEnd hitScoreEntry) ++ "_" ++ show (hitStrand hitScoreEntry)))
+        subSequence = Fasta newSequenceHeader (BioSequence (B.pack sequenceSubstring))
 
 --With paralogs allowed
 cmSearchSameHit :: CMsearchHit -> CMsearchHit -> Bool

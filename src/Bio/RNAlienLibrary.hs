@@ -28,7 +28,9 @@ module Bio.RNAlienLibrary (
                            rnaZEvalOutput,
                            reformatFasta,
                            checkTaxonomyRestriction,
-                           evaluePartitionTrimCMsearchHits
+                           evaluePartitionTrimCMsearchHits,
+                           readFastaFile,
+                           writeFastaFile          
                            )
 where
 
@@ -38,8 +40,6 @@ import Text.ParserCombinators.Parsec
 import Data.List
 import Data.Char
 import Biobase.Fasta.Strict
---import Biobase.Fasta.Export
---import qualified Biobase.Fasta.Streaming as BFS
 import qualified Biobase.BLAST.Types as J
 import Bio.ClustalParser
 import Data.Int (Int16)
@@ -651,7 +651,7 @@ selectQueries staticOptions modelConstruction selectedCandidates = do
 
 
 fastaHeader :: Fasta () () -> L.ByteString
-fastaHeader fasta = L.pack . show . _header $ fasta
+fastaHeader currentFasta = L.pack . show . _header $ currentFasta
 
 filterSequenceById :: [Fasta () ()] -> L.ByteString-> [Fasta () ()]
 filterSequenceById alignmentSequences querySequenceId = filter (seqenceHasId querySequenceId) alignmentSequences
@@ -946,8 +946,8 @@ trimCMsearchHit cmSearchResult (inputSequence,b,c) = (subSequence,b,c)
         sequenceString = show (_fasta inputSequence)
         sequenceSubstring = cmSearchsubString (hitStart hitScoreEntry) (hitEnd hitScoreEntry) sequenceString
         --extend original seqheader
-        newSequenceHeader = L.pack (L.unpack (fastaHeader inputSequence) ++ "cmS_" ++ show (hitStart hitScoreEntry) ++ "_" ++ show (hitEnd hitScoreEntry) ++ "_" ++ show (hitStrand hitScoreEntry))
-        subSequence = Fasta newSequenceHeader (L.pack sequenceSubstring)
+        newSequenceHeader = SequenceIdentifier (B.pack (L.unpack (fastaHeader inputSequence) ++ "cmS_" ++ show (hitStart hitScoreEntry) ++ "_" ++ show (hitEnd hitScoreEntry) ++ "_" ++ show (hitStrand hitScoreEntry))) 
+        subSequence = Fasta newSequenceHeader (BioSequence (B.pack sequenceSubstring))
 
 -- | Extract a substring with coordinates from cmsearch, first nucleotide has index 1
 cmSearchsubString :: Int -> Int -> String -> String
@@ -1164,7 +1164,7 @@ retrieveFullSequence temporaryDirectoryPath (nucleotideId,seqStart,seqStop,stran
         then return (Nothing,taxid,subject')
         else do
           let parsedFasta = head parsedFastas
-          if L.null (show (_fasta parsedFasta))
+          if null (show (_fasta parsedFasta))
             then return (Nothing,taxid,subject')
             else CE.evaluate (Just parsedFasta,taxid,subject')
 
@@ -1309,8 +1309,8 @@ convertFastaFoldStockholm :: Fasta () () -> String -> String
 convertFastaFoldStockholm fastasequence foldedStructure = stockholmOutput
   where alnHeader = "# STOCKHOLM 1.0\n\n"
         --(L.unpack (fastaHeader inputFasta'))) ++ "\n" ++ (map toUpper (L.unpack (fastaSequence inputFasta'))) ++ "\n"
-        seqIdentifier = L.unpack (fastaHeader fastasequence)
-        seqSequence = L.unpack (fastaSequence fastasequence)
+        seqIdentifier = show (_header fastasequence)
+        seqSequence = show (_fasta fastasequence)
         identifierLength = length seqIdentifier
         spacerLength' = maximum [14,identifierLength + 2]
         spacer = replicate (spacerLength' - identifierLength) ' '
@@ -1845,8 +1845,8 @@ setBlastExpectThreshold modelConstruction
   | otherwise = 0.1 :: Double
 
 reformatFasta :: Fasta () () -> Fasta () ()
-reformatFasta input = Fasta (fastaHeader input) updatedSequence
-  where updatedSequence = L.pack (map reformatFastaSequence (L.unpack (fastaSequence input)))
+reformatFasta input = Fasta (_header input) updatedSequence
+  where updatedSequence = BioSequence (B.pack (map reformatFastaSequence (show (_fasta input))))
 
 reformatFastaSequence :: Char -> Char
 reformatFastaSequence c
@@ -1919,4 +1919,10 @@ mergeIdSeqTuplestoSequence :: [(TL.Text,TL.Text)] -> Fasta () ()
 mergeIdSeqTuplestoSequence tuplelist = currentSequence
   where seqId = fst (head tuplelist)
         seqData = TL.concat (map snd tuplelist)
-        currentSequence = Fasta (E.encodeUtf8 seqId) (E.encodeUtf8 seqData)
+        currentSequence = Fasta (SequenceIdentifier (L.toStrict (E.encodeUtf8 seqId))) (BioSequence (L.toStrict (E.encodeUtf8 seqData)))
+
+readFastaFile :: String -> IO [Fasta () ()]
+readFastaFile fastaFilePath = do
+  inputFastaFile <- L.readFile fastaFilePath
+  let inputFastas = byteStringToMultiFasta inputFastaFile
+  return inputFastas
