@@ -13,7 +13,7 @@ where
 
 import Text.ParserCombinators.Parsec
 import Bio.RNAlienData
-import qualified Data.ByteString.Lazy.Char8 as L
+import qualified Data.ByteString.Char8 as B
 import qualified Control.Exception.Base as CE
 
 -- | parse from input filePath              
@@ -240,7 +240,7 @@ genParserCMsearchHit = do
   newline
   optional (try (string " ------ inclusion threshold ------"))
   optional (try newline)
-  return $ CMsearchHit (readInt hitRank') hitSignificant' (readDouble hitEValue') (readDouble hitScore') (readDouble hitBias') (L.pack hitSequenceHeader') (readInt hitStart') (readInt hitEnd') hitStrand' (L.pack hitModel') (L.pack hitTruncation') (readDouble hitGCcontent') (L.pack hitDescription')
+  return $ CMsearchHit (readInt hitRank') hitSignificant' (readDouble hitEValue') (readDouble hitScore') (readDouble hitBias') (B.pack hitSequenceHeader') (readInt hitStart') (readInt hitEnd') hitStrand' (B.pack hitModel') (B.pack hitTruncation') (readDouble hitGCcontent') (B.pack hitDescription')
 
 -- | parse from input filePath              
 parseCMstat :: String -> Either ParseError CMstat

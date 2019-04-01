@@ -8,7 +8,6 @@ module Main where
 import System.Console.CmdArgs
 import Data.Either.Unwrap
 import System.Process
-import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.ByteString.Char8 as B
 import Bio.RNAlienLibrary
 import System.Directory
@@ -134,15 +133,15 @@ cmSearchSameHit :: CMsearchHit -> CMsearchHit -> Bool
 cmSearchSameHit hitscore1 hitscore2
   | unpackedSeqHeader1 == unpackedSeqHeader2 = True
   | otherwise = False
-  where unpackedSeqHeader1 = L.unpack (hitSequenceHeader hitscore1)
-        unpackedSeqHeader2 = L.unpack (hitSequenceHeader hitscore2)
+  where unpackedSeqHeader1 = B.unpack (hitSequenceHeader hitscore1)
+        unpackedSeqHeader2 = B.unpack (hitSequenceHeader hitscore2)
 
 cmSearchSameOrganism :: CMsearchHit -> CMsearchHit -> Bool
 cmSearchSameOrganism hitscore1 hitscore2
   | hitOrganism1 == hitOrganism2 = True
   | otherwise = False
-  where unpackedSeqHeader1 = L.unpack (hitSequenceHeader hitscore1)
-        unpackedSeqHeader2 = L.unpack (hitSequenceHeader hitscore2)
+  where unpackedSeqHeader1 = B.unpack (hitSequenceHeader hitscore1)
+        unpackedSeqHeader2 = B.unpack (hitSequenceHeader hitscore2)
         separationcharacter1 = selectSeparationChar unpackedSeqHeader1
         separationcharacter2 = selectSeparationChar unpackedSeqHeader2
         hitOrganism1 = head (DS.splitOn separationcharacter1 unpackedSeqHeader1)

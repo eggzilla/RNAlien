@@ -2,12 +2,10 @@
 
 module Bio.RNAlienData where
 
-import qualified Data.ByteString.Lazy.Char8 as L
 import Biobase.Fasta.Strict
---import Biobase.Fasta.Export(prettyPrintFasta)
 import Bio.Taxonomy
 import Biobase.Types.BioSequence
-
+import qualified Data.ByteString.Char8 as B
 
 -- | Static construction options
 data StaticOptions = StaticOptions
@@ -68,12 +66,12 @@ data SequenceRecord = SequenceRecord
     nucleotideSequence :: Fasta () (),
     -- 0 is unaligned, number is the iteration the sequence has been included into the alignment
     aligned  :: Int,
-    recordDescription :: L.ByteString
+    recordDescription :: B.ByteString
   }
 
 instance Show SequenceRecord where
   show (SequenceRecord _nucleotideSequence _aligned _recordDescription) = a ++ b ++ c
-    where a = "Record Description: " ++ L.unpack _recordDescription ++ "\n"
+    where a = "Record Description: " ++ B.unpack _recordDescription ++ "\n"
           b = "Aligned in iteration: " ++ show _aligned ++ "\n"
           c = "Sequence:" ++ show _nucleotideSequence ++ "\n"
 -- |
@@ -93,18 +91,18 @@ data CMsearchHit = CMsearchHit
     hitEvalue :: Double,
     hitScore :: Double,
     hitBias :: Double,
-    hitSequenceHeader :: L.ByteString,
+    hitSequenceHeader :: B.ByteString,
     hitStart :: Int,
     hitEnd :: Int,
     hitStrand :: Char,
-    hitModel :: L.ByteString,
-    hitTruncation :: L.ByteString,
+    hitModel :: B.ByteString,
+    hitTruncation :: B.ByteString,
     hitGCContent :: Double,
-    hitDescription :: L.ByteString
+    hitDescription :: B.ByteString
   } deriving (Show, Eq, Read)
 
 data SearchResult = SearchResult
-  { candidates :: [(Fasta () (),Int,L.ByteString)],
+  { candidates :: [(Fasta () (),Int,B.ByteString)],
     blastDatabaseSize :: Maybe Double
   }
 
