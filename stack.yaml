@@ -3,4 +3,4 @@ packages:
 - '.'
 extra-deps: []
 compiler-check: newer-minor
-resolver: lts-8.2
+resolver: lts-9.21
