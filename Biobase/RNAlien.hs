@@ -35,7 +35,8 @@ data Options = Options
     taxonomyRestriction :: Maybe String,
     sessionIdentificator :: Maybe String,
     performEvaluation :: Bool,
-    checkSetup :: Bool
+    checkSetup :: Bool,
+    offlineMode :: Bool
   } deriving (Show,Data,Typeable)
 
 options :: Options
@@ -56,8 +57,9 @@ options = Options
     taxonomyRestriction = Nothing &= name "r" &= help "Restrict search space to taxonomic kingdom (bacteria,archea,eukaryia). Default: not set",
     sessionIdentificator = Nothing &= name "d" &= help "Optional session id that is used instead of automatically generated one.",
     performEvaluation = True &= name "x" &= help "Perform evaluation step. Default: True",
-    checkSetup = False &= name "g" &= help "Just prints installed tool versions and performs connection check. Default: False"
-  } &= summary ("RNAlien " ++ alienVersion) &= help "Florian Eggenhofer, Ivo L. Hofacker, Christian Hoener zu Siederdissen - 2013 - 2017" &= verbosity
+    checkSetup = False &= name "g" &= help "Just prints installed tool versions and performs connection check. Default: False",
+    offlineMode = False &= name "b" &= help "Uses locally installed blast and databases. Default: False"
+  } &= summary ("RNAlien " ++ alienVersion) &= help "Florian Eggenhofer, Ivo L. Hofacker, Christian Hoener zu Siederdissen - 2013 - 2019" &= verbosity
 
 main :: IO ()
 main = do
@@ -108,7 +110,7 @@ main = do
                    let inputSequence = reformatFasta (head inputFasta)
                    initialTaxId <- setInitialTaxId inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
                    let checkedTaxonomyRestriction = checkTaxonomyRestriction taxonomyRestriction
-                   let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) inputTaxId singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads inputBlastDatabase checkedTaxonomyRestriction (setVerbose verboseLevel)
+                   let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) inputTaxId singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads inputBlastDatabase checkedTaxonomyRestriction (setVerbose verboseLevel) offlineMode
                    let initialization = ModelConstruction iterationNumber inputFasta [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] []
                    logMessage (show initialization) temporaryDirectoryPath
                    modelConstructionResults <- modelConstructer staticOptions initialization

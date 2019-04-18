@@ -426,10 +426,15 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
   let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) inputQuerySequences  (Just (hitNumberQuery ++ entrezTaxFilter ++ softmaskFilter ++ registrationInfo)) (Just (5400000000 :: Int))
   --appendFile "/scratch/egg/blasttest/queries" ("\nBlast query:\n"  ++ show blastQuery ++ "\n")
   logVerboseMessage (verbositySwitch staticOptions) ("Sending blast query " ++ show iterationnumber ++ "\n") (tempDirPath staticOptions)
-  blastOutput <- CE.catch (blastHTTP blastQuery)
-                       (\e -> do let err = show (e :: CE.IOException)
-                                 logWarning ("Warning: Blast attempt failed:" ++ " " ++ err) (tempDirPath staticOptions)
-                                 return (Left ""))
+  blastOutput <-if (offline staticOptions)
+                  then CE.catch (blast blastQuery)
+                         (\e -> do let err = show (e :: CE.IOException)
+                                   logWarning ("Warning: Blast attempt failed:" ++ " " ++ err) (tempDirPath staticOptions)
+                                   return (Left ""))
+		  else CE.catch (blastHTTP blastQuery)
+                         (\e -> do let err = show (e :: CE.IOException)
+                                   logWarning ("Warning: Blast attempt failed:" ++ " " ++ err) (tempDirPath staticOptions)
+                                   return (Left ""))
   let logFileDirectoryPath = tempDirPath staticOptions ++ show iterationnumber ++ "/" ++ fromMaybe "" finaliterationprefix ++ "log"
   logDirectoryPresent <- doesDirectoryExist logFileDirectoryPath
   Control.Monad.when (not logDirectoryPresent) $ createDirectory (logFileDirectoryPath)
@@ -1921,3 +1926,6 @@ readFastaFile fastaFilePath = do
   inputFastaFile <- L.readFile fastaFilePath
   let inputFastas = byteStringToMultiFasta inputFastaFile
   return inputFastas
+
+blast :: BlastHTTPQuery -> IO (Either String J.BlastJSON2)
+blast = blastHTTP
