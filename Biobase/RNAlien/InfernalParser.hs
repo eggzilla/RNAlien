@@ -1,7 +1,7 @@
 -- | This module contains parsing functions for Infernal programs
 
-module Bio.InfernalParser (
-                           module Bio.RNAlienData,
+module Biobase.RNAlien.InfernalParser (
+                           module Biobase.RNAlien.Data,
                            readCMSearch,
                            readCMSearches,
                            parseCMSearch,
@@ -12,7 +12,7 @@ module Bio.InfernalParser (
 where
 
 import Text.ParserCombinators.Parsec
-import Bio.RNAlienData
+import Biobase.RNAlien.Data
 import qualified Data.ByteString.Char8 as B
 import qualified Control.Exception.Base as CE
 

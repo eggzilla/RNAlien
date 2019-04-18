@@ -8,15 +8,15 @@ module Main where
 
 import System.Console.CmdArgs
 import System.Directory
-import Bio.RNAlienData
-import Bio.RNAlienLibrary
+import Biobase.RNAlien.Data
+import Biobase.RNAlien.Library
 import Data.Maybe
 import Data.Either.Unwrap
 import Data.Time
 import qualified System.FilePath as FP
 import Paths_RNAlien (version)
 import Data.Version (showVersion)
-import Biobase.Fasta.Streaming
+--import Biobase.Fasta.Streaming
 
 data Options = Options
   { inputFastaFilePath :: String,

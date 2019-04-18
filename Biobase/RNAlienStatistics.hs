@@ -9,7 +9,7 @@ import System.Console.CmdArgs
 import Data.Either.Unwrap
 import System.Process
 import qualified Data.ByteString.Char8 as B
-import Bio.RNAlienLibrary
+import Biobase.RNAlien.Library
 import System.Directory
 import Biobase.Fasta.Strict
 import Data.List

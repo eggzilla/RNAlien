@@ -6,7 +6,7 @@
 module Main where
 import Prelude
 import System.Console.CmdArgs
-import Bio.RNAlienLibrary
+import Biobase.RNAlien.Library
 import Data.Either.Unwrap
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Text as T

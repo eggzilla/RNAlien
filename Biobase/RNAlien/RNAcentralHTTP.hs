@@ -4,7 +4,7 @@
 
 -- | Interface for the RNAcentral REST webservice.
 --   
-module Bio.RNAcentralHTTP (rnaCentralHTTP,
+module Biobase.RNAlien.RNAcentralHTTP (rnaCentralHTTP,
                       buildSequenceViaMD5Query,
                       buildStringViaMD5Query,
                       getRNACentralEntries,
@@ -125,7 +125,7 @@ showRNAcentralAlienEvaluation responses = output
         output = if Prelude.null resultentries then "No matching sequences found in RNAcentral\n" else resulthead ++ resultentries
 
 showRNAcentralAlienEvaluationLine :: RNAcentralEntry -> String
-showRNAcentralAlienEvaluationLine entry = unpack (rnacentral_id entry) ++ "\t" ++ unpack (md5 entry) ++ "\t" ++ show (Bio.RNAcentralHTTP.length entry) ++"\n"
+showRNAcentralAlienEvaluationLine entry = unpack (rnacentral_id entry) ++ "\t" ++ unpack (md5 entry) ++ "\t" ++ show (Biobase.RNAlien.RNAcentralHTTP.length entry) ++"\n"
 
 bsreplaceUT :: Char -> Char
 bsreplaceUT a
