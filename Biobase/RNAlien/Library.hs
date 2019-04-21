@@ -82,6 +82,7 @@ import Control.Monad
 import qualified Data.Sequence as DS
 import Data.Foldable
 import Biobase.Types.BioSequence
+import qualified Biobase.BLAST.Import as BBI
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 modelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
@@ -426,8 +427,9 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
   let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) inputQuerySequences  (Just (hitNumberQuery ++ entrezTaxFilter ++ softmaskFilter ++ registrationInfo)) (Just (5400000000 :: Int))
   --appendFile "/scratch/egg/blasttest/queries" ("\nBlast query:\n"  ++ show blastQuery ++ "\n")
   logVerboseMessage (verbositySwitch staticOptions) ("Sending blast query " ++ show iterationnumber ++ "\n") (tempDirPath staticOptions)
+  let logFileDirectoryPath = tempDirPath staticOptions ++ show iterationnumber ++ "/" ++ fromMaybe "" finaliterationprefix ++ "log"
   blastOutput <-if (offline staticOptions)
-                  then CE.catch (blast blastQuery)
+                  then CE.catch (blast logFileDirectoryPath blastQuery)
                          (\e -> do let err = show (e :: CE.IOException)
                                    logWarning ("Warning: Blast attempt failed:" ++ " " ++ err) (tempDirPath staticOptions)
                                    return (Left ""))
@@ -435,7 +437,6 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
                          (\e -> do let err = show (e :: CE.IOException)
                                    logWarning ("Warning: Blast attempt failed:" ++ " " ++ err) (tempDirPath staticOptions)
                                    return (Left ""))
-  let logFileDirectoryPath = tempDirPath staticOptions ++ show iterationnumber ++ "/" ++ fromMaybe "" finaliterationprefix ++ "log"
   logDirectoryPresent <- doesDirectoryExist logFileDirectoryPath
   Control.Monad.when (not logDirectoryPresent) $ createDirectory (logFileDirectoryPath)
   writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_1blastOutput") (show blastOutput)
@@ -1927,5 +1928,24 @@ readFastaFile fastaFilePath = do
   let inputFastas = byteStringToMultiFasta inputFastaFile
   return inputFastas
 
-blast :: BlastHTTPQuery -> IO (Either String J.BlastJSON2)
-blast = blastHTTP
+blast :: String -> BlastHTTPQuery -> IO (Either String J.BlastJSON2)
+blast tempDirPath blastHTTPQuery = do
+  --get_species_taxids.sh -n Enterobacterales
+  --blastn –db nt –query QUERY –taxids 9606 –outfmt 7 –out OUTPUT.tab
+  --Additionally, you may use the to-negative_taxids and -negative_taxidlist options  exclude sequences by TAXID from your search.
+  --blastHTTP database :: Maybe String , querySequences :: [Fasta () ()]   , optionalArguments :: Maybe String
+  --buildTaxonomyContext
+  
+  --sequenceSearch
+  let fastaFilePath = tempDirPath ++ "/blastQuery.fa"
+  let blastResultFilePath = tempDirPath ++ "/blastResult.json2"
+  let blastDatabase = fromMaybe "" (Biobase.BLAST.HTTP.database blastHTTPQuery)
+  writeFastaFile fastaFilePath (querySequences blastHTTPQuery)
+  let systemBlastOptions = fromMaybe "" (optionalArguments blastHTTPQuery)
+  systemBlast systemBlastOptions blastDatabase fastaFilePath blastResultFilePath
+  blastResult <- BBI.blastJSON2FromFile blastResultFilePath
+  return blastResult
+
+-- | Run external blast command 
+systemBlast ::  String -> String -> String -> String -> IO Exitcode
+systemBlast options blastDatabase queryFilepath outputFilePath = system ("blastn " ++ options ++ " " ++ queryFilepath  ++ " > " ++ outputFilePath)
