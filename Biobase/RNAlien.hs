@@ -58,7 +58,7 @@ options = Options
     sessionIdentificator = Nothing &= name "d" &= help "Optional session id that is used instead of automatically generated one.",
     performEvaluation = True &= name "x" &= help "Perform evaluation step. Default: True",
     checkSetup = False &= name "g" &= help "Just prints installed tool versions and performs connection check. Default: False",
-    offlineMode = False &= name "b" &= help "Uses locally installed blast and databases. Default: False"
+    offlineMode = False &= name "j" &= help "Uses locally installed blast and databases. Default: False"
   } &= summary ("RNAlien " ++ alienVersion) &= help "Florian Eggenhofer, Ivo L. Hofacker, Christian Hoener zu Siederdissen - 2013 - 2019" &= verbosity
 
 main :: IO ()
@@ -108,7 +108,7 @@ main = do
                  else do
                    logToolVersions inputQuerySelectionMethod temporaryDirectoryPath
                    let inputSequence = reformatFasta (head inputFasta)
-                   initialTaxId <- setInitialTaxId inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
+                   initialTaxId <- setInitialTaxId offlineMode threads inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
                    let checkedTaxonomyRestriction = checkTaxonomyRestriction taxonomyRestriction
                    let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) inputTaxId singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads inputBlastDatabase checkedTaxonomyRestriction (setVerbose verboseLevel) offlineMode
                    let initialization = ModelConstruction iterationNumber inputFasta [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] []

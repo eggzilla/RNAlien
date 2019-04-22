@@ -22,7 +22,8 @@ data StaticOptions = StaticOptions
     cpuThreads :: Int,
     blastDatabase :: Maybe String,
     taxRestriction :: Maybe String,
-    verbositySwitch :: Bool
+    verbositySwitch :: Bool,
+    offline :: Bool
   } deriving (Show)
 
 -- | Keeps track of model construction

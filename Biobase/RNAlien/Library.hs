@@ -121,11 +121,11 @@ modelConstructer staticOptions modelConstruction = do
 catchAll :: IO a -> (CE.SomeException -> IO a) -> IO a
 catchAll = CE.catch
 
-setInitialTaxId :: Maybe String -> String -> Maybe Int -> Fasta () ()-> IO (Maybe Int)
-setInitialTaxId inputBlastDatabase tempdir inputTaxId inputSequence =
+setInitialTaxId :: Bool -> Int -> Maybe String -> String -> Maybe Int -> Fasta () ()-> IO (Maybe Int)
+setInitialTaxId offlineMode threads inputBlastDatabase tempdir inputTaxId inputSequence =
   if (isNothing inputTaxId)
     then do
-      initialTaxId <- findTaxonomyStart inputBlastDatabase tempdir inputSequence
+      initialTaxId <- findTaxonomyStart offlineMode threads inputBlastDatabase tempdir inputSequence
       return (Just initialTaxId)
     else do
         return inputTaxId
@@ -385,20 +385,24 @@ alignmentConstructionWithoutCandidates currentTaxonomicContext upperTaxLimit sta
         writeFile (iterationDirectory ++ "done") ""
         modelConstructer staticOptions nextModelConstructionInputWithThreshold
 
-findTaxonomyStart :: Maybe String -> String -> Fasta () () -> IO Int
-findTaxonomyStart inputBlastDatabase temporaryDirectory querySequence = do
+findTaxonomyStart :: Bool -> Int -> Maybe String -> String -> Fasta () () -> IO Int
+findTaxonomyStart offlineMode threads inputBlastDatabase temporaryDirectory querySequence = do
   let queryIndexString = "1"
   let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=10"
   let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
   let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") inputBlastDatabase [querySequence] (Just (hitNumberQuery ++ registrationInfo)) (Just (5400000000 :: Int))
   logMessage "No tax id provided - Sending find taxonomy start blast query \n" temporaryDirectory
-  blastOutput <- CE.catch (blastHTTP blastQuery)
-                       (\e -> do let err = show (e :: CE.IOException)
-                                 logWarning ("Warning: Blast attempt failed:" ++ " " ++ err) temporaryDirectory
-                                 error "findTaxonomyStart: Blast attempt failed"
-                                 return (Left ""))
   let logFileDirectoryPath =  temporaryDirectory ++ "taxonomystart" ++ "/"
   createDirectory logFileDirectoryPath
+  blastOutput <-if offlineMode
+                  then CE.catch (blast logFileDirectoryPath threads Nothing Nothing (Just (10 :: Double)) False blastQuery)
+                         (\e -> do let err = show (e :: CE.IOException)
+                                   logWarning ("Warning: Blast attempt failed:" ++ " " ++ err) logFileDirectoryPath
+                                   return (Left ""))
+		  else CE.catch (blastHTTP blastQuery)
+                         (\e -> do let err = show (e :: CE.IOException)
+                                   logWarning ("Warning: Blast attempt failed:" ++ " " ++ err) logFileDirectoryPath
+                                   return (Left ""))
   writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_1blastOutput") (show blastOutput)
   logEither blastOutput temporaryDirectory
   let blastHitsArePresent = either (const False) blastMatchesPresent blastOutput
@@ -428,6 +432,8 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
   --appendFile "/scratch/egg/blasttest/queries" ("\nBlast query:\n"  ++ show blastQuery ++ "\n")
   logVerboseMessage (verbositySwitch staticOptions) ("Sending blast query " ++ show iterationnumber ++ "\n") (tempDirPath staticOptions)
   let logFileDirectoryPath = tempDirPath staticOptions ++ show iterationnumber ++ "/" ++ fromMaybe "" finaliterationprefix ++ "log"
+  logDirectoryPresent <- doesDirectoryExist logFileDirectoryPath
+  Control.Monad.when (not logDirectoryPresent) $ createDirectory (logFileDirectoryPath)
   blastOutput <-if (offline staticOptions)
                   then CE.catch (blast logFileDirectoryPath  (cpuThreads staticOptions) upperTaxLimit lowerTaxLimit (Just expectThreshold) (blastSoftmaskingToggle staticOptions) blastQuery)
                          (\e -> do let err = show (e :: CE.IOException)
@@ -437,8 +443,6 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
                          (\e -> do let err = show (e :: CE.IOException)
                                    logWarning ("Warning: Blast attempt failed:" ++ " " ++ err) (tempDirPath staticOptions)
                                    return (Left ""))
-  logDirectoryPresent <- doesDirectoryExist logFileDirectoryPath
-  Control.Monad.when (not logDirectoryPresent) $ createDirectory (logFileDirectoryPath)
   writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_1blastOutput") (show blastOutput)
   logEither blastOutput (tempDirPath staticOptions)
   let blastHitsArePresent = either (const False) blastMatchesPresent blastOutput
@@ -1935,25 +1939,48 @@ blast tempDirPath threads upperTaxIdLimit lowerTaxIdLimit expectThreshold blastS
   let lowerTaxIdLimitPath = if isJust lowerTaxIdLimit then tempDirPath ++ "/lower.txids" else ""
   if isJust upperTaxIdLimit then systemGetSpeciesTaxId (fromJust upperTaxIdLimit) upperTaxIdLimitPath else exitSuccess
   if isJust lowerTaxIdLimit then systemGetSpeciesTaxId (fromJust lowerTaxIdLimit) lowerTaxIdLimitPath else exitSuccess
+  let positiveSetTaxIdLimitPath = tempDirPath ++ "/postitiveset.txids"
+  if isJust lowerTaxIdLimit && isJust upperTaxIdLimit
+    then do
+      upperTaxIdsFile <- readFile upperTaxIdLimitPath
+      let upperTaxIds = lines upperTaxIdsFile
+      lowerTaxIdsFile <- readFile lowerTaxIdLimitPath
+      let lowerTaxIds = lines lowerTaxIdsFile
+      let positiveSetTaxIds = upperTaxIds \\ lowerTaxIds
+      let positiveSetTaxIdsFile = unlines positiveSetTaxIds
+      writeFile positiveSetTaxIdLimitPath positiveSetTaxIdsFile
+    else exitSuccess
   --sequenceSearch
   let fastaFilePath = tempDirPath ++ "/blastQuery.fa"
   let blastResultFilePath = tempDirPath ++ "/blastResult.json2"
   let blastDatabase = fromMaybe "" (Biobase.BLAST.HTTP.database blastHTTPQuery)
   writeFastaFile fastaFilePath (querySequences blastHTTPQuery)
   let systemBlastOptions = fromMaybe "" (optionalArguments blastHTTPQuery)
-  systemBlast threads blastDatabase upperTaxIdLimitPath lowerTaxIdLimitPath expectThreshold fastaFilePath blastResultFilePath
+  systemBlast threads blastDatabase upperTaxIdLimitPath lowerTaxIdLimitPath positiveSetTaxIdLimitPath expectThreshold fastaFilePath blastResultFilePath
   blastResult <- BBI.blastJSON2FromFile blastResultFilePath
   return blastResult
 
 -- | Run external blast command 
-systemBlast :: Int -> String -> String -> String -> Maybe Double -> String -> String -> IO ExitCode
-systemBlast threads blastDatabase upperTaxLimitPath lowerTaxLimitPath evalueThreshold queryFilepath outputFilePath = system ("blastn " ++ threadedOption ++ expectThresholdOption ++ upperTaxLimitOption ++ lowerTaxLimitOption ++ " " ++ dbOption ++ " -query " ++ queryFilepath  ++ " -outfmt 13  -out " ++ outputFilePath)
+systemBlast :: Int -> String -> String -> String -> String -> Maybe Double -> String -> String -> IO ExitCode
+systemBlast threads blastDatabase upperTaxLimitPath lowerTaxLimitPath positiveSetTaxIdLimitPath evalueThreshold queryFilepath outputFilePath = do
+  let cmd = ("blastn " ++ threadedOption ++ expectThresholdOption ++ taxonomyOption ++ " " ++ dbOption ++ " -query " ++ queryFilepath  ++ " -outfmt 13  -out " ++ outputFilePath)
+  putStrLn cmd
+  system cmd
   where threadedOption = " -num_threads " ++ show threads
         expectThresholdOption = if isJust evalueThreshold then " -evalue " ++ show (fromJust evalueThreshold) else ""
         dbOption = if null blastDatabase then "" else " -db " ++ blastDatabase ++ " "
-        upperTaxLimitOption = if null upperTaxLimitPath then "" else " –taxidlist " ++ upperTaxLimitPath ++ " "
-        lowerTaxLimitOption = if null lowerTaxLimitPath then "" else " –negative_taxidlist " ++ lowerTaxLimitPath ++ " "
+        taxonomyOption = setBlastCallTaxonomyOptions upperTaxLimitPath lowerTaxLimitPath positiveSetTaxIdLimitPath
 
+setBlastCallTaxonomyOptions :: String -> String -> String -> String
+setBlastCallTaxonomyOptions upperTaxLimitPath lowerTaxLimitPath positiveSetTaxIdLimitPath
+  | and [(not (null upperTaxLimitPath)),(not (null lowerTaxLimitPath))] = " -taxidlist " ++ positiveSetTaxIdLimitPath ++ " "
+  | not (null upperTaxLimitPath) = " -taxidlist " ++ upperTaxLimitPath ++ " "
+  | not (null lowerTaxLimitPath) = " -negative_taxidlist " ++ lowerTaxLimitPath ++ " "
+  | otherwise = ""
+             
 -- | Retrieve taxids for blast 
 systemGetSpeciesTaxId :: Int -> String -> IO ExitCode
 systemGetSpeciesTaxId requestedTaxId outputFilePath = system ("get_species_taxids.sh " ++ " -t " ++ show requestedTaxId  ++ " > " ++ outputFilePath)
+
+
+
