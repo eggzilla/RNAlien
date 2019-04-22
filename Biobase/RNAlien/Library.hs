@@ -429,7 +429,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
   logVerboseMessage (verbositySwitch staticOptions) ("Sending blast query " ++ show iterationnumber ++ "\n") (tempDirPath staticOptions)
   let logFileDirectoryPath = tempDirPath staticOptions ++ show iterationnumber ++ "/" ++ fromMaybe "" finaliterationprefix ++ "log"
   blastOutput <-if (offline staticOptions)
-                  then CE.catch (blast logFileDirectoryPath blastQuery)
+                  then CE.catch (blast logFileDirectoryPath  (cpuThreads staticOptions) upperTaxLimit lowerTaxLimit (Just expectThreshold) (blastSoftmaskingToggle staticOptions) blastQuery)
                          (\e -> do let err = show (e :: CE.IOException)
                                    logWarning ("Warning: Blast attempt failed:" ++ " " ++ err) (tempDirPath staticOptions)
                                    return (Left ""))
@@ -1928,24 +1928,32 @@ readFastaFile fastaFilePath = do
   let inputFastas = byteStringToMultiFasta inputFastaFile
   return inputFastas
 
-blast :: String -> BlastHTTPQuery -> IO (Either String J.BlastJSON2)
-blast tempDirPath blastHTTPQuery = do
-  --get_species_taxids.sh -n Enterobacterales
-  --blastn –db nt –query QUERY –taxids 9606 –outfmt 7 –out OUTPUT.tab
-  --Additionally, you may use the to-negative_taxids and -negative_taxidlist options  exclude sequences by TAXID from your search.
-  --blastHTTP database :: Maybe String , querySequences :: [Fasta () ()]   , optionalArguments :: Maybe String
+blast :: String -> Int  -> Maybe Int -> Maybe Int -> Maybe Double -> Bool -> BlastHTTPQuery -> IO (Either String J.BlastJSON2)
+blast tempDirPath threads upperTaxIdLimit lowerTaxIdLimit expectThreshold blastSoftmaskingToggle blastHTTPQuery = do
   --buildTaxonomyContext
-  
+  let upperTaxIdLimitPath = if isJust upperTaxIdLimit then tempDirPath ++ "/upper.txids" else ""
+  let lowerTaxIdLimitPath = if isJust lowerTaxIdLimit then tempDirPath ++ "/lower.txids" else ""
+  if isJust upperTaxIdLimit then systemGetSpeciesTaxId (fromJust upperTaxIdLimit) upperTaxIdLimitPath else exitSuccess
+  if isJust lowerTaxIdLimit then systemGetSpeciesTaxId (fromJust lowerTaxIdLimit) lowerTaxIdLimitPath else exitSuccess
   --sequenceSearch
   let fastaFilePath = tempDirPath ++ "/blastQuery.fa"
   let blastResultFilePath = tempDirPath ++ "/blastResult.json2"
   let blastDatabase = fromMaybe "" (Biobase.BLAST.HTTP.database blastHTTPQuery)
   writeFastaFile fastaFilePath (querySequences blastHTTPQuery)
   let systemBlastOptions = fromMaybe "" (optionalArguments blastHTTPQuery)
-  systemBlast systemBlastOptions blastDatabase fastaFilePath blastResultFilePath
+  systemBlast threads blastDatabase upperTaxIdLimitPath lowerTaxIdLimitPath expectThreshold fastaFilePath blastResultFilePath
   blastResult <- BBI.blastJSON2FromFile blastResultFilePath
   return blastResult
 
 -- | Run external blast command 
-systemBlast ::  String -> String -> String -> String -> IO Exitcode
-systemBlast options blastDatabase queryFilepath outputFilePath = system ("blastn " ++ options ++ " " ++ queryFilepath  ++ " > " ++ outputFilePath)
+systemBlast :: Int -> String -> String -> String -> Maybe Double -> String -> String -> IO ExitCode
+systemBlast threads blastDatabase upperTaxLimitPath lowerTaxLimitPath evalueThreshold queryFilepath outputFilePath = system ("blastn " ++ threadedOption ++ expectThresholdOption ++ upperTaxLimitOption ++ lowerTaxLimitOption ++ " " ++ dbOption ++ " -query " ++ queryFilepath  ++ " -outfmt 13  -out " ++ outputFilePath)
+  where threadedOption = " -num_threads " ++ show threads
+        expectThresholdOption = if isJust evalueThreshold then " -evalue " ++ show (fromJust evalueThreshold) else ""
+        dbOption = if null blastDatabase then "" else " -db " ++ blastDatabase ++ " "
+        upperTaxLimitOption = if null upperTaxLimitPath then "" else " –taxidlist " ++ upperTaxLimitPath ++ " "
+        lowerTaxLimitOption = if null lowerTaxLimitPath then "" else " –negative_taxidlist " ++ lowerTaxLimitPath ++ " "
+
+-- | Retrieve taxids for blast 
+systemGetSpeciesTaxId :: Int -> String -> IO ExitCode
+systemGetSpeciesTaxId requestedTaxId outputFilePath = system ("get_species_taxids.sh " ++ " -t " ++ show requestedTaxId  ++ " > " ++ outputFilePath)
