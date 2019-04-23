@@ -3,7 +3,8 @@
 
 -- | Unsupervized construction of RNA family models
 --   For more information on RNA family models consult <http://>
---   Testcommand: dist/build/RNAlien/RNAlien -i ~egg/initialfasta/RybB.fa -c 3 -o /scr/kronos/egg/temp/ > ~egg/Desktop/alieninitialtest
+--   Usage example: RNAlien -i /path/input.fa -c 5 -o /outdir/
+--   Usage example offline mode: RNAlien -i /path/input.fa -b /backup/blast/nt_v5 -o /outdir/ -c 5 -t 1396 -j 
 module Main where
 
 import System.Console.CmdArgs
@@ -46,7 +47,7 @@ options = Options
     inputTaxId = Nothing &= name "t" &= help "NCBI taxonomy ID number of input RNA organism",
     inputnSCICutoff = Just (1 :: Double) &= name "z" &= help "Only candidate sequences with a normalized structure conservation index (nSCI) higher than this value are accepted. Default: 1",
     inputEvalueCutoff = Just (0.001 :: Double) &= name "e" &= help "Evalue cutoff for cmsearch filtering. Default: 0.001",
-    inputBlastDatabase = Just "nt" &= name "b" &= help "Specify name of blast database to use. Default: nt",
+    inputBlastDatabase = Just "nt" &= name "b" &= help "Specify name of blast database to use, in offline mode the filepath to the blast database (/home/user/nt_v5). Default: nt",
     lengthFilter = True &= name "l" &= help "Filter blast hits per genomic length. Default: True",
     coverageFilter = True &= name "a" &= help "Filter blast hits by coverage of at least 80%. Default: True",
     singleHitperTax = False &= name "s" &= help "Only the best blast hit per taxonomic entry is considered. Default: False",
