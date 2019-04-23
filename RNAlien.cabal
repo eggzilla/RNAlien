@@ -42,7 +42,8 @@ maintainer:          egg@informatik.uni-freiburg.de
 copyright:           Florian Eggenhofer
 category:            Bioinformatics
 build-type:          Simple
-cabal-version:       >=1.10
+cabal-version:       >= 1.10.0
+tested-with:         GHC == 8.4.4
 
 source-repository head
   type:     git
