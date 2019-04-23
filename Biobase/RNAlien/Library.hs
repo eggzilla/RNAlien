@@ -454,7 +454,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
        -- if (null taxIdFromEntrySummaries) then (error "searchCandidates: - head: empty list of taxonomy entry summary for best hit")  else return ()
        -- let rightBestTaxIdResult = head taxIdFromEntrySummaries
        -- logVerboseMessage (verbositySwitch staticOptions) ("rightbestTaxIdResult: " ++ (show rightBestTaxIdResult) ++ "\n") (tempDirPath staticOptions)
-       let blastHits = J._hits (J._search . J._results . J._report . J._blastoutput2 $ rightBlast)
+       let blastHits = J._hits (J._search . J._results . J._report . head . J._blastoutput2 $ rightBlast)
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_2blastHits") (showlines blastHits)
        --filter by length
        let blastHitsFilteredByLength = filterByHitLength blastHits queryLength (lengthFilterToggle staticOptions)
@@ -857,7 +857,7 @@ blastMatchesPresent :: J.BlastJSON2 -> Bool
 blastMatchesPresent blastJS2
   | null resultList = False
   | otherwise = True
-  where resultList = concatMap J._hsps ((Data.Foldable.toList . J._hits . J._search . J._results . J._report . J._blastoutput2 $ blastJS2))
+  where resultList = concatMap J._hsps ((Data.Foldable.toList . J._hits . J._search . J._results . J._report . head . J._blastoutput2 $ blastJS2))
 
 -- | Compute identity of sequences
 textIdentity :: T.Text -> T.Text -> Double
@@ -1450,15 +1450,15 @@ extractTaxIdfromDocumentSummary documentSummary = itemContent (fromJust (find (\
 
 getBestHit :: J.BlastJSON2 -> J.Hit
 getBestHit blastJS2
-  | null (J._hits (J._search . J._results . J._report . J._blastoutput2 $ blastJS2)) = error "getBestHit - head: empty list"
-  | otherwise = DS.index (J._hits (J._search . J._results . J._report . J._blastoutput2 $ blastJS2)) 1
+  | null (J._hits (J._search . J._results . J._report . head . J._blastoutput2 $ blastJS2)) = error "getBestHit - head: empty list"
+  | otherwise = DS.index (J._hits (J._search . J._results . J._report . head . J._blastoutput2 $ blastJS2)) 1
 
 -- Blast returns low evalues with zero instead of the exact number
 getHitWithFractionEvalue :: J.BlastJSON2 -> Maybe J.Hsp
 getHitWithFractionEvalue blastJS2
   | null currentHits = Nothing
   | otherwise = find (\hsp -> J._evalue hsp /= (0 ::Double)) (concatMap J._hsps currentHits)
-  where currentHits = J._hits . J._search . J._results . J._report . J._blastoutput2 $ blastJS2
+  where currentHits = J._hits . J._search . J._results . J._report . head .J._blastoutput2 $ blastJS2
 
 showlines :: (Show a, Foldable t) => t a -> String
 showlines = concatMap (\x -> show x ++ "\n")
@@ -1958,12 +1958,13 @@ blast tempDirPath threads upperTaxIdLimit lowerTaxIdLimit expectThreshold blastS
   let systemBlastOptions = fromMaybe "" (optionalArguments blastHTTPQuery)
   systemBlast threads blastDatabase upperTaxIdLimitPath lowerTaxIdLimitPath positiveSetTaxIdLimitPath expectThreshold fastaFilePath blastResultFilePath
   blastResult <- BBI.blastJSON2FromFile blastResultFilePath
+  if isLeft blastResult then print (fromLeft blastResult) else print ""
   return blastResult
 
 -- | Run external blast command 
 systemBlast :: Int -> String -> String -> String -> String -> Maybe Double -> String -> String -> IO ExitCode
 systemBlast threads blastDatabase upperTaxLimitPath lowerTaxLimitPath positiveSetTaxIdLimitPath evalueThreshold queryFilepath outputFilePath = do
-  let cmd = ("blastn " ++ threadedOption ++ expectThresholdOption ++ taxonomyOption ++ " " ++ dbOption ++ " -query " ++ queryFilepath  ++ " -outfmt 13  -out " ++ outputFilePath)
+  let cmd = ("blastn " ++ threadedOption ++ expectThresholdOption ++ taxonomyOption ++ " " ++ dbOption ++ " -query " ++ queryFilepath  ++ " -outfmt 15  -out " ++ outputFilePath)
   putStrLn cmd
   system cmd
   where threadedOption = " -num_threads " ++ show threads
