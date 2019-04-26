@@ -434,7 +434,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
   let logFileDirectoryPath = tempDirPath staticOptions ++ show iterationnumber ++ "/" ++ fromMaybe "" finaliterationprefix ++ "log"
   logDirectoryPresent <- doesDirectoryExist logFileDirectoryPath
   Control.Monad.when (not logDirectoryPresent) $ createDirectory (logFileDirectoryPath)
-  blastOutput <-if (offline staticOptions)
+  blastOutput <- if (offline staticOptions)
                   then CE.catch (blast logFileDirectoryPath  (cpuThreads staticOptions) upperTaxLimit lowerTaxLimit (Just expectThreshold) (blastSoftmaskingToggle staticOptions) blastQuery)
                          (\e -> do let err = show (e :: CE.IOException)
                                    logWarning ("Warning: Blast attempt failed:" ++ " " ++ err) (tempDirPath staticOptions)
@@ -454,7 +454,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
        -- if (null taxIdFromEntrySummaries) then (error "searchCandidates: - head: empty list of taxonomy entry summary for best hit")  else return ()
        -- let rightBestTaxIdResult = head taxIdFromEntrySummaries
        -- logVerboseMessage (verbositySwitch staticOptions) ("rightbestTaxIdResult: " ++ (show rightBestTaxIdResult) ++ "\n") (tempDirPath staticOptions)
-       let blastHits = J._hits (J._search . J._results . J._report . head . J._blastoutput2 $ rightBlast)
+       let blastHits = J._hits (J._search . J._results . J._report . J._blastoutput2 $ rightBlast)
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_2blastHits") (showlines blastHits)
        --filter by length
        let blastHitsFilteredByLength = filterByHitLength blastHits queryLength (lengthFilterToggle staticOptions)
@@ -857,7 +857,7 @@ blastMatchesPresent :: J.BlastJSON2 -> Bool
 blastMatchesPresent blastJS2
   | null resultList = False
   | otherwise = True
-  where resultList = concatMap J._hsps ((Data.Foldable.toList . J._hits . J._search . J._results . J._report . head . J._blastoutput2 $ blastJS2))
+  where resultList = concatMap J._hsps ((Data.Foldable.toList . J._hits . J._search . J._results . J._report . J._blastoutput2 $ blastJS2))
 
 -- | Compute identity of sequences
 textIdentity :: T.Text -> T.Text -> Double
@@ -1140,19 +1140,46 @@ coverageCheck queryLength hit = coverageStatus
 -- | Wrapper for retrieveFullSequence that rerequests incomplete return sequees
 retrieveFullSequences :: StaticOptions -> [(String,Int,Int,String,T.Text,Int,B.ByteString)] -> IO [(Fasta () (),Int,B.ByteString)]
 retrieveFullSequences staticOptions requestedSequences = do
-  fullSequences <- mapM (retrieveFullSequence (tempDirPath staticOptions)) requestedSequences
-  if any (isNothing . firstOfTriple) fullSequences
+  if offline staticOptions
     then do
-      let fullSequencesWithRequestedSequences = zip fullSequences requestedSequences
-      --let (failedRetrievals, successfulRetrievals) = partition (\x -> L.null (unSD (seqdata (firstOfTriple (fst x))))) fullSequencesWithRequestedSequences
-      let (failedRetrievals, successfulRetrievals) = partition (isNothing . firstOfTriple . fst) fullSequencesWithRequestedSequences
-      --we try to reretrieve failed entries once
-      missingSequences <- mapM (retrieveFullSequence (tempDirPath staticOptions) .snd) failedRetrievals
-      let (stillMissingSequences,reRetrievedSequences) = partition (isNothing . firstOfTriple) missingSequences
-      logWarning ("Sequence retrieval failed: \n" ++ concatMap show stillMissingSequences ++ "\n") (tempDirPath staticOptions)
-      let unwrappedRetrievals = map (\(x,y,z) -> (fromJust x,y,z))  (map fst successfulRetrievals ++ reRetrievedSequences)
-      CE.evaluate unwrappedRetrievals
-    else CE.evaluate (map (\(x,y,z) -> (fromJust x,y,z)) fullSequences)
+      fullSequences <- mapM (retrieveFullSequenceBlastDb (tempDirPath staticOptions)) requestedSequences
+      if any (isNothing . firstOfTriple) fullSequences
+       then do
+         let fullSequencesWithRequestedSequences = zip fullSequences requestedSequences
+         --let (failedRetrievals, successfulRetrievals) = partition (\x -> L.null (unSD (seqdata (firstOfTriple (fst x))))) fullSequencesWithRequestedSequences
+         let (failedRetrievals, successfulRetrievals) = partition (isNothing . firstOfTriple . fst) fullSequencesWithRequestedSequences
+         --we try to reretrieve failed entries once
+         missingSequences <- mapM (retrieveFullSequence (tempDirPath staticOptions) .snd) failedRetrievals
+         let (stillMissingSequences,reRetrievedSequences) = partition (isNothing . firstOfTriple) missingSequences
+         logWarning ("Sequence retrieval failed: \n" ++ concatMap show stillMissingSequences ++ "\n") (tempDirPath staticOptions)
+         let unwrappedRetrievals = map (\(x,y,z) -> (fromJust x,y,z))  (map fst successfulRetrievals ++ reRetrievedSequences)
+         CE.evaluate unwrappedRetrievals
+       else CE.evaluate (map (\(x,y,z) -> (fromJust x,y,z)) fullSequences)
+    else do
+     fullSequences <- mapM (retrieveFullSequence (tempDirPath staticOptions)) requestedSequences
+     if any (isNothing . firstOfTriple) fullSequences
+       then do
+         let fullSequencesWithRequestedSequences = zip fullSequences requestedSequences
+         --let (failedRetrievals, successfulRetrievals) = partition (\x -> L.null (unSD (seqdata (firstOfTriple (fst x))))) fullSequencesWithRequestedSequences
+         let (failedRetrievals, successfulRetrievals) = partition (isNothing . firstOfTriple . fst) fullSequencesWithRequestedSequences
+         --we try to reretrieve failed entries once
+         missingSequences <- mapM (retrieveFullSequence (tempDirPath staticOptions) .snd) failedRetrievals
+         let (stillMissingSequences,reRetrievedSequences) = partition (isNothing . firstOfTriple) missingSequences
+         logWarning ("Sequence retrieval failed: \n" ++ concatMap show stillMissingSequences ++ "\n") (tempDirPath staticOptions)
+         let unwrappedRetrievals = map (\(x,y,z) -> (fromJust x,y,z))  (map fst successfulRetrievals ++ reRetrievedSequences)
+         CE.evaluate unwrappedRetrievals
+       else CE.evaluate (map (\(x,y,z) -> (fromJust x,y,z)) fullSequences)
+
+retrieveFullSequenceBlastDb = retrieveFullSequence
+--retrieveFullSequenceBlastDb :: String -> String -> (String,Int,Int,String,T.Text,Int,B.ByteString) -> IO (Maybe (Fasta () ()),Int,B.ByteString)
+--retrieveFullSequenceBlastDb blastDb temporaryDirectoryPath (nucleotideId,seqStart,seqStop,strand,_,taxid,subject') = do
+--  let sequencePath = temporaryDirectoryPath + "/" + nucleotideId + ".fa"
+--  let cmd = "blastdbcmd -db " + blastDb + " -taxids " + taxid + " -entry " + nucleotideId + " -outfmt %S" -target_only > "
+--  print cmd
+--  system(cmd)  
+  
+  
+
 
 retrieveFullSequence :: String -> (String,Int,Int,String,T.Text,Int,B.ByteString) -> IO (Maybe (Fasta () ()),Int,B.ByteString)
 retrieveFullSequence temporaryDirectoryPath (nucleotideId,seqStart,seqStop,strand,_,taxid,subject') = do
@@ -1450,15 +1477,15 @@ extractTaxIdfromDocumentSummary documentSummary = itemContent (fromJust (find (\
 
 getBestHit :: J.BlastJSON2 -> J.Hit
 getBestHit blastJS2
-  | null (J._hits (J._search . J._results . J._report . head . J._blastoutput2 $ blastJS2)) = error "getBestHit - head: empty list"
-  | otherwise = DS.index (J._hits (J._search . J._results . J._report . head . J._blastoutput2 $ blastJS2)) 1
+  | null (J._hits (J._search . J._results . J._report . J._blastoutput2 $ blastJS2)) = error "getBestHit - head: empty list"
+  | otherwise = DS.index (J._hits (J._search . J._results . J._report . J._blastoutput2 $ blastJS2)) 1
 
 -- Blast returns low evalues with zero instead of the exact number
 getHitWithFractionEvalue :: J.BlastJSON2 -> Maybe J.Hsp
 getHitWithFractionEvalue blastJS2
   | null currentHits = Nothing
   | otherwise = find (\hsp -> J._evalue hsp /= (0 ::Double)) (concatMap J._hsps currentHits)
-  where currentHits = J._hits . J._search . J._results . J._report . head .J._blastoutput2 $ blastJS2
+  where currentHits = J._hits . J._search . J._results . J._report . J._blastoutput2 $ blastJS2
 
 showlines :: (Show a, Foldable t) => t a -> String
 showlines = concatMap (\x -> show x ++ "\n")
@@ -1957,9 +1984,16 @@ blast tempDirPath threads upperTaxIdLimit lowerTaxIdLimit expectThreshold blastS
   writeFastaFile fastaFilePath (querySequences blastHTTPQuery)
   let systemBlastOptions = fromMaybe "" (optionalArguments blastHTTPQuery)
   systemBlast threads blastDatabase upperTaxIdLimitPath lowerTaxIdLimitPath positiveSetTaxIdLimitPath expectThreshold fastaFilePath blastResultFilePath
-  blastResult <- BBI.blastJSON2FromFile blastResultFilePath
-  if isLeft blastResult then print (fromLeft blastResult) else print ""
-  return blastResult
+  blastCmdResult <- BBI.blastCmdJSON2FromFile blastResultFilePath
+  --if isLeft blastResult then print (fromLeft blastResult) else print ""
+  if isRight blastCmdResult
+    then do
+      let blastCmdOutput = J._blastcmdoutput2 (fromRight blastCmdResult)
+      when ((length blastCmdOutput) > 1) $ print "Blast output list with multiple elements"
+      if (not (null blastCmdOutput))
+        then (return (Right (J.BlastJSON2 (head blastCmdOutput)):: Either String J.BlastJSON2))
+	else (return (Left "Empty BlastOutput List" :: Either String J.BlastJSON2))
+    else (return (Left (fromLeft blastCmdResult) :: Either String J.BlastJSON2))
 
 -- | Run external blast command 
 systemBlast :: Int -> String -> String -> String -> String -> Maybe Double -> String -> String -> IO ExitCode
