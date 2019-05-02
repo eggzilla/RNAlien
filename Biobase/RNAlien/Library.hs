@@ -1174,7 +1174,7 @@ retrieveFullSequences staticOptions requestedSequences = do
 retrieveFullSequenceBlastDb :: String -> String -> (String,Int,Int,String,T.Text,Int,B.ByteString) -> IO (Maybe (Fasta () ()),Int,B.ByteString)
 retrieveFullSequenceBlastDb blastDb temporaryDirectoryPath (nucleotideId,seqStart,seqStop,strand,_,taxid,subject') = do
   let sequencePath = temporaryDirectoryPath ++ "/" ++ nucleotideId ++ ".fa"
-  let cmd = "blastdbcmd -db " ++ blastDb ++ " -taxids " ++ (show taxid) ++ " -entry " ++ nucleotideId ++ " -outfmt %f -target_only -out " ++ sequencePath
+  let cmd = "blastdbcmd -db " ++ blastDb ++ " -range " ++ (show seqStart) ++ "-" ++ (show seqStop) ++ " -strand " ++ (setBlastDbStrand strand) ++ " -entry " ++ nucleotideId ++ " -outfmt %f -target_only -out " ++ sequencePath
   print cmd
   system(cmd)  
   retrievedSequence <- readFastaFile sequencePath
@@ -1184,6 +1184,11 @@ retrieveFullSequenceBlastDb blastDb temporaryDirectoryPath (nucleotideId,seqStar
       let justSequence = Just . head $ retrievedSequence
       return(justSequence,taxid,subject')  
 
+setBlastDbStrand :: String -> String
+setBlastDbStrand strand
+  | strand == "2" = "minus"
+  | strand == "1" = "plus"
+          
 retrieveFullSequence :: String -> (String,Int,Int,String,T.Text,Int,B.ByteString) -> IO (Maybe (Fasta () ()),Int,B.ByteString)
 retrieveFullSequence temporaryDirectoryPath (nucleotideId,seqStart,seqStop,strand,_,taxid,subject') = do
   let program' = Just "efetch"
