@@ -399,7 +399,7 @@ findTaxonomyStart offlineMode threads inputBlastDatabase temporaryDirectory quer
                          (\e -> do let err = show (e :: CE.IOException)
                                    logWarning ("Warning: Blast attempt failed:" ++ " " ++ err) logFileDirectoryPath
                                    return (Left ""))
-		  else CE.catch (blastHTTP blastQuery)
+                  else CE.catch (blastHTTP blastQuery)
                          (\e -> do let err = show (e :: CE.IOException)
                                    logWarning ("Warning: Blast attempt failed:" ++ " " ++ err) logFileDirectoryPath
                                    return (Left ""))
@@ -1142,7 +1142,7 @@ retrieveFullSequences :: StaticOptions -> [(String,Int,Int,String,T.Text,Int,B.B
 retrieveFullSequences staticOptions requestedSequences = do
   if offline staticOptions
     then do
-      fullSequences <- mapM (retrieveFullSequenceBlastDb (tempDirPath staticOptions)) requestedSequences
+      fullSequences <- mapM (retrieveFullSequenceBlastDb (fromJust (blastDatabase staticOptions)) (tempDirPath staticOptions)) requestedSequences
       if any (isNothing . firstOfTriple) fullSequences
        then do
          let fullSequencesWithRequestedSequences = zip fullSequences requestedSequences
@@ -1170,16 +1170,19 @@ retrieveFullSequences staticOptions requestedSequences = do
          CE.evaluate unwrappedRetrievals
        else CE.evaluate (map (\(x,y,z) -> (fromJust x,y,z)) fullSequences)
 
-retrieveFullSequenceBlastDb = retrieveFullSequence
---retrieveFullSequenceBlastDb :: String -> String -> (String,Int,Int,String,T.Text,Int,B.ByteString) -> IO (Maybe (Fasta () ()),Int,B.ByteString)
---retrieveFullSequenceBlastDb blastDb temporaryDirectoryPath (nucleotideId,seqStart,seqStop,strand,_,taxid,subject') = do
---  let sequencePath = temporaryDirectoryPath + "/" + nucleotideId + ".fa"
---  let cmd = "blastdbcmd -db " + blastDb + " -taxids " + taxid + " -entry " + nucleotideId + " -outfmt %S" -target_only > "
---  print cmd
---  system(cmd)  
-  
-  
-
+--retrieveFullSequenceBlastDb = retrieveFullSequence
+retrieveFullSequenceBlastDb :: String -> String -> (String,Int,Int,String,T.Text,Int,B.ByteString) -> IO (Maybe (Fasta () ()),Int,B.ByteString)
+retrieveFullSequenceBlastDb blastDb temporaryDirectoryPath (nucleotideId,seqStart,seqStop,strand,_,taxid,subject') = do
+  let sequencePath = temporaryDirectoryPath ++ "/" ++ nucleotideId ++ ".fa"
+  let cmd = "blastdbcmd -db " ++ blastDb ++ " -taxids " ++ (show taxid) ++ " -entry " ++ nucleotideId ++ " -outfmt %f -target_only -out " ++ sequencePath
+  print cmd
+  system(cmd)  
+  retrievedSequence <- readFastaFile sequencePath
+  if null retrievedSequence
+    then return(Nothing,taxid,subject')
+    else do
+      let justSequence = Just . head $ retrievedSequence
+      return(justSequence,taxid,subject')  
 
 retrieveFullSequence :: String -> (String,Int,Int,String,T.Text,Int,B.ByteString) -> IO (Maybe (Fasta () ()),Int,B.ByteString)
 retrieveFullSequence temporaryDirectoryPath (nucleotideId,seqStart,seqStop,strand,_,taxid,subject') = do
