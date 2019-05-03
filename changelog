@@ -1,6 +1,6 @@
 -*-change-log-*-
 1.6.0 Florian Eggenhofer <egg@cs.uni-freiburg.de> tbd
-	* Added offline mode
+	* Added offline mode for blast calls and sequence retrieval
 	* Changed to Biobase repository layout
 1.5.0 Florian Eggenhofer <egg@cs.uni-freiburg.de> 4. March 2019
 	* Enabled initialization from multi-line fasta

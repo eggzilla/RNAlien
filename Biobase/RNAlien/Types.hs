@@ -1,6 +1,6 @@
 -- | This module contains data structures for RNAlien
 
-module Biobase.RNAlien.Data where
+module Biobase.RNAlien.Types where
 
 import Biobase.Fasta.Strict
 import Bio.Taxonomy

@@ -9,7 +9,7 @@ module Main where
 
 import System.Console.CmdArgs
 import System.Directory
-import Biobase.RNAlien.Data
+import Biobase.RNAlien.Types
 import Biobase.RNAlien.Library
 import Data.Maybe
 import Data.Either.Unwrap

@@ -1,7 +1,7 @@
 -- | This module contains functions for RNAlien
 {-# LANGUAGE RankNTypes #-}
 module Biobase.RNAlien.Library (
-                           module Biobase.RNAlien.Data,
+                           module Biobase.RNAlien.Types,
                            createSessionID,
                            logMessage,
                            logEither,
@@ -43,7 +43,7 @@ import Biobase.Fasta.Strict
 import qualified Biobase.BLAST.Types as J
 import Bio.ClustalParser
 import Data.Int (Int16)
-import Biobase.RNAlien.Data
+import Biobase.RNAlien.Types
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.ByteString.Char8 as B
 import Bio.Taxonomy
