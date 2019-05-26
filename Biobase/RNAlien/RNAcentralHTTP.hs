@@ -15,7 +15,7 @@ module Biobase.RNAlien.RNAcentralHTTP (rnaCentralHTTP,
 
 import Network.HTTP.Conduit
 import qualified Data.ByteString.Lazy.Char8 as L8
-import qualified Data.ByteString.Char8 as BS8
+--import qualified Data.ByteString.Char8 as BS8
 import Network.Socket
 import Control.Concurrent
 import Data.Text

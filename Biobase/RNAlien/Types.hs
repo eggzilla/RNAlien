@@ -4,7 +4,7 @@ module Biobase.RNAlien.Types where
 
 import Biobase.Fasta.Strict
 import Bio.Taxonomy
-import Biobase.Types.BioSequence
+--import Biobase.Types.BioSequence
 import qualified Data.ByteString.Char8 as B
 
 -- | Static construction options

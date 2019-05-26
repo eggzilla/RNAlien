@@ -439,7 +439,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
                          (\e -> do let err = show (e :: CE.IOException)
                                    logWarning ("Warning: Blast attempt failed:" ++ " " ++ err) (tempDirPath staticOptions)
                                    return (Left ""))
-		  else CE.catch (blastHTTP blastQuery)
+                  else CE.catch (blastHTTP blastQuery)
                          (\e -> do let err = show (e :: CE.IOException)
                                    logWarning ("Warning: Blast attempt failed:" ++ " " ++ err) (tempDirPath staticOptions)
                                    return (Left ""))
@@ -1188,6 +1188,7 @@ setBlastDbStrand :: String -> String
 setBlastDbStrand strand
   | strand == "2" = "minus"
   | strand == "1" = "plus"
+  | otherwise = "plus"
           
 retrieveFullSequence :: String -> (String,Int,Int,String,T.Text,Int,B.ByteString) -> IO (Maybe (Fasta () ()),Int,B.ByteString)
 retrieveFullSequence temporaryDirectoryPath (nucleotideId,seqStart,seqStop,strand,_,taxid,subject') = do
@@ -1443,10 +1444,10 @@ extractBlastHitsTaxId blastHits = do
 
 
 -- | Wrapper functions that ensures that only 20 queries are sent per request
-retrieveBlastHitsTaxIdEntrez :: [J.Hit] -> IO [([J.Hit],String)]
-retrieveBlastHitsTaxIdEntrez blastHits = do
-  let splits = portionListElements blastHits 20
-  mapM retrieveBlastHitTaxIdEntrez splits
+--retrieveBlastHitsTaxIdEntrez :: [J.Hit] -> IO [([J.Hit],String)]
+--retrieveBlastHitsTaxIdEntrez blastHits = do
+--  let splits = portionListElements blastHits 20
+--  mapM retrieveBlastHitTaxIdEntrez splits
 
 
 retrieveBlastHitTaxIdEntrez :: [J.Hit] -> IO ([J.Hit],String)
@@ -1968,13 +1969,13 @@ readFastaFile fastaFilePath = do
   return inputFastas
 
 blast :: String -> Int  -> Maybe Int -> Maybe Int -> Maybe Double -> Bool -> BlastHTTPQuery -> IO (Either String J.BlastJSON2)
-blast tempDirPath threads upperTaxIdLimit lowerTaxIdLimit expectThreshold blastSoftmaskingToggle blastHTTPQuery = do
+blast _tempDirPath threads upperTaxIdLimit lowerTaxIdLimit expectThreshold _blastSoftmaskingToggle blastHTTPQuery = do
   --buildTaxonomyContext
-  let upperTaxIdLimitPath = if isJust upperTaxIdLimit then tempDirPath ++ "/upper.txids" else ""
-  let lowerTaxIdLimitPath = if isJust lowerTaxIdLimit then tempDirPath ++ "/lower.txids" else ""
+  let upperTaxIdLimitPath = if isJust upperTaxIdLimit then _tempDirPath ++ "/upper.txids" else ""
+  let lowerTaxIdLimitPath = if isJust lowerTaxIdLimit then _tempDirPath ++ "/lower.txids" else ""
   if isJust upperTaxIdLimit then systemGetSpeciesTaxId (fromJust upperTaxIdLimit) upperTaxIdLimitPath else exitSuccess
   if isJust lowerTaxIdLimit then systemGetSpeciesTaxId (fromJust lowerTaxIdLimit) lowerTaxIdLimitPath else exitSuccess
-  let positiveSetTaxIdLimitPath = tempDirPath ++ "/postitiveset.txids"
+  let positiveSetTaxIdLimitPath = _tempDirPath ++ "/postitiveset.txids"
   if isJust lowerTaxIdLimit && isJust upperTaxIdLimit
     then do
       upperTaxIdsFile <- readFile upperTaxIdLimitPath
@@ -1986,12 +1987,11 @@ blast tempDirPath threads upperTaxIdLimit lowerTaxIdLimit expectThreshold blastS
       writeFile positiveSetTaxIdLimitPath positiveSetTaxIdsFile
     else exitSuccess
   --sequenceSearch
-  let fastaFilePath = tempDirPath ++ "/blastQuery.fa"
-  let blastResultFilePath = tempDirPath ++ "/blastResult.json2"
-  let blastDatabase = fromMaybe "" (Biobase.BLAST.HTTP.database blastHTTPQuery)
+  let fastaFilePath = _tempDirPath ++ "/blastQuery.fa"
+  let blastResultFilePath = _tempDirPath ++ "/blastResult.json2"
+  let selectedBlastDatabase = fromMaybe "" (Biobase.BLAST.HTTP.database blastHTTPQuery)
   writeFastaFile fastaFilePath (querySequences blastHTTPQuery)
-  let systemBlastOptions = fromMaybe "" (optionalArguments blastHTTPQuery)
-  systemBlast threads blastDatabase upperTaxIdLimitPath lowerTaxIdLimitPath positiveSetTaxIdLimitPath expectThreshold fastaFilePath blastResultFilePath
+  systemBlast threads selectedBlastDatabase upperTaxIdLimitPath lowerTaxIdLimitPath positiveSetTaxIdLimitPath expectThreshold _blastSoftmaskingToggle fastaFilePath blastResultFilePath
   blastCmdResult <- BBI.blastCmdJSON2FromFile blastResultFilePath
   --if isLeft blastResult then print (fromLeft blastResult) else print ""
   if isRight blastCmdResult
@@ -2000,18 +2000,19 @@ blast tempDirPath threads upperTaxIdLimit lowerTaxIdLimit expectThreshold blastS
       when ((length blastCmdOutput) > 1) $ print "Blast output list with multiple elements"
       if (not (null blastCmdOutput))
         then (return (Right (J.BlastJSON2 (head blastCmdOutput)):: Either String J.BlastJSON2))
-	else (return (Left "Empty BlastOutput List" :: Either String J.BlastJSON2))
+        else (return (Left "Empty BlastOutput List" :: Either String J.BlastJSON2))
     else (return (Left (fromLeft blastCmdResult) :: Either String J.BlastJSON2))
 
 -- | Run external blast command 
-systemBlast :: Int -> String -> String -> String -> String -> Maybe Double -> String -> String -> IO ExitCode
-systemBlast threads blastDatabase upperTaxLimitPath lowerTaxLimitPath positiveSetTaxIdLimitPath evalueThreshold queryFilepath outputFilePath = do
-  let cmd = ("blastn " ++ threadedOption ++ expectThresholdOption ++ taxonomyOption ++ " " ++ dbOption ++ " -query " ++ queryFilepath  ++ " -outfmt 15  -out " ++ outputFilePath)
+systemBlast :: Int -> String -> String -> String -> String -> Maybe Double -> Bool -> String -> String -> IO ExitCode
+systemBlast threads _blastDatabase upperTaxLimitPath lowerTaxLimitPath positiveSetTaxIdLimitPath _evalueThreshold _blastSoftmaskingToggle queryFilepath outputFilePath = do
+  let cmd = ("blastn " ++ threadedOption ++ expectThresholdOption ++ taxonomyOption ++ " " ++ softmaskOption ++ dbOption ++ " -query " ++ queryFilepath  ++ " -outfmt 15  -out " ++ outputFilePath)
   putStrLn cmd
   system cmd
   where threadedOption = " -num_threads " ++ show threads
-        expectThresholdOption = if isJust evalueThreshold then " -evalue " ++ show (fromJust evalueThreshold) else ""
-        dbOption = if null blastDatabase then "" else " -db " ++ blastDatabase ++ " "
+        expectThresholdOption = if isJust _evalueThreshold then " -evalue " ++ show (fromJust _evalueThreshold) else ""
+        dbOption = if null _blastDatabase then "" else " -db " ++ _blastDatabase ++ " "
+        softmaskOption = if _blastSoftmaskingToggle then " -soft_masking " else ""
         taxonomyOption = setBlastCallTaxonomyOptions upperTaxLimitPath lowerTaxLimitPath positiveSetTaxIdLimitPath
 
 setBlastCallTaxonomyOptions :: String -> String -> String -> String
