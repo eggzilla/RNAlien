@@ -2,6 +2,7 @@
 1.6.0 Florian Eggenhofer <egg@cs.uni-freiburg.de> tbd
 	* Added offline mode for blast calls and sequence retrieval
 	* Changed to Biobase repository layout
+	* Added statically linked executables to releases
 1.5.0 Florian Eggenhofer <egg@cs.uni-freiburg.de> 4. March 2019
 	* Enabled initialization from multi-line fasta
 1.4.0 Florian Eggenhofer <egg@cs.uni-freiburg.de> 9. December 2018
