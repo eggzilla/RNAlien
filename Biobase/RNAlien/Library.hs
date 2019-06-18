@@ -1973,8 +1973,8 @@ blast _tempDirPath threads upperTaxIdLimit lowerTaxIdLimit expectThreshold _blas
   --buildTaxonomyContext
   let upperTaxIdLimitPath = if isJust upperTaxIdLimit then _tempDirPath ++ "/upper.txids" else ""
   let lowerTaxIdLimitPath = if isJust lowerTaxIdLimit then _tempDirPath ++ "/lower.txids" else ""
-  if isJust upperTaxIdLimit then systemGetSpeciesTaxId (fromJust upperTaxIdLimit) upperTaxIdLimitPath else exitSuccess
-  if isJust lowerTaxIdLimit then systemGetSpeciesTaxId (fromJust lowerTaxIdLimit) lowerTaxIdLimitPath else exitSuccess
+  when (isJust upperTaxIdLimit) $ systemGetSpeciesTaxId (fromJust upperTaxIdLimit) upperTaxIdLimitPath
+  when (isJust lowerTaxIdLimit) $ systemGetSpeciesTaxId (fromJust lowerTaxIdLimit) lowerTaxIdLimitPath
   let positiveSetTaxIdLimitPath = _tempDirPath ++ "/postitiveset.txids"
   if isJust lowerTaxIdLimit && isJust upperTaxIdLimit
     then do
@@ -1985,7 +1985,7 @@ blast _tempDirPath threads upperTaxIdLimit lowerTaxIdLimit expectThreshold _blas
       let positiveSetTaxIds = upperTaxIds \\ lowerTaxIds
       let positiveSetTaxIdsFile = unlines positiveSetTaxIds
       writeFile positiveSetTaxIdLimitPath positiveSetTaxIdsFile
-    else exitSuccess
+    else return ()
   --sequenceSearch
   let fastaFilePath = _tempDirPath ++ "/blastQuery.fa"
   let blastResultFilePath = _tempDirPath ++ "/blastResult.json2"
@@ -2023,8 +2023,10 @@ setBlastCallTaxonomyOptions upperTaxLimitPath lowerTaxLimitPath positiveSetTaxId
   | otherwise = ""
              
 -- | Retrieve taxids for blast 
-systemGetSpeciesTaxId :: Int -> String -> IO ExitCode
-systemGetSpeciesTaxId requestedTaxId outputFilePath = system ("get_species_taxids.sh " ++ " -t " ++ show requestedTaxId  ++ " > " ++ outputFilePath)
+systemGetSpeciesTaxId :: Int -> String -> IO ()
+systemGetSpeciesTaxId requestedTaxId outputFilePath = do
+  system ("get_species_taxids.sh " ++ " -t " ++ show requestedTaxId  ++ " > " ++ outputFilePath)
+  return ()
 
 
 
