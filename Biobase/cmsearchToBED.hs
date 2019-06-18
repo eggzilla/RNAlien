@@ -6,9 +6,9 @@
 module Main where
 import Prelude
 import System.Console.CmdArgs
-import Bio.RNAlienLibrary
+import Biobase.RNAlien.Library
 import Data.Either.Unwrap
-import qualified Data.ByteString.Lazy.Char8 as L
+import qualified Data.ByteString.Char8 as B
 import qualified Data.Text as T
 import Data.List
 
@@ -131,7 +131,7 @@ convertcmSearchToBED inputcmsearch inputBrowserSettings trackName trackDescripti
 cmsearchHitToBEDentry :: String -> String -> CMsearchHit -> BedEntry
 cmsearchHitToBEDentry hitName hitColor cmHit = entry
   where entry = BedEntry  chromosome entrystart entryend (Just (T.pack hitName)) entryscore entrystrand thickstart thickend entrycolor blocks blockSize blockStart
-        chromosome = T.pack (L.unpack (hitSequenceHeader cmHit))
+        chromosome = T.pack (B.unpack (hitSequenceHeader cmHit))
         --entryline = L.unpack (hitSequenceHeader cmHit) ++ "\t" ++ entryStart cmHit ++ "\t" ++ entryEnd cmHit++ "\t" ++ (hitName) ++ "\t" ++ "0" ++ "\t" ++ [(hitStrand cmHit)] ++ "\t" ++ show (hitStart cmHit) ++ "\t" ++ show (hitEnd cmHit) ++ "\t" ++ hitColor ++ "\n"
         entrystart = if hitStrand cmHit == '+' then hitStart cmHit else hitEnd cmHit
         entryend = if hitStrand cmHit == '+' then hitEnd cmHit else hitStart cmHit

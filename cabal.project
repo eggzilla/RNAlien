@@ -1,0 +1,14 @@
+packages: .
+--          ../Lib-BiobaseTypes
+--          ../Lib-SciBaseTypes
+--          ../Lib-PrimitiveArray
+--          ../Lib-ForestStructures
+--          ../Lib-DPutils
+--          ../BiobaseFasta
+--          ../BiobaseBlast
+--          ../Lib-BiobaseXNA
+--          ../Lib-BiobaseENA
+--          ../BlastHTTP
+
+optional-packages: ./*/*.cabal
+

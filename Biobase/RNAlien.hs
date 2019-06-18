@@ -3,20 +3,21 @@
 
 -- | Unsupervized construction of RNA family models
 --   For more information on RNA family models consult <http://>
---   Testcommand: dist/build/RNAlien/RNAlien -i ~egg/initialfasta/RybB.fa -c 3 -o /scr/kronos/egg/temp/ > ~egg/Desktop/alieninitialtest
+--   Usage example: RNAlien -i /path/input.fa -c 5 -o /outdir/
+--   Usage example offline mode: RNAlien -i /path/input.fa -b /backup/blast/nt_v5 -o /outdir/ -c 5 -t 1396 -j 
 module Main where
 
 import System.Console.CmdArgs
 import System.Directory
-import Bio.Sequence.Fasta
-import Bio.RNAlienData
-import Bio.RNAlienLibrary
+import Biobase.RNAlien.Types
+import Biobase.RNAlien.Library
 import Data.Maybe
 import Data.Either.Unwrap
 import Data.Time
 import qualified System.FilePath as FP
 import Paths_RNAlien (version)
 import Data.Version (showVersion)
+--import Biobase.Fasta.Streaming
 
 data Options = Options
   { inputFastaFilePath :: String,
@@ -35,7 +36,8 @@ data Options = Options
     taxonomyRestriction :: Maybe String,
     sessionIdentificator :: Maybe String,
     performEvaluation :: Bool,
-    checkSetup :: Bool
+    checkSetup :: Bool,
+    offlineMode :: Bool
   } deriving (Show,Data,Typeable)
 
 options :: Options
@@ -45,7 +47,7 @@ options = Options
     inputTaxId = Nothing &= name "t" &= help "NCBI taxonomy ID number of input RNA organism",
     inputnSCICutoff = Just (1 :: Double) &= name "z" &= help "Only candidate sequences with a normalized structure conservation index (nSCI) higher than this value are accepted. Default: 1",
     inputEvalueCutoff = Just (0.001 :: Double) &= name "e" &= help "Evalue cutoff for cmsearch filtering. Default: 0.001",
-    inputBlastDatabase = Just "nt" &= name "b" &= help "Specify name of blast database to use. Default: nt",
+    inputBlastDatabase = Just "nt" &= name "b" &= help "Specify name of blast database to use, in offline mode the filepath to the blast database (/home/user/nt_v5). Default: nt",
     lengthFilter = True &= name "l" &= help "Filter blast hits per genomic length. Default: True",
     coverageFilter = True &= name "a" &= help "Filter blast hits by coverage of at least 80%. Default: True",
     singleHitperTax = False &= name "s" &= help "Only the best blast hit per taxonomic entry is considered. Default: False",
@@ -56,8 +58,9 @@ options = Options
     taxonomyRestriction = Nothing &= name "r" &= help "Restrict search space to taxonomic kingdom (bacteria,archea,eukaryia). Default: not set",
     sessionIdentificator = Nothing &= name "d" &= help "Optional session id that is used instead of automatically generated one.",
     performEvaluation = True &= name "x" &= help "Perform evaluation step. Default: True",
-    checkSetup = False &= name "g" &= help "Just prints installed tool versions and performs connection check. Default: False"
-  } &= summary ("RNAlien " ++ alienVersion) &= help "Florian Eggenhofer, Ivo L. Hofacker, Christian Hoener zu Siederdissen - 2013 - 2017" &= verbosity
+    checkSetup = False &= name "g" &= help "Just prints installed tool versions and performs connection check. Default: False",
+    offlineMode = False &= name "j" &= help "Uses locally installed blast and databases. Default: False"
+  } &= summary ("RNAlien " ++ alienVersion) &= help "Florian Eggenhofer, Ivo L. Hofacker, Christian Hoener zu Siederdissen - 2013 - 2019" &= verbosity
 
 main :: IO ()
 main = do
@@ -91,7 +94,7 @@ main = do
            writeFile (temporaryDirectoryPath ++ "log/warnings") ("")
            logMessage ("Timestamp: " ++ (show timestamp) ++ "\n") temporaryDirectoryPath
            logMessage ("Temporary Directory: " ++ temporaryDirectoryPath ++ "\n") temporaryDirectoryPath
-           inputFasta <- readFasta inputFastaFilePath
+           inputFasta <- readFastaFile inputFastaFilePath
            if null inputFasta
              then do
                putStrLn "Error: Input fasta file is empty."
@@ -106,10 +109,10 @@ main = do
                  else do
                    logToolVersions inputQuerySelectionMethod temporaryDirectoryPath
                    let inputSequence = reformatFasta (head inputFasta)
-                   initialTaxId <- setInitialTaxId inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
+                   initialTaxId <- setInitialTaxId offlineMode threads inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
                    let checkedTaxonomyRestriction = checkTaxonomyRestriction taxonomyRestriction
-                   let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) inputTaxId singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads inputBlastDatabase checkedTaxonomyRestriction (setVerbose verboseLevel)
-                   let initialization = ModelConstruction iterationNumber inputSequence [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] []
+                   let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) inputTaxId singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads inputBlastDatabase checkedTaxonomyRestriction (setVerbose verboseLevel) offlineMode
+                   let initialization = ModelConstruction iterationNumber inputFasta [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] []
                    logMessage (show initialization) temporaryDirectoryPath
                    modelConstructionResults <- modelConstructer staticOptions initialization
                    let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults

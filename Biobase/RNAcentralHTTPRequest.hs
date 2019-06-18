@@ -6,7 +6,7 @@
 module Main where
 
 import System.Console.CmdArgs
-import Bio.RNAcentralHTTP
+import Biobase.RNAlien.RNAcentralHTTP
 
 data Options = Options
   { inputSequence :: String

@@ -4,7 +4,7 @@
 
 -- | Interface for the RNAcentral REST webservice.
 --   
-module Bio.RNAcentralHTTP (rnaCentralHTTP,
+module Biobase.RNAlien.RNAcentralHTTP (rnaCentralHTTP,
                       buildSequenceViaMD5Query,
                       buildStringViaMD5Query,
                       getRNACentralEntries,
@@ -15,15 +15,16 @@ module Bio.RNAcentralHTTP (rnaCentralHTTP,
 
 import Network.HTTP.Conduit
 import qualified Data.ByteString.Lazy.Char8 as L8
-import Network
+--import qualified Data.ByteString.Char8 as BS8
+import Network.Socket
 import Control.Concurrent
 import Data.Text
 import Data.Aeson
 import GHC.Generics
 import qualified Data.Digest.Pure.MD5 as M
-import Bio.Core.Sequence
-import Bio.Sequence.Fasta
 import Data.Either
+import Biobase.Fasta.Strict
+import Biobase.Types.BioSequence
 
 --Datatypes
 -- | Data structure for RNAcentral entry response
@@ -92,10 +93,17 @@ getRNACentralEntries :: [String] -> IO [Either String RNAcentralEntryResponse]
 getRNACentralEntries queries = do
   mapM delayedRNACentralHTTP queries
 
---Build a query from a input sequence
-buildSequenceViaMD5Query :: Sequence -> String
+-- | Build a query from a input sequence
+--
+-- TODO [chzs] consider using strict bytestring as long as possible.
+--
+-- TODO [chzs] consider giving useful typelevel names to the types in @Fasta@.
+-- One may give a type-level name to the sequence identifier, and an identifier
+-- (like @DNA@) to the biosequence type.
+
+buildSequenceViaMD5Query :: Fasta () () -> String
 buildSequenceViaMD5Query s = qString
-  where querySequence = unSD (seqdata s)
+  where querySequence = L8.fromStrict . _bioSequence $ _fasta s
         querySequenceUreplacedwithT = L8.map bsreplaceUT querySequence
         querySequenceU2Twolb = L8.filter ((/= '\n')) querySequenceUreplacedwithT
         md5Sequence = M.md5 querySequenceU2Twolb
@@ -117,7 +125,7 @@ showRNAcentralAlienEvaluation responses = output
         output = if Prelude.null resultentries then "No matching sequences found in RNAcentral\n" else resulthead ++ resultentries
 
 showRNAcentralAlienEvaluationLine :: RNAcentralEntry -> String
-showRNAcentralAlienEvaluationLine entry = unpack (rnacentral_id entry) ++ "\t" ++ unpack (md5 entry) ++ "\t" ++ show (Bio.RNAcentralHTTP.length entry) ++"\n"
+showRNAcentralAlienEvaluationLine entry = unpack (rnacentral_id entry) ++ "\t" ++ unpack (md5 entry) ++ "\t" ++ show (Biobase.RNAlien.RNAcentralHTTP.length entry) ++"\n"
 
 bsreplaceUT :: Char -> Char
 bsreplaceUT a

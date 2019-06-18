@@ -1,11 +1,11 @@
 -- | This module contains data structures for RNAlien
 
-module Bio.RNAlienData where
+module Biobase.RNAlien.Types where
 
-import qualified Data.ByteString.Lazy.Char8 as L
-import Bio.Core.Sequence
-import Bio.Sequence.Fasta
+import Biobase.Fasta.Strict
 import Bio.Taxonomy
+--import Biobase.Types.BioSequence
+import qualified Data.ByteString.Char8 as B
 
 -- | Static construction options
 data StaticOptions = StaticOptions
@@ -22,27 +22,29 @@ data StaticOptions = StaticOptions
     cpuThreads :: Int,
     blastDatabase :: Maybe String,
     taxRestriction :: Maybe String,
-    verbositySwitch :: Bool
+    verbositySwitch :: Bool,
+    offline :: Bool
   } deriving (Show)
 
--- | Keeps track of model construction 
+-- | Keeps track of model construction
 data ModelConstruction = ModelConstruction
   { iterationNumber :: Int,
-    inputFasta :: Sequence,
+    inputFasta :: [Fasta () ()],
     taxRecords :: [TaxonomyRecord],
     --Taxonomy ID of the highest node in taxonomic subtree used in search
     upperTaxonomyLimit :: Maybe Int,
     taxonomicContext :: Maybe Taxon,
     evalueThreshold :: Double,
     alignmentModeInfernal :: Bool,
-    selectedQueries :: [Sequence],
+    selectedQueries :: [Fasta () ()],
     potentialMembers :: [SearchResult]
   }
 
 instance Show ModelConstruction where
   show (ModelConstruction _iterationNumber _inputFasta _taxRecords _upperTaxonomyLimit _taxonomicContext _evalueThreshold _alignmentModeInfernal _selectedQueries _potentialMembers) = a ++ b ++ c ++ d ++ e ++ g ++ h ++ i
     where a = "Modelconstruction iteration: " ++ show _iterationNumber ++ "\n"
-          b = "Input fasta:\n" ++ L.unpack (unSL (seqheader _inputFasta))  ++ "\n" ++ L.unpack (unSD (seqdata _inputFasta)) ++ "\n"
+          -- b = "Input fasta:\n" ++ concatMap (prettyPrintFasta 80) _inputFasta  -- L.unpack (fastaHeader _inputFasta)  ++ "\n" ++ L.unpack (fastaSequence _inputFasta) ++ "\n"
+          b = "Input fasta:\n" ++ concatMap (convertString . fastaToByteString 80) _inputFasta
           c = show _taxRecords
           d = "Upper taxonomy limit: " ++ maybe "not set" show _upperTaxonomyLimit ++ "\n"
           e = "Taxonomic Context: " ++  maybe "not set" show _taxonomicContext ++ "\n"
@@ -62,46 +64,46 @@ instance Show TaxonomyRecord where
 
 data SequenceRecord = SequenceRecord
   { --Sequence consisting of SeqLabel, and SeqData
-    nucleotideSequence :: Sequence,
+    nucleotideSequence :: Fasta () (),
     -- 0 is unaligned, number is the iteration the sequence has been included into the alignment
     aligned  :: Int,
-    recordDescription :: L.ByteString
+    recordDescription :: B.ByteString
   }
 
 instance Show SequenceRecord where
   show (SequenceRecord _nucleotideSequence _aligned _recordDescription) = a ++ b ++ c
-    where a = "Record Description: " ++ L.unpack _recordDescription ++ "\n"
+    where a = "Record Description: " ++ B.unpack _recordDescription ++ "\n"
           b = "Aligned in iteration: " ++ show _aligned ++ "\n"
           c = "Sequence:" ++ show _nucleotideSequence ++ "\n"
--- |  
+-- |
 data CMsearch = CMsearch
   { queryCMfile :: String,
     targetSequenceDatabase :: String,
     numberOfWorkerThreads :: String,
     cmsearchHits :: [CMsearchHit]
 --    hitAlignments :: [CMsearchHitAlignment]
---    internalCMPipelineStatisticsSummary                 
+--    internalCMPipelineStatisticsSummary
   } deriving (Show, Eq, Read)
 
--- |  
+-- |
 data CMsearchHit = CMsearchHit
   { hitRank :: Int,
     hitSignificance :: Char,
     hitEvalue :: Double,
     hitScore :: Double,
     hitBias :: Double,
-    hitSequenceHeader :: L.ByteString,
+    hitSequenceHeader :: B.ByteString,
     hitStart :: Int,
     hitEnd :: Int,
     hitStrand :: Char,
-    hitModel :: L.ByteString,
-    hitTruncation :: L.ByteString,
+    hitModel :: B.ByteString,
+    hitTruncation :: B.ByteString,
     hitGCContent :: Double,
-    hitDescription :: L.ByteString
+    hitDescription :: B.ByteString
   } deriving (Show, Eq, Read)
 
 data SearchResult = SearchResult
-  { candidates :: [(Sequence,Int,L.ByteString)],
+  { candidates :: [(Fasta () (),Int,B.ByteString)],
     blastDatabaseSize :: Maybe Double
   }
 
@@ -110,7 +112,7 @@ instance Show SearchResult where
     where a = "SearchResults :\n " ++ concatMap show _candidates ++ "\n"
           b = "BlastDb Size: " ++ show _blastDatabaseSize ++ "\n"
 
--- |  
+-- |
 data CMstat = CMstat
   { statIndex :: Int,
     statName :: String,
@@ -141,4 +143,3 @@ instance Show CMstat where
           j = "Modeltype: " ++ show _statModel ++ "\n"
           k = "Relative Entropy CM: " ++ show _relativeEntropyCM ++ "\n"
           l = "Relative Entropy HMM: " ++ show _relativeEntropyHMM ++ "\n"
-

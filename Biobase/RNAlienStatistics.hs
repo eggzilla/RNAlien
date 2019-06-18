@@ -8,17 +8,17 @@ module Main where
 import System.Console.CmdArgs
 import Data.Either.Unwrap
 import System.Process
-import qualified Data.ByteString.Lazy.Char8 as L
-import Bio.RNAlienLibrary
+import qualified Data.ByteString.Char8 as B
+import Biobase.RNAlien.Library
 import System.Directory
-import Bio.Core.Sequence
-import Bio.Sequence.Fasta
+import Biobase.Fasta.Strict
 import Data.List
 import qualified System.FilePath as FP
 import qualified Data.List.Split as DS
 import Text.Printf
 import Bio.RNAzParser
 import qualified Bio.RNAcodeParser as RC
+import Biobase.Types.BioSequence
 
 data Options = Options
   { alienCovarianceModelPath  :: String,
@@ -116,32 +116,32 @@ trimCMsearchFastaFile :: String -> String -> String -> CMsearch -> String -> IO 
 trimCMsearchFastaFile genomesDirectory outputFolder modelType cmsearch fastafile  = do
   let fastaInputPath = genomesDirectory ++ "/" ++ fastafile
   let fastaOutputPath = outputFolder ++ "/" ++ modelType ++ "/" ++ fastafile
-  fastaSequences <- readFasta fastaInputPath
+  fastaSequences <- readFastaFile fastaInputPath
   let trimmedSequence = trimCMsearchSequence cmsearch (head fastaSequences)
-  writeFasta fastaOutputPath [trimmedSequence]
+  writeFastaFile fastaOutputPath [trimmedSequence]
 
-trimCMsearchSequence :: CMsearch -> Sequence -> Sequence
+trimCMsearchSequence :: CMsearch -> Fasta () () -> Fasta () ()
 trimCMsearchSequence cmSearchResult inputSequence = subSequence
   where hitScoreEntry = head (cmsearchHits cmSearchResult)
-        sequenceString = L.unpack (unSD (seqdata inputSequence))
+        sequenceString = show (_fasta inputSequence)
         sequenceSubstring = cmSearchsubString (hitStart hitScoreEntry) (hitEnd hitScoreEntry) sequenceString
-        newSequenceHeader =  L.pack (L.unpack (unSL (seqheader inputSequence)) ++ "cmS_" ++ show (hitStart hitScoreEntry) ++ "_" ++ show (hitEnd hitScoreEntry) ++ "_" ++ show (hitStrand hitScoreEntry))
-        subSequence = Seq (SeqLabel newSequenceHeader) (SeqData (L.pack sequenceSubstring)) Nothing
+        newSequenceHeader = SequenceIdentifier (B.pack (show (_header inputSequence) ++ "cmS_" ++ show (hitStart hitScoreEntry) ++ "_" ++ show (hitEnd hitScoreEntry) ++ "_" ++ show (hitStrand hitScoreEntry)))
+        subSequence = Fasta newSequenceHeader (BioSequence (B.pack sequenceSubstring))
 
 --With paralogs allowed
 cmSearchSameHit :: CMsearchHit -> CMsearchHit -> Bool
 cmSearchSameHit hitscore1 hitscore2
   | unpackedSeqHeader1 == unpackedSeqHeader2 = True
   | otherwise = False
-  where unpackedSeqHeader1 = L.unpack (hitSequenceHeader hitscore1)
-        unpackedSeqHeader2 = L.unpack (hitSequenceHeader hitscore2)
+  where unpackedSeqHeader1 = B.unpack (hitSequenceHeader hitscore1)
+        unpackedSeqHeader2 = B.unpack (hitSequenceHeader hitscore2)
 
 cmSearchSameOrganism :: CMsearchHit -> CMsearchHit -> Bool
 cmSearchSameOrganism hitscore1 hitscore2
   | hitOrganism1 == hitOrganism2 = True
   | otherwise = False
-  where unpackedSeqHeader1 = L.unpack (hitSequenceHeader hitscore1)
-        unpackedSeqHeader2 = L.unpack (hitSequenceHeader hitscore2)
+  where unpackedSeqHeader1 = B.unpack (hitSequenceHeader hitscore1)
+        unpackedSeqHeader2 = B.unpack (hitSequenceHeader hitscore2)
         separationcharacter1 = selectSeparationChar unpackedSeqHeader1
         separationcharacter2 = selectSeparationChar unpackedSeqHeader2
         hitOrganism1 = head (DS.splitOn separationcharacter1 unpackedSeqHeader1)
