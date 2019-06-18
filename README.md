@@ -7,7 +7,6 @@ It is available as a commandline tool, for testing or construction of few sequen
 The source code of RNAlien, as well as the webserver is open source and available via GitHub and Hackage (License GPL-3):
 
 *   [![GitHub](https://img.shields.io/github/tag/eggzilla/RNAlien.svg)](https://github.com/eggzilla/RNAlien) [![Build Status](https://travis-ci.org/eggzilla/RNAlien.svg?branch=master)](https://travis-ci.org/eggzilla/RNAlien) [![Hackage](https://img.shields.io/hackage/v/RNAlien.svg)](https://hackage.haskell.org/package/RNAlien) [![Bioconda](https://anaconda.org/bioconda/rnalien/badges/version.svg)](https://anaconda.org/bioconda/rnalien) [![Docker Repository on Quay](https://quay.io/repository/biocontainers/RNAlien/status "Docker Repository on Quay")](https://quay.io/repository/repository/biocontainers/RNAlien)
-*   [![GitHub](https://img.shields.io/github/tag/eggzilla/AlienServer.svg)](https://github.com/eggzilla/AlienServer) [![Build Status](https://travis-ci.org/eggzilla/AlienServer.svg?branch=master)](https://travis-ci.org/eggzilla/AlienServer) 
 
 TaxonomyTools which can be used to visualise the organisms included in a RNAlien result can be found here (License GPL-3):
 
@@ -22,6 +21,17 @@ TaxonomyTools which can be used to visualise the organisms included in a RNAlien
     *   [Locarna](http://www.bioinf.uni-freiburg.de/Software/LocARNA/#download)
     *   [RNAz](https://www.tbi.univie.ac.at/~wash/RNAz/)
     *   [ViennaRNApackage](http://www.tbi.univie.ac.at/RNA/index.html#download)
+    
+    ### <u>Additional Offline Mode Dependencies</u>:
+    
+    *   [NCBI blast >= 2.9.0](https://blast.ncbi.nlm.nih.gov/Blast.cgi)
+    *   [Entrez direct](https://www.ncbi.nlm.nih.gov/books/NBK179288/)
+      
+       Download blast database version 5 (nt_v5 has ~70 gigabyte)
+        
+        cd /path/for/blast/databases
+        
+        update_blastdb.pl --blastdb_version 5 nt_v5 --decompress
 
     ### <u>Installation via bioconda</u>
 
@@ -38,8 +48,8 @@ TaxonomyTools which can be used to visualise the organisms included in a RNAlien
      RNAlien is available with all dependencies via [biocontainer](https://quay.io/repository/biocontainers/rnalien). Install
      [docker](https://www.docker.com/get-docker)
 
-         docker pull quay.io/biocontainers/rnalien:1.3.7--pl5.22.0_0
-         docker run -i -t quay.io/biocontainers/rnalien:1.3.7--pl5.22.0_0 bash
+         docker pull quay.io/biocontainers/rnalien:1.6.0--pl5.22.0_0
+         docker run -i -t quay.io/biocontainers/rnalien:1.6.0--pl5.22.0_0 bash
 
     ### <u>Installation via cabal-install</u>
 
