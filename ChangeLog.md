@@ -1,5 +1,7 @@
 -*-change-log-*-
-1.6.0 Florian Eggenhofer <egg@cs.uni-freiburg.de> tbd
+1.7.0 Florian Eggenhofer <egg@cs.uni-freiburg.de> tbd
+	* Added AlienEgg tool
+1.6.0 Florian Eggenhofer <egg@cs.uni-freiburg.de> 19. June 2019
 	* Added offline mode for blast calls and sequence retrieval
 	* Changed to Biobase repository layout
 	* Added statically linked executables to releases
