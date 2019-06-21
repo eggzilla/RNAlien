@@ -1175,7 +1175,7 @@ retrieveFullSequenceBlastDb :: String -> String -> (String,Int,Int,String,T.Text
 retrieveFullSequenceBlastDb blastDb temporaryDirectoryPath (nucleotideId,seqStart,seqStop,strand,_,taxid,subject') = do
   let sequencePath = temporaryDirectoryPath ++ "/" ++ nucleotideId ++ ".fa"
   let cmd = "blastdbcmd -db " ++ blastDb ++ " -range " ++ (show seqStart) ++ "-" ++ (show seqStop) ++ " -strand " ++ (setBlastDbStrand strand) ++ " -entry " ++ nucleotideId ++ " -outfmt %f -target_only -out " ++ sequencePath
-  print cmd
+  --print cmd
   system(cmd)  
   retrievedSequence <- readFastaFile sequencePath
   if null retrievedSequence
@@ -1997,7 +1997,7 @@ blast _tempDirPath threads upperTaxIdLimit lowerTaxIdLimit expectThreshold _blas
   if isRight blastCmdResult
     then do
       let blastCmdOutput = J._blastcmdoutput2 (fromRight blastCmdResult)
-      when ((length blastCmdOutput) > 1) $ print "Blast output list with multiple elements"
+      --when ((length blastCmdOutput) > 1) $ print "Blast output list with multiple elements"
       if (not (null blastCmdOutput))
         then (return (Right (J.BlastJSON2 (head blastCmdOutput)):: Either String J.BlastJSON2))
         else (return (Left "Empty BlastOutput List" :: Either String J.BlastJSON2))
@@ -2007,7 +2007,7 @@ blast _tempDirPath threads upperTaxIdLimit lowerTaxIdLimit expectThreshold _blas
 systemBlast :: Int -> String -> String -> String -> String -> Maybe Double -> Bool -> String -> String -> IO ExitCode
 systemBlast threads _blastDatabase upperTaxLimitPath lowerTaxLimitPath positiveSetTaxIdLimitPath _evalueThreshold _blastSoftmaskingToggle queryFilepath outputFilePath = do
   let cmd = ("blastn " ++ threadedOption ++ expectThresholdOption ++ taxonomyOption ++ " " ++ softmaskOption ++ dbOption ++ " -query " ++ queryFilepath  ++ " -outfmt 15  -out " ++ outputFilePath)
-  putStrLn cmd
+  --putStrLn cmd
   system cmd
   where threadedOption = " -num_threads " ++ show threads
         expectThresholdOption = if isJust _evalueThreshold then " -evalue " ++ show (fromJust _evalueThreshold) else ""
