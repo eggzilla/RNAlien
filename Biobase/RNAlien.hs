@@ -4,7 +4,7 @@
 -- | Unsupervized construction of RNA family models
 --   For more information on RNA family models consult <http://>
 --   Usage example: RNAlien -i /path/input.fa -c 5 -o /outdir/
---   Usage example offline mode: RNAlien -i /path/input.fa -b /backup/blast/nt_v5 -o /outdir/ -c 5 -t 1396 -j 
+--   Usage example offline mode: RNAlien -i /path/input.fa -b /backup/blast/nt_v5 -o /outdir/ -c 5 -t 1396 -j
 module Main where
 
 import System.Console.CmdArgs
@@ -94,7 +94,7 @@ main = do
            writeFile (temporaryDirectoryPath ++ "log/warnings") ("")
            logMessage ("Timestamp: " ++ (show timestamp) ++ "\n") temporaryDirectoryPath
            logMessage ("Temporary Directory: " ++ temporaryDirectoryPath ++ "\n") temporaryDirectoryPath
-           inputFasta <- readFastaFile inputFastaFilePath
+           rawInputFasta <- readFastaFile inputFastaFilePath
            if null inputFasta
              then do
                putStrLn "Error: Input fasta file is empty."
@@ -108,7 +108,8 @@ main = do
                    logMessage ("Error - Not all required tools could be found in $PATH: " ++ fromLeft toolsCheck ++ "\n") temporaryDirectoryPath
                  else do
                    logToolVersions inputQuerySelectionMethod temporaryDirectoryPath
-                   let inputSequence = reformatFasta (head inputFasta)
+                   let inputFasta = map reformatFasta inputFasta
+                   let inputSequence = head inputFasta
                    initialTaxId <- setInitialTaxId offlineMode threads inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
                    let checkedTaxonomyRestriction = checkTaxonomyRestriction taxonomyRestriction
                    let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) inputTaxId singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads inputBlastDatabase checkedTaxonomyRestriction (setVerbose verboseLevel) offlineMode
