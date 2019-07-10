@@ -21,11 +21,10 @@ import Data.Version (showVersion)
 
 data Options = Options
   { inputFastaFilePath :: String,
+    inputGenomesFastaFilePath :: String,
     outputPath :: String,
-    inputTaxId :: Maybe Int,
     inputnSCICutoff :: Maybe Double,
     inputEvalueCutoff :: Maybe Double,
-    inputBlastDatabase :: Maybe String,
     lengthFilter :: Bool,
     coverageFilter :: Bool,
     singleHitperTax :: Bool,
@@ -33,17 +32,15 @@ data Options = Options
     inputQuerySelectionMethod :: String,
     inputQueryNumber :: Int,
     threads :: Int,
-    taxonomyRestriction :: Maybe String,
     sessionIdentificator :: Maybe String,
     performEvaluation :: Bool,
-    checkSetup :: Bool,
-    offlineMode :: Bool
+    checkSetup :: Bool
   } deriving (Show,Data,Typeable)
 
 options :: Options
 options = Options
   { inputFastaFilePath = def &= name "i" &= help "Path to input fasta file",
-    inputGenomesFastaFilePath = def &= name "i" &= help "Path to input genome fasta files",
+    inputGenomesFastaFilePath = def &= name "s" &= help "Path to input genome fasta files",
     outputPath = def &= name "o" &= help "Path to output directory. Default: current working directory",
     inputnSCICutoff = Just (1 :: Double) &= name "z" &= help "Only candidate sequences with a normalized structure conservation index (nSCI) higher than this value are accepted. Default: 1",
     inputEvalueCutoff = Just (0.001 :: Double) &= name "e" &= help "Evalue cutoff for cmsearch filtering. Default: 0.001",
@@ -53,12 +50,10 @@ options = Options
     inputQuerySelectionMethod = "filtering" &= name "m" &= help "Method for selection of queries (filtering,clustering). Default: filtering",
     inputQueryNumber = (5 :: Int) &= name "n" &= help "Number of queries used for candidate search. Default: 5",
     threads = 1 &= name "c" &= help "Number of available cpu slots/cores. Default: 1",
-    taxonomyRestriction = Nothing &= name "r" &= help "Restrict search space to taxonomic kingdom (bacteria,archea,eukaryia). Default: not set",
     sessionIdentificator = Nothing &= name "d" &= help "Optional session id that is used instead of automatically generated one.",
     performEvaluation = True &= name "x" &= help "Perform evaluation step. Default: True",
-    checkSetup = False &= name "g" &= help "Just prints installed tool versions and performs connection check. Default: False",
-    offlineMode = False &= name "j" &= help "Uses locally installed blast and databases. Default: False"
-  } &= summary ("RNAlien " ++ alienVersion) &= help "Florian Eggenhofer, Ivo L. Hofacker, Christian Hoener zu Siederdissen - 2013 - 2019" &= verbosity
+    checkSetup = False &= name "g" &= help "Just prints installed tool versions and performs connection check. Default: False"
+  } &= summary ("RNAlienEgg " ++ alienVersion) &= help "Florian Eggenhofer - 2019" &= verbosity
 
 main :: IO ()
 main = do
@@ -108,23 +103,21 @@ main = do
                    logToolVersions inputQuerySelectionMethod temporaryDirectoryPath
                    let inputFasta = map reformatFasta inputFasta
                    let inputSequence = head inputFasta
-                   initialTaxId <- setInitialTaxId offlineMode threads inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
-                   let checkedTaxonomyRestriction = checkTaxonomyRestriction taxonomyRestriction
-                   let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) inputTaxId singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads inputBlastDatabase checkedTaxonomyRestriction (setVerbose verboseLevel) offlineMode
-                   let initialization = ModelConstruction iterationNumber inputFasta [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] []
+                   let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) Nothing singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads Nothing Nothing (setVerbose verboseLevel) True
+                   let initialization = ModelConstruction iterationNumber inputFasta [] Nothing Nothing (fromJust inputEvalueCutoff) False [] []
                    logMessage (show initialization) temporaryDirectoryPath
-                   modelConstructionResults <- modelConstructer staticOptions initialization
-                   let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults
-                   writeFile (temporaryDirectoryPath ++ "result.csv") resultTaxonomyRecordsCSVTable
-                   if performEvaluation
-                     then do
-                       resultEvaluation <- evaluateConstructionResult staticOptions modelConstructionResults
-                       appendFile (temporaryDirectoryPath ++ "Log") resultEvaluation
-                       resultSummary modelConstructionResults staticOptions
-                       writeFile (temporaryDirectoryPath ++ "done") ""
-                     else do
-                       resultSummary modelConstructionResults staticOptions
-                       writeFile (temporaryDirectoryPath ++ "done") ""
+                   --modelConstructionResults <- eggModelConstructer staticOptions initialization
+                   --let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults
+                   --writeFile (temporaryDirectoryPath ++ "result.csv") resultTaxonomyRecordsCSVTable
+                   --if performEvaluation
+                     --then do
+                       --resultEvaluation <- evaluateConstructionResult staticOptions modelConstructionResults
+                       --appendFile (temporaryDirectoryPath ++ "Log") resultEvaluation
+                       --resultSummary modelConstructionResults staticOptions
+                       --writeFile (temporaryDirectoryPath ++ "done") ""
+                     --else do
+                       --resultSummary modelConstructionResults staticOptions
+                       --writeFile (temporaryDirectoryPath ++ "done") ""
 
 alienVersion :: String
 alienVersion = showVersion version
