@@ -95,7 +95,7 @@ main = do
            logMessage ("Timestamp: " ++ (show timestamp) ++ "\n") temporaryDirectoryPath
            logMessage ("Temporary Directory: " ++ temporaryDirectoryPath ++ "\n") temporaryDirectoryPath
            rawInputFasta <- readFastaFile inputFastaFilePath
-           if null inputFasta
+           if null rawInputFasta
              then do
                putStrLn "Error: Input fasta file is empty."
                logMessage "Error: Input fasta file is empty.\n" temporaryDirectoryPath

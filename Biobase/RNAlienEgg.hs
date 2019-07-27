@@ -46,6 +46,7 @@ options = Options
     inputEvalueCutoff = Just (0.001 :: Double) &= name "e" &= help "Evalue cutoff for cmsearch filtering. Default: 0.001",
     lengthFilter = True &= name "l" &= help "Filter blast hits per genomic length. Default: True",
     coverageFilter = True &= name "a" &= help "Filter blast hits by coverage of at least 80%. Default: True",
+    singleHitperTax = False &= name "s" &= help "Only the best blast hit per taxonomic entry is considered. Default: False",
     blastSoftmasking = False &= name "f" &= help "Toggles blast query softmasking, meaning masking of non-conserved regions on the query. Default: False",
     inputQuerySelectionMethod = "filtering" &= name "m" &= help "Method for selection of queries (filtering,clustering). Default: filtering",
     inputQueryNumber = (5 :: Int) &= name "n" &= help "Number of queries used for candidate search. Default: 5",
@@ -88,6 +89,7 @@ main = do
            logMessage ("Timestamp: " ++ (show timestamp) ++ "\n") temporaryDirectoryPath
            logMessage ("Temporary Directory: " ++ temporaryDirectoryPath ++ "\n") temporaryDirectoryPath
            inputFasta <- readFastaFile inputFastaFilePath
+           inputGenomesFasta <- readFastaFile inputGenomesFastaFilePath
            if null inputFasta
              then do
                putStrLn "Error: Input fasta file is empty."
@@ -106,18 +108,18 @@ main = do
                    let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) Nothing singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads Nothing Nothing (setVerbose verboseLevel) True
                    let initialization = ModelConstruction iterationNumber inputFasta [] Nothing Nothing (fromJust inputEvalueCutoff) False [] []
                    logMessage (show initialization) temporaryDirectoryPath
-                   --modelConstructionResults <- eggModelConstructer staticOptions initialization
-                   --let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults
-                   --writeFile (temporaryDirectoryPath ++ "result.csv") resultTaxonomyRecordsCSVTable
-                   --if performEvaluation
-                     --then do
-                       --resultEvaluation <- evaluateConstructionResult staticOptions modelConstructionResults
-                       --appendFile (temporaryDirectoryPath ++ "Log") resultEvaluation
-                       --resultSummary modelConstructionResults staticOptions
-                       --writeFile (temporaryDirectoryPath ++ "done") ""
-                     --else do
-                       --resultSummary modelConstructionResults staticOptions
-                       --writeFile (temporaryDirectoryPath ++ "done") ""
+                   modelConstructionResults <- eggModelConstructer staticOptions initialization
+                   let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults
+                   writeFile (temporaryDirectoryPath ++ "result.csv") resultTaxonomyRecordsCSVTable
+                   if performEvaluation
+                     then do
+                       resultEvaluation <- evaluateConstructionResult staticOptions modelConstructionResults
+                       appendFile (temporaryDirectoryPath ++ "Log") resultEvaluation
+                       resultSummary modelConstructionResults staticOptions
+                       writeFile (temporaryDirectoryPath ++ "done") ""
+                     else do
+                       resultSummary modelConstructionResults staticOptions
+                       writeFile (temporaryDirectoryPath ++ "done") ""
 
 alienVersion :: String
 alienVersion = showVersion version

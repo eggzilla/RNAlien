@@ -6,6 +6,7 @@ module Biobase.RNAlien.Library (
                            logMessage,
                            logEither,
                            modelConstructer,
+			   eggModelConstructer,
                            constructTaxonomyRecordsCSVTable,
                            resultSummary,
                            setVerbose,
@@ -2029,4 +2030,39 @@ systemGetSpeciesTaxId requestedTaxId outputFilePath = do
   return ()
 
 
+------------------------------------------ RNAlienEgg ------------------------------------
 
+
+-- | Egg Initial RNA family model construction - generates iteration number, seed alignment and model
+eggModelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
+eggModelConstructer staticOptions modelConstruction = do
+  logMessage ("Iteration: " ++ show (iterationNumber modelConstruction) ++ "\n") (tempDirPath staticOptions)
+  iterationSummary modelConstruction staticOptions
+  let currentIterationNumber = iterationNumber modelConstruction
+  let foundSequenceNumber = length (concatMap sequenceRecords (taxRecords modelConstruction))
+  --extract queries
+  let queries = extractQueries foundSequenceNumber modelConstruction
+  logVerboseMessage (verbositySwitch staticOptions) ("Queries:" ++ show queries ++ "\n") (tempDirPath staticOptions)
+  let iterationDirectory = tempDirPath staticOptions ++ show currentIterationNumber ++ "/"
+  let maybeLastTaxId = extractLastTaxId (taxonomicContext modelConstruction)
+  Control.Monad.when (isNothing maybeLastTaxId) $ logMessage ("Lineage: Could not extract last tax id \n") (tempDirPath staticOptions)
+  --If highest node in linage was used as upper taxonomy limit, taxonomic tree is exhausted
+  if maybe True (\uppertaxlimit -> maybe True (\lastTaxId -> uppertaxlimit /= lastTaxId) maybeLastTaxId) (upperTaxonomyLimit modelConstruction)
+     then do
+       createDirectory iterationDirectory
+       let (upperTaxLimit,lowerTaxLimit) = setTaxonomicContextEntrez currentIterationNumber (taxonomicContext modelConstruction) (upperTaxonomyLimit modelConstruction)
+       logVerboseMessage (verbositySwitch staticOptions) ("Upper taxonomy limit: " ++ show upperTaxLimit ++ "\n " ++ "Lower taxonomy limit: "++ show lowerTaxLimit ++ "\n") (tempDirPath staticOptions)
+       --search queries
+       let expectThreshold = setBlastExpectThreshold modelConstruction
+       searchResults <- catchAll (searchCandidates staticOptions Nothing currentIterationNumber upperTaxLimit lowerTaxLimit expectThreshold queries)
+                        (\e -> do logWarning ("Warning: Search results iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
+                                  return (SearchResult [] Nothing))
+       currentTaxonomicContext <- getTaxonomicContextEntrez upperTaxLimit (taxonomicContext modelConstruction)
+       if null (candidates searchResults)
+         then
+            alignmentConstructionWithoutCandidates currentTaxonomicContext upperTaxLimit staticOptions modelConstruction
+         else
+            alignmentConstructionWithCandidates currentTaxonomicContext upperTaxLimit searchResults staticOptions modelConstruction
+     else do
+       logMessage "Message: Modelconstruction complete: Out of queries or taxonomic tree exhausted\n" (tempDirPath staticOptions)
+       modelConstructionResult staticOptions modelConstruction
