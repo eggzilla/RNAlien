@@ -18,6 +18,7 @@ import qualified System.FilePath as FP
 import Paths_RNAlien (version)
 import Data.Version (showVersion)
 --import Biobase.Fasta.Streaming
+import Control.Monad
 
 data Options = Options
   { inputFastaFilePath :: String,
@@ -102,11 +103,12 @@ main = do
                    putStrLn ("Error - Not all required tools could be found in $PATH: " ++ fromLeft toolsCheck ++ "\n")
                    logMessage ("Error - Not all required tools could be found in $PATH: " ++ fromLeft toolsCheck ++ "\n") temporaryDirectoryPath
                  else do
+                   when (null inputGenomesFasta) (error "Please provide input genomes with the cmd line parameter -s")
                    logToolVersions inputQuerySelectionMethod temporaryDirectoryPath
                    let inputFasta = map reformatFasta inputFasta
                    let inputSequence = head inputFasta
                    let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) Nothing singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads Nothing Nothing (setVerbose verboseLevel) True
-                   let initialization = ModelConstruction iterationNumber inputFasta [] Nothing Nothing (fromJust inputEvalueCutoff) False [] []
+                   let initialization = ModelConstruction iterationNumber inputFasta [] Nothing Nothing (fromJust inputEvalueCutoff) False [] [] inputGenomesFasta
                    logMessage (show initialization) temporaryDirectoryPath
                    modelConstructionResults <- eggModelConstructer staticOptions initialization
                    let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults

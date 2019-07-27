@@ -94,8 +94,8 @@ main = do
            writeFile (temporaryDirectoryPath ++ "log/warnings") ("")
            logMessage ("Timestamp: " ++ (show timestamp) ++ "\n") temporaryDirectoryPath
            logMessage ("Temporary Directory: " ++ temporaryDirectoryPath ++ "\n") temporaryDirectoryPath
-           rawInputFasta <- readFastaFile inputFastaFilePath
-           if null rawInputFasta
+           inputFasta <- readFastaFile inputFastaFilePath
+           if null inputFasta
              then do
                putStrLn "Error: Input fasta file is empty."
                logMessage "Error: Input fasta file is empty.\n" temporaryDirectoryPath
@@ -113,7 +113,7 @@ main = do
                    initialTaxId <- setInitialTaxId offlineMode threads inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
                    let checkedTaxonomyRestriction = checkTaxonomyRestriction taxonomyRestriction
                    let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) inputTaxId singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads inputBlastDatabase checkedTaxonomyRestriction (setVerbose verboseLevel) offlineMode
-                   let initialization = ModelConstruction iterationNumber inputFasta [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] []
+                   let initialization = ModelConstruction iterationNumber inputFasta [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] [] []
                    logMessage (show initialization) temporaryDirectoryPath
                    modelConstructionResults <- modelConstructer staticOptions initialization
                    let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults

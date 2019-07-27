@@ -6,7 +6,7 @@ module Biobase.RNAlien.Library (
                            logMessage,
                            logEither,
                            modelConstructer,
-			   eggModelConstructer,
+                           eggModelConstructer,
                            constructTaxonomyRecordsCSVTable,
                            resultSummary,
                            setVerbose,
@@ -923,7 +923,7 @@ constructNext currentIterationNumber modelconstruction alignmentResults upperTax
         taxEntries = taxRecords modelconstruction ++ buildTaxRecords alignmentResults currentIterationNumber
         potMembers = potentialMembers modelconstruction ++ inputPotentialMembers
         currentAlignmentMode = toggleInfernalAlignmentModeTrue || alignmentModeInfernal modelconstruction
-        nextModelConstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) taxEntries upperTaxLimit inputTaxonomicContext (evalueThreshold modelconstruction) currentAlignmentMode inputSelectedQueries potMembers
+        nextModelConstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) taxEntries upperTaxLimit inputTaxonomicContext (evalueThreshold modelconstruction) currentAlignmentMode inputSelectedQueries potMembers []
 
 buildTaxRecords :: [(Fasta () (),Int,B.ByteString)] -> Int -> [TaxonomyRecord]
 buildTaxRecords alignmentResults currentIterationNumber = taxonomyRecords
