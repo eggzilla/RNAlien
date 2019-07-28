@@ -462,30 +462,9 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_3blastHitsFilteredByLength") (showlines blastHitsFilteredByLength)
        let blastHitsFilteredByCoverage = filterByCoverage blastHitsFilteredByLength queryLength (coverageFilterToggle staticOptions)
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_3ablastHitsFilteredByLength") (showlines blastHitsFilteredByCoverage)
-       --tag BlastHits with TaxId
-       --blastHitsWithTaxIdOutput <- retrieveBlastHitsTaxIdEntrez blastHitsFilteredByCoverage
-       let blastHitsWithTaxId = extractBlastHitsTaxId blastHitsFilteredByCoverage
-       --let uncheckedBlastHitsWithTaxIdList = map (Control.Arrow.second extractTaxIdFromEntrySummaries) blastHitsWithTaxIdOutput
-       --let checkedBlastHitsWithTaxId = filter (\(_,taxids) -> not (null taxids)) uncheckedBlastHitsWithTaxIdList
-       --todo checked blasthittaxidswithblasthits need to be merged as taxid blasthit pairs
-       --let blastHitsWithTaxId = zip (concatMap fst checkedBlastHitsWithTaxId) (concatMap snd checkedBlastHitsWithTaxId)
-       blastHitsWithParentTaxIdOutput <- retrieveParentTaxIdsEntrez blastHitsWithTaxId
-       --let blastHitsWithParentTaxId = concat blastHitsWithParentTaxIdOutput
-       -- filter by ParentTaxId (only one hit per TaxId)
-       let blastHitsFilteredByParentTaxIdWithParentTaxId = filterByParentTaxId blastHitsWithParentTaxIdOutput True
-       --let blastHitsFilteredByParentTaxId = map fst blastHitsFilteredByParentTaxIdWithParentTaxId
-       writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_4blastHitsFilteredByParentTaxId") (showlines blastHitsFilteredByParentTaxIdWithParentTaxId)
-       -- Filtering with TaxTree (only hits from the same subtree as besthit)
-       --let blastHitsWithTaxId = zip blastHitsFilteredByParentTaxId blastHittaxIdList
-       --let (_, filteredBlastResults) = filterByNeighborhoodTreeConditional alignndmentModeInfernalToggle upperTaxLimit blastHitsWithTaxId (inputTaxNodes staticOptions) (fromJust upperTaxLimit) (singleHitperTaxToggle staticOptions)
-       --writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_5filteredBlastResults") (showlines filteredBlastResults)
-       -- Coordinate generation
-       let nonEmptyfilteredBlastResults = filter (\(blasthit,_) -> not (null (J._hsps blasthit))) blastHitsFilteredByParentTaxIdWithParentTaxId
-       let requestedSequenceElements = map (getRequestedSequenceElement queryLength) nonEmptyfilteredBlastResults
-       writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++  "_6requestedSequenceElements") (showlines requestedSequenceElements)
-       -- Retrieval of full sequences from entrez
-       --fullSequencesWithSimilars <- retrieveFullSequences requestedSequenceElements
-       fullSequencesWithSimilars <- retrieveFullSequences staticOptions requestedSequenceElements
+       fullSequencesWithSimilars <- if (isJust maybeGenomeFasta)
+                                     then (scanFiltering blastHitsFilteredByCoverage logFileDirectoryPath queryIndexString queryLength staticOptions)
+                                     else (alienFiltering blastHitsFilteredByCoverage logFileDirectoryPath queryIndexString queryLength staticOptions)
        if null fullSequencesWithSimilars
          then do
            writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10afullSequencesWithSimilars") "No sequences retrieved"
@@ -503,6 +482,40 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
                let dbSize = computeDataBaseSize (J._evalue fractionEvalueMatch) (J._bit_score fractionEvalueMatch) (fromIntegral queryLength ::Double)
                CE.evaluate (SearchResult fullSequences (Just dbSize))
      else CE.evaluate (SearchResult [] Nothing)
+
+
+alienFiltering :: DS.Seq J.Hit -> [Char] -> [Char] -> Int -> StaticOptions -> IO [(Fasta () (), Int, B.ByteString)] 
+alienFiltering blastHitsFilteredByCoverage logFileDirectoryPath queryIndexString queryLength staticOptions = do
+  --tag BlastHits with TaxId
+  --blastHitsWithTaxIdOutput <- retrieveBlastHitsTaxIdEntrez blastHitsFilteredByCoverage
+  let blastHitsWithTaxId = extractBlastHitsTaxId blastHitsFilteredByCoverage
+  --let uncheckedBlastHitsWithTaxIdList = map (Control.Arrow.second extractTaxIdFromEntrySummaries) blastHitsWithTaxIdOutput
+  --let checkedBlastHitsWithTaxId = filter (\(_,taxids) -> not (null taxids)) uncheckedBlastHitsWithTaxIdList
+  --todo checked blasthittaxidswithblasthits need to be merged as taxid blasthit pairs
+  --let blastHitsWithTaxId = zip (concatMap fst checkedBlastHitsWithTaxId) (concatMap snd checkedBlastHitsWithTaxId) 
+  blastHitsWithParentTaxIdOutput <- retrieveParentTaxIdsEntrez blastHitsWithTaxId
+  --let blastHitsWithParentTaxId = concat blastHitsWithParentTaxIdOutput
+  -- filter by ParentTaxId (only one hit per TaxId)
+  let blastHitsFilteredByParentTaxIdWithParentTaxId = filterByParentTaxId blastHitsWithParentTaxIdOutput True
+  --let blastHitsFilteredByParentTaxId = map fst blastHitsFilteredByParentTaxIdWithParentTaxId
+  writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_4blastHitsFilteredByParentTaxId") (showlines blastHitsFilteredByParentTaxIdWithParentTaxId)
+  -- Filtering with TaxTree (only hits from the same subtree as besthit)
+  --let blastHitsWithTaxId = zip blastHitsFilteredByParentTaxId blastHittaxIdList
+  --let (_, filteredBlastResults) = filterByNeighborhoodTreeConditional alignmentModeInfernalToggle upperTaxLimit blastHitsWithTaxId (inputTaxNodes staticOptions) (fromJust upperTaxLimit) (singleHitperTaxToggle staticOptions)
+  --writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_5filteredBlastResults") (showlines filteredBlastResults)
+  -- Coordinate generation
+  let nonEmptyfilteredBlastResults = filter (\(blasthit,_) -> not (null (J._hsps blasthit))) blastHitsFilteredByParentTaxIdWithParentTaxId
+  let requestedSequenceElements = map (getRequestedSequenceElement queryLength) nonEmptyfilteredBlastResults
+  writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++  "_6requestedSequenceElements") (showlines requestedSequenceElements)
+  -- Retrieval of full sequences from entrez
+  --fullSequencesWithSimilars <- retrieveFullSequences requestedSequenceElements
+  fullSequencesWithSimilars <- retrieveFullSequences staticOptions requestedSequenceElements
+  return fullSequencesWithSimilars
+
+--scanFiltering ::
+--scanFiltering blastHitsFilteredByCoverage = do
+
+
 
 -- |Computes size of blast db in Mb
 computeDataBaseSize :: Double -> Double -> Double -> Double
