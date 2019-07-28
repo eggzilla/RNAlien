@@ -106,7 +106,7 @@ modelConstructer staticOptions modelConstruction = do
        logVerboseMessage (verbositySwitch staticOptions) ("Upper taxonomy limit: " ++ show upperTaxLimit ++ "\n " ++ "Lower taxonomy limit: "++ show lowerTaxLimit ++ "\n") (tempDirPath staticOptions)
        --search queries
        let expectThreshold = setBlastExpectThreshold modelConstruction
-       searchResults <- catchAll (searchCandidates staticOptions Nothing currentIterationNumber upperTaxLimit lowerTaxLimit expectThreshold queries)
+       searchResults <- catchAll (searchCandidates staticOptions Nothing currentIterationNumber upperTaxLimit lowerTaxLimit expectThreshold Nothing queries)
                         (\e -> do logWarning ("Warning: Search results iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
                                   return (SearchResult [] Nothing))
        currentTaxonomicContext <- getTaxonomicContextEntrez upperTaxLimit (taxonomicContext modelConstruction)
@@ -159,7 +159,7 @@ modelConstructionResult staticOptions modelConstruction = do
     then do
       --taxonomic restriction
       let (upperTaxLimit,lowerTaxLimit) = setRestrictedTaxonomyLimits (fromJust (taxRestriction staticOptions))
-      restrictedCandidates <- catchAll (searchCandidates staticOptions (taxRestriction staticOptions) currentIterationNumber upperTaxLimit lowerTaxLimit expectThreshold queries)
+      restrictedCandidates <- catchAll (searchCandidates staticOptions (taxRestriction staticOptions) currentIterationNumber upperTaxLimit lowerTaxLimit expectThreshold Nothing queries)
                      (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                return (SearchResult [] Nothing))
       let uniqueCandidates = filterDuplicates modelConstruction restrictedCandidates
@@ -171,7 +171,7 @@ modelConstructionResult staticOptions modelConstruction = do
     else do
       --taxonomic context archea
       let (upperTaxLimit1,lowerTaxLimit1) = (Just (2157 :: Int), Nothing)
-      candidates1 <- catchAll  (searchCandidates staticOptions (Just "archea") currentIterationNumber upperTaxLimit1 lowerTaxLimit1 expectThreshold queries)
+      candidates1 <- catchAll  (searchCandidates staticOptions (Just "archea") currentIterationNumber upperTaxLimit1 lowerTaxLimit1 expectThreshold Nothing queries)
                      (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                return (SearchResult [] Nothing))
       let uniqueCandidates1 = filterDuplicates modelConstruction candidates1
@@ -180,7 +180,7 @@ modelConstructionResult staticOptions modelConstruction = do
                                      return  ([],[]))
       --taxonomic context bacteria
       let (upperTaxLimit2,lowerTaxLimit2) = (Just (2 :: Int), Nothing)
-      candidates2 <- catchAll (searchCandidates staticOptions (Just "bacteria") currentIterationNumber upperTaxLimit2 lowerTaxLimit2 expectThreshold queries)
+      candidates2 <- catchAll (searchCandidates staticOptions (Just "bacteria") currentIterationNumber upperTaxLimit2 lowerTaxLimit2 expectThreshold Nothing queries)
                      (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                return (SearchResult [] Nothing))
       let uniqueCandidates2 = filterDuplicates modelConstruction candidates2
@@ -189,7 +189,7 @@ modelConstructionResult staticOptions modelConstruction = do
                                      return  ([],[]))
       --taxonomic context eukaryia
       let (upperTaxLimit3,lowerTaxLimit3) = (Just (2759 :: Int), Nothing)
-      candidates3 <- catchAll (searchCandidates staticOptions (Just "eukaryia") currentIterationNumber upperTaxLimit3 lowerTaxLimit3 expectThreshold queries)
+      candidates3 <- catchAll (searchCandidates staticOptions (Just "eukaryia") currentIterationNumber upperTaxLimit3 lowerTaxLimit3 expectThreshold Nothing queries)
                      (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                return (SearchResult [] Nothing))
       let uniqueCandidates3 = filterDuplicates modelConstruction candidates3
@@ -419,8 +419,8 @@ findTaxonomyStart offlineMode threads inputBlastDatabase temporaryDirectory quer
        CE.evaluate rightBestTaxIdResult
      else error "Find taxonomy start: Could not find blast hits to use as a taxonomic starting point"
 
-searchCandidates :: StaticOptions -> Maybe String -> Int ->  Maybe Int -> Maybe Int -> Double -> [Fasta () ()] -> IO SearchResult
-searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimit lowerTaxLimit expectThreshold inputQuerySequences = do
+searchCandidates :: StaticOptions -> Maybe String -> Int ->  Maybe Int -> Maybe Int -> Double -> Maybe String -> [Fasta () ()] -> IO SearchResult
+searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimit lowerTaxLimit expectThreshold maybeGenomeFasta inputQuerySequences = do
   Control.Monad.when (null inputQuerySequences) $ error "searchCandidates: - head: empty list of query sequences"
   let queryLength = fromIntegral (B.length (_bioSequence (_fasta (head inputQuerySequences))))
   let queryIndexString = "1"
@@ -429,7 +429,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
   let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=5000&EXPECT=" ++ show expectThreshold
   let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
   let softmaskFilter = if blastSoftmaskingToggle staticOptions then "&FILTER=True&FILTER=m" else ""
-  let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) inputQuerySequences  (Just (hitNumberQuery ++ entrezTaxFilter ++ softmaskFilter ++ registrationInfo)) (Just (5400000000 :: Int))
+  let blastQuery = if (isJust maybeGenomeFasta) then BlastHTTPQuery (Just "ncbi") (Just "blastn") maybeGenomeFasta inputQuerySequences  (Just (hitNumberQuery ++ entrezTaxFilter ++ softmaskFilter ++ registrationInfo)) (Just (5400000000 :: Int)) else BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) inputQuerySequences  (Just (hitNumberQuery ++ entrezTaxFilter ++ softmaskFilter ++ registrationInfo)) (Just (5400000000 :: Int))
   --appendFile "/scratch/egg/blasttest/queries" ("\nBlast query:\n"  ++ show blastQuery ++ "\n")
   logVerboseMessage (verbositySwitch staticOptions) ("Sending blast query " ++ show iterationnumber ++ "\n") (tempDirPath staticOptions)
   let logFileDirectoryPath = tempDirPath staticOptions ++ show iterationnumber ++ "/" ++ fromMaybe "" finaliterationprefix ++ "log"
@@ -2044,25 +2044,27 @@ eggModelConstructer staticOptions modelConstruction = do
   let queries = extractQueries foundSequenceNumber modelConstruction
   logVerboseMessage (verbositySwitch staticOptions) ("Queries:" ++ show queries ++ "\n") (tempDirPath staticOptions)
   let iterationDirectory = tempDirPath staticOptions ++ show currentIterationNumber ++ "/"
-  let maybeLastTaxId = extractLastTaxId (taxonomicContext modelConstruction)
-  Control.Monad.when (isNothing maybeLastTaxId) $ logMessage ("Lineage: Could not extract last tax id \n") (tempDirPath staticOptions)
-  --If highest node in linage was used as upper taxonomy limit, taxonomic tree is exhausted
-  if maybe True (\uppertaxlimit -> maybe True (\lastTaxId -> uppertaxlimit /= lastTaxId) maybeLastTaxId) (upperTaxonomyLimit modelConstruction)
+  let lastGenome = null (genomeFastas modelConstruction)
+  --Terminate on search space exhaustion
+  if (not lastGenome)
      then do
        createDirectory iterationDirectory
        let (upperTaxLimit,lowerTaxLimit) = setTaxonomicContextEntrez currentIterationNumber (taxonomicContext modelConstruction) (upperTaxonomyLimit modelConstruction)
        logVerboseMessage (verbositySwitch staticOptions) ("Upper taxonomy limit: " ++ show upperTaxLimit ++ "\n " ++ "Lower taxonomy limit: "++ show lowerTaxLimit ++ "\n") (tempDirPath staticOptions)
        --search queries
        let expectThreshold = setBlastExpectThreshold modelConstruction
-       searchResults <- catchAll (searchCandidates staticOptions Nothing currentIterationNumber upperTaxLimit lowerTaxLimit expectThreshold queries)
+       let currentGenomeFasta = head (genomeFastas modelConstruction)
+       let genomeFastaPath = (iterationDirectory ++ "genome.fa")
+       writeFastaFile genomeFastaPath [currentGenomeFasta]
+       searchResults <- catchAll (searchCandidates staticOptions Nothing currentIterationNumber upperTaxLimit lowerTaxLimit expectThreshold (Just genomeFastaPath) queries)
                         (\e -> do logWarning ("Warning: Search results iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
                                   return (SearchResult [] Nothing))
-       currentTaxonomicContext <- getTaxonomicContextEntrez upperTaxLimit (taxonomicContext modelConstruction)
        if null (candidates searchResults)
          then
-            alignmentConstructionWithoutCandidates currentTaxonomicContext upperTaxLimit staticOptions modelConstruction
+            alignmentConstructionWithoutCandidates Nothing Nothing staticOptions modelConstruction
          else
-            alignmentConstructionWithCandidates currentTaxonomicContext upperTaxLimit searchResults staticOptions modelConstruction
+            alignmentConstructionWithCandidates Nothing Nothing searchResults staticOptions modelConstruction
      else do
        logMessage "Message: Modelconstruction complete: Out of queries or taxonomic tree exhausted\n" (tempDirPath staticOptions)
        modelConstructionResult staticOptions modelConstruction
+
