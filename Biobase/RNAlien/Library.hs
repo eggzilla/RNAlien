@@ -463,7 +463,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
        let blastHitsFilteredByCoverage = filterByCoverage blastHitsFilteredByLength queryLength (coverageFilterToggle staticOptions)
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_3ablastHitsFilteredByLength") (showlines blastHitsFilteredByCoverage)
        fullSequencesWithSimilars <- if (isJust maybeGenomeFasta)
-                                     then (scanFiltering blastHitsFilteredByCoverage logFileDirectoryPath queryIndexString queryLength staticOptions)
+                                     then (scanFiltering blastHitsFilteredByCoverage logFileDirectoryPath queryIndexString queryLength maybeGenomeFasta staticOptions)
                                      else (alienFiltering blastHitsFilteredByCoverage logFileDirectoryPath queryIndexString queryLength staticOptions)
        if null fullSequencesWithSimilars
          then do
@@ -511,11 +511,6 @@ alienFiltering blastHitsFilteredByCoverage logFileDirectoryPath queryIndexString
   --fullSequencesWithSimilars <- retrieveFullSequences requestedSequenceElements
   fullSequencesWithSimilars <- retrieveFullSequences staticOptions requestedSequenceElements
   return fullSequencesWithSimilars
-
---scanFiltering ::
---scanFiltering blastHitsFilteredByCoverage = do
-
-
 
 -- |Computes size of blast db in Mb
 computeDataBaseSize :: Double -> Double -> Double -> Double
@@ -2081,3 +2076,27 @@ eggModelConstructer staticOptions modelConstruction = do
        logMessage "Message: Modelconstruction complete: Out of queries or taxonomic tree exhausted\n" (tempDirPath staticOptions)
        modelConstructionResult staticOptions modelConstruction
 
+scanFiltering :: DS.Seq J.Hit -> [Char] -> [Char] -> Int -> Maybe String -> StaticOptions -> IO [(Fasta () (), Int, B.ByteString)] 
+scanFiltering blastHitsFilteredByCoverage logFileDirectoryPath queryIndexString queryLength maybeGenomeFasta staticOptions = do
+  let nonEmptyfilteredBlastResults = filter (\(blasthit) -> not (null (J._hsps blasthit))) (Data.Foldable.toList blastHitsFilteredByCoverage)
+  genomeFasta <- readFastaFile (fromJust maybeGenomeFasta)
+  let sequenceByteString = _bioSequence . _fasta $ genomeFasta
+  let requestedSequenceElements = map (getRequestedSequenceElement queryLength) nonEmptyfilteredBlastResults
+  writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++  "_6requestedSequenceElements") (showlines requestedSequenceElements)
+  -- Retrieval of full sequences from genome
+  fullSequencesWithSimilars <- retrieveGenomeFullSequences sequenceByteString staticOptions requestedSequenceElements
+  return fullSequencesWithSimilars
+
+-- | Wrapper for retrieveFullSequence that rerequests incomplete return sequees
+retrieveGenomeFullSequences :: B.ByteString -> StaticOptions -> [(String,Int,Int,String,T.Text,Int,B.ByteString)] -> IO [(Fasta () (),Int,B.ByteString)]
+retrieveGenomeFullSequences genomeSequence staticOptions requestedSequences = do
+  fullSequences <- mapM (retrieveFullSequenceGenome (tempDirPath staticOptions) genomeSequence) requestedSequences
+
+retrieveGenomeFullSequence :: String -> (String,Int,Int,String,T.Text,Int,B.ByteString) -> IO (Maybe (Fasta () ()),Int,B.ByteString)
+retrieveFullSequenceBlastDb (nucleotideId,seqStart,seqStop,strand,_,taxid,subject') = do
+  retrievedSequence = byteStringSlice 
+  let justSequence = Just . head $ retrievedSequence
+  return(justSequence,taxid,subject')  
+
+byteStringSlice :: Int -> Int -> B.ByteString -> B.ByteString
+byteStringSlice start len = B.take len . B.drop start
