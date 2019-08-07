@@ -64,9 +64,9 @@ executable RNAlien
                        random, containers, RNAlien, time, either-unwrap, filepath,
                        BiobaseFasta == 0.3.0.*
 
-executable RNAlienEgg
+executable RNAlienScan
   Hs-Source-Dirs:      ./Biobase/
-  main-is:	       RNAlienEgg.hs
+  main-is:	       RNAlienScan.hs
   ghc-options:         -Wall
   default-language:    Haskell2010
   other-modules:       Paths_RNAlien

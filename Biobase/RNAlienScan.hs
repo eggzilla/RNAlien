@@ -55,7 +55,7 @@ options = Options
     sessionIdentificator = Nothing &= name "d" &= help "Optional session id that is used instead of automatically generated one.",
     performEvaluation = True &= name "x" &= help "Perform evaluation step. Default: True",
     checkSetup = False &= name "g" &= help "Just prints installed tool versions and performs connection check. Default: False"
-  } &= summary ("RNAlienEgg " ++ alienVersion) &= help "Florian Eggenhofer - 2019" &= verbosity
+  } &= summary ("RNAlienScan " ++ alienVersion) &= help "Florian Eggenhofer - 2019" &= verbosity
 
 main :: IO ()
 main = do
@@ -89,9 +89,9 @@ main = do
            writeFile (temporaryDirectoryPath ++ "log/warnings") ("")
            logMessage ("Timestamp: " ++ (show timestamp) ++ "\n") temporaryDirectoryPath
            logMessage ("Temporary Directory: " ++ temporaryDirectoryPath ++ "\n") temporaryDirectoryPath
-           inputFasta <- readFastaFile inputFastaFilePath
+           fastaInput <- readFastaFile inputFastaFilePath
            inputGenomesFasta <- readFastaFile inputGenomesFastaFilePath
-           if null inputFasta
+           if null fastaInput
              then do
                putStrLn "Error: Input fasta file is empty."
                logMessage "Error: Input fasta file is empty.\n" temporaryDirectoryPath
@@ -105,10 +105,9 @@ main = do
                  else do
                    when (null inputGenomesFasta) (error "Please provide input genomes with the cmd line parameter -s")
                    logToolVersions inputQuerySelectionMethod temporaryDirectoryPath
-                   let inputFasta = map reformatFasta inputFasta
-                   let inputSequence = head inputFasta
+                   let reformatedFastaInput = map reformatFasta fastaInput
                    let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) Nothing singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads Nothing Nothing (setVerbose verboseLevel) True
-                   let initialization = ModelConstruction iterationNumber inputFasta [] Nothing Nothing (fromJust inputEvalueCutoff) False [] [] inputGenomesFasta
+                   let initialization = ModelConstruction iterationNumber reformatedFastaInput [] Nothing Nothing (fromJust inputEvalueCutoff) False [] [] inputGenomesFasta
                    logMessage (show initialization) temporaryDirectoryPath
                    modelConstructionResults <- eggModelConstructer staticOptions initialization
                    let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults

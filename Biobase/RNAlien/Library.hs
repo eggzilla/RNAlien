@@ -2038,7 +2038,7 @@ systemGetSpeciesTaxId requestedTaxId outputFilePath = do
   return ()
 
 
------------------------------------------- RNAlienEgg ------------------------------------
+------------------------------------------ RNAlienScan ------------------------------------
 
 
 -- | Egg Initial RNA family model construction - generates iteration number, seed alignment and model
@@ -2097,8 +2097,8 @@ retrieveGenomeFullSequence :: B.ByteString -> (String,Int,Int,String,T.Text,Int,
 retrieveGenomeFullSequence sequenceByteString (nucleotideId,seqStart,seqStop,strand,_,taxid,subject') = (justFasta,0,subject')
   where retrievedSequence = byteStringSlice seqStart len sequenceByteString
         bioSequence = if strand == "1" then (BioSequence retrievedSequence) else (BioSequence rcretrievedSequence)
-        fastaHeader= SequenceIdentifier (B.pack (nucleotideId ++ "_" ++ show seqStart ++ "_" ++ show seqStop ++ "_" ++ strand))
-        justFasta = Fasta fastaHeader bioSequence
+        currentFastaHeader= SequenceIdentifier (B.pack (nucleotideId ++ "_" ++ show seqStart ++ "_" ++ show seqStop ++ "_" ++ strand))
+        justFasta = Fasta currentFastaHeader bioSequence
         len = seqStart - seqStop
         rcretrievedSequence = B.reverse (B.map complement' retrievedSequence)
         

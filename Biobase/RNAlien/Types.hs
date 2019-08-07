@@ -52,7 +52,7 @@ instance Show ModelConstruction where
           g = "Evalue cutoff: " ++ show _evalueThreshold ++ "\n"
           h = "Selected queries: \n" ++ concatMap show _selectedQueries
           i = "Potential Members: \n" ++ concatMap show _potentialMembers
-	  j = "Number of genomes for RNAlienEgg: " ++ show (length _genomeFastas)
+          j = "Number of genomes for RNAlienEgg: " ++ show (length _genomeFastas)
 
 data TaxonomyRecord = TaxonomyRecord
   { recordTaxonomyId :: Int,
