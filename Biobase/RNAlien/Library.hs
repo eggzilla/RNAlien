@@ -2079,24 +2079,36 @@ eggModelConstructer staticOptions modelConstruction = do
 scanFiltering :: DS.Seq J.Hit -> [Char] -> [Char] -> Int -> Maybe String -> StaticOptions -> IO [(Fasta () (), Int, B.ByteString)] 
 scanFiltering blastHitsFilteredByCoverage logFileDirectoryPath queryIndexString queryLength maybeGenomeFasta staticOptions = do
   let nonEmptyfilteredBlastResults = filter (\(blasthit) -> not (null (J._hsps blasthit))) (Data.Foldable.toList blastHitsFilteredByCoverage)
+  let dummyTaxId = replicate (length nonEmptyfilteredBlastResults) 0
+  let blastResultsDummyTax = zip nonEmptyfilteredBlastResults dummyTaxId
   genomeFasta <- readFastaFile (fromJust maybeGenomeFasta)
-  let sequenceByteString = _bioSequence . _fasta $ genomeFasta
-  let requestedSequenceElements = map (getRequestedSequenceElement queryLength) nonEmptyfilteredBlastResults
+  let sequenceByteString = _bioSequence . _fasta $ (head genomeFasta)
+  let requestedSequenceElements = map (getRequestedSequenceElement queryLength) blastResultsDummyTax
   writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++  "_6requestedSequenceElements") (showlines requestedSequenceElements)
   -- Retrieval of full sequences from genome
-  fullSequencesWithSimilars <- retrieveGenomeFullSequences sequenceByteString staticOptions requestedSequenceElements
+  let fullSequencesWithSimilars = retrieveGenomeFullSequences sequenceByteString staticOptions requestedSequenceElements
   return fullSequencesWithSimilars
 
 -- | Wrapper for retrieveFullSequence that rerequests incomplete return sequees
-retrieveGenomeFullSequences :: B.ByteString -> StaticOptions -> [(String,Int,Int,String,T.Text,Int,B.ByteString)] -> IO [(Fasta () (),Int,B.ByteString)]
-retrieveGenomeFullSequences genomeSequence staticOptions requestedSequences = do
-  fullSequences <- mapM (retrieveFullSequenceGenome (tempDirPath staticOptions) genomeSequence) requestedSequences
+retrieveGenomeFullSequences :: B.ByteString -> StaticOptions -> [(String,Int,Int,String,T.Text,Int,B.ByteString)] -> [(Fasta () (),Int,B.ByteString)]
+retrieveGenomeFullSequences genomeSequence staticOptions requestedSequences = map (retrieveGenomeFullSequence genomeSequence) requestedSequences
 
-retrieveGenomeFullSequence :: String -> (String,Int,Int,String,T.Text,Int,B.ByteString) -> IO (Maybe (Fasta () ()),Int,B.ByteString)
-retrieveFullSequenceBlastDb (nucleotideId,seqStart,seqStop,strand,_,taxid,subject') = do
-  retrievedSequence = byteStringSlice 
-  let justSequence = Just . head $ retrievedSequence
-  return(justSequence,taxid,subject')  
+retrieveGenomeFullSequence :: B.ByteString -> (String,Int,Int,String,T.Text,Int,B.ByteString) -> ((Fasta () ()),Int,B.ByteString)
+retrieveGenomeFullSequence sequenceByteString (nucleotideId,seqStart,seqStop,strand,_,taxid,subject') = (justFasta,0,subject')
+  where retrievedSequence = byteStringSlice seqStart len sequenceByteString
+        bioSequence = if strand == "1" then (BioSequence retrievedSequence) else (BioSequence rcretrievedSequence)
+        fastaHeader= SequenceIdentifier (B.pack (nucleotideId ++ "_" ++ show seqStart ++ "_" ++ show seqStop ++ "_" ++ strand))
+        justFasta = Fasta fastaHeader bioSequence
+        len = seqStart - seqStop
+        rcretrievedSequence = B.reverse (B.map complement' retrievedSequence)
+        
+complement' :: Char -> Char
+complement' c
+  | c == 'G' = 'C'
+  | c == 'C' = 'G'
+  | c == 'A' = 'T'
+  | c == 'T' = 'A'
+  | otherwise = 'N'
 
 byteStringSlice :: Int -> Int -> B.ByteString -> B.ByteString
 byteStringSlice start len = B.take len . B.drop start
