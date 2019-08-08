@@ -6,7 +6,7 @@ module Biobase.RNAlien.Library (
                            logMessage,
                            logEither,
                            modelConstructer,
-                           eggModelConstructer,
+                           scanModelConstructer,
                            constructTaxonomyRecordsCSVTable,
                            resultSummary,
                            setVerbose,
@@ -302,8 +302,8 @@ reevaluatePotentialMembers staticOptions modelConstruction = do
 
 ---------------------------------------------------------
 
-alignmentConstructionWithCandidates :: Maybe Taxon -> Maybe Int -> SearchResult -> StaticOptions -> ModelConstruction -> IO ModelConstruction
-alignmentConstructionWithCandidates currentTaxonomicContext currentUpperTaxonomyLimit searchResults staticOptions modelConstruction = do
+alignmentConstructionWithCandidates :: String -> Maybe Taxon -> Maybe Int -> SearchResult -> StaticOptions -> ModelConstruction -> IO ModelConstruction
+alignmentConstructionWithCandidates alienType currentTaxonomicContext currentUpperTaxonomyLimit searchResults staticOptions modelConstruction = do
     --candidates usedUpperTaxonomyLimit blastDatabaseSize
     let currentIterationNumber = iterationNumber modelConstruction
     let iterationDirectory = tempDirPath staticOptions ++ show currentIterationNumber ++ "/"
@@ -321,12 +321,18 @@ alignmentConstructionWithCandidates currentTaxonomicContext currentUpperTaxonomy
         --prepare next iteration
         let newTaxEntries = taxRecords modelConstruction ++ buildTaxRecords alignmentResults currentIterationNumber
         let nextModelConstructionInputWithThreshold = modelConstruction {iterationNumber = currentIterationNumber + 1,upperTaxonomyLimit = currentUpperTaxonomyLimit, taxRecords = newTaxEntries,taxonomicContext = currentTaxonomicContext}
-        logMessage (iterationSummaryLog nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)
-        logVerboseMessage (verbositySwitch staticOptions)  (show nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)     ----
+        let nextGenomeFastas = tail (genomeFastas modelConstruction)
+        let nextScanModelConstructionInputWithThreshold = modelConstruction {iterationNumber = currentIterationNumber + 1,upperTaxonomyLimit = currentUpperTaxonomyLimit, taxRecords = newTaxEntries,taxonomicContext = currentTaxonomicContext, genomeFastas = nextGenomeFastas}
         writeFile (iterationDirectory ++ "done") ""
-        if constructiontype == "alien"
-          then modelConstructer staticOptions nextModelConstructionInputWithThreshold
-          else scanModelConstructer staticOptions nextModelConstructionInputWithThreshold
+        if alienType == "alien"
+          then do
+            logMessage (iterationSummaryLog nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)
+            logVerboseMessage (verbositySwitch staticOptions)  (show nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)
+            modelConstructer staticOptions nextModelConstructionInputWithThreshold
+          else do
+            logMessage (iterationSummaryLog nextScanModelConstructionInputWithThreshold) (tempDirPath staticOptions)
+            logVerboseMessage (verbositySwitch staticOptions)  (show nextScanModelConstructionInputWithThreshold) (tempDirPath staticOptions)
+            scanModelConstructer staticOptions nextScanModelConstructionInputWithThreshold
       else
         if (alignmentModeInfernal modelConstruction)
           then do
@@ -335,13 +341,21 @@ alignmentConstructionWithCandidates currentTaxonomicContext currentUpperTaxonomy
             let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults currentUpperTaxonomyLimit currentTaxonomicContext [] currentPotentialMembers True
             constructModel nextModelConstructionInput staticOptions
             writeFile (iterationDirectory ++ "done") ""
-            logMessage (iterationSummaryLog nextModelConstructionInput) (tempDirPath staticOptions)
-            logVerboseMessage (verbositySwitch staticOptions)  (show nextModelConstructionInput) (tempDirPath staticOptions)
             --select queries
             currentSelectedQueries <- selectQueries staticOptions modelConstruction alignmentResults
-            let nextModelConstructionInputWithQueries = nextModelConstructionInput {selectedQueries = currentSelectedQueries}
-            nextModelConstruction <- if constructiontype == "alien" then modelConstructer staticOptions nextModelConstructionInputWithQueries
-                                                                    else scanModelConstructer staticOptions nextModelConstructionInputWithQueries
+            nextModelConstruction <- if alienType == "alien"
+                                     then do
+                                      logMessage (iterationSummaryLog nextModelConstructionInput) (tempDirPath staticOptions)
+                                      logVerboseMessage (verbositySwitch staticOptions)  (show nextModelConstructionInput) (tempDirPath staticOptions)
+                                      let nextModelConstructionInputWithQueries = nextModelConstructionInput {selectedQueries = currentSelectedQueries}
+                                      modelConstructer staticOptions nextModelConstructionInputWithQueries
+                                     else do
+                                       let nextGenomeFastas = tail (genomeFastas modelConstruction)
+                                       let nextScanModelConstructionInputWithQueries = nextModelConstructionInput {selectedQueries = currentSelectedQueries, genomeFastas = nextGenomeFastas}
+                                       logMessage (iterationSummaryLog nextScanModelConstructionInputWithQueries) (tempDirPath staticOptions)
+                                       logVerboseMessage (verbositySwitch staticOptions) (show nextScanModelConstructionInputWithQueries) (tempDirPath staticOptions)
+
+                                       scanModelConstructer staticOptions nextScanModelConstructionInputWithQueries
             return nextModelConstruction
           else do
             logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - initial mode\n") (tempDirPath staticOptions)
@@ -351,24 +365,32 @@ alignmentConstructionWithCandidates currentTaxonomicContext currentUpperTaxonomy
             constructModel nextModelConstructionInput staticOptions
             currentSelectedQueries <- selectQueries staticOptions modelConstruction alignmentResults
             --select queries
-            let nextModelConstructionInputWithInfernalMode = nextModelConstructionInput {alignmentModeInfernal = True, selectedQueries = currentSelectedQueries}
-            logMessage (iterationSummaryLog  nextModelConstructionInputWithInfernalMode) (tempDirPath staticOptions)
-            logVerboseMessage (verbositySwitch staticOptions)  (show  nextModelConstructionInputWithInfernalMode) (tempDirPath staticOptions)
             writeFile (iterationDirectory ++ "done") ""
-            nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInputWithInfernalMode
-            nextModelConstruction <- if constructiontype == "alien" then modelConstructer staticOptions nextModelConstructionInputWithInfernalMode
-                                                                    else scanModelConstructer staticOptions nextModelConstructionInputWithInfernalMode
+            nextModelConstruction <- if alienType == "alien"
+                                       then do
+                                         let nextModelConstructionInputWithInfernalMode = nextModelConstructionInput {alignmentModeInfernal = True, selectedQueries = currentSelectedQueries}
+                                         logMessage (iterationSummaryLog  nextModelConstructionInputWithInfernalMode) (tempDirPath staticOptions)
+                                         logVerboseMessage (verbositySwitch staticOptions)  (show  nextModelConstructionInputWithInfernalMode) (tempDirPath staticOptions)
+                                         modelConstructer staticOptions nextModelConstructionInputWithInfernalMode
+                                       else do
+                                         let nextGenomeFastas = tail (genomeFastas modelConstruction)
+                                         let nextScanModelConstructionInputWithInfernalMode = nextModelConstructionInput {alignmentModeInfernal = True, selectedQueries = currentSelectedQueries, genomeFastas = nextGenomeFastas}
+                                         logMessage (iterationSummaryLog  nextScanModelConstructionInputWithInfernalMode) (tempDirPath staticOptions)
+                                         logVerboseMessage (verbositySwitch staticOptions) (show nextScanModelConstructionInputWithInfernalMode) (tempDirPath staticOptions)
+                                         scanModelConstructer staticOptions nextScanModelConstructionInputWithInfernalMode
             return nextModelConstruction
 
 alignmentConstructionWithoutCandidates :: String -> Maybe Taxon -> Maybe Int ->  StaticOptions -> ModelConstruction -> IO ModelConstruction
-alignmentConstructionWithoutCandidates constructionType currentTaxonomicContext upperTaxLimit staticOptions modelConstruction = do
+alignmentConstructionWithoutCandidates alienType currentTaxonomicContext upperTaxLimit staticOptions modelConstruction = do
     let currentIterationNumber = iterationNumber modelConstruction
     let iterationDirectory = tempDirPath staticOptions ++ show currentIterationNumber ++ "/"
     --Found no new candidates in this iteration, reusing previous modelconstruction with increased upperTaxonomyLimit
-    let nextModelConstructionInputWithThreshold = modelConstruction  {iterationNumber = currentIterationNumber + 1,upperTaxonomyLimit = upperTaxLimit,taxonomicContext = currentTaxonomicContext}
     --copy model and alignment from last iteration in place if present
     let previousIterationCMPath = tempDirPath staticOptions ++ show (currentIterationNumber - 1) ++ "/model.cm"
     previousIterationCMexists <- doesFileExist previousIterationCMPath
+    let nextGenomeFastas = tail (genomeFastas modelConstruction)
+    let nextModelConstructionInputWithThreshold = modelConstruction  {iterationNumber = currentIterationNumber + 1,upperTaxonomyLimit = upperTaxLimit,taxonomicContext = currentTaxonomicContext}
+    let nextScanModelConstructionInputWithThreshold = modelConstruction {iterationNumber = currentIterationNumber + 1,upperTaxonomyLimit = upperTaxLimit,taxonomicContext = currentTaxonomicContext, genomeFastas = nextGenomeFastas}  
     if previousIterationCMexists
       then do
         logVerboseMessage (verbositySwitch staticOptions) "Alignment construction no candidates - previous cm\n" (tempDirPath staticOptions)
@@ -380,20 +402,30 @@ alignmentConstructionWithoutCandidates constructionType currentTaxonomicContext 
         copyFile previousIterationFastaPath thisIterationFastaPath
         copyFile previousIterationAlignmentPath thisIterationAlignmentPath
         copyFile previousIterationCMPath thisIterationCMPath
-        logMessage (iterationSummaryLog nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)
-        logVerboseMessage (verbositySwitch staticOptions) (show nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)
         writeFile (iterationDirectory ++ "done") ""
-        if constructiontype == "alien"
-          then modelConstructer staticOptions nextModelConstructionInputWithThreshold
-          else scanModelConstructer staticOptions nextModelConstructionInputWithThreshold
+        if alienType == "alien"
+          then do
+            logMessage (iterationSummaryLog nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)
+            logVerboseMessage (verbositySwitch staticOptions) (show nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)
+            modelConstructer staticOptions nextModelConstructionInputWithThreshold
+          else do
+            logMessage (iterationSummaryLog nextScanModelConstructionInputWithThreshold) (tempDirPath staticOptions)
+            logVerboseMessage (verbositySwitch staticOptions) (show nextScanModelConstructionInputWithThreshold) (tempDirPath staticOptions)
+            scanModelConstructer staticOptions nextScanModelConstructionInputWithThreshold
       else do
         logVerboseMessage (verbositySwitch staticOptions) "Alignment construction no candidates - no previous iteration cm\n" (tempDirPath staticOptions)
         logMessage (iterationSummaryLog nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)
         logVerboseMessage (verbositySwitch staticOptions) (show nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)    ----
         writeFile (iterationDirectory ++ "done") ""
-        if constructiontype == "alien"
-          then modelConstructer staticOptions nextModelConstructionInputWithThreshold
-          else scanModelConstructer staticOptions nextModelConstructionInputWithThreshold
+        if alienType == "alien"
+          then do
+            logMessage (iterationSummaryLog nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)
+            logVerboseMessage (verbositySwitch staticOptions) (show nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)
+            modelConstructer staticOptions nextModelConstructionInputWithThreshold
+          else do
+            logMessage (iterationSummaryLog nextScanModelConstructionInputWithThreshold) (tempDirPath staticOptions)
+            logVerboseMessage (verbositySwitch staticOptions) (show nextScanModelConstructionInputWithThreshold) (tempDirPath staticOptions)
+            scanModelConstructer staticOptions nextModelConstructionInputWithThreshold
 
 
 findTaxonomyStart :: Bool -> Int -> Maybe String -> String -> Fasta () () -> IO Int

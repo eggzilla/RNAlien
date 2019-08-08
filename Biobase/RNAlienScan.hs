@@ -109,7 +109,7 @@ main = do
                    let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) Nothing singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads Nothing Nothing (setVerbose verboseLevel) True
                    let initialization = ModelConstruction iterationNumber reformatedFastaInput [] Nothing Nothing (fromJust inputEvalueCutoff) False [] [] inputGenomesFasta
                    logMessage (show initialization) temporaryDirectoryPath
-                   modelConstructionResults <- eggModelConstructer staticOptions initialization
+                   modelConstructionResults <- scanModelConstructer staticOptions initialization
                    let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults
                    writeFile (temporaryDirectoryPath ++ "result.csv") resultTaxonomyRecordsCSVTable
                    if performEvaluation
