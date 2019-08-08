@@ -112,9 +112,9 @@ modelConstructer staticOptions modelConstruction = do
        currentTaxonomicContext <- getTaxonomicContextEntrez upperTaxLimit (taxonomicContext modelConstruction)
        if null (candidates searchResults)
          then
-            alignmentConstructionWithoutCandidates currentTaxonomicContext upperTaxLimit staticOptions modelConstruction
+            alignmentConstructionWithoutCandidates "alien" currentTaxonomicContext upperTaxLimit staticOptions modelConstruction
          else
-            alignmentConstructionWithCandidates currentTaxonomicContext upperTaxLimit searchResults staticOptions modelConstruction
+            alignmentConstructionWithCandidates "alien" currentTaxonomicContext upperTaxLimit searchResults staticOptions modelConstruction
      else do
        logMessage "Message: Modelconstruction complete: Out of queries or taxonomic tree exhausted\n" (tempDirPath staticOptions)
        modelConstructionResult staticOptions modelConstruction
@@ -324,7 +324,9 @@ alignmentConstructionWithCandidates currentTaxonomicContext currentUpperTaxonomy
         logMessage (iterationSummaryLog nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)
         logVerboseMessage (verbositySwitch staticOptions)  (show nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)     ----
         writeFile (iterationDirectory ++ "done") ""
-        modelConstructer staticOptions nextModelConstructionInputWithThreshold
+        if constructiontype == "alien"
+          then modelConstructer staticOptions nextModelConstructionInputWithThreshold
+          else scanModelConstructer staticOptions nextModelConstructionInputWithThreshold
       else
         if (alignmentModeInfernal modelConstruction)
           then do
@@ -338,7 +340,8 @@ alignmentConstructionWithCandidates currentTaxonomicContext currentUpperTaxonomy
             --select queries
             currentSelectedQueries <- selectQueries staticOptions modelConstruction alignmentResults
             let nextModelConstructionInputWithQueries = nextModelConstructionInput {selectedQueries = currentSelectedQueries}
-            nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInputWithQueries
+            nextModelConstruction <- if constructiontype == "alien" then modelConstructer staticOptions nextModelConstructionInputWithQueries
+                                                                    else scanModelConstructer staticOptions nextModelConstructionInputWithQueries
             return nextModelConstruction
           else do
             logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - initial mode\n") (tempDirPath staticOptions)
@@ -353,10 +356,12 @@ alignmentConstructionWithCandidates currentTaxonomicContext currentUpperTaxonomy
             logVerboseMessage (verbositySwitch staticOptions)  (show  nextModelConstructionInputWithInfernalMode) (tempDirPath staticOptions)
             writeFile (iterationDirectory ++ "done") ""
             nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInputWithInfernalMode
+            nextModelConstruction <- if constructiontype == "alien" then modelConstructer staticOptions nextModelConstructionInputWithInfernalMode
+                                                                    else scanModelConstructer staticOptions nextModelConstructionInputWithInfernalMode
             return nextModelConstruction
 
-alignmentConstructionWithoutCandidates :: Maybe Taxon -> Maybe Int ->  StaticOptions -> ModelConstruction -> IO ModelConstruction
-alignmentConstructionWithoutCandidates currentTaxonomicContext upperTaxLimit staticOptions modelConstruction = do
+alignmentConstructionWithoutCandidates :: String -> Maybe Taxon -> Maybe Int ->  StaticOptions -> ModelConstruction -> IO ModelConstruction
+alignmentConstructionWithoutCandidates constructionType currentTaxonomicContext upperTaxLimit staticOptions modelConstruction = do
     let currentIterationNumber = iterationNumber modelConstruction
     let iterationDirectory = tempDirPath staticOptions ++ show currentIterationNumber ++ "/"
     --Found no new candidates in this iteration, reusing previous modelconstruction with increased upperTaxonomyLimit
@@ -378,13 +383,18 @@ alignmentConstructionWithoutCandidates currentTaxonomicContext upperTaxLimit sta
         logMessage (iterationSummaryLog nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)
         logVerboseMessage (verbositySwitch staticOptions) (show nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)
         writeFile (iterationDirectory ++ "done") ""
-        modelConstructer staticOptions nextModelConstructionInputWithThreshold
+        if constructiontype == "alien"
+          then modelConstructer staticOptions nextModelConstructionInputWithThreshold
+          else scanModelConstructer staticOptions nextModelConstructionInputWithThreshold
       else do
         logVerboseMessage (verbositySwitch staticOptions) "Alignment construction no candidates - no previous iteration cm\n" (tempDirPath staticOptions)
         logMessage (iterationSummaryLog nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)
         logVerboseMessage (verbositySwitch staticOptions) (show nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)    ----
         writeFile (iterationDirectory ++ "done") ""
-        modelConstructer staticOptions nextModelConstructionInputWithThreshold
+        if constructiontype == "alien"
+          then modelConstructer staticOptions nextModelConstructionInputWithThreshold
+          else scanModelConstructer staticOptions nextModelConstructionInputWithThreshold
+
 
 findTaxonomyStart :: Bool -> Int -> Maybe String -> String -> Fasta () () -> IO Int
 findTaxonomyStart offlineMode threads inputBlastDatabase temporaryDirectory querySequence = do
@@ -2017,7 +2027,13 @@ systemBlast :: Int -> String -> String -> String -> String -> Maybe Double -> Bo
 systemBlast threads _blastDatabase upperTaxLimitPath lowerTaxLimitPath positiveSetTaxIdLimitPath _evalueThreshold _blastSoftmaskingToggle queryFilepath outputFilePath = do
   let cmd = ("blastn " ++ threadedOption ++ expectThresholdOption ++ taxonomyOption ++ " " ++ softmaskOption ++ dbOption ++ " -query " ++ queryFilepath  ++ " -outfmt 15  -out " ++ outputFilePath)
   --putStrLn cmd
-  system cmd
+  if T.isSuffixOf (T.pack ".fa") (T.pack _blastDatabase)
+     then do
+       let makedbcmd = ("makeblastdb -in " ++ _blastDatabase ++ " -input_type fasta -dbtype nucl -parse_seqids ")
+       system makedbcmd
+       system cmd
+     else do
+       system cmd
   where threadedOption = " -num_threads " ++ show threads
         expectThresholdOption = if isJust _evalueThreshold then " -evalue " ++ show (fromJust _evalueThreshold) else ""
         dbOption = if null _blastDatabase then "" else " -db " ++ _blastDatabase ++ " "
@@ -2040,10 +2056,9 @@ systemGetSpeciesTaxId requestedTaxId outputFilePath = do
 
 ------------------------------------------ RNAlienScan ------------------------------------
 
-
--- | Egg Initial RNA family model construction - generates iteration number, seed alignment and model
-eggModelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
-eggModelConstructer staticOptions modelConstruction = do
+-- | RNAlienScan RNA family model construction - generates iteration number, seed alignment and model
+scanModelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
+scanModelConstructer staticOptions modelConstruction = do
   logMessage ("Iteration: " ++ show (iterationNumber modelConstruction) ++ "\n") (tempDirPath staticOptions)
   iterationSummary modelConstruction staticOptions
   let currentIterationNumber = iterationNumber modelConstruction
@@ -2067,11 +2082,14 @@ eggModelConstructer staticOptions modelConstruction = do
        searchResults <- catchAll (searchCandidates staticOptions Nothing currentIterationNumber upperTaxLimit lowerTaxLimit expectThreshold (Just genomeFastaPath) queries)
                         (\e -> do logWarning ("Warning: Search results iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
                                   return (SearchResult [] Nothing))
+       print "Completed search"
        if null (candidates searchResults)
-         then
-            alignmentConstructionWithoutCandidates Nothing Nothing staticOptions modelConstruction
-         else
-            alignmentConstructionWithCandidates Nothing Nothing searchResults staticOptions modelConstruction
+         then do
+            print "const without cand"
+            alignmentConstructionWithoutCandidates "scan" Nothing Nothing staticOptions modelConstruction
+         else do
+            print "const with cand"
+            alignmentConstructionWithCandidates "scan" Nothing Nothing searchResults staticOptions modelConstruction
      else do
        logMessage "Message: Modelconstruction complete: Out of queries or taxonomic tree exhausted\n" (tempDirPath staticOptions)
        modelConstructionResult staticOptions modelConstruction

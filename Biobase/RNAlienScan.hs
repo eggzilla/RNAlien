@@ -41,7 +41,7 @@ data Options = Options
 options :: Options
 options = Options
   { inputFastaFilePath = def &= name "i" &= help "Path to input fasta file",
-    inputGenomesFastaFilePath = def &= name "s" &= help "Path to input genome fasta files",
+    inputGenomesFastaFilePath = def &= name "b" &= help "Path to input genome fasta files",
     outputPath = def &= name "o" &= help "Path to output directory. Default: current working directory",
     inputnSCICutoff = Just (1 :: Double) &= name "z" &= help "Only candidate sequences with a normalized structure conservation index (nSCI) higher than this value are accepted. Default: 1",
     inputEvalueCutoff = Just (0.001 :: Double) &= name "e" &= help "Evalue cutoff for cmsearch filtering. Default: 0.001",
