@@ -2149,7 +2149,7 @@ retrieveGenomeFullSequence sequenceByteString (nucleotideId,seqStart,seqStop,str
         bioSequence = if strand == "1" then (BioSequence retrievedSequence) else (BioSequence rcretrievedSequence)
         currentFastaHeader= SequenceIdentifier (B.pack (nucleotideId ++ "_" ++ show seqStart ++ "_" ++ show seqStop ++ "_" ++ strand))
         justFasta = Fasta currentFastaHeader bioSequence
-        len = seqStart - seqStop
+        len = if strand == '1' then seqStop - seqStart else seqStart - seqStop
         rcretrievedSequence = B.reverse (B.map complement' retrievedSequence)
         
 complement' :: Char -> Char
