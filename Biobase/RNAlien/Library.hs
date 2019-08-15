@@ -2022,41 +2022,58 @@ readFastaFile fastaFilePath = do
 
 blast :: String -> Int  -> Maybe Int -> Maybe Int -> Maybe Double -> Bool -> BlastHTTPQuery -> IO (Either String J.BlastJSON2)
 blast _tempDirPath threads upperTaxIdLimit lowerTaxIdLimit expectThreshold _blastSoftmaskingToggle blastHTTPQuery = do
+  print "blast1" ---
+  let selectedBlastDatabase = fromMaybe "" (Biobase.BLAST.HTTP.database blastHTTPQuery)
+  print ("blastdb: " ++ selectedBlastDatabase)
   --buildTaxonomyContext
   let upperTaxIdLimitPath = if isJust upperTaxIdLimit then _tempDirPath ++ "/upper.txids" else ""
   let lowerTaxIdLimitPath = if isJust lowerTaxIdLimit then _tempDirPath ++ "/lower.txids" else ""
-  when (isJust upperTaxIdLimit) $ systemGetSpeciesTaxId (fromJust upperTaxIdLimit) upperTaxIdLimitPath
-  when (isJust lowerTaxIdLimit) $ systemGetSpeciesTaxId (fromJust lowerTaxIdLimit) lowerTaxIdLimitPath
-  let positiveSetTaxIdLimitPath = _tempDirPath ++ "/postitiveset.txids"
-  print "blast1"
-  if isJust lowerTaxIdLimit && isJust upperTaxIdLimit
-    then do
-      upperTaxIdsFile <- readFile upperTaxIdLimitPath
-      let upperTaxIds = lines upperTaxIdsFile
-      lowerTaxIdsFile <- readFile lowerTaxIdLimitPath
-      let lowerTaxIds = lines lowerTaxIdsFile
-      let positiveSetTaxIds = upperTaxIds \\ lowerTaxIds
-      let positiveSetTaxIdsFile = unlines positiveSetTaxIds
-      writeFile positiveSetTaxIdLimitPath positiveSetTaxIdsFile
-    else return ()
-  print "blast2"
-  --sequenceSearch
   let fastaFilePath = _tempDirPath ++ "/blastQuery.fa"
   let blastResultFilePath = _tempDirPath ++ "/blastResult.json2"
-  let selectedBlastDatabase = fromMaybe "" (Biobase.BLAST.HTTP.database blastHTTPQuery)
   writeFastaFile fastaFilePath (querySequences blastHTTPQuery)
-  systemBlast threads selectedBlastDatabase upperTaxIdLimitPath lowerTaxIdLimitPath positiveSetTaxIdLimitPath expectThreshold _blastSoftmaskingToggle fastaFilePath blastResultFilePath
-  blastCmdResult <- BBI.blastCmdJSON2FromFile blastResultFilePath
-  --if isLeft blastResult then print (fromLeft blastResult) else print ""
-  if isRight blastCmdResult
+  let isFastaDb = T.isSuffixOf (T.pack ".fa") (T.pack selectedBlastDatabase)
+  if isFastaDb
     then do
-      let blastCmdOutput = J._blastcmdoutput2 (fromRight blastCmdResult)
-      --when ((length blastCmdOutput) > 1) $ print "Blast output list with multiple elements"
-      if (not (null blastCmdOutput))
-        then (return (Right (J.BlastJSON2 (head blastCmdOutput)):: Either String J.BlastJSON2))
-        else (return (Left "Empty BlastOutput List" :: Either String J.BlastJSON2))
-    else (return (Left (fromLeft blastCmdResult) :: Either String J.BlastJSON2))
+      systemBlast threads selectedBlastDatabase "" "" "" expectThreshold _blastSoftmaskingToggle fastaFilePath blastResultFilePath
+      blastCmdResult <- BBI.blastCmdJSON2FromFile blastResultFilePath
+      --if isLeft blastResult then print (fromLeft blastResult) else print ""
+      if isRight blastCmdResult
+        then do
+          let blastCmdOutput = J._blastcmdoutput2 (fromRight blastCmdResult)
+          --when ((length blastCmdOutput) > 1) $ print "Blast output list with multiple elements"
+          if (not (null blastCmdOutput))
+            then (return (Right (J.BlastJSON2 (head blastCmdOutput)):: Either String J.BlastJSON2))
+            else (return (Left "Empty BlastOutput List" :: Either String J.BlastJSON2))
+        else (return (Left (fromLeft blastCmdResult) :: Either String J.BlastJSON2))
+    else do
+      when (isJust upperTaxIdLimit) $ systemGetSpeciesTaxId (fromJust upperTaxIdLimit) upperTaxIdLimitPath
+      when (isJust lowerTaxIdLimit) $ systemGetSpeciesTaxId (fromJust lowerTaxIdLimit) lowerTaxIdLimitPath
+      let positiveSetTaxIdLimitPath = _tempDirPath ++ "/postitiveset.txids"
+      if isJust lowerTaxIdLimit && isJust upperTaxIdLimit
+        then do
+          upperTaxIdsFile <- readFile upperTaxIdLimitPath
+          let upperTaxIds = lines upperTaxIdsFile
+          lowerTaxIdsFile <- readFile lowerTaxIdLimitPath
+          let lowerTaxIds = lines lowerTaxIdsFile
+          let positiveSetTaxIds = upperTaxIds \\ lowerTaxIds
+          let positiveSetTaxIdsFile = unlines positiveSetTaxIds
+          writeFile positiveSetTaxIdLimitPath positiveSetTaxIdsFile
+        else return ()
+         --sequenceSearch
+      systemBlast threads selectedBlastDatabase upperTaxIdLimitPath lowerTaxIdLimitPath positiveSetTaxIdLimitPath expectThreshold _blastSoftmaskingToggle fastaFilePath blastResultFilePath
+      blastCmdResult <- BBI.blastCmdJSON2FromFile blastResultFilePath
+      --if isLeft blastResult then print (fromLeft blastResult) else print ""
+      if isRight blastCmdResult
+        then do
+          let blastCmdOutput = J._blastcmdoutput2 (fromRight blastCmdResult)
+          --when ((length blastCmdOutput) > 1) $ print "Blast output list with multiple elements"
+          if (not (null blastCmdOutput))
+            then (return (Right (J.BlastJSON2 (head blastCmdOutput)):: Either String J.BlastJSON2))
+            else (return (Left "Empty BlastOutput List" :: Either String J.BlastJSON2))
+        else (return (Left (fromLeft blastCmdResult) :: Either String J.BlastJSON2))
 
+             
+             
 -- | Run external blast command 
 systemBlast :: Int -> String -> String -> String -> String -> Maybe Double -> Bool -> String -> String -> IO ExitCode
 systemBlast threads _blastDatabase upperTaxLimitPath lowerTaxLimitPath positiveSetTaxIdLimitPath _evalueThreshold _blastSoftmaskingToggle queryFilepath outputFilePath = do
