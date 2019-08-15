@@ -425,7 +425,7 @@ alignmentConstructionWithoutCandidates alienType currentTaxonomicContext upperTa
           else do
             logMessage (iterationSummaryLog nextScanModelConstructionInputWithThreshold) (tempDirPath staticOptions)
             logVerboseMessage (verbositySwitch staticOptions) (show nextScanModelConstructionInputWithThreshold) (tempDirPath staticOptions)
-            scanModelConstructer staticOptions nextModelConstructionInputWithThreshold
+            scanModelConstructer staticOptions nextScanModelConstructionInputWithThreshold
 
 
 findTaxonomyStart :: Bool -> Int -> Maybe String -> String -> Fasta () () -> IO Int
@@ -477,6 +477,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
   let logFileDirectoryPath = tempDirPath staticOptions ++ show iterationnumber ++ "/" ++ fromMaybe "" finaliterationprefix ++ "log"
   logDirectoryPresent <- doesDirectoryExist logFileDirectoryPath
   Control.Monad.when (not logDirectoryPresent) $ createDirectory (logFileDirectoryPath)
+  print "Searching" ---
   blastOutput <- if (offline staticOptions)
                   then CE.catch (blast logFileDirectoryPath  (cpuThreads staticOptions) upperTaxLimit lowerTaxLimit (Just expectThreshold) (blastSoftmaskingToggle staticOptions) blastQuery)
                          (\e -> do let err = show (e :: CE.IOException)
@@ -2027,6 +2028,7 @@ blast _tempDirPath threads upperTaxIdLimit lowerTaxIdLimit expectThreshold _blas
   when (isJust upperTaxIdLimit) $ systemGetSpeciesTaxId (fromJust upperTaxIdLimit) upperTaxIdLimitPath
   when (isJust lowerTaxIdLimit) $ systemGetSpeciesTaxId (fromJust lowerTaxIdLimit) lowerTaxIdLimitPath
   let positiveSetTaxIdLimitPath = _tempDirPath ++ "/postitiveset.txids"
+  print "blast1"
   if isJust lowerTaxIdLimit && isJust upperTaxIdLimit
     then do
       upperTaxIdsFile <- readFile upperTaxIdLimitPath
@@ -2037,6 +2039,7 @@ blast _tempDirPath threads upperTaxIdLimit lowerTaxIdLimit expectThreshold _blas
       let positiveSetTaxIdsFile = unlines positiveSetTaxIds
       writeFile positiveSetTaxIdLimitPath positiveSetTaxIdsFile
     else return ()
+  print "blast2"
   --sequenceSearch
   let fastaFilePath = _tempDirPath ++ "/blastQuery.fa"
   let blastResultFilePath = _tempDirPath ++ "/blastResult.json2"
@@ -2149,7 +2152,7 @@ retrieveGenomeFullSequence sequenceByteString (nucleotideId,seqStart,seqStop,str
         bioSequence = if strand == "1" then (BioSequence retrievedSequence) else (BioSequence rcretrievedSequence)
         currentFastaHeader= SequenceIdentifier (B.pack (nucleotideId ++ "_" ++ show seqStart ++ "_" ++ show seqStop ++ "_" ++ strand))
         justFasta = Fasta currentFastaHeader bioSequence
-        len = if strand == '1' then seqStop - seqStart else seqStart - seqStop
+        len = if strand == "1" then seqStop - seqStart else seqStart - seqStop
         rcretrievedSequence = B.reverse (B.map complement' retrievedSequence)
         
 complement' :: Char -> Char
