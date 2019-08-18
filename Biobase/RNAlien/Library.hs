@@ -2202,13 +2202,17 @@ scanModelConstructionResult staticOptions modelConstruction = do
   createDirectoryIfMissing False logFileDirectoryPath
   let expectThreshold = setBlastExpectThreshold modelConstruction
   let (upperTaxLimit,lowerTaxLimit) = (Just (0 :: Int), Nothing)
-  candidates <- catchAll  (searchCandidates staticOptions Nothing currentIterationNumber upperTaxLimit lowerTaxLimit expectThreshold (inputFasta modelConstruction) queries)
+  let currentGenomeFasta = genomeFastas modelConstruction
+  let genomeFastaPath = (iterationDirectory ++ "genome.fa")
+  writeFastaFile genomeFastaPath currentGenomeFasta
+  candidates1 <- catchAll (searchCandidates staticOptions Nothing currentIterationNumber upperTaxLimit lowerTaxLimit expectThreshold (Just genomeFastaPath) queries)
                   (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
-                               return (SearchResult [] Nothing))
-  let uniqueCandidates = filterDuplicates modelConstruction candidates
-  (alignmentResults,currentPotentialMembers) <- catchAll (alignCandidates staticOptions modelConstruction "" uniqueCandidates)
+                            return (SearchResult [] Nothing))
+  let uniqueCandidates = filterDuplicates modelConstruction candidates1
+  (alignmentResults,currentPotentialMembers1) <- catchAll (alignCandidates staticOptions modelConstruction "" uniqueCandidates)
                            (\e -> do logWarning ("Warning: Alignment results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                      return  ([],[]))
+  let currentPotentialMembers = [SearchResult currentPotentialMembers1 (blastDatabaseSize uniqueCandidates)] 
   let preliminaryFastaPath = iterationDirectory ++ "model.fa"
   let preliminaryCMPath = iterationDirectory ++ "model.cm"
   let preliminaryAlignmentPath = iterationDirectory ++ "model.stockholm"
