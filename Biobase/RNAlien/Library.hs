@@ -1483,14 +1483,15 @@ retrieveParentTaxIdEntrez blastHitsWithHitTaxids =
     else return []
 
 -- | Wrapper functions that ensures that only 20 queries are sent per request
-retrieveParentTaxIdsEntrez :: [(J.Hit,Int)] -> IO [(J.Hit,Int)]
-retrieveParentTaxIdsEntrez taxIdwithBlastHits = do
+retrieveParentTaxIdsEntrez :: [(J.Hit,Maybe Int)] -> IO [(J.Hit,Int)]
+retrieveParentTaxIdsEntrez maybeTaxIdwithBlastHits = do
+  let taxIdwithBlastHits = map (\(a,b) -> (a,fromJust b)) (filter (\(_,b) -> isJust b)  maybeTaxIdwithBlastHits)
   let splits = portionListElements taxIdwithBlastHits 20
   taxIdsOutput <- mapM retrieveParentTaxIdEntrez splits
   return (concat taxIdsOutput)
 
 -- | Extract taxids from JSON2 blasthit
-extractBlastHitsTaxId :: DS.Seq J.Hit -> [(J.Hit,Int)]
+extractBlastHitsTaxId :: DS.Seq J.Hit -> [(J.Hit,Maybe Int)]
 extractBlastHitsTaxId blastHits = do
   map (\a -> (a,J._taxid . head . J._description $ a)) (Data.Foldable.toList blastHits)
 
