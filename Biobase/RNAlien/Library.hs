@@ -84,6 +84,7 @@ import qualified Data.Sequence as DS
 import Data.Foldable
 import Biobase.Types.BioSequence
 import qualified Biobase.BLAST.Import as BBI
+import System.IO.Silently
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 modelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
@@ -477,7 +478,7 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
   let logFileDirectoryPath = tempDirPath staticOptions ++ show iterationnumber ++ "/" ++ fromMaybe "" finaliterationprefix ++ "log"
   logDirectoryPresent <- doesDirectoryExist logFileDirectoryPath
   Control.Monad.when (not logDirectoryPresent) $ createDirectory (logFileDirectoryPath)
-  print "Searching" ---
+  -- print "Searching" ---
   blastOutput <- if (offline staticOptions)
                   then CE.catch (blast logFileDirectoryPath  (cpuThreads staticOptions) upperTaxLimit lowerTaxLimit (Just expectThreshold) (blastSoftmaskingToggle staticOptions) blastQuery)
                          (\e -> do let err = show (e :: CE.IOException)
@@ -2023,9 +2024,9 @@ readFastaFile fastaFilePath = do
 
 blast :: String -> Int  -> Maybe Int -> Maybe Int -> Maybe Double -> Bool -> BlastHTTPQuery -> IO (Either String J.BlastJSON2)
 blast _tempDirPath threads upperTaxIdLimit lowerTaxIdLimit expectThreshold _blastSoftmaskingToggle blastHTTPQuery = do
-  print "blast1" ---
+  --print "blast1" ---
   let selectedBlastDatabase = fromMaybe "" (Biobase.BLAST.HTTP.database blastHTTPQuery)
-  print ("blastdb: " ++ selectedBlastDatabase)
+  --print ("blastdb: " ++ selectedBlastDatabase) ---
   --buildTaxonomyContext
   let upperTaxIdLimitPath = if isJust upperTaxIdLimit then _tempDirPath ++ "/upper.txids" else ""
   let lowerTaxIdLimitPath = if isJust lowerTaxIdLimit then _tempDirPath ++ "/lower.txids" else ""
@@ -2079,14 +2080,15 @@ blast _tempDirPath threads upperTaxIdLimit lowerTaxIdLimit expectThreshold _blas
 systemBlast :: Int -> String -> String -> String -> String -> Maybe Double -> Bool -> String -> String -> IO ExitCode
 systemBlast threads _blastDatabase upperTaxLimitPath lowerTaxLimitPath positiveSetTaxIdLimitPath _evalueThreshold _blastSoftmaskingToggle queryFilepath outputFilePath = do
   let cmd = ("blastn " ++ threadedOption ++ expectThresholdOption ++ taxonomyOption ++ " " ++ softmaskOption ++ dbOption ++ " -query " ++ queryFilepath  ++ " -outfmt 15  -out " ++ outputFilePath)
-  putStrLn cmd
   if T.isSuffixOf (T.pack ".fa") (T.pack _blastDatabase)
      then do
        let makedbcmd = ("makeblastdb -in " ++ _blastDatabase ++ " -input_type fasta -dbtype nucl -parse_seqids ")
-       system makedbcmd
-       system cmd
+       (_,exitCode1) <- capture (system makedbcmd)
+       (_,exitCode2) <- capture (system cmd)
+       return exitCode2
      else do
-       system cmd
+       (_,exitCode3) <- capture (system cmd)
+       return exitCode3
   where threadedOption = " -num_threads " ++ show threads
         expectThresholdOption = if isJust _evalueThreshold then " -evalue " ++ show (fromJust _evalueThreshold) else ""
         dbOption = if null _blastDatabase then "" else " -db " ++ _blastDatabase ++ " "
@@ -2135,14 +2137,9 @@ scanModelConstructer staticOptions modelConstruction = do
        searchResults <- catchAll (searchCandidates staticOptions Nothing currentIterationNumber upperTaxLimit lowerTaxLimit expectThreshold (Just genomeFastaPath) queries)
                         (\e -> do logWarning ("Warning: Search results iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
                                   return (SearchResult [] Nothing))
-       print "Completed search"
        if null (candidates searchResults)
-         then do
-            print "const without cand"
-            alignmentConstructionWithoutCandidates "scan" Nothing Nothing staticOptions modelConstruction
-         else do
-            print "const with cand"
-            alignmentConstructionWithCandidates "scan" Nothing Nothing searchResults staticOptions modelConstruction
+         then alignmentConstructionWithoutCandidates "scan" Nothing Nothing staticOptions modelConstruction
+         else alignmentConstructionWithCandidates "scan" Nothing Nothing searchResults staticOptions modelConstruction
      else do
        logMessage "Message: Modelconstruction complete: Out of queries or taxonomic tree exhausted\n" (tempDirPath staticOptions)
        scanModelConstructionResult staticOptions modelConstruction
@@ -2162,10 +2159,10 @@ scanFiltering blastHitsFilteredByCoverage logFileDirectoryPath queryIndexString 
 
 -- | Wrapper for retrieveFullSequence that rerequests incomplete return sequees
 retrieveGenomeFullSequences :: B.ByteString -> StaticOptions -> [(String,Int,Int,String,T.Text,Int,B.ByteString)] -> [(Fasta () (),Int,B.ByteString)]
-retrieveGenomeFullSequences genomeSequence staticOptions requestedSequences = map (retrieveGenomeFullSequence genomeSequence) requestedSequences
+retrieveGenomeFullSequences genomeSequence _ requestedSequences = map (retrieveGenomeFullSequence genomeSequence) requestedSequences
 
 retrieveGenomeFullSequence :: B.ByteString -> (String,Int,Int,String,T.Text,Int,B.ByteString) -> ((Fasta () ()),Int,B.ByteString)
-retrieveGenomeFullSequence sequenceByteString (nucleotideId,seqStart,seqStop,strand,_,taxid,subject') = (justFasta,0,subject')
+retrieveGenomeFullSequence sequenceByteString (nucleotideId,seqStart,seqStop,strand,_,_,subject') = (justFasta,0,subject')
   where retrievedSequence = byteStringSlice seqStart len sequenceByteString
         bioSequence = if strand == "1" then (BioSequence retrievedSequence) else (BioSequence rcretrievedSequence)
         currentFastaHeader= SequenceIdentifier (B.pack (nucleotideId ++ "_" ++ show seqStart ++ "_" ++ show seqStop ++ "_" ++ strand))
