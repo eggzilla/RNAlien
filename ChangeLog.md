@@ -2,7 +2,7 @@
 
 ### 1.7.0 [Florian Eggenhofer](mailto:egg@cs.uni-freiburg.de) tbd
 
-	* Added AlienEgg tool
+	* Added Scan tool
 	* Changed tracing high similarity candidates
 	* Fixed regression in parsing input fasta
 
