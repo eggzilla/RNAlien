@@ -1064,50 +1064,49 @@ createSessionID sessionIdentificator =
 
 -- | Run external locarna command and read the output into the corresponding datatype
 systemlocarna :: String -> (String,String,String,String) -> IO ExitCode
-systemlocarna options (inputFilePath1, inputFilePath2, clustalformatoutputFilePath, outputFilePath) = system ("locarna " ++ options ++ " --clustal=" ++ clustalformatoutputFilePath  ++ " " ++ inputFilePath1  ++ " " ++ inputFilePath2 ++ " > " ++ outputFilePath)
+systemlocarna options (inputFilePath1, inputFilePath2, clustalformatoutputFilePath, outputFilePath) = silence (system ("locarna " ++ options ++ " --clustal=" ++ clustalformatoutputFilePath  ++ " " ++ inputFilePath1  ++ " " ++ inputFilePath2 ++ " > " ++ outputFilePath))
 
 -- | Run external mlocarna command and read the output into the corresponding datatype, there is also a folder created at the location of the input fasta file
 systemMlocarna :: String -> (String,String) -> IO ExitCode
-systemMlocarna options (inputFilePath, outputFilePath) = system ("mlocarna " ++ options ++ " " ++ inputFilePath ++ " > " ++ outputFilePath)
+systemMlocarna options (inputFilePath, outputFilePath) = silence $ system ("mlocarna " ++ options ++ " " ++ inputFilePath ++ " > " ++ outputFilePath)
 
 -- | Run external mlocarna command and read the output into the corresponding datatype, there is also a folder created at the location of the input fasta file, the job is terminated after the timeout provided in seconds
 systemMlocarnaWithTimeout :: String -> String -> (String,String) -> IO ExitCode
-systemMlocarnaWithTimeout timeout options (inputFilePath, outputFilePath) = system ("timeout " ++ timeout ++"s "++ "mlocarna " ++ options ++ " " ++ inputFilePath ++ " > " ++ outputFilePath)
+systemMlocarnaWithTimeout timeout options (inputFilePath, outputFilePath) = silence $ system ("timeout " ++ timeout ++"s "++ "mlocarna " ++ options ++ " " ++ inputFilePath ++ " > " ++ outputFilePath)
 
 -- | Run external clustalo command and return the Exitcode
 systemClustalw2 :: String -> (String,String,String) -> IO ExitCode
-systemClustalw2 options (inputFilePath, outputFilePath, summaryFilePath) = system ("clustalw2 " ++ options ++ "-INFILE=" ++ inputFilePath ++ " -OUTFILE=" ++ outputFilePath ++ ">" ++ summaryFilePath)
+systemClustalw2 options (inputFilePath, outputFilePath, summaryFilePath) = silence $ system ("clustalw2 " ++ options ++ "-INFILE=" ++ inputFilePath ++ " -OUTFILE=" ++ outputFilePath ++ ">" ++ summaryFilePath)
 
 -- | Run external clustalo command and return the Exitcode
 systemClustalo :: String -> (String,String) -> IO ExitCode
-systemClustalo options (inputFilePath, outputFilePath) = system ("clustalo " ++ options ++ "--infile=" ++ inputFilePath ++ " >" ++ outputFilePath)
+systemClustalo options (inputFilePath, outputFilePath) = silence $ system ("clustalo " ++ options ++ "--infile=" ++ inputFilePath ++ " >" ++ outputFilePath)
 
 -- | Run external CMbuild command and read the output into the corresponding datatype
 systemCMbuild ::  String -> String -> String -> String -> IO ExitCode
-systemCMbuild options alignmentFilepath modelFilepath outputFilePath = system ("cmbuild " ++ options ++ " " ++ modelFilepath ++ " " ++ alignmentFilepath  ++ " > " ++ outputFilePath)
+systemCMbuild options alignmentFilepath modelFilepath outputFilePath = silence $ system ("cmbuild " ++ options ++ " " ++ modelFilepath ++ " " ++ alignmentFilepath  ++ " > " ++ outputFilePath)
 
 -- | Run CMCompare and read the output into the corresponding datatype
 systemCMcompare ::  String -> String -> String -> IO ExitCode
-systemCMcompare model1path model2path outputFilePath = system ("CMCompare -q " ++ model1path ++ " " ++ model2path ++ " >" ++ outputFilePath)
+systemCMcompare model1path model2path outputFilePath = silence $ system ("CMCompare -q " ++ model1path ++ " " ++ model2path ++ " >" ++ outputFilePath)
 
 -- | Run CMsearch
 systemCMsearch :: Int -> String -> String -> String -> String -> IO ExitCode
-systemCMsearch cpus options covarianceModelPath sequenceFilePath outputPath = system ("cmsearch --notrunc --cpu " ++ show cpus ++ " " ++ options ++ " -g " ++ covarianceModelPath ++ " " ++ sequenceFilePath ++ "> " ++ outputPath)
+systemCMsearch cpus options covarianceModelPath sequenceFilePath outputPath = silence $ system ("cmsearch --notrunc --cpu " ++ show cpus ++ " " ++ options ++ " -g " ++ covarianceModelPath ++ " " ++ sequenceFilePath ++ "> " ++ outputPath)
 
 -- | Run CMstat
 systemCMstat :: String -> String -> IO ExitCode
-systemCMstat covarianceModelPath outputPath = system ("cmstat " ++ covarianceModelPath ++ " > " ++ outputPath)
+systemCMstat covarianceModelPath outputPath = silence $ system ("cmstat " ++ covarianceModelPath ++ " > " ++ outputPath)
 
 -- | Run CMcalibrate and return exitcode
 systemCMcalibrate :: String -> Int -> String -> String -> IO ExitCode
 systemCMcalibrate mode cpus covarianceModelPath outputPath
-  | mode == "fast" = system ("cmcalibrate --beta 1E-4 --cpu " ++ show cpus ++ " " ++ covarianceModelPath ++ "> " ++ outputPath)
-  | otherwise = system ("cmcalibrate --cpu " ++ show cpus ++ " " ++ covarianceModelPath ++ "> " ++ outputPath)
-
+  | mode == "fast" = silence $ system ("cmcalibrate --beta 1E-4 --cpu " ++ show cpus ++ " " ++ covarianceModelPath ++ "> " ++ outputPath)
+  | otherwise = silence $ system ("cmcalibrate --cpu " ++ show cpus ++ " " ++ covarianceModelPath ++ "> " ++ outputPath)
 
 -- | Run CMcalibrate and return exitcode
 systemCMalign :: String -> String -> String -> String -> IO ExitCode
-systemCMalign options filePathCovarianceModel filePathSequence filePathAlignment = system ("cmalign " ++ options ++ " " ++ filePathCovarianceModel ++ " " ++ filePathSequence ++ "> " ++ filePathAlignment)
+systemCMalign options filePathCovarianceModel filePathSequence filePathAlignment = silence $ system ("cmalign " ++ options ++ " " ++ filePathCovarianceModel ++ " " ++ filePathSequence ++ "> " ++ filePathAlignment)
 
 compareCM :: String -> String -> String -> IO (Either String Double)
 compareCM rfamCMPath resultCMpath outputDirectory = do
@@ -2083,7 +2082,7 @@ systemBlast threads _blastDatabase upperTaxLimitPath lowerTaxLimitPath positiveS
   if T.isSuffixOf (T.pack ".fa") (T.pack _blastDatabase)
      then do
        let makedbcmd = ("makeblastdb -in " ++ _blastDatabase ++ " -input_type fasta -dbtype nucl -parse_seqids ")
-       (_,exitCode1) <- capture (system makedbcmd)
+       (_,_) <- capture (system makedbcmd)
        (_,exitCode2) <- capture (system cmd)
        return exitCode2
      else do
