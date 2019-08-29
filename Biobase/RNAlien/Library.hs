@@ -6,6 +6,7 @@ module Biobase.RNAlien.Library (
                            logMessage,
                            logEither,
                            modelConstructer,
+                           scanModelConstructer,
                            constructTaxonomyRecordsCSVTable,
                            resultSummary,
                            setVerbose,
@@ -83,6 +84,7 @@ import qualified Data.Sequence as DS
 import Data.Foldable
 import Biobase.Types.BioSequence
 import qualified Biobase.BLAST.Import as BBI
+import System.IO.Silently
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 modelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
@@ -105,15 +107,15 @@ modelConstructer staticOptions modelConstruction = do
        logVerboseMessage (verbositySwitch staticOptions) ("Upper taxonomy limit: " ++ show upperTaxLimit ++ "\n " ++ "Lower taxonomy limit: "++ show lowerTaxLimit ++ "\n") (tempDirPath staticOptions)
        --search queries
        let expectThreshold = setBlastExpectThreshold modelConstruction
-       searchResults <- catchAll (searchCandidates staticOptions Nothing currentIterationNumber upperTaxLimit lowerTaxLimit expectThreshold queries)
+       searchResults <- catchAll (searchCandidates staticOptions Nothing currentIterationNumber upperTaxLimit lowerTaxLimit expectThreshold Nothing queries)
                         (\e -> do logWarning ("Warning: Search results iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
                                   return (SearchResult [] Nothing))
        currentTaxonomicContext <- getTaxonomicContextEntrez upperTaxLimit (taxonomicContext modelConstruction)
        if null (candidates searchResults)
          then
-            alignmentConstructionWithoutCandidates currentTaxonomicContext upperTaxLimit staticOptions modelConstruction
+            alignmentConstructionWithoutCandidates "alien" currentTaxonomicContext upperTaxLimit staticOptions modelConstruction
          else
-            alignmentConstructionWithCandidates currentTaxonomicContext upperTaxLimit searchResults staticOptions modelConstruction
+            alignmentConstructionWithCandidates "alien" currentTaxonomicContext upperTaxLimit searchResults staticOptions modelConstruction
      else do
        logMessage "Message: Modelconstruction complete: Out of queries or taxonomic tree exhausted\n" (tempDirPath staticOptions)
        modelConstructionResult staticOptions modelConstruction
@@ -158,7 +160,7 @@ modelConstructionResult staticOptions modelConstruction = do
     then do
       --taxonomic restriction
       let (upperTaxLimit,lowerTaxLimit) = setRestrictedTaxonomyLimits (fromJust (taxRestriction staticOptions))
-      restrictedCandidates <- catchAll (searchCandidates staticOptions (taxRestriction staticOptions) currentIterationNumber upperTaxLimit lowerTaxLimit expectThreshold queries)
+      restrictedCandidates <- catchAll (searchCandidates staticOptions (taxRestriction staticOptions) currentIterationNumber upperTaxLimit lowerTaxLimit expectThreshold Nothing queries)
                      (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                return (SearchResult [] Nothing))
       let uniqueCandidates = filterDuplicates modelConstruction restrictedCandidates
@@ -170,7 +172,7 @@ modelConstructionResult staticOptions modelConstruction = do
     else do
       --taxonomic context archea
       let (upperTaxLimit1,lowerTaxLimit1) = (Just (2157 :: Int), Nothing)
-      candidates1 <- catchAll  (searchCandidates staticOptions (Just "archea") currentIterationNumber upperTaxLimit1 lowerTaxLimit1 expectThreshold queries)
+      candidates1 <- catchAll  (searchCandidates staticOptions (Just "archea") currentIterationNumber upperTaxLimit1 lowerTaxLimit1 expectThreshold Nothing queries)
                      (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                return (SearchResult [] Nothing))
       let uniqueCandidates1 = filterDuplicates modelConstruction candidates1
@@ -179,7 +181,7 @@ modelConstructionResult staticOptions modelConstruction = do
                                      return  ([],[]))
       --taxonomic context bacteria
       let (upperTaxLimit2,lowerTaxLimit2) = (Just (2 :: Int), Nothing)
-      candidates2 <- catchAll (searchCandidates staticOptions (Just "bacteria") currentIterationNumber upperTaxLimit2 lowerTaxLimit2 expectThreshold queries)
+      candidates2 <- catchAll (searchCandidates staticOptions (Just "bacteria") currentIterationNumber upperTaxLimit2 lowerTaxLimit2 expectThreshold Nothing queries)
                      (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                return (SearchResult [] Nothing))
       let uniqueCandidates2 = filterDuplicates modelConstruction candidates2
@@ -188,7 +190,7 @@ modelConstructionResult staticOptions modelConstruction = do
                                      return  ([],[]))
       --taxonomic context eukaryia
       let (upperTaxLimit3,lowerTaxLimit3) = (Just (2759 :: Int), Nothing)
-      candidates3 <- catchAll (searchCandidates staticOptions (Just "eukaryia") currentIterationNumber upperTaxLimit3 lowerTaxLimit3 expectThreshold queries)
+      candidates3 <- catchAll (searchCandidates staticOptions (Just "eukaryia") currentIterationNumber upperTaxLimit3 lowerTaxLimit3 expectThreshold Nothing queries)
                      (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                return (SearchResult [] Nothing))
       let uniqueCandidates3 = filterDuplicates modelConstruction candidates3
@@ -301,8 +303,8 @@ reevaluatePotentialMembers staticOptions modelConstruction = do
 
 ---------------------------------------------------------
 
-alignmentConstructionWithCandidates :: Maybe Taxon -> Maybe Int -> SearchResult -> StaticOptions -> ModelConstruction -> IO ModelConstruction
-alignmentConstructionWithCandidates currentTaxonomicContext currentUpperTaxonomyLimit searchResults staticOptions modelConstruction = do
+alignmentConstructionWithCandidates :: String -> Maybe Taxon -> Maybe Int -> SearchResult -> StaticOptions -> ModelConstruction -> IO ModelConstruction
+alignmentConstructionWithCandidates alienType currentTaxonomicContext currentUpperTaxonomyLimit searchResults staticOptions modelConstruction = do
     --candidates usedUpperTaxonomyLimit blastDatabaseSize
     let currentIterationNumber = iterationNumber modelConstruction
     let iterationDirectory = tempDirPath staticOptions ++ show currentIterationNumber ++ "/"
@@ -320,10 +322,18 @@ alignmentConstructionWithCandidates currentTaxonomicContext currentUpperTaxonomy
         --prepare next iteration
         let newTaxEntries = taxRecords modelConstruction ++ buildTaxRecords alignmentResults currentIterationNumber
         let nextModelConstructionInputWithThreshold = modelConstruction {iterationNumber = currentIterationNumber + 1,upperTaxonomyLimit = currentUpperTaxonomyLimit, taxRecords = newTaxEntries,taxonomicContext = currentTaxonomicContext}
-        logMessage (iterationSummaryLog nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)
-        logVerboseMessage (verbositySwitch staticOptions)  (show nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)     ----
+        let nextGenomeFastas = tail (genomeFastas modelConstruction)
+        let nextScanModelConstructionInputWithThreshold = modelConstruction {iterationNumber = currentIterationNumber + 1,upperTaxonomyLimit = currentUpperTaxonomyLimit, taxRecords = newTaxEntries,taxonomicContext = currentTaxonomicContext, genomeFastas = nextGenomeFastas}
         writeFile (iterationDirectory ++ "done") ""
-        modelConstructer staticOptions nextModelConstructionInputWithThreshold
+        if alienType == "alien"
+          then do
+            logMessage (iterationSummaryLog nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)
+            logVerboseMessage (verbositySwitch staticOptions)  (show nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)
+            modelConstructer staticOptions nextModelConstructionInputWithThreshold
+          else do
+            logMessage (iterationSummaryLog nextScanModelConstructionInputWithThreshold) (tempDirPath staticOptions)
+            logVerboseMessage (verbositySwitch staticOptions)  (show nextScanModelConstructionInputWithThreshold) (tempDirPath staticOptions)
+            scanModelConstructer staticOptions nextScanModelConstructionInputWithThreshold
       else
         if (alignmentModeInfernal modelConstruction)
           then do
@@ -332,12 +342,21 @@ alignmentConstructionWithCandidates currentTaxonomicContext currentUpperTaxonomy
             let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults currentUpperTaxonomyLimit currentTaxonomicContext [] currentPotentialMembers True
             constructModel nextModelConstructionInput staticOptions
             writeFile (iterationDirectory ++ "done") ""
-            logMessage (iterationSummaryLog nextModelConstructionInput) (tempDirPath staticOptions)
-            logVerboseMessage (verbositySwitch staticOptions)  (show nextModelConstructionInput) (tempDirPath staticOptions)
             --select queries
             currentSelectedQueries <- selectQueries staticOptions modelConstruction alignmentResults
-            let nextModelConstructionInputWithQueries = nextModelConstructionInput {selectedQueries = currentSelectedQueries}
-            nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInputWithQueries
+            nextModelConstruction <- if alienType == "alien"
+                                     then do
+                                      logMessage (iterationSummaryLog nextModelConstructionInput) (tempDirPath staticOptions)
+                                      logVerboseMessage (verbositySwitch staticOptions)  (show nextModelConstructionInput) (tempDirPath staticOptions)
+                                      let nextModelConstructionInputWithQueries = nextModelConstructionInput {selectedQueries = currentSelectedQueries}
+                                      modelConstructer staticOptions nextModelConstructionInputWithQueries
+                                     else do
+                                       let nextGenomeFastas = tail (genomeFastas modelConstruction)
+                                       let nextScanModelConstructionInputWithQueries = nextModelConstructionInput {selectedQueries = currentSelectedQueries, genomeFastas = nextGenomeFastas}
+                                       logMessage (iterationSummaryLog nextScanModelConstructionInputWithQueries) (tempDirPath staticOptions)
+                                       logVerboseMessage (verbositySwitch staticOptions) (show nextScanModelConstructionInputWithQueries) (tempDirPath staticOptions)
+
+                                       scanModelConstructer staticOptions nextScanModelConstructionInputWithQueries
             return nextModelConstruction
           else do
             logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - initial mode\n") (tempDirPath staticOptions)
@@ -347,22 +366,32 @@ alignmentConstructionWithCandidates currentTaxonomicContext currentUpperTaxonomy
             constructModel nextModelConstructionInput staticOptions
             currentSelectedQueries <- selectQueries staticOptions modelConstruction alignmentResults
             --select queries
-            let nextModelConstructionInputWithInfernalMode = nextModelConstructionInput {alignmentModeInfernal = True, selectedQueries = currentSelectedQueries}
-            logMessage (iterationSummaryLog  nextModelConstructionInputWithInfernalMode) (tempDirPath staticOptions)
-            logVerboseMessage (verbositySwitch staticOptions)  (show  nextModelConstructionInputWithInfernalMode) (tempDirPath staticOptions)
             writeFile (iterationDirectory ++ "done") ""
-            nextModelConstruction <- modelConstructer staticOptions nextModelConstructionInputWithInfernalMode
+            nextModelConstruction <- if alienType == "alien"
+                                       then do
+                                         let nextModelConstructionInputWithInfernalMode = nextModelConstructionInput {alignmentModeInfernal = True, selectedQueries = currentSelectedQueries}
+                                         logMessage (iterationSummaryLog  nextModelConstructionInputWithInfernalMode) (tempDirPath staticOptions)
+                                         logVerboseMessage (verbositySwitch staticOptions)  (show  nextModelConstructionInputWithInfernalMode) (tempDirPath staticOptions)
+                                         modelConstructer staticOptions nextModelConstructionInputWithInfernalMode
+                                       else do
+                                         let nextGenomeFastas = tail (genomeFastas modelConstruction)
+                                         let nextScanModelConstructionInputWithInfernalMode = nextModelConstructionInput {alignmentModeInfernal = True, selectedQueries = currentSelectedQueries, genomeFastas = nextGenomeFastas}
+                                         logMessage (iterationSummaryLog  nextScanModelConstructionInputWithInfernalMode) (tempDirPath staticOptions)
+                                         logVerboseMessage (verbositySwitch staticOptions) (show nextScanModelConstructionInputWithInfernalMode) (tempDirPath staticOptions)
+                                         scanModelConstructer staticOptions nextScanModelConstructionInputWithInfernalMode
             return nextModelConstruction
 
-alignmentConstructionWithoutCandidates :: Maybe Taxon -> Maybe Int ->  StaticOptions -> ModelConstruction -> IO ModelConstruction
-alignmentConstructionWithoutCandidates currentTaxonomicContext upperTaxLimit staticOptions modelConstruction = do
+alignmentConstructionWithoutCandidates :: String -> Maybe Taxon -> Maybe Int ->  StaticOptions -> ModelConstruction -> IO ModelConstruction
+alignmentConstructionWithoutCandidates alienType currentTaxonomicContext upperTaxLimit staticOptions modelConstruction = do
     let currentIterationNumber = iterationNumber modelConstruction
     let iterationDirectory = tempDirPath staticOptions ++ show currentIterationNumber ++ "/"
     --Found no new candidates in this iteration, reusing previous modelconstruction with increased upperTaxonomyLimit
-    let nextModelConstructionInputWithThreshold = modelConstruction  {iterationNumber = currentIterationNumber + 1,upperTaxonomyLimit = upperTaxLimit,taxonomicContext = currentTaxonomicContext}
     --copy model and alignment from last iteration in place if present
     let previousIterationCMPath = tempDirPath staticOptions ++ show (currentIterationNumber - 1) ++ "/model.cm"
     previousIterationCMexists <- doesFileExist previousIterationCMPath
+    let nextGenomeFastas = tail (genomeFastas modelConstruction)
+    let nextModelConstructionInputWithThreshold = modelConstruction  {iterationNumber = currentIterationNumber + 1,upperTaxonomyLimit = upperTaxLimit,taxonomicContext = currentTaxonomicContext}
+    let nextScanModelConstructionInputWithThreshold = modelConstruction {iterationNumber = currentIterationNumber + 1,upperTaxonomyLimit = upperTaxLimit,taxonomicContext = currentTaxonomicContext, genomeFastas = nextGenomeFastas}  
     if previousIterationCMexists
       then do
         logVerboseMessage (verbositySwitch staticOptions) "Alignment construction no candidates - previous cm\n" (tempDirPath staticOptions)
@@ -374,16 +403,31 @@ alignmentConstructionWithoutCandidates currentTaxonomicContext upperTaxLimit sta
         copyFile previousIterationFastaPath thisIterationFastaPath
         copyFile previousIterationAlignmentPath thisIterationAlignmentPath
         copyFile previousIterationCMPath thisIterationCMPath
-        logMessage (iterationSummaryLog nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)
-        logVerboseMessage (verbositySwitch staticOptions) (show nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)
         writeFile (iterationDirectory ++ "done") ""
-        modelConstructer staticOptions nextModelConstructionInputWithThreshold
+        if alienType == "alien"
+          then do
+            logMessage (iterationSummaryLog nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)
+            logVerboseMessage (verbositySwitch staticOptions) (show nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)
+            modelConstructer staticOptions nextModelConstructionInputWithThreshold
+          else do
+            logMessage (iterationSummaryLog nextScanModelConstructionInputWithThreshold) (tempDirPath staticOptions)
+            logVerboseMessage (verbositySwitch staticOptions) (show nextScanModelConstructionInputWithThreshold) (tempDirPath staticOptions)
+            scanModelConstructer staticOptions nextScanModelConstructionInputWithThreshold
       else do
         logVerboseMessage (verbositySwitch staticOptions) "Alignment construction no candidates - no previous iteration cm\n" (tempDirPath staticOptions)
         logMessage (iterationSummaryLog nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)
         logVerboseMessage (verbositySwitch staticOptions) (show nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)    ----
         writeFile (iterationDirectory ++ "done") ""
-        modelConstructer staticOptions nextModelConstructionInputWithThreshold
+        if alienType == "alien"
+          then do
+            logMessage (iterationSummaryLog nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)
+            logVerboseMessage (verbositySwitch staticOptions) (show nextModelConstructionInputWithThreshold) (tempDirPath staticOptions)
+            modelConstructer staticOptions nextModelConstructionInputWithThreshold
+          else do
+            logMessage (iterationSummaryLog nextScanModelConstructionInputWithThreshold) (tempDirPath staticOptions)
+            logVerboseMessage (verbositySwitch staticOptions) (show nextScanModelConstructionInputWithThreshold) (tempDirPath staticOptions)
+            scanModelConstructer staticOptions nextScanModelConstructionInputWithThreshold
+
 
 findTaxonomyStart :: Bool -> Int -> Maybe String -> String -> Fasta () () -> IO Int
 findTaxonomyStart offlineMode threads inputBlastDatabase temporaryDirectory querySequence = do
@@ -418,8 +462,8 @@ findTaxonomyStart offlineMode threads inputBlastDatabase temporaryDirectory quer
        CE.evaluate rightBestTaxIdResult
      else error "Find taxonomy start: Could not find blast hits to use as a taxonomic starting point"
 
-searchCandidates :: StaticOptions -> Maybe String -> Int ->  Maybe Int -> Maybe Int -> Double -> [Fasta () ()] -> IO SearchResult
-searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimit lowerTaxLimit expectThreshold inputQuerySequences = do
+searchCandidates :: StaticOptions -> Maybe String -> Int ->  Maybe Int -> Maybe Int -> Double -> Maybe String -> [Fasta () ()] -> IO SearchResult
+searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimit lowerTaxLimit expectThreshold maybeGenomeFasta inputQuerySequences = do
   Control.Monad.when (null inputQuerySequences) $ error "searchCandidates: - head: empty list of query sequences"
   let queryLength = fromIntegral (B.length (_bioSequence (_fasta (head inputQuerySequences))))
   let queryIndexString = "1"
@@ -428,12 +472,13 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
   let hitNumberQuery = buildHitNumberQuery "&HITLIST_SIZE=5000&EXPECT=" ++ show expectThreshold
   let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
   let softmaskFilter = if blastSoftmaskingToggle staticOptions then "&FILTER=True&FILTER=m" else ""
-  let blastQuery = BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) inputQuerySequences  (Just (hitNumberQuery ++ entrezTaxFilter ++ softmaskFilter ++ registrationInfo)) (Just (5400000000 :: Int))
+  let blastQuery = if (isJust maybeGenomeFasta) then BlastHTTPQuery (Just "ncbi") (Just "blastn") maybeGenomeFasta inputQuerySequences  (Just (hitNumberQuery ++ entrezTaxFilter ++ softmaskFilter ++ registrationInfo)) (Just (5400000000 :: Int)) else BlastHTTPQuery (Just "ncbi") (Just "blastn") (blastDatabase staticOptions) inputQuerySequences  (Just (hitNumberQuery ++ entrezTaxFilter ++ softmaskFilter ++ registrationInfo)) (Just (5400000000 :: Int))
   --appendFile "/scratch/egg/blasttest/queries" ("\nBlast query:\n"  ++ show blastQuery ++ "\n")
   logVerboseMessage (verbositySwitch staticOptions) ("Sending blast query " ++ show iterationnumber ++ "\n") (tempDirPath staticOptions)
   let logFileDirectoryPath = tempDirPath staticOptions ++ show iterationnumber ++ "/" ++ fromMaybe "" finaliterationprefix ++ "log"
   logDirectoryPresent <- doesDirectoryExist logFileDirectoryPath
   Control.Monad.when (not logDirectoryPresent) $ createDirectory (logFileDirectoryPath)
+  -- print "Searching" ---
   blastOutput <- if (offline staticOptions)
                   then CE.catch (blast logFileDirectoryPath  (cpuThreads staticOptions) upperTaxLimit lowerTaxLimit (Just expectThreshold) (blastSoftmaskingToggle staticOptions) blastQuery)
                          (\e -> do let err = show (e :: CE.IOException)
@@ -461,30 +506,9 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_3blastHitsFilteredByLength") (showlines blastHitsFilteredByLength)
        let blastHitsFilteredByCoverage = filterByCoverage blastHitsFilteredByLength queryLength (coverageFilterToggle staticOptions)
        writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString  ++ "_3ablastHitsFilteredByLength") (showlines blastHitsFilteredByCoverage)
-       --tag BlastHits with TaxId
-       --blastHitsWithTaxIdOutput <- retrieveBlastHitsTaxIdEntrez blastHitsFilteredByCoverage
-       let blastHitsWithTaxId = extractBlastHitsTaxId blastHitsFilteredByCoverage
-       --let uncheckedBlastHitsWithTaxIdList = map (Control.Arrow.second extractTaxIdFromEntrySummaries) blastHitsWithTaxIdOutput
-       --let checkedBlastHitsWithTaxId = filter (\(_,taxids) -> not (null taxids)) uncheckedBlastHitsWithTaxIdList
-       --todo checked blasthittaxidswithblasthits need to be merged as taxid blasthit pairs
-       --let blastHitsWithTaxId = zip (concatMap fst checkedBlastHitsWithTaxId) (concatMap snd checkedBlastHitsWithTaxId)
-       blastHitsWithParentTaxIdOutput <- retrieveParentTaxIdsEntrez blastHitsWithTaxId
-       --let blastHitsWithParentTaxId = concat blastHitsWithParentTaxIdOutput
-       -- filter by ParentTaxId (only one hit per TaxId)
-       let blastHitsFilteredByParentTaxIdWithParentTaxId = filterByParentTaxId blastHitsWithParentTaxIdOutput True
-       --let blastHitsFilteredByParentTaxId = map fst blastHitsFilteredByParentTaxIdWithParentTaxId
-       writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_4blastHitsFilteredByParentTaxId") (showlines blastHitsFilteredByParentTaxIdWithParentTaxId)
-       -- Filtering with TaxTree (only hits from the same subtree as besthit)
-       --let blastHitsWithTaxId = zip blastHitsFilteredByParentTaxId blastHittaxIdList
-       --let (_, filteredBlastResults) = filterByNeighborhoodTreeConditional alignndmentModeInfernalToggle upperTaxLimit blastHitsWithTaxId (inputTaxNodes staticOptions) (fromJust upperTaxLimit) (singleHitperTaxToggle staticOptions)
-       --writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_5filteredBlastResults") (showlines filteredBlastResults)
-       -- Coordinate generation
-       let nonEmptyfilteredBlastResults = filter (\(blasthit,_) -> not (null (J._hsps blasthit))) blastHitsFilteredByParentTaxIdWithParentTaxId
-       let requestedSequenceElements = map (getRequestedSequenceElement queryLength) nonEmptyfilteredBlastResults
-       writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++  "_6requestedSequenceElements") (showlines requestedSequenceElements)
-       -- Retrieval of full sequences from entrez
-       --fullSequencesWithSimilars <- retrieveFullSequences requestedSequenceElements
-       fullSequencesWithSimilars <- retrieveFullSequences staticOptions requestedSequenceElements
+       fullSequencesWithSimilars <- if (isJust maybeGenomeFasta)
+                                     then (scanFiltering blastHitsFilteredByCoverage logFileDirectoryPath queryIndexString queryLength maybeGenomeFasta staticOptions)
+                                     else (alienFiltering blastHitsFilteredByCoverage logFileDirectoryPath queryIndexString queryLength staticOptions)
        if null fullSequencesWithSimilars
          then do
            writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10afullSequencesWithSimilars") "No sequences retrieved"
@@ -502,6 +526,35 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
                let dbSize = computeDataBaseSize (J._evalue fractionEvalueMatch) (J._bit_score fractionEvalueMatch) (fromIntegral queryLength ::Double)
                CE.evaluate (SearchResult fullSequences (Just dbSize))
      else CE.evaluate (SearchResult [] Nothing)
+
+
+alienFiltering :: DS.Seq J.Hit -> [Char] -> [Char] -> Int -> StaticOptions -> IO [(Fasta () (), Int, B.ByteString)] 
+alienFiltering blastHitsFilteredByCoverage logFileDirectoryPath queryIndexString queryLength staticOptions = do
+  --tag BlastHits with TaxId
+  --blastHitsWithTaxIdOutput <- retrieveBlastHitsTaxIdEntrez blastHitsFilteredByCoverage
+  let blastHitsWithTaxId = extractBlastHitsTaxId blastHitsFilteredByCoverage
+  --let uncheckedBlastHitsWithTaxIdList = map (Control.Arrow.second extractTaxIdFromEntrySummaries) blastHitsWithTaxIdOutput
+  --let checkedBlastHitsWithTaxId = filter (\(_,taxids) -> not (null taxids)) uncheckedBlastHitsWithTaxIdList
+  --todo checked blasthittaxidswithblasthits need to be merged as taxid blasthit pairs
+  --let blastHitsWithTaxId = zip (concatMap fst checkedBlastHitsWithTaxId) (concatMap snd checkedBlastHitsWithTaxId) 
+  blastHitsWithParentTaxIdOutput <- retrieveParentTaxIdsEntrez blastHitsWithTaxId
+  --let blastHitsWithParentTaxId = concat blastHitsWithParentTaxIdOutput
+  -- filter by ParentTaxId (only one hit per TaxId)
+  let blastHitsFilteredByParentTaxIdWithParentTaxId = filterByParentTaxId blastHitsWithParentTaxIdOutput True
+  --let blastHitsFilteredByParentTaxId = map fst blastHitsFilteredByParentTaxIdWithParentTaxId
+  writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_4blastHitsFilteredByParentTaxId") (showlines blastHitsFilteredByParentTaxIdWithParentTaxId)
+  -- Filtering with TaxTree (only hits from the same subtree as besthit)
+  --let blastHitsWithTaxId = zip blastHitsFilteredByParentTaxId blastHittaxIdList
+  --let (_, filteredBlastResults) = filterByNeighborhoodTreeConditional alignmentModeInfernalToggle upperTaxLimit blastHitsWithTaxId (inputTaxNodes staticOptions) (fromJust upperTaxLimit) (singleHitperTaxToggle staticOptions)
+  --writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_5filteredBlastResults") (showlines filteredBlastResults)
+  -- Coordinate generation
+  let nonEmptyfilteredBlastResults = filter (\(blasthit,_) -> not (null (J._hsps blasthit))) blastHitsFilteredByParentTaxIdWithParentTaxId
+  let requestedSequenceElements = map (getRequestedSequenceElement queryLength) nonEmptyfilteredBlastResults
+  writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++  "_6requestedSequenceElements") (showlines requestedSequenceElements)
+  -- Retrieval of full sequences from entrez
+  --fullSequencesWithSimilars <- retrieveFullSequences requestedSequenceElements
+  fullSequencesWithSimilars <- retrieveFullSequences staticOptions requestedSequenceElements
+  return fullSequencesWithSimilars
 
 -- |Computes size of blast db in Mb
 computeDataBaseSize :: Double -> Double -> Double -> Double
@@ -922,7 +975,7 @@ constructNext currentIterationNumber modelconstruction alignmentResults upperTax
         taxEntries = taxRecords modelconstruction ++ buildTaxRecords alignmentResults currentIterationNumber
         potMembers = potentialMembers modelconstruction ++ inputPotentialMembers
         currentAlignmentMode = toggleInfernalAlignmentModeTrue || alignmentModeInfernal modelconstruction
-        nextModelConstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) taxEntries upperTaxLimit inputTaxonomicContext (evalueThreshold modelconstruction) currentAlignmentMode inputSelectedQueries potMembers
+        nextModelConstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) taxEntries upperTaxLimit inputTaxonomicContext (evalueThreshold modelconstruction) currentAlignmentMode inputSelectedQueries potMembers []
 
 buildTaxRecords :: [(Fasta () (),Int,B.ByteString)] -> Int -> [TaxonomyRecord]
 buildTaxRecords alignmentResults currentIterationNumber = taxonomyRecords
@@ -1011,50 +1064,49 @@ createSessionID sessionIdentificator =
 
 -- | Run external locarna command and read the output into the corresponding datatype
 systemlocarna :: String -> (String,String,String,String) -> IO ExitCode
-systemlocarna options (inputFilePath1, inputFilePath2, clustalformatoutputFilePath, outputFilePath) = system ("locarna " ++ options ++ " --clustal=" ++ clustalformatoutputFilePath  ++ " " ++ inputFilePath1  ++ " " ++ inputFilePath2 ++ " > " ++ outputFilePath)
+systemlocarna options (inputFilePath1, inputFilePath2, clustalformatoutputFilePath, outputFilePath) = silence (system ("locarna " ++ options ++ " --clustal=" ++ clustalformatoutputFilePath  ++ " " ++ inputFilePath1  ++ " " ++ inputFilePath2 ++ " > " ++ outputFilePath))
 
 -- | Run external mlocarna command and read the output into the corresponding datatype, there is also a folder created at the location of the input fasta file
 systemMlocarna :: String -> (String,String) -> IO ExitCode
-systemMlocarna options (inputFilePath, outputFilePath) = system ("mlocarna " ++ options ++ " " ++ inputFilePath ++ " > " ++ outputFilePath)
+systemMlocarna options (inputFilePath, outputFilePath) = silence $ system ("mlocarna " ++ options ++ " " ++ inputFilePath ++ " > " ++ outputFilePath)
 
 -- | Run external mlocarna command and read the output into the corresponding datatype, there is also a folder created at the location of the input fasta file, the job is terminated after the timeout provided in seconds
 systemMlocarnaWithTimeout :: String -> String -> (String,String) -> IO ExitCode
-systemMlocarnaWithTimeout timeout options (inputFilePath, outputFilePath) = system ("timeout " ++ timeout ++"s "++ "mlocarna " ++ options ++ " " ++ inputFilePath ++ " > " ++ outputFilePath)
+systemMlocarnaWithTimeout timeout options (inputFilePath, outputFilePath) = silence $ system ("timeout " ++ timeout ++"s "++ "mlocarna " ++ options ++ " " ++ inputFilePath ++ " > " ++ outputFilePath)
 
 -- | Run external clustalo command and return the Exitcode
 systemClustalw2 :: String -> (String,String,String) -> IO ExitCode
-systemClustalw2 options (inputFilePath, outputFilePath, summaryFilePath) = system ("clustalw2 " ++ options ++ "-INFILE=" ++ inputFilePath ++ " -OUTFILE=" ++ outputFilePath ++ ">" ++ summaryFilePath)
+systemClustalw2 options (inputFilePath, outputFilePath, summaryFilePath) = silence $ system ("clustalw2 " ++ options ++ "-INFILE=" ++ inputFilePath ++ " -OUTFILE=" ++ outputFilePath ++ ">" ++ summaryFilePath)
 
 -- | Run external clustalo command and return the Exitcode
 systemClustalo :: String -> (String,String) -> IO ExitCode
-systemClustalo options (inputFilePath, outputFilePath) = system ("clustalo " ++ options ++ "--infile=" ++ inputFilePath ++ " >" ++ outputFilePath)
+systemClustalo options (inputFilePath, outputFilePath) = silence $ system ("clustalo " ++ options ++ "--infile=" ++ inputFilePath ++ " >" ++ outputFilePath)
 
 -- | Run external CMbuild command and read the output into the corresponding datatype
 systemCMbuild ::  String -> String -> String -> String -> IO ExitCode
-systemCMbuild options alignmentFilepath modelFilepath outputFilePath = system ("cmbuild " ++ options ++ " " ++ modelFilepath ++ " " ++ alignmentFilepath  ++ " > " ++ outputFilePath)
+systemCMbuild options alignmentFilepath modelFilepath outputFilePath = silence $ system ("cmbuild " ++ options ++ " " ++ modelFilepath ++ " " ++ alignmentFilepath  ++ " > " ++ outputFilePath)
 
 -- | Run CMCompare and read the output into the corresponding datatype
 systemCMcompare ::  String -> String -> String -> IO ExitCode
-systemCMcompare model1path model2path outputFilePath = system ("CMCompare -q " ++ model1path ++ " " ++ model2path ++ " >" ++ outputFilePath)
+systemCMcompare model1path model2path outputFilePath = silence $ system ("CMCompare -q " ++ model1path ++ " " ++ model2path ++ " >" ++ outputFilePath)
 
 -- | Run CMsearch
 systemCMsearch :: Int -> String -> String -> String -> String -> IO ExitCode
-systemCMsearch cpus options covarianceModelPath sequenceFilePath outputPath = system ("cmsearch --notrunc --cpu " ++ show cpus ++ " " ++ options ++ " -g " ++ covarianceModelPath ++ " " ++ sequenceFilePath ++ "> " ++ outputPath)
+systemCMsearch cpus options covarianceModelPath sequenceFilePath outputPath = silence $ system ("cmsearch --notrunc --cpu " ++ show cpus ++ " " ++ options ++ " -g " ++ covarianceModelPath ++ " " ++ sequenceFilePath ++ "> " ++ outputPath)
 
 -- | Run CMstat
 systemCMstat :: String -> String -> IO ExitCode
-systemCMstat covarianceModelPath outputPath = system ("cmstat " ++ covarianceModelPath ++ " > " ++ outputPath)
+systemCMstat covarianceModelPath outputPath = silence $ system ("cmstat " ++ covarianceModelPath ++ " > " ++ outputPath)
 
 -- | Run CMcalibrate and return exitcode
 systemCMcalibrate :: String -> Int -> String -> String -> IO ExitCode
 systemCMcalibrate mode cpus covarianceModelPath outputPath
-  | mode == "fast" = system ("cmcalibrate --beta 1E-4 --cpu " ++ show cpus ++ " " ++ covarianceModelPath ++ "> " ++ outputPath)
-  | otherwise = system ("cmcalibrate --cpu " ++ show cpus ++ " " ++ covarianceModelPath ++ "> " ++ outputPath)
-
+  | mode == "fast" = silence $ system ("cmcalibrate --beta 1E-4 --cpu " ++ show cpus ++ " " ++ covarianceModelPath ++ "> " ++ outputPath)
+  | otherwise = silence $ system ("cmcalibrate --cpu " ++ show cpus ++ " " ++ covarianceModelPath ++ "> " ++ outputPath)
 
 -- | Run CMcalibrate and return exitcode
 systemCMalign :: String -> String -> String -> String -> IO ExitCode
-systemCMalign options filePathCovarianceModel filePathSequence filePathAlignment = system ("cmalign " ++ options ++ " " ++ filePathCovarianceModel ++ " " ++ filePathSequence ++ "> " ++ filePathAlignment)
+systemCMalign options filePathCovarianceModel filePathSequence filePathAlignment = silence $ system ("cmalign " ++ options ++ " " ++ filePathCovarianceModel ++ " " ++ filePathSequence ++ "> " ++ filePathAlignment)
 
 compareCM :: String -> String -> String -> IO (Either String Double)
 compareCM rfamCMPath resultCMpath outputDirectory = do
@@ -1175,7 +1227,7 @@ retrieveFullSequenceBlastDb :: String -> String -> (String,Int,Int,String,T.Text
 retrieveFullSequenceBlastDb blastDb temporaryDirectoryPath (nucleotideId,seqStart,seqStop,strand,_,taxid,subject') = do
   let sequencePath = temporaryDirectoryPath ++ "/" ++ nucleotideId ++ ".fa"
   let cmd = "blastdbcmd -db " ++ blastDb ++ " -range " ++ (show seqStart) ++ "-" ++ (show seqStop) ++ " -strand " ++ (setBlastDbStrand strand) ++ " -entry " ++ nucleotideId ++ " -outfmt %f -target_only -out " ++ sequencePath
-  print cmd
+  --print cmd
   system(cmd)  
   retrievedSequence <- readFastaFile sequencePath
   if null retrievedSequence
@@ -1431,14 +1483,15 @@ retrieveParentTaxIdEntrez blastHitsWithHitTaxids =
     else return []
 
 -- | Wrapper functions that ensures that only 20 queries are sent per request
-retrieveParentTaxIdsEntrez :: [(J.Hit,Int)] -> IO [(J.Hit,Int)]
-retrieveParentTaxIdsEntrez taxIdwithBlastHits = do
+retrieveParentTaxIdsEntrez :: [(J.Hit,Maybe Int)] -> IO [(J.Hit,Int)]
+retrieveParentTaxIdsEntrez maybeTaxIdwithBlastHits = do
+  let taxIdwithBlastHits = map (\(a,b) -> (a,fromJust b)) (filter (\(_,b) -> isJust b)  maybeTaxIdwithBlastHits)
   let splits = portionListElements taxIdwithBlastHits 20
   taxIdsOutput <- mapM retrieveParentTaxIdEntrez splits
   return (concat taxIdsOutput)
 
 -- | Extract taxids from JSON2 blasthit
-extractBlastHitsTaxId :: DS.Seq J.Hit -> [(J.Hit,Int)]
+extractBlastHitsTaxId :: DS.Seq J.Hit -> [(J.Hit,Maybe Int)]
 extractBlastHitsTaxId blastHits = do
   map (\a -> (a,J._taxid . head . J._description $ a)) (Data.Foldable.toList blastHits)
 
@@ -1970,45 +2023,71 @@ readFastaFile fastaFilePath = do
 
 blast :: String -> Int  -> Maybe Int -> Maybe Int -> Maybe Double -> Bool -> BlastHTTPQuery -> IO (Either String J.BlastJSON2)
 blast _tempDirPath threads upperTaxIdLimit lowerTaxIdLimit expectThreshold _blastSoftmaskingToggle blastHTTPQuery = do
+  --print "blast1" ---
+  let selectedBlastDatabase = fromMaybe "" (Biobase.BLAST.HTTP.database blastHTTPQuery)
+  --print ("blastdb: " ++ selectedBlastDatabase) ---
   --buildTaxonomyContext
   let upperTaxIdLimitPath = if isJust upperTaxIdLimit then _tempDirPath ++ "/upper.txids" else ""
   let lowerTaxIdLimitPath = if isJust lowerTaxIdLimit then _tempDirPath ++ "/lower.txids" else ""
-  when (isJust upperTaxIdLimit) $ systemGetSpeciesTaxId (fromJust upperTaxIdLimit) upperTaxIdLimitPath
-  when (isJust lowerTaxIdLimit) $ systemGetSpeciesTaxId (fromJust lowerTaxIdLimit) lowerTaxIdLimitPath
-  let positiveSetTaxIdLimitPath = _tempDirPath ++ "/postitiveset.txids"
-  if isJust lowerTaxIdLimit && isJust upperTaxIdLimit
-    then do
-      upperTaxIdsFile <- readFile upperTaxIdLimitPath
-      let upperTaxIds = lines upperTaxIdsFile
-      lowerTaxIdsFile <- readFile lowerTaxIdLimitPath
-      let lowerTaxIds = lines lowerTaxIdsFile
-      let positiveSetTaxIds = upperTaxIds \\ lowerTaxIds
-      let positiveSetTaxIdsFile = unlines positiveSetTaxIds
-      writeFile positiveSetTaxIdLimitPath positiveSetTaxIdsFile
-    else return ()
-  --sequenceSearch
   let fastaFilePath = _tempDirPath ++ "/blastQuery.fa"
   let blastResultFilePath = _tempDirPath ++ "/blastResult.json2"
-  let selectedBlastDatabase = fromMaybe "" (Biobase.BLAST.HTTP.database blastHTTPQuery)
   writeFastaFile fastaFilePath (querySequences blastHTTPQuery)
-  systemBlast threads selectedBlastDatabase upperTaxIdLimitPath lowerTaxIdLimitPath positiveSetTaxIdLimitPath expectThreshold _blastSoftmaskingToggle fastaFilePath blastResultFilePath
-  blastCmdResult <- BBI.blastCmdJSON2FromFile blastResultFilePath
-  --if isLeft blastResult then print (fromLeft blastResult) else print ""
-  if isRight blastCmdResult
+  let isFastaDb = T.isSuffixOf (T.pack ".fa") (T.pack selectedBlastDatabase)
+  if isFastaDb
     then do
-      let blastCmdOutput = J._blastcmdoutput2 (fromRight blastCmdResult)
-      when ((length blastCmdOutput) > 1) $ print "Blast output list with multiple elements"
-      if (not (null blastCmdOutput))
-        then (return (Right (J.BlastJSON2 (head blastCmdOutput)):: Either String J.BlastJSON2))
-        else (return (Left "Empty BlastOutput List" :: Either String J.BlastJSON2))
-    else (return (Left (fromLeft blastCmdResult) :: Either String J.BlastJSON2))
+      systemBlast threads selectedBlastDatabase "" "" "" expectThreshold _blastSoftmaskingToggle fastaFilePath blastResultFilePath
+      blastCmdResult <- BBI.blastCmdJSON2FromFile blastResultFilePath
+      --if isLeft blastResult then print (fromLeft blastResult) else print ""
+      if isRight blastCmdResult
+        then do
+          let blastCmdOutput = J._blastcmdoutput2 (fromRight blastCmdResult)
+          --when ((length blastCmdOutput) > 1) $ print "Blast output list with multiple elements"
+          if (not (null blastCmdOutput))
+            then (return (Right (J.BlastJSON2 (head blastCmdOutput)):: Either String J.BlastJSON2))
+            else (return (Left "Empty BlastOutput List" :: Either String J.BlastJSON2))
+        else (return (Left (fromLeft blastCmdResult) :: Either String J.BlastJSON2))
+    else do
+      when (isJust upperTaxIdLimit) $ systemGetSpeciesTaxId (fromJust upperTaxIdLimit) upperTaxIdLimitPath
+      when (isJust lowerTaxIdLimit) $ systemGetSpeciesTaxId (fromJust lowerTaxIdLimit) lowerTaxIdLimitPath
+      let positiveSetTaxIdLimitPath = _tempDirPath ++ "/postitiveset.txids"
+      if isJust lowerTaxIdLimit && isJust upperTaxIdLimit
+        then do
+          upperTaxIdsFile <- readFile upperTaxIdLimitPath
+          let upperTaxIds = lines upperTaxIdsFile
+          lowerTaxIdsFile <- readFile lowerTaxIdLimitPath
+          let lowerTaxIds = lines lowerTaxIdsFile
+          let positiveSetTaxIds = upperTaxIds \\ lowerTaxIds
+          let positiveSetTaxIdsFile = unlines positiveSetTaxIds
+          writeFile positiveSetTaxIdLimitPath positiveSetTaxIdsFile
+        else return ()
+         --sequenceSearch
+      systemBlast threads selectedBlastDatabase upperTaxIdLimitPath lowerTaxIdLimitPath positiveSetTaxIdLimitPath expectThreshold _blastSoftmaskingToggle fastaFilePath blastResultFilePath
+      blastCmdResult <- BBI.blastCmdJSON2FromFile blastResultFilePath
+      --if isLeft blastResult then print (fromLeft blastResult) else print ""
+      if isRight blastCmdResult
+        then do
+          let blastCmdOutput = J._blastcmdoutput2 (fromRight blastCmdResult)
+          --when ((length blastCmdOutput) > 1) $ print "Blast output list with multiple elements"
+          if (not (null blastCmdOutput))
+            then (return (Right (J.BlastJSON2 (head blastCmdOutput)):: Either String J.BlastJSON2))
+            else (return (Left "Empty BlastOutput List" :: Either String J.BlastJSON2))
+        else (return (Left (fromLeft blastCmdResult) :: Either String J.BlastJSON2))
 
+             
+             
 -- | Run external blast command 
 systemBlast :: Int -> String -> String -> String -> String -> Maybe Double -> Bool -> String -> String -> IO ExitCode
 systemBlast threads _blastDatabase upperTaxLimitPath lowerTaxLimitPath positiveSetTaxIdLimitPath _evalueThreshold _blastSoftmaskingToggle queryFilepath outputFilePath = do
   let cmd = ("blastn " ++ threadedOption ++ expectThresholdOption ++ taxonomyOption ++ " " ++ softmaskOption ++ dbOption ++ " -query " ++ queryFilepath  ++ " -outfmt 15  -out " ++ outputFilePath)
-  putStrLn cmd
-  system cmd
+  if T.isSuffixOf (T.pack ".fa") (T.pack _blastDatabase)
+     then do
+       let makedbcmd = ("makeblastdb -in " ++ _blastDatabase ++ " -input_type fasta -dbtype nucl -parse_seqids ")
+       (_,_) <- capture (system makedbcmd)
+       (_,exitCode2) <- capture (system cmd)
+       return exitCode2
+     else do
+       (_,exitCode3) <- capture (system cmd)
+       return exitCode3
   where threadedOption = " -num_threads " ++ show threads
         expectThresholdOption = if isJust _evalueThreshold then " -evalue " ++ show (fromJust _evalueThreshold) else ""
         dbOption = if null _blastDatabase then "" else " -db " ++ _blastDatabase ++ " "
@@ -2029,4 +2108,148 @@ systemGetSpeciesTaxId requestedTaxId outputFilePath = do
   return ()
 
 
+------------------------------------------ RNAlienScan ------------------------------------
 
+-- | RNAlienScan RNA family model construction - generates iteration number, seed alignment and model
+scanModelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
+scanModelConstructer staticOptions modelConstruction = do
+  logMessage ("Iteration: " ++ show (iterationNumber modelConstruction) ++ "\n") (tempDirPath staticOptions)
+  iterationSummary modelConstruction staticOptions
+  let currentIterationNumber = iterationNumber modelConstruction
+  let foundSequenceNumber = length (concatMap sequenceRecords (taxRecords modelConstruction))
+  --extract queries
+  let queries = extractQueries foundSequenceNumber modelConstruction
+  logVerboseMessage (verbositySwitch staticOptions) ("Queries:" ++ show queries ++ "\n") (tempDirPath staticOptions)
+  let iterationDirectory = tempDirPath staticOptions ++ show currentIterationNumber ++ "/"
+  let lastGenome = null (genomeFastas modelConstruction)
+  --Terminate on search space exhaustion
+  if (not lastGenome)
+     then do
+       createDirectory iterationDirectory
+       let (upperTaxLimit,lowerTaxLimit) = setTaxonomicContextEntrez currentIterationNumber (taxonomicContext modelConstruction) (upperTaxonomyLimit modelConstruction)
+       logVerboseMessage (verbositySwitch staticOptions) ("Upper taxonomy limit: " ++ show upperTaxLimit ++ "\n " ++ "Lower taxonomy limit: "++ show lowerTaxLimit ++ "\n") (tempDirPath staticOptions)
+       --search queries
+       let expectThreshold = setBlastExpectThreshold modelConstruction
+       let currentGenomeFasta = head (genomeFastas modelConstruction)
+       let genomeFastaPath = (iterationDirectory ++ "genome.fa")
+       writeFastaFile genomeFastaPath [currentGenomeFasta]
+       searchResults <- catchAll (searchCandidates staticOptions Nothing currentIterationNumber upperTaxLimit lowerTaxLimit expectThreshold (Just genomeFastaPath) queries)
+                        (\e -> do logWarning ("Warning: Search results iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
+                                  return (SearchResult [] Nothing))
+       if null (candidates searchResults)
+         then alignmentConstructionWithoutCandidates "scan" Nothing Nothing staticOptions modelConstruction
+         else alignmentConstructionWithCandidates "scan" Nothing Nothing searchResults staticOptions modelConstruction
+     else do
+       logMessage "Message: Modelconstruction complete: Out of queries or taxonomic tree exhausted\n" (tempDirPath staticOptions)
+       scanModelConstructionResult staticOptions modelConstruction
+
+scanFiltering :: DS.Seq J.Hit -> [Char] -> [Char] -> Int -> Maybe String -> StaticOptions -> IO [(Fasta () (), Int, B.ByteString)] 
+scanFiltering blastHitsFilteredByCoverage logFileDirectoryPath queryIndexString queryLength maybeGenomeFasta staticOptions = do
+  let nonEmptyfilteredBlastResults = filter (\(blasthit) -> not (null (J._hsps blasthit))) (Data.Foldable.toList blastHitsFilteredByCoverage)
+  let dummyTaxId = replicate (length nonEmptyfilteredBlastResults) 0
+  let blastResultsDummyTax = zip nonEmptyfilteredBlastResults dummyTaxId
+  genomeFasta <- readFastaFile (fromJust maybeGenomeFasta)
+  let sequenceByteString = _bioSequence . _fasta $ (head genomeFasta)
+  let requestedSequenceElements = map (getRequestedSequenceElement queryLength) blastResultsDummyTax
+  writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++  "_6requestedSequenceElements") (showlines requestedSequenceElements)
+  -- Retrieval of full sequences from genome
+  let fullSequencesWithSimilars = retrieveGenomeFullSequences sequenceByteString staticOptions requestedSequenceElements
+  return fullSequencesWithSimilars
+
+-- | Wrapper for retrieveFullSequence that rerequests incomplete return sequees
+retrieveGenomeFullSequences :: B.ByteString -> StaticOptions -> [(String,Int,Int,String,T.Text,Int,B.ByteString)] -> [(Fasta () (),Int,B.ByteString)]
+retrieveGenomeFullSequences genomeSequence _ requestedSequences = map (retrieveGenomeFullSequence genomeSequence) requestedSequences
+
+retrieveGenomeFullSequence :: B.ByteString -> (String,Int,Int,String,T.Text,Int,B.ByteString) -> ((Fasta () ()),Int,B.ByteString)
+retrieveGenomeFullSequence sequenceByteString (nucleotideId,seqStart,seqStop,strand,_,_,subject') = (justFasta,0,subject')
+  where retrievedSequence = byteStringSlice seqStart len sequenceByteString
+        bioSequence = if strand == "1" then (BioSequence retrievedSequence) else (BioSequence rcretrievedSequence)
+        currentFastaHeader= SequenceIdentifier (B.pack (nucleotideId ++ "_" ++ show seqStart ++ "_" ++ show seqStop ++ "_" ++ strand))
+        justFasta = Fasta currentFastaHeader bioSequence
+        len = if strand == "1" then seqStop - seqStart else seqStart - seqStop
+        rcretrievedSequence = B.reverse (B.map complement' retrievedSequence)
+        
+complement' :: Char -> Char
+complement' c
+  | c == 'G' = 'C'
+  | c == 'C' = 'G'
+  | c == 'A' = 'T'
+  | c == 'T' = 'A'
+  | otherwise = 'N'
+
+byteStringSlice :: Int -> Int -> B.ByteString -> B.ByteString
+byteStringSlice start len = B.take len . B.drop start
+
+
+scanModelConstructionResult :: StaticOptions -> ModelConstruction -> IO ModelConstruction
+scanModelConstructionResult staticOptions modelConstruction = do
+  let currentIterationNumber = iterationNumber modelConstruction
+  let outputDirectory = tempDirPath staticOptions
+  logMessage ("Global search iteration: " ++ show currentIterationNumber ++ "\n") outputDirectory
+  iterationSummary modelConstruction staticOptions
+  let foundSequenceNumber = length (concatMap sequenceRecords (taxRecords modelConstruction))
+  --extract queries
+  --let querySeqIds = selectedQueries modelConstruction ---
+  let queries = extractQueries foundSequenceNumber modelConstruction ---
+  --let alignedSequences' = map nucleotideSequence (concatMap sequenceRecords (taxRecords modelConstruction)) ---
+  logVerboseMessage (verbositySwitch staticOptions) ("Queries:" ++ show queries ++ "\n") outputDirectory
+  let iterationDirectory = outputDirectory ++ show currentIterationNumber ++ "/"
+  createDirectory iterationDirectory
+  let logFileDirectoryPath = iterationDirectory ++ "log"
+  createDirectoryIfMissing False logFileDirectoryPath
+  let expectThreshold = setBlastExpectThreshold modelConstruction
+  let (upperTaxLimit,lowerTaxLimit) = (Just (0 :: Int), Nothing)
+  let currentGenomeFasta = genomeFastas modelConstruction
+  let genomeFastaPath = (iterationDirectory ++ "genome.fa")
+  writeFastaFile genomeFastaPath currentGenomeFasta
+  candidates1 <- catchAll (searchCandidates staticOptions Nothing currentIterationNumber upperTaxLimit lowerTaxLimit expectThreshold (Just genomeFastaPath) queries)
+                  (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
+                            return (SearchResult [] Nothing))
+  let uniqueCandidates = filterDuplicates modelConstruction candidates1
+  (alignmentResults,currentPotentialMembers1) <- catchAll (alignCandidates staticOptions modelConstruction "" uniqueCandidates)
+                           (\e -> do logWarning ("Warning: Alignment results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
+                                     return  ([],[]))
+  let currentPotentialMembers = [SearchResult currentPotentialMembers1 (blastDatabaseSize uniqueCandidates)] 
+  let preliminaryFastaPath = iterationDirectory ++ "model.fa"
+  let preliminaryCMPath = iterationDirectory ++ "model.cm"
+  let preliminaryAlignmentPath = iterationDirectory ++ "model.stockholm"
+  let preliminaryCMLogPath = iterationDirectory ++ "model.cm.log"
+  let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults Nothing Nothing [] currentPotentialMembers (alignmentModeInfernal modelConstruction)
+  if (null alignmentResults) && not (alignmentModeInfernal modelConstruction)
+    then do
+      logVerboseMessage (verbositySwitch staticOptions) "Alignment result initial mode\n" outputDirectory
+      logMessage "Message: No sequences found that statisfy filters. Try to reconstruct model with less strict cutoff parameters." outputDirectory
+      let alignedSequences = extractAlignedSequences (iterationNumber modelConstruction) modelConstruction
+      let alignmentSequences = map snd (V.toList (V.concat [alignedSequences]))
+      writeFastaFile preliminaryFastaPath alignmentSequences
+      let cmBuildFilepath = iterationDirectory ++ "model" ++ ".cmbuild"
+      let refinedAlignmentFilepath = iterationDirectory ++ "modelrefined" ++ ".stockholm"
+      let cmBuildOptions ="--refine " ++ refinedAlignmentFilepath
+      let foldFilepath = iterationDirectory ++ "model" ++ ".fold"
+      _ <- systemRNAfold preliminaryFastaPath foldFilepath
+      foldoutput <- readRNAfold foldFilepath
+      let seqStructure = foldSecondaryStructure (fromRight foldoutput)
+      let stockholAlignment = convertFastaFoldStockholm (head alignmentSequences) seqStructure
+      writeFile preliminaryAlignmentPath stockholAlignment
+      _ <- systemCMbuild cmBuildOptions preliminaryAlignmentPath preliminaryCMPath cmBuildFilepath
+      _ <- systemCMcalibrate "fast" (cpuThreads staticOptions) preliminaryCMPath preliminaryCMLogPath
+      reevaluatePotentialMembers staticOptions nextModelConstructionInput
+    else
+      if (alignmentModeInfernal modelConstruction)
+        then do
+          logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - infernal mode\n") outputDirectory
+          constructModel nextModelConstructionInput staticOptions
+          writeFile (iterationDirectory ++ "done") ""
+          logMessage (iterationSummaryLog nextModelConstructionInput) outputDirectory
+          logVerboseMessage (verbositySwitch staticOptions) (show nextModelConstructionInput) outputDirectory
+          resultModelConstruction <- reevaluatePotentialMembers staticOptions nextModelConstructionInput
+          return resultModelConstruction
+        else do
+          logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - initial mode\n") outputDirectory
+          constructModel nextModelConstructionInput staticOptions
+          let nextModelConstructionInputInfernalMode = nextModelConstructionInput {alignmentModeInfernal = True}
+          logMessage (iterationSummaryLog nextModelConstructionInputInfernalMode) outputDirectory
+          logVerboseMessage (verbositySwitch staticOptions) (show nextModelConstructionInputInfernalMode) outputDirectory
+          writeFile (iterationDirectory ++ "done") ""
+          resultModelConstruction <- reevaluatePotentialMembers staticOptions nextModelConstructionInputInfernalMode
+          return resultModelConstruction

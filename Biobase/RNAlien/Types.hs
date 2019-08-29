@@ -37,11 +37,12 @@ data ModelConstruction = ModelConstruction
     evalueThreshold :: Double,
     alignmentModeInfernal :: Bool,
     selectedQueries :: [Fasta () ()],
-    potentialMembers :: [SearchResult]
+    potentialMembers :: [SearchResult],
+    genomeFastas :: [Fasta () ()]
   }
 
 instance Show ModelConstruction where
-  show (ModelConstruction _iterationNumber _inputFasta _taxRecords _upperTaxonomyLimit _taxonomicContext _evalueThreshold _alignmentModeInfernal _selectedQueries _potentialMembers) = a ++ b ++ c ++ d ++ e ++ g ++ h ++ i
+  show (ModelConstruction _iterationNumber _inputFasta _taxRecords _upperTaxonomyLimit _taxonomicContext _evalueThreshold _alignmentModeInfernal _selectedQueries _potentialMembers _genomeFastas) = a ++ b ++ c ++ d ++ e ++ g ++ h ++ i ++ j
     where a = "Modelconstruction iteration: " ++ show _iterationNumber ++ "\n"
           -- b = "Input fasta:\n" ++ concatMap (prettyPrintFasta 80) _inputFasta  -- L.unpack (fastaHeader _inputFasta)  ++ "\n" ++ L.unpack (fastaSequence _inputFasta) ++ "\n"
           b = "Input fasta:\n" ++ concatMap (convertString . fastaToByteString 80) _inputFasta
@@ -51,6 +52,7 @@ instance Show ModelConstruction where
           g = "Evalue cutoff: " ++ show _evalueThreshold ++ "\n"
           h = "Selected queries: \n" ++ concatMap show _selectedQueries
           i = "Potential Members: \n" ++ concatMap show _potentialMembers
+          j = "Number of genomes for RNAlienEgg: " ++ show (length _genomeFastas)
 
 data TaxonomyRecord = TaxonomyRecord
   { recordTaxonomyId :: Int,

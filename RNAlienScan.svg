@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   width="123.59375"
+   height="20.619791"
+   id="svg2"
+   version="1.1"
+   inkscape:version="0.92.4 5da689c313, 2019-01-14"
+   sodipodi:docname="RNAlienScan.svg">
+  <defs
+     id="defs4" />
+  <sodipodi:namedview
+     id="base"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageopacity="0.0"
+     inkscape:pageshadow="2"
+     inkscape:zoom="7.5"
+     inkscape:cx="36.31836"
+     inkscape:cy="-9.9544414"
+     inkscape:document-units="px"
+     inkscape:current-layer="layer1"
+     showgrid="false"
+     fit-margin-top="0"
+     fit-margin-left="0"
+     fit-margin-right="0"
+     fit-margin-bottom="0"
+     inkscape:window-width="3840"
+     inkscape:window-height="2081"
+     inkscape:window-x="0"
+     inkscape:window-y="42"
+     inkscape:window-maximized="1"
+     showguides="true"
+     inkscape:guide-bbox="true">
+    <sodipodi:guide
+       position="70.133333,31.066667"
+       orientation="0,1"
+       id="guide4553"
+       inkscape:locked="false" />
+  </sodipodi:namedview>
+  <metadata
+     id="metadata7">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title></dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-21.962891,-83.454161)">
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:0%;font-family:serif;-inkscape-font-specification:Serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none"
+       x="20"
+       y="103.79075"
+       id="text2985"><tspan
+         sodipodi:role="line"
+         id="tspan2987"
+         x="20"
+         y="103.79075"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:20px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:Sans">RNAlienScan</tspan></text>
+    <rect
+       style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:none"
+       id="rect2989"
+       width="6.5333333"
+       height="1.0666667"
+       x="96.936913"
+       y="26.680538"
+       transform="rotate(43.667398)" />
+    <circle
+       style="fill:#00ff00;fill-opacity:1;fill-rule:evenodd;stroke:#000000"
+       id="path2991"
+       transform="rotate(43.667398,-92.320272,65.748527)"
+       cx="24.533333"
+       cy="-18.47526"
+       r="1.3333334" />
+    <rect
+       style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:none"
+       id="rect2989-3"
+       width="6.5333333"
+       height="1.0666667"
+       x="16.066805"
+       y="103.56398"
+       transform="matrix(-0.72336015,0.69047092,0.69047092,0.72336015,0,0)" />
+    <circle
+       style="fill:#00ff00;fill-opacity:1;fill-rule:evenodd;stroke:#000000"
+       id="path2991-2"
+       transform="matrix(-0.72336015,0.69047092,0.69047092,0.72336015,91.726013,81.709076)"
+       cx="24.533333"
+       cy="-18.47526"
+       r="1.3333334" />
+    <g
+       id="g4588"
+       transform="matrix(0.73043479,0,0,1,34.01869,24.4)">
+      <path
+         transform="scale(1,-1)"
+         d="m 104.92955,-69.133194 a 7.666667,5.8190808 0 0 1 -3.87166,5.056156 7.666667,5.8190808 0 0 1 -7.704611,-0.05056 7.666667,5.8190808 0 0 1 -3.755914,-5.106205"
+         sodipodi:open="true"
+         sodipodi:end="3.1588822"
+         sodipodi:start="0"
+         sodipodi:ry="5.8190808"
+         sodipodi:rx="7.666667"
+         sodipodi:cy="-69.133194"
+         sodipodi:cx="97.262886"
+         sodipodi:type="arc"
+         id="path4551-3-6"
+         style="fill:#e5ffd5;fill-opacity:1;stroke:none;stroke-width:8.59368992;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0" />
+      <path
+         transform="scale(1,-1)"
+         d="m 103.59622,-69.155853 a 6.3333335,4.5084076 0 0 1 -3.19833,3.917322 6.3333335,4.5084076 0 0 1 -6.364679,-0.03917 6.3333335,4.5084076 0 0 1 -3.102712,-3.956099"
+         sodipodi:open="true"
+         sodipodi:end="3.1588822"
+         sodipodi:start="0"
+         sodipodi:ry="4.5084076"
+         sodipodi:rx="6.3333335"
+         sodipodi:cy="-69.155853"
+         sodipodi:cx="97.262886"
+         sodipodi:type="arc"
+         id="path4551-3"
+         style="fill:#99ff55;fill-opacity:1;stroke:none;stroke-width:6.87506723;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0" />
+      <path
+         transform="scale(1,-1)"
+         d="m 101.86289,-69.180779 a 4.5999999,3.0666666 0 0 1 -2.323001,2.664604 4.5999999,3.0666666 0 0 1 -4.622767,-0.02664 4.5999999,3.0666666 0 0 1 -2.253548,-2.69098"
+         sodipodi:open="true"
+         sodipodi:end="3.1588822"
+         sodipodi:start="0"
+         sodipodi:ry="3.0666666"
+         sodipodi:rx="4.5999999"
+         sodipodi:cy="-69.180779"
+         sodipodi:cx="97.262886"
+         sodipodi:type="arc"
+         id="path4551"
+         style="fill:#00ff00;fill-opacity:1;stroke:none;stroke-width:4.83238363;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0" />
+    </g>
+  </g>
+</svg>
