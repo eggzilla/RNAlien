@@ -15,6 +15,7 @@ script:
   - docker cp develcontainer:/source/dist-newstyle/build/x86_64-linux/ghc-8.4.3/RNAlien-1.7.0/x/RNAlienStatistics/build/RNAlienStatistics/RNAlienStatistics RNAlien
   - docker cp develcontainer:/source/dist-newstyle/build/x86_64-linux/ghc-8.4.3/RNAlien-1.7.0/x/cmsearchToBed/build/cmsearchToBed/cmsearchToBed RNAlien
   - docker cp develcontainer:/source/dist-newstyle/build/x86_64-linux/ghc-8.4.3/RNAlien-1.7.0/x/RNAcentralHTTPRequest/build/RNAcentralHTTPRequest/RNAcentralHTTPRequest RNAlien
+  - docker cp develcontainer:/source/dist-newstyle/build/x86_64-linux/ghc-8.4.3/RNAlien-1.7.0/x/RNAlienScan/build/RNAlienScan/RNAlienScan RNAlienScan
   - cp LICENSE RNAlien
   - tar -cvzf RNAlien.tar.gz RNAlien
 
