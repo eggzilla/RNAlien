@@ -11,11 +11,11 @@ before_script:
 script:
   - docker create --name develcontainer devel
   - mkdir RNAlien
-  - docker cp develcontainer:/source/dist-newstyle/build/x86_64-linux/ghc-8.4.3/RNAlien-1.7.0/x/RNAlien/build/RNAlien/RNAlien RNAlien
-  - docker cp develcontainer:/source/dist-newstyle/build/x86_64-linux/ghc-8.4.3/RNAlien-1.7.0/x/RNAlienStatistics/build/RNAlienStatistics/RNAlienStatistics RNAlien
-  - docker cp develcontainer:/source/dist-newstyle/build/x86_64-linux/ghc-8.4.3/RNAlien-1.7.0/x/cmsearchToBed/build/cmsearchToBed/cmsearchToBed RNAlien
-  - docker cp develcontainer:/source/dist-newstyle/build/x86_64-linux/ghc-8.4.3/RNAlien-1.7.0/x/RNAcentralHTTPRequest/build/RNAcentralHTTPRequest/RNAcentralHTTPRequest RNAlien
-  - docker cp develcontainer:/source/dist-newstyle/build/x86_64-linux/ghc-8.4.3/RNAlien-1.7.0/x/RNAlienScan/build/RNAlienScan/RNAlienScan RNAlien
+  - docker cp develcontainer:/source/dist-newstyle/build/x86_64-linux/ghc-8.4.3/RNAlien-1.7.1/x/RNAlien/build/RNAlien/RNAlien RNAlien
+  - docker cp develcontainer:/source/dist-newstyle/build/x86_64-linux/ghc-8.4.3/RNAlien-1.7.1/x/RNAlienStatistics/build/RNAlienStatistics/RNAlienStatistics RNAlien
+  - docker cp develcontainer:/source/dist-newstyle/build/x86_64-linux/ghc-8.4.3/RNAlien-1.7.1/x/cmsearchToBed/build/cmsearchToBed/cmsearchToBed RNAlien
+  - docker cp develcontainer:/source/dist-newstyle/build/x86_64-linux/ghc-8.4.3/RNAlien-1.7.1/x/RNAcentralHTTPRequest/build/RNAcentralHTTPRequest/RNAcentralHTTPRequest RNAlien
+  - docker cp develcontainer:/source/dist-newstyle/build/x86_64-linux/ghc-8.4.3/RNAlien-1.7.1/x/RNAlienScan/build/RNAlienScan/RNAlienScan RNAlien
   - cp LICENSE RNAlien
   - tar -cvzf RNAlien.tar.gz RNAlien
 

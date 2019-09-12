@@ -1,6 +1,10 @@
 -*-change-log-*-
 
-### 1.7.0 [Florian Eggenhofer](mailto:egg@cs.uni-freiburg.de) tbd
+### 1.7.1  [Florian Eggenhofer](mailto:egg@cs.uni-freiburg.de) 12. September 2019
+
+	* Fixed Scan tool global search step
+
+### 1.7.0 [Florian Eggenhofer](mailto:egg@cs.uni-freiburg.de) 29. August 2019
 
 	* Added Scan tool
 	* Changed tracing high similarity candidates

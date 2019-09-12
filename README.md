@@ -48,8 +48,8 @@ TaxonomyTools which can be used to visualise the organisms included in a RNAlien
      RNAlien is available with all dependencies via [biocontainer](https://quay.io/repository/biocontainers/rnalien). Install
      [docker](https://www.docker.com/get-docker)
 
-         docker pull quay.io/biocontainers/rnalien:1.7.0--pl5.22.0_0
-         docker run -i -t quay.io/biocontainers/rnalien:1.7.0--pl5.22.0_0 bash
+         docker pull quay.io/biocontainers/rnalien:1.7.1--pl5.22.0_0
+         docker run -i -t quay.io/biocontainers/rnalien:1.7.1--pl5.22.0_0 bash
 
     ### <u>Installation via cabal-install</u>
 
