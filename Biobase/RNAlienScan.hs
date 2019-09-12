@@ -106,7 +106,7 @@ main = do
                    when (null inputGenomesFasta) (error "Please provide input genomes with the cmd line parameter -s")
                    logToolVersions inputQuerySelectionMethod temporaryDirectoryPath
                    let reformatedFastaInput = map reformatFasta fastaInput
-                   let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) Nothing singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads Nothing Nothing (setVerbose verboseLevel) True
+                   let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) Nothing singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads Nothing Nothing (setVerbose verboseLevel) True inputGenomesFastaFilePath
                    let initialization = ModelConstruction iterationNumber reformatedFastaInput [] Nothing Nothing (fromJust inputEvalueCutoff) False [] [] inputGenomesFasta
                    logMessage (show initialization) temporaryDirectoryPath
                    modelConstructionResults <- scanModelConstructer staticOptions initialization

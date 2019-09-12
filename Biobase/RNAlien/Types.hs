@@ -23,7 +23,8 @@ data StaticOptions = StaticOptions
     blastDatabase :: Maybe String,
     taxRestriction :: Maybe String,
     verbositySwitch :: Bool,
-    offline :: Bool
+    offline :: Bool,
+    genomeFastasPath :: String
   } deriving (Show)
 
 -- | Keeps track of model construction
