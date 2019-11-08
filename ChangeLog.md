@@ -1,5 +1,9 @@
 -*-change-log-*-
 
+### 1.7.2  [Florian Eggenhofer](mailto:egg@cs.uni-freiburg.de) tbd
+
+	* Construction start from input alignment
+
 ### 1.7.1  [Florian Eggenhofer](mailto:egg@cs.uni-freiburg.de) 12. September 2019
 
 	* Fixed Scan tool global search step
