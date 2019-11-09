@@ -4,6 +4,7 @@ module Biobase.RNAlien.Types where
 
 import Biobase.Fasta.Strict
 import Bio.Taxonomy
+import Bio.StockholmData
 --import Biobase.Types.BioSequence
 import qualified Data.ByteString.Char8 as B
 
@@ -39,17 +40,19 @@ data ModelConstruction = ModelConstruction
     alignmentModeInfernal :: Bool,
     selectedQueries :: [Fasta () ()],
     potentialMembers :: [SearchResult],
-    genomeFastas :: [Fasta () ()]
+    genomeFastas :: [Fasta () ()],
+    inputAlignment :: Maybe StockholmAlignment
   }
 
 instance Show ModelConstruction where
-  show (ModelConstruction _iterationNumber _inputFasta _taxRecords _upperTaxonomyLimit _taxonomicContext _evalueThreshold _alignmentModeInfernal _selectedQueries _potentialMembers _genomeFastas) = a ++ b ++ c ++ d ++ e ++ g ++ h ++ i ++ j
+  show (ModelConstruction _iterationNumber _inputFasta _taxRecords _upperTaxonomyLimit _taxonomicContext _evalueThreshold _alignmentModeInfernal _selectedQueries _potentialMembers _genomeFastas _inputAlignment) = a ++ b ++ c ++ d ++ e ++ f ++ g ++ h ++ i ++ j
     where a = "Modelconstruction iteration: " ++ show _iterationNumber ++ "\n"
           -- b = "Input fasta:\n" ++ concatMap (prettyPrintFasta 80) _inputFasta  -- L.unpack (fastaHeader _inputFasta)  ++ "\n" ++ L.unpack (fastaSequence _inputFasta) ++ "\n"
           b = "Input fasta:\n" ++ concatMap (convertString . fastaToByteString 80) _inputFasta
-          c = show _taxRecords
-          d = "Upper taxonomy limit: " ++ maybe "not set" show _upperTaxonomyLimit ++ "\n"
-          e = "Taxonomic Context: " ++  maybe "not set" show _taxonomicContext ++ "\n"
+          c = "Input alignment:\n" ++ maybe "not set" show _inputAlignment ++ "\n"
+          d = show _taxRecords
+          e = "Upper taxonomy limit: " ++ maybe "not set" show _upperTaxonomyLimit ++ "\n"
+          f = "Taxonomic Context: " ++  maybe "not set" show _taxonomicContext ++ "\n"
           g = "Evalue cutoff: " ++ show _evalueThreshold ++ "\n"
           h = "Selected queries: \n" ++ concatMap show _selectedQueries
           i = "Potential Members: \n" ++ concatMap show _potentialMembers

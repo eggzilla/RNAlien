@@ -17,10 +17,12 @@ import Data.Time
 import qualified System.FilePath as FP
 import Paths_RNAlien (version)
 import Data.Version (showVersion)
+import Bio.StockholmParser
 --import Biobase.Fasta.Streaming
 
 data Options = Options
   { inputFastaFilePath :: String,
+    inputAlignmentFilePath :: String,
     outputPath :: String,
     inputTaxId :: Maybe Int,
     inputnSCICutoff :: Maybe Double,
@@ -43,6 +45,7 @@ data Options = Options
 options :: Options
 options = Options
   { inputFastaFilePath = def &= name "i" &= help "Path to input fasta file",
+    inputAlignmentFilePath = def &= name "p" &= help "Path to input alignment file",
     outputPath = def &= name "o" &= help "Path to output directory. Default: current working directory",
     inputTaxId = Nothing &= name "t" &= help "NCBI taxonomy ID number of input RNA organism",
     inputnSCICutoff = Just (1 :: Double) &= name "z" &= help "Only candidate sequences with a normalized structure conservation index (nSCI) higher than this value are accepted. Default: 1",
