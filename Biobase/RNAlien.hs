@@ -17,8 +17,9 @@ import Data.Time
 import qualified System.FilePath as FP
 import Paths_RNAlien (version)
 import Data.Version (showVersion)
-import Bio.StockholmParser
+import qualified Bio.StockholmParser as BS
 --import Biobase.Fasta.Streaming
+import Control.Monad
 
 data Options = Options
   { inputFastaFilePath :: String,
@@ -77,59 +78,62 @@ main = do
   let selectedOutputPath = if null outputPath then currentWorkDirectory else outputPath
   let temporaryDirectoryPath = FP.addTrailingPathSeparator selectedOutputPath ++ sessionId ++ "/"
   createDirectoryIfMissing False temporaryDirectoryPath
-  networkCheck <- checkNCBIConnection
-  if checkSetup
+  setupCheckAlienWithLog inputQuerySelectionMethod temporaryDirectoryPath
+  createDirectoryIfMissing False (temporaryDirectoryPath ++ "log")
+  -- Create Log files
+  writeFile (temporaryDirectoryPath ++ "Log") ("RNAlien " ++ alienVersion ++ "\n")
+  writeFile (temporaryDirectoryPath ++ "log/warnings") ("")
+  logMessage ("Timestamp: " ++ (show timestamp) ++ "\n") temporaryDirectoryPath
+  logMessage ("Temporary Directory: " ++ temporaryDirectoryPath ++ "\n") temporaryDirectoryPath
+  if null inputFastaFilePath
     then do
-      toolsCheck <- checkTools tools inputQuerySelectionMethod temporaryDirectoryPath
-      let setupCheckPath = temporaryDirectoryPath ++ "setupCheck"
-      let toolCheckResult = either id id toolsCheck
-      let networkCheckResult = either id id networkCheck
-      writeFile setupCheckPath (toolCheckResult ++ "\n" ++ networkCheckResult ++ "\n")
-    else
-      if isLeft networkCheck
+      alignmentInput <- BS.readExistingStockholm inputAlignmentFilePath
+      when (null ) (error "Please provide input fasta sequences with the cmd line parameter -i")
+      let iterationNumber = 0
+      logToolVersions inputQuerySelectionMethod temporaryDirectoryPath
+      let reformatedFastaInput = map reformatFasta fastaInput
+      let inputSequence = head reformatedFastaInput
+      initialTaxId <- setInitialTaxId offlineMode threads inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
+      let checkedTaxonomyRestriction = checkTaxonomyRestriction taxonomyRestriction
+      let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) inputTaxId singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads inputBlastDatabase checkedTaxonomyRestriction (setVerbose verboseLevel) offlineMode []
+      let initialization = ModelConstruction iterationNumber reformatedFastaInput [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] [] []
+      logMessage (show initialization) temporaryDirectoryPath
+      modelConstructionResults <- modelConstructer staticOptions initialization
+      let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults
+      writeFile (temporaryDirectoryPath ++ "result.csv") resultTaxonomyRecordsCSVTable
+      if performEvaluation
         then do
-          putStrLn ("Error - Could not contact NCBI server: " ++ fromLeft networkCheck ++ "\n")
-          logMessage ("Error - Could not contact NCBI server: " ++ fromLeft networkCheck ++ "\n") temporaryDirectoryPath
-       else do
-           createDirectoryIfMissing False (temporaryDirectoryPath ++ "log")
-           -- Create Log files
-           writeFile (temporaryDirectoryPath ++ "Log") ("RNAlien " ++ alienVersion ++ "\n")
-           writeFile (temporaryDirectoryPath ++ "log/warnings") ("")
-           logMessage ("Timestamp: " ++ (show timestamp) ++ "\n") temporaryDirectoryPath
-           logMessage ("Temporary Directory: " ++ temporaryDirectoryPath ++ "\n") temporaryDirectoryPath
-           fastaInput <- readFastaFile inputFastaFilePath
-           if null fastaInput
-             then do
-               putStrLn "Error: Input fasta file is empty."
-               logMessage "Error: Input fasta file is empty.\n" temporaryDirectoryPath
-             else do
-               let iterationNumber = 0
-               toolsCheck <- checkTools tools inputQuerySelectionMethod temporaryDirectoryPath
-               if isLeft toolsCheck
-                 then do
-                   putStrLn ("Error - Not all required tools could be found in $PATH: " ++ fromLeft toolsCheck ++ "\n")
-                   logMessage ("Error - Not all required tools could be found in $PATH: " ++ fromLeft toolsCheck ++ "\n") temporaryDirectoryPath
-                 else do
-                   logToolVersions inputQuerySelectionMethod temporaryDirectoryPath
-                   let reformatedFastaInput = map reformatFasta fastaInput
-                   let inputSequence = head reformatedFastaInput
-                   initialTaxId <- setInitialTaxId offlineMode threads inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
-                   let checkedTaxonomyRestriction = checkTaxonomyRestriction taxonomyRestriction
-                   let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) inputTaxId singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads inputBlastDatabase checkedTaxonomyRestriction (setVerbose verboseLevel) offlineMode []
-                   let initialization = ModelConstruction iterationNumber reformatedFastaInput [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] [] []
-                   logMessage (show initialization) temporaryDirectoryPath
-                   modelConstructionResults <- modelConstructer staticOptions initialization
-                   let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults
-                   writeFile (temporaryDirectoryPath ++ "result.csv") resultTaxonomyRecordsCSVTable
-                   if performEvaluation
-                     then do
-                       resultEvaluation <- evaluateConstructionResult staticOptions modelConstructionResults
-                       appendFile (temporaryDirectoryPath ++ "Log") resultEvaluation
-                       resultSummary modelConstructionResults staticOptions
-                       writeFile (temporaryDirectoryPath ++ "done") ""
-                     else do
-                       resultSummary modelConstructionResults staticOptions
-                       writeFile (temporaryDirectoryPath ++ "done") ""
+          resultEvaluation <- evaluateConstructionResult staticOptions modelConstructionResults
+          appendFile (temporaryDirectoryPath ++ "Log") resultEvaluation
+          resultSummary modelConstructionResults staticOptions
+          writeFile (temporaryDirectoryPath ++ "done") ""
+        else do
+          resultSummary modelConstructionResults staticOptions
+          writeFile (temporaryDirectoryPath ++ "done") ""
+    else do
+      fastaInput <- readFastaFile inputFastaFilePath
+      when (null fastaInput) (error "Please provide input fasta sequences with the cmd line parameter -i")
+      let iterationNumber = 0
+      logToolVersions inputQuerySelectionMethod temporaryDirectoryPath
+      let reformatedFastaInput = map reformatFasta fastaInput
+      let inputSequence = head reformatedFastaInput
+      initialTaxId <- setInitialTaxId offlineMode threads inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
+      let checkedTaxonomyRestriction = checkTaxonomyRestriction taxonomyRestriction
+      let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) inputTaxId singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads inputBlastDatabase checkedTaxonomyRestriction (setVerbose verboseLevel) offlineMode []
+      let initialization = ModelConstruction iterationNumber reformatedFastaInput [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] [] []
+      logMessage (show initialization) temporaryDirectoryPath
+      modelConstructionResults <- modelConstructer staticOptions initialization
+      let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults
+      writeFile (temporaryDirectoryPath ++ "result.csv") resultTaxonomyRecordsCSVTable
+      if performEvaluation
+        then do
+          resultEvaluation <- evaluateConstructionResult staticOptions modelConstructionResults
+          appendFile (temporaryDirectoryPath ++ "Log") resultEvaluation
+          resultSummary modelConstructionResults staticOptions
+          writeFile (temporaryDirectoryPath ++ "done") ""
+        else do
+          resultSummary modelConstructionResults staticOptions
+          writeFile (temporaryDirectoryPath ++ "done") ""
 
 alienVersion :: String
 alienVersion = showVersion version

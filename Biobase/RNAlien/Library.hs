@@ -31,7 +31,15 @@ module Biobase.RNAlien.Library (
                            checkTaxonomyRestriction,
                            evaluePartitionTrimCMsearchHits,
                            readFastaFile,
-                           writeFastaFile
+                           writeFastaFile,
+                           stockholmAlignmentToFasta,
+                           setupCheckScanWithLog,
+                           setupCheckAlienWithLog,
+                           constructNext,
+                           systemCMbuild,
+                           systemCMcalibrate,
+                           selectQueries,
+                           iterationSummaryLog
                            )
 where
 
@@ -85,6 +93,7 @@ import Data.Foldable
 import Biobase.Types.BioSequence
 import qualified Biobase.BLAST.Import as BBI
 import System.IO.Silently
+import qualified Bio.StockholmParser as BS
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 modelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
@@ -2254,3 +2263,31 @@ scanModelConstructionResult staticOptions modelConstruction = do
           writeFile (iterationDirectory ++ "done") ""
           resultModelConstruction <- reevaluatePotentialMembers staticOptions nextModelConstructionInputInfernalMode
           return resultModelConstruction
+
+stockholmAlignmentToFasta :: BS.StockholmAlignment -> [Fasta () ()]
+stockholmAlignmentToFasta aln = parsedFastas
+  where alignmentSequences = BS.sequenceEntries aln
+        fastaText = T.concat $ map (\entry -> T.concat[(T.pack ">"), BS.sequenceId entry, T.pack "\n", BS.entrySequence entry, T.pack "\n"]) alignmentSequences
+        parsedFastas = byteStringToMultiFasta (L.fromStrict (E.encodeUtf8 fastaText))
+
+setupCheckScanWithLog :: String -> String -> IO ()
+setupCheckScanWithLog inputQuerySelectionMethod temporaryDirectoryPath = do
+  let tools = if inputQuerySelectionMethod == "clustering" then ["clustalo","mlocarna","RNAfold","RNAalifold","cmcalibrate","cmstat","cmbuild","RNAz","RNAcode"] else ["mlocarna","RNAfold","RNAalifold","cmcalibrate","cmstat","cmbuild","RNAz","RNAcode"]
+  toolsCheck <- checkTools tools inputQuerySelectionMethod temporaryDirectoryPath
+  let setupCheckPath = temporaryDirectoryPath ++ "setupCheck"
+  let toolCheckResult = either id id toolsCheck
+  writeFile setupCheckPath (toolCheckResult ++ "\n")
+  when (isLeft toolsCheck) (error ("Error - Not all required tools could be found in $PATH: " ++ fromLeft toolsCheck ++ "\n"))
+
+setupCheckAlienWithLog :: String -> String -> IO ()
+setupCheckAlienWithLog inputQuerySelectionMethod temporaryDirectoryPath = do
+  let tools = if inputQuerySelectionMethod == "clustering" then ["clustalo","mlocarna","RNAfold","RNAalifold","cmcalibrate","cmstat","cmbuild","RNAz","RNAcode"] else ["mlocarna","RNAfold","RNAalifold","cmcalibrate","cmstat","cmbuild","RNAz","RNAcode"]
+  networkCheck <- checkNCBIConnection
+  toolsCheck <- checkTools tools inputQuerySelectionMethod temporaryDirectoryPath
+  let setupCheckPath = temporaryDirectoryPath ++ "setupCheck"
+  let toolCheckResult = either id id toolsCheck
+  writeFile setupCheckPath (toolCheckResult ++ "\n")
+  let networkCheckResult = either id id networkCheck
+  writeFile setupCheckPath (toolCheckResult ++ "\n" ++ networkCheckResult ++ "\n")
+  when (isLeft toolsCheck) (error (toolCheckResult ++ "Error - Not all required tools could be found in $PATH: " ++ fromLeft toolsCheck ++ "\n"))
+  when (isLeft networkCheck) (error (toolCheckResult ++ "Error - Could not establich a connection to NCBI servers: " ++ fromLeft networkCheck ++ "\n"))

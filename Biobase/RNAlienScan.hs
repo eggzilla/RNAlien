@@ -19,7 +19,7 @@ import Paths_RNAlien (version)
 import Data.Version (showVersion)
 --import Biobase.Fasta.Streaming
 import Control.Monad
-import Bio.StockholmParser
+import qualified Bio.StockholmParser as BS
 
 data Options = Options
   { inputFastaFilePath :: String,
@@ -71,25 +71,47 @@ main = do
   let selectedOutputPath = if null outputPath then currentWorkDirectory else outputPath
   let temporaryDirectoryPath = FP.addTrailingPathSeparator selectedOutputPath ++ sessionId ++ "/"
   createDirectoryIfMissing False temporaryDirectoryPath
-  setupCheckWithLog inputQuerySelectionMethod temporaryDirectoryPath
+  setupCheckScanWithLog inputQuerySelectionMethod temporaryDirectoryPath
   createDirectoryIfMissing False (temporaryDirectoryPath ++ "log")
   -- Create Log files
-  writeFile (temporaryDirectoryPath ++ "Log") ("RNAlienEgg " ++ alienVersion ++ "\n")
+  writeFile (temporaryDirectoryPath ++ "Log") ("RNAlienScan " ++ alienVersion ++ "\n")
   writeFile (temporaryDirectoryPath ++ "log/warnings") ("")
   logMessage ("Timestamp: " ++ (show timestamp) ++ "\n") temporaryDirectoryPath
   logMessage ("Temporary Directory: " ++ temporaryDirectoryPath ++ "\n") temporaryDirectoryPath
   let iterationNumber = 0
   if null inputFastaFilePath
     then do
-      alignmentInput <- readExistingStockholm inputAlignmentFilePath
+      alignmentInput <- BS.readExistingStockholm inputAlignmentFilePath
       inputGenomesFasta <- readFastaFile inputGenomesFastaFilePath
       when (null inputGenomesFasta) (error "Please provide input genomes with the cmd line parameter -s")
       logToolVersions inputQuerySelectionMethod temporaryDirectoryPath
-      let reformatedFastaInput = map reformatFasta fastaInput
+      when (isLeft alignmentInput) (error (fromLeft alignmentInput))
+      let rightAlignment = head $ fromRight alignmentInput
+      let inputAlignmentFasta = stockholmAlignmentToFasta rightAlignment
+      let reformatedFastaInput = map reformatFasta inputAlignmentFasta
       let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) Nothing singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads Nothing Nothing (setVerbose verboseLevel) True inputGenomesFastaFilePath
-      let initialization = ModelConstruction iterationNumber reformatedFastaInput [] Nothing Nothing (fromJust inputEvalueCutoff) False [] [] [] alignmentInput
+      --let initialization = ModelConstruction iterationNumber reformatedFastaInput [] Nothing Nothing (fromJust inputEvalueCutoff) False [] [] [] alignmentInput
+      let initialization = ModelConstruction iterationNumber reformatedFastaInput [] Nothing Nothing (fromJust inputEvalueCutoff) False [] [] [] (Just rightAlignment)
       logMessage (show initialization) temporaryDirectoryPath
-      modelConstructionResults <- scanModelConstructer staticOptions initialization
+      --logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - infernal mode\n") (tempDirPath staticOptions)
+      --prepare next iteration
+      let nextModelConstructionInput = constructNext (1 :: Int) initialization [] Nothing Nothing [] [] True
+      let outputDirectory = tempDirPath staticOptions ++ "0" ++ "/"
+      let stockholmFilepath = outputDirectory ++ "model" ++ ".stockholm"
+      let cmFilepath = outputDirectory ++ "model" ++ ".cm"
+      let cmCalibrateFilepath = outputDirectory ++ "model" ++ ".cmcalibrate"
+      let cmBuildFilepath = outputDirectory ++ "model" ++ ".cmbuild"
+      copyFile inputAlignmentFilePath stockholmFilepath
+      let refinedAlignmentFilepath = outputDirectory ++ "modelrefined.stockholm"
+      let cmBuildOptions ="--refine " ++ refinedAlignmentFilepath
+      _ <- systemCMbuild cmBuildOptions stockholmFilepath cmFilepath cmBuildFilepath
+      _ <- systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
+      writeFile (outputDirectory ++ "done") ""
+      --select queries
+      currentSelectedQueries <- selectQueries staticOptions nextModelConstructionInput []
+      let nextScanModelConstructionInputWithQueries = nextModelConstructionInput {selectedQueries = currentSelectedQueries}
+      logMessage (iterationSummaryLog nextScanModelConstructionInputWithQueries) (tempDirPath staticOptions)
+      modelConstructionResults <- scanModelConstructer staticOptions nextScanModelConstructionInputWithQueries
       let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults
       writeFile (temporaryDirectoryPath ++ "result.csv") resultTaxonomyRecordsCSVTable
       if performEvaluation
@@ -103,6 +125,7 @@ main = do
           writeFile (temporaryDirectoryPath ++ "done") ""
     else do
       fastaInput <- readFastaFile inputFastaFilePath
+      when (null fastaInput) (error "Please provide input fasta sequences with the cmd line parameter -i")
       inputGenomesFasta <- readFastaFile inputGenomesFastaFilePath
       when (null inputGenomesFasta) (error "Please provide input genomes with the cmd line parameter -s")
       logToolVersions inputQuerySelectionMethod temporaryDirectoryPath
@@ -125,18 +148,3 @@ main = do
 
 alienVersion :: String
 alienVersion = showVersion version
-
-setupCheckWithLog :: String -> String -> Bool
-setupCheckWithLog inputQuerySelectionMethod temporaryDirectoryPath = do
-  let tools = if inputQuerySelectionMethod == "clustering" then ["clustalo","mlocarna","RNAfold","RNAalifold","cmcalibrate","cmstat","cmbuild","RNAz","RNAcode"] else ["mlocarna","RNAfold","RNAalifold","cmcalibrate","cmstat","cmbuild","RNAz","RNAcode"]
-  toolsCheck <- checkTools tools inputQuerySelectionMethod temporaryDirectoryPath
-  let setupCheckPath = temporaryDirectoryPath ++ "setupCheck"
-  let toolCheckResult = either id id toolsCheck
-  writeFile setupCheckPath (toolCheckResult ++ "\n")
-  if (isLeft toolsCheck)
-    then do
-      putStrLn ("Error - Not all required tools could be found in $PATH: " ++ fromLeft toolsCheck ++ "\n")
-      logMessage ("Error - Not all required tools could be found in $PATH: " ++ fromLeft toolsCheck ++ "\n") temporaryDirectoryPath
-      (error (toolCheckResult ++ "\n"))
-    else do
-      return ()
