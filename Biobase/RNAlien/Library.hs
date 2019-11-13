@@ -1951,6 +1951,10 @@ reformatFasta :: Fasta () () -> Fasta () ()
 reformatFasta input = Fasta (_header input) updatedSequence
   where updatedSequence = BioSequence (B.pack (map reformatFastaSequence (B.unpack . _bioSequence . _fasta $ input)))
 
+reformatGapFreeFasta :: Fasta () () -> Fasta () ()
+reformatGapFreeFasta input = Fasta (_header input) updatedSequence
+  where updatedSequence = BioSequence (B.pack (filter (\c -> c /= '-') (map reformatFastaSequence (B.unpack . _bioSequence . _fasta $ input))))
+
 reformatFastaSequence :: Char -> Char
 reformatFastaSequence c
   | c == '.' = '-'
@@ -2269,7 +2273,7 @@ stockholmAlignmentToFasta aln = reformatedFastaInput
   where alignmentSequences = BS.sequenceEntries aln
         fastaText = T.concat $ map (\entry -> T.concat[(T.pack ">"), BS.sequenceId entry, T.pack "\n", BS.entrySequence entry, T.pack "\n"]) alignmentSequences
         parsedFastas = byteStringToMultiFasta (L.fromStrict (E.encodeUtf8 fastaText))
-        reformatedFastaInput = map reformatFasta parsedFastas
+        reformatedFastaInput = map reformatGapFreeFasta parsedFastas
 
 setupCheckScanWithLog :: String -> String -> IO ()
 setupCheckScanWithLog inputQuerySelectionMethod temporaryDirectoryPath = do
