@@ -101,6 +101,7 @@ main = do
       let initialization = ModelConstruction iterationNumber reformatedFastaInput [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] [] [] (Just rightAlignment)
       let nextModelConstructionInput = constructNext iterationNumber initialization [] Nothing Nothing [] [] True
       let outputDirectory = tempDirPath staticOptions ++ "0" ++ "/"
+      createDirectory outputDirectory
       let stockholmFilepath = outputDirectory ++ "model" ++ ".stockholm"
       let cmFilepath = outputDirectory ++ "model" ++ ".cm"
       let cmCalibrateFilepath = outputDirectory ++ "model" ++ ".cmcalibrate"
