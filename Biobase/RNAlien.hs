@@ -70,7 +70,7 @@ main :: IO ()
 main = do
   Options{..} <- cmdArgs options
   verboseLevel <- getVerbosity
-  let tools = if inputQuerySelectionMethod == "clustering" then ["clustalo","mlocarna","RNAfold","RNAalifold","cmcalibrate","cmstat","cmbuild","RNAz","RNAcode"] else ["mlocarna","RNAfold","RNAalifold","cmcalibrate","cmstat","cmbuild","RNAz","RNAcode"]
+  --let tools = if inputQuerySelectionMethod == "clustering" then ["clustalo","mlocarna","RNAfold","RNAalifold","cmcalibrate","cmstat","cmbuild","RNAz","RNAcode"] else ["mlocarna","RNAfold","RNAalifold","cmcalibrate","cmstat","cmbuild","RNAz","RNAcode"]
   -- Generate SessionID
   sessionId <- createSessionID sessionIdentificator
   timestamp <- getCurrentTime
@@ -85,19 +85,36 @@ main = do
   writeFile (temporaryDirectoryPath ++ "log/warnings") ("")
   logMessage ("Timestamp: " ++ (show timestamp) ++ "\n") temporaryDirectoryPath
   logMessage ("Temporary Directory: " ++ temporaryDirectoryPath ++ "\n") temporaryDirectoryPath
+  let iterationNumber = 0
   if null inputFastaFilePath
     then do
       alignmentInput <- BS.readExistingStockholm inputAlignmentFilePath
-      when (null ) (error "Please provide input fasta sequences with the cmd line parameter -i")
-      let iterationNumber = 0
       logToolVersions inputQuerySelectionMethod temporaryDirectoryPath
-      let reformatedFastaInput = map reformatFasta fastaInput
+      when (isLeft alignmentInput) (error (fromLeft alignmentInput))
+      let rightAlignment = head $ fromRight alignmentInput
+      let reformatedFastaInput = stockholmAlignmentToFasta rightAlignment
+      when (null reformatedFastaInput) (error "Please provide input fasta sequences with the cmd line parameter -i")
       let inputSequence = head reformatedFastaInput
       initialTaxId <- setInitialTaxId offlineMode threads inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
       let checkedTaxonomyRestriction = checkTaxonomyRestriction taxonomyRestriction
       let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) inputTaxId singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads inputBlastDatabase checkedTaxonomyRestriction (setVerbose verboseLevel) offlineMode []
-      let initialization = ModelConstruction iterationNumber reformatedFastaInput [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] [] []
-      logMessage (show initialization) temporaryDirectoryPath
+      let initialization = ModelConstruction iterationNumber reformatedFastaInput [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] [] [] (Just rightAlignment)
+      let nextModelConstructionInput = constructNext iterationNumber initialization [] Nothing Nothing [] [] True
+      let outputDirectory = tempDirPath staticOptions ++ "0" ++ "/"
+      let stockholmFilepath = outputDirectory ++ "model" ++ ".stockholm"
+      let cmFilepath = outputDirectory ++ "model" ++ ".cm"
+      let cmCalibrateFilepath = outputDirectory ++ "model" ++ ".cmcalibrate"
+      let cmBuildFilepath = outputDirectory ++ "model" ++ ".cmbuild"
+      copyFile inputAlignmentFilePath stockholmFilepath
+      let refinedAlignmentFilepath = outputDirectory ++ "modelrefined.stockholm"
+      let cmBuildOptions ="--refine " ++ refinedAlignmentFilepath
+      _ <- systemCMbuild cmBuildOptions stockholmFilepath cmFilepath cmBuildFilepath
+      _ <- systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
+      writeFile (outputDirectory ++ "done") ""
+      --select queries
+      currentSelectedQueries <- selectQueries staticOptions nextModelConstructionInput []
+      let nextScanModelConstructionInputWithQueries = nextModelConstructionInput {selectedQueries = currentSelectedQueries}
+      logMessage (iterationSummaryLog nextScanModelConstructionInputWithQueries) (tempDirPath staticOptions)
       modelConstructionResults <- modelConstructer staticOptions initialization
       let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults
       writeFile (temporaryDirectoryPath ++ "result.csv") resultTaxonomyRecordsCSVTable
@@ -113,14 +130,13 @@ main = do
     else do
       fastaInput <- readFastaFile inputFastaFilePath
       when (null fastaInput) (error "Please provide input fasta sequences with the cmd line parameter -i")
-      let iterationNumber = 0
       logToolVersions inputQuerySelectionMethod temporaryDirectoryPath
       let reformatedFastaInput = map reformatFasta fastaInput
       let inputSequence = head reformatedFastaInput
       initialTaxId <- setInitialTaxId offlineMode threads inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
       let checkedTaxonomyRestriction = checkTaxonomyRestriction taxonomyRestriction
       let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) inputTaxId singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads inputBlastDatabase checkedTaxonomyRestriction (setVerbose verboseLevel) offlineMode []
-      let initialization = ModelConstruction iterationNumber reformatedFastaInput [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] [] []
+      let initialization = ModelConstruction iterationNumber reformatedFastaInput [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] [] [] Nothing
       logMessage (show initialization) temporaryDirectoryPath
       modelConstructionResults <- modelConstructer staticOptions initialization
       let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults

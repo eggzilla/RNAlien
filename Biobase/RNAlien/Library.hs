@@ -2265,10 +2265,11 @@ scanModelConstructionResult staticOptions modelConstruction = do
           return resultModelConstruction
 
 stockholmAlignmentToFasta :: BS.StockholmAlignment -> [Fasta () ()]
-stockholmAlignmentToFasta aln = parsedFastas
+stockholmAlignmentToFasta aln = reformatedFastaInput
   where alignmentSequences = BS.sequenceEntries aln
         fastaText = T.concat $ map (\entry -> T.concat[(T.pack ">"), BS.sequenceId entry, T.pack "\n", BS.entrySequence entry, T.pack "\n"]) alignmentSequences
         parsedFastas = byteStringToMultiFasta (L.fromStrict (E.encodeUtf8 fastaText))
+        reformatedFastaInput = map reformatFasta parsedFastas
 
 setupCheckScanWithLog :: String -> String -> IO ()
 setupCheckScanWithLog inputQuerySelectionMethod temporaryDirectoryPath = do

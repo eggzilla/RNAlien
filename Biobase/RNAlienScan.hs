@@ -87,15 +87,15 @@ main = do
       logToolVersions inputQuerySelectionMethod temporaryDirectoryPath
       when (isLeft alignmentInput) (error (fromLeft alignmentInput))
       let rightAlignment = head $ fromRight alignmentInput
-      let inputAlignmentFasta = stockholmAlignmentToFasta rightAlignment
-      let reformatedFastaInput = map reformatFasta inputAlignmentFasta
+      let reformatedFastaInput = stockholmAlignmentToFasta rightAlignment
+      when (null reformatedFastaInput) (error "Please provide input fasta sequences with the cmd line parameter -i")
       let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) Nothing singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads Nothing Nothing (setVerbose verboseLevel) True inputGenomesFastaFilePath
       --let initialization = ModelConstruction iterationNumber reformatedFastaInput [] Nothing Nothing (fromJust inputEvalueCutoff) False [] [] [] alignmentInput
       let initialization = ModelConstruction iterationNumber reformatedFastaInput [] Nothing Nothing (fromJust inputEvalueCutoff) False [] [] [] (Just rightAlignment)
       logMessage (show initialization) temporaryDirectoryPath
       --logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - infernal mode\n") (tempDirPath staticOptions)
       --prepare next iteration
-      let nextModelConstructionInput = constructNext (1 :: Int) initialization [] Nothing Nothing [] [] True
+      let nextModelConstructionInput = constructNext iterationNumber initialization [] Nothing Nothing [] [] True
       let outputDirectory = tempDirPath staticOptions ++ "0" ++ "/"
       let stockholmFilepath = outputDirectory ++ "model" ++ ".stockholm"
       let cmFilepath = outputDirectory ++ "model" ++ ".cm"
