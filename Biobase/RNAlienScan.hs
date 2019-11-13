@@ -98,6 +98,8 @@ main = do
       let nextModelConstructionInput = constructNext iterationNumber initialization [] Nothing Nothing [] [] True
       let outputDirectory = tempDirPath staticOptions ++ "0" ++ "/"
       createDirectory outputDirectory
+      let fastaFilePath = outputDirectory ++ "model" ++ ".fa"
+      writeFastaFile fastaFilePath reformatedFastaInput
       let stockholmFilepath = outputDirectory ++ "model" ++ ".stockholm"
       let cmFilepath = outputDirectory ++ "model" ++ ".cm"
       let cmCalibrateFilepath = outputDirectory ++ "model" ++ ".cmcalibrate"
@@ -110,9 +112,11 @@ main = do
       writeFile (outputDirectory ++ "done") ""
       --select queries
       currentSelectedQueries <- selectQueries staticOptions nextModelConstructionInput []
-      let nextScanModelConstructionInputWithQueries = nextModelConstructionInput {selectedQueries = currentSelectedQueries}
-      logMessage (iterationSummaryLog nextScanModelConstructionInputWithQueries) (tempDirPath staticOptions)
-      modelConstructionResults <- scanModelConstructer staticOptions nextScanModelConstructionInputWithQueries
+      --let nextScanModelConstructionInputWithQueries = nextModelConstructionInput {selectedQueries = currentSelectedQueries}
+      --logMessage (iterationSummaryLog nextScanModelConstructionInputWithQueries) (tempDirPath staticOptions)
+      let nextScanModelConstructionInputWithQueries = initialization {iterationNumber = (1 :: Int), selectedQueries = currentSelectedQueries}
+      modelConstructionResults <- scanModelConstructer staticOptions nextScanModelConstructionInputWithQueries -- nextScanModelConstructionInputWithQueries
+      --modelConstructionResults <- alignmentConstructionWithoutCandidates "scan" Nothing Nothing staticOptions nextScanModelConstructionInputWithQueries
       let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults
       writeFile (temporaryDirectoryPath ++ "result.csv") resultTaxonomyRecordsCSVTable
       if performEvaluation

@@ -39,7 +39,8 @@ module Biobase.RNAlien.Library (
                            systemCMbuild,
                            systemCMcalibrate,
                            selectQueries,
-                           iterationSummaryLog
+                           iterationSummaryLog,
+                           alignmentConstructionWithoutCandidates
                            )
 where
 
