@@ -287,9 +287,10 @@ reevaluatePotentialMembers staticOptions modelConstruction = do
       copyFile lastIterationCMPath resultCMPath
       --copyFile lastIterationCMPath (resultCMPath ++ ".bak1")
       copyFile lastIterationFastaPath resultFastaPath
-      copyFile lastIterationAlignmentPath resultAlignmentPath
+      --copyFile lastIterationAlignmentPath resultAlignmentPath
       _ <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath
       systemCMalign ("--outformat=Clustal --cpu " ++ show (cpuThreads staticOptions)) resultCMPath resultFastaPath resultClustalFilepath
+      systemCMalign ("--outformat=Stockholm --cpu " ++ show (cpuThreads staticOptions)) resultCMPath resultFastaPath resultAlignmentPath
       writeFile (iterationDirectory ++ "done") ""
       return modelConstruction
     else do
@@ -303,11 +304,12 @@ reevaluatePotentialMembers staticOptions modelConstruction = do
       --debug
       --copyFile lastIterationCMPath (resultCMPath ++ ".bak2")
       copyFile lastIterationFastaPath resultFastaPath
-      copyFile lastIterationAlignmentPath resultAlignmentPath
+      --copyFile lastIterationAlignmentPath resultAlignmentPath
       logMessage (iterationSummaryLog nextModelConstructionInput) outputDirectory
       logVerboseMessage (verbositySwitch staticOptions) (show nextModelConstructionInput) outputDirectory
       _ <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath
       systemCMalign ("--outformat=Clustal --cpu " ++ show (cpuThreads staticOptions)) resultCMPath resultFastaPath resultClustalFilepath
+      systemCMalign ("--outformat=Stockholm --cpu " ++ show (cpuThreads staticOptions)) resultCMPath resultFastaPath resultAlignmentPath
       writeFile (iterationDirectory ++ "done") ""
       return nextModelConstructionInput
 
