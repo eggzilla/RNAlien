@@ -51,7 +51,7 @@ import Data.List
 import Data.Char
 import Biobase.Fasta.Strict
 import qualified Biobase.BLAST.Types as J
-import Bio.ClustalParser
+import Biobase.Clustal.Import
 import Data.Int (Int16)
 import Biobase.RNAlien.Types
 import qualified Data.ByteString.Lazy.Char8 as L
@@ -450,6 +450,7 @@ findTaxonomyStart offlineMode threads inputBlastDatabase temporaryDirectory quer
   logMessage "No tax id provided - Sending find taxonomy start blast query \n" temporaryDirectory
   let logFileDirectoryPath =  temporaryDirectory ++ "taxonomystart" ++ "/"
   createDirectory logFileDirectoryPath
+  print ("Blast: " ++ show offlineMode)
   blastOutput <-if offlineMode
                   then CE.catch (blast logFileDirectoryPath threads Nothing Nothing (Just (10 :: Double)) False blastQuery)
                          (\e -> do let err = show (e :: CE.IOException)
@@ -2095,6 +2096,7 @@ blast _tempDirPath threads upperTaxIdLimit lowerTaxIdLimit expectThreshold _blas
 systemBlast :: Int -> String -> String -> String -> String -> Maybe Double -> Bool -> String -> String -> IO ExitCode
 systemBlast threads _blastDatabase upperTaxLimitPath lowerTaxLimitPath positiveSetTaxIdLimitPath _evalueThreshold _blastSoftmaskingToggle queryFilepath outputFilePath = do
   let cmd = ("blastn " ++ threadedOption ++ expectThresholdOption ++ taxonomyOption ++ " " ++ softmaskOption ++ dbOption ++ " -query " ++ queryFilepath  ++ " -outfmt 15  -out " ++ outputFilePath)
+  print cmd
   if T.isSuffixOf (T.pack ".fa") (T.pack _blastDatabase)
      then do
        let makedbcmd = ("makeblastdb -in " ++ _blastDatabase ++ " -input_type fasta -dbtype nucl -parse_seqids ")
