@@ -95,6 +95,7 @@ import Biobase.Types.BioSequence
 import qualified Biobase.BLAST.Import as BBI
 import System.IO.Silently
 import qualified Bio.StockholmParser as BS
+import qualified Data.Map.Lazy as DML
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 modelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
@@ -1479,25 +1480,24 @@ retrieveTaxonomicContextEntrez inputTaxId = do
 
 retrieveTaxonomicContextNCBITaxDump :: String -> Int -> IO (Maybe Taxon)
 retrieveTaxonomicContextNCBITaxDump taxDumpPath inputTaxId = do
-       let program' = Just "efetch"
-       let database' = Just "taxonomy"
-       let taxIdString = show inputTaxId
-       let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
-       let queryString = "id=" ++ taxIdString ++ registrationInfo
-       let entrezQuery = EntrezHTTPQuery program' database' queryString
-       result <- entrezHTTP entrezQuery
-       if null result
-          then do
-            error "Could not retrieve taxonomic context from NCBI Entrez, cannot proceed."
-            return Nothing
-          else do
-            let taxon = head (readEntrezTaxonSet result)
-            --print taxon
-            if null (lineageEx taxon)
-              then error "Retrieved taxonomic context taxon from NCBI Entrez with empty lineage, cannot proceed."
-              else return (Just taxon)
+  taxonomyInput <- TIO.readFile taxDumpPath
+  let lineageLines = TL.lines taxonomyInput
+  let lineagesEntries = map extractLinage linageLines
+  let lineageMap = DML.fromList lineageEntries
+  let requestedLineage = DML.lookup inputTaxId lineageMap
+  return requestedLinage
 
-
+-- extractLinage from taxidlineage.dmp
+-- 1841597\t|\t131567 2157 1935183 1936272 \t|
+extractLineage :: TL.Text -> Lineage
+extractLineage lineageLine = (lineageIntKey, lineageIntEntries)
+  where splitLine = splitOn (TL.pack "\t|") lineageLine
+        lineageKey = head splitLine
+        lineageList = splitLine !! 1
+        lineageEntries = init $ splitOn (TL.pack " ") lineageList
+        lineageIntEntries = map (\e -> read e :: Int) lineageEntries
+        taxon = Taxon lineageIntKey B.empty (0 :: Int) Norank B.empty
+        lineageIntKey = read lineageKey :: Int
 
 retrieveParentTaxIdEntrez :: [(J.Hit,Int)] -> IO [(J.Hit,Int)]
 retrieveParentTaxIdEntrez blastHitsWithHitTaxids =
