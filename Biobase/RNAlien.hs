@@ -40,6 +40,7 @@ data Options = Options
     sessionIdentificator :: Maybe String,
     performEvaluation :: Bool,
     checkSetup :: Bool,
+    taxonomyDumpPath :: String,
     offlineMode :: Bool
   } deriving (Show,Data,Typeable)
 
@@ -63,6 +64,7 @@ options = Options
     sessionIdentificator = Nothing &= name "d" &= help "Optional session id that is used instead of automatically generated one.",
     performEvaluation = True &= name "x" &= help "Perform evaluation step. Default: True",
     checkSetup = False &= name "g" &= help "Just prints installed tool versions and performs connection check. Default: False",
+    taxonomyDumpPath = def &= name "w" &= help "Path to NCBI taxonomy dump directory.",
     offlineMode = False &= name "j" &= help "Uses locally installed blast and databases. Default: False"
   } &= summary ("RNAlien " ++ alienVersion) &= help "Florian Eggenhofer, Ivo L. Hofacker, Christian Hoener zu Siederdissen - 2013 - 2019" &= verbosity
 
@@ -97,7 +99,7 @@ main = do
       let inputSequence = head reformatedFastaInput
       initialTaxId <- setInitialTaxId offlineMode threads inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
       let checkedTaxonomyRestriction = checkTaxonomyRestriction taxonomyRestriction
-      let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) inputTaxId singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads inputBlastDatabase checkedTaxonomyRestriction (setVerbose verboseLevel) offlineMode []
+      let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) inputTaxId singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads inputBlastDatabase checkedTaxonomyRestriction (setVerbose verboseLevel) offlineMode [] taxonomyDumpPath
       let initialization = ModelConstruction iterationNumber reformatedFastaInput [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] [] [] (Just rightAlignment)
       let nextModelConstructionInput = constructNext iterationNumber initialization [] Nothing Nothing [] [] True
       let outputDirectory = tempDirPath staticOptions ++ "0" ++ "/"
@@ -136,7 +138,7 @@ main = do
       let inputSequence = head reformatedFastaInput
       initialTaxId <- setInitialTaxId offlineMode threads inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
       let checkedTaxonomyRestriction = checkTaxonomyRestriction taxonomyRestriction
-      let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) inputTaxId singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads inputBlastDatabase checkedTaxonomyRestriction (setVerbose verboseLevel) offlineMode []
+      let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) inputTaxId singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads inputBlastDatabase checkedTaxonomyRestriction (setVerbose verboseLevel) offlineMode [] taxonomyDumpPath
       let initialization = ModelConstruction iterationNumber reformatedFastaInput [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] [] [] Nothing
       logMessage (show initialization) temporaryDirectoryPath
       modelConstructionResults <- modelConstructer staticOptions initialization

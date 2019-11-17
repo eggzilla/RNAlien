@@ -89,7 +89,7 @@ main = do
       let rightAlignment = head $ fromRight alignmentInput
       let reformatedFastaInput = stockholmAlignmentToFasta rightAlignment
       when (null reformatedFastaInput) (error "Please provide input fasta sequences with the cmd line parameter -i")
-      let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) Nothing singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads Nothing Nothing (setVerbose verboseLevel) True inputGenomesFastaFilePath
+      let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) Nothing singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads Nothing Nothing (setVerbose verboseLevel) True inputGenomesFastaFilePath []
       --let initialization = ModelConstruction iterationNumber reformatedFastaInput [] Nothing Nothing (fromJust inputEvalueCutoff) False [] [] [] alignmentInput
       let initialization = ModelConstruction iterationNumber reformatedFastaInput [] Nothing Nothing (fromJust inputEvalueCutoff) False [] [] inputGenomesFasta (Just rightAlignment)
       logMessage (show initialization) temporaryDirectoryPath
@@ -135,7 +135,7 @@ main = do
       when (null inputGenomesFasta) (error "Please provide input genomes with the cmd line parameter -s")
       logToolVersions inputQuerySelectionMethod temporaryDirectoryPath
       let reformatedFastaInput = map reformatFasta fastaInput
-      let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) Nothing singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads Nothing Nothing (setVerbose verboseLevel) True inputGenomesFastaFilePath
+      let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) Nothing singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads Nothing Nothing (setVerbose verboseLevel) True inputGenomesFastaFilePath []
       let initialization = ModelConstruction iterationNumber reformatedFastaInput [] Nothing Nothing (fromJust inputEvalueCutoff) False [] [] inputGenomesFasta Nothing
       logMessage (show initialization) temporaryDirectoryPath
       modelConstructionResults <- scanModelConstructer staticOptions initialization

@@ -25,7 +25,8 @@ data StaticOptions = StaticOptions
     taxRestriction :: Maybe String,
     verbositySwitch :: Bool,
     offline :: Bool,
-    genomeFastasPath :: String
+    genomeFastasPath :: String,
+    ncbiTaxonomyDumpPath :: String
   } deriving (Show)
 
 -- | Keeps track of model construction

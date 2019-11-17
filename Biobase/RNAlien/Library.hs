@@ -120,7 +120,7 @@ modelConstructer staticOptions modelConstruction = do
        searchResults <- catchAll (searchCandidates staticOptions Nothing currentIterationNumber upperTaxLimit lowerTaxLimit expectThreshold Nothing queries)
                         (\e -> do logWarning ("Warning: Search results iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
                                   return (SearchResult [] Nothing))
-       currentTaxonomicContext <- getTaxonomicContextEntrez upperTaxLimit (taxonomicContext modelConstruction)
+       currentTaxonomicContext <- getTaxonomicContextEntrez (offline staticOptions) (ncbiTaxonomyDumpPath staticOptions) upperTaxLimit (taxonomicContext modelConstruction)
        if null (candidates searchResults)
          then
             alignmentConstructionWithoutCandidates "alien" currentTaxonomicContext upperTaxLimit staticOptions modelConstruction
@@ -954,14 +954,16 @@ sequenceIdentity sequence1 sequence2 = identityPercent
         maximumDistance = maximum [length sequence1string,length sequence2string]
         identityPercent = 100 - ((fromIntegral distance/fromIntegral maximumDistance) * (read "100" ::Double))
 
-getTaxonomicContextEntrez :: Maybe Int -> Maybe Taxon -> IO (Maybe Taxon)
-getTaxonomicContextEntrez upperTaxLimit currentTaxonomicContext =
+getTaxonomicContextEntrez :: Bool -> String -> Maybe Int -> Maybe Taxon -> IO (Maybe Taxon)
+getTaxonomicContextEntrez offlineMode taxDumpPath upperTaxLimit currentTaxonomicContext =
   if isJust upperTaxLimit
       then if isJust currentTaxonomicContext
         then return currentTaxonomicContext
-        else retrieveTaxonomicContextEntrez (fromJust upperTaxLimit)
+        else if offlineMode
+          then retrieveTaxonomicContextNCBITaxDump taxDumpPath (fromJust upperTaxLimit)
+          else retrieveTaxonomicContextEntrez (fromJust upperTaxLimit)
           --return retrievedTaxonomicContext
-    else return Nothing
+      else return Nothing
 
 setTaxonomicContextEntrez :: Int -> Maybe Taxon -> Maybe Int -> (Maybe Int, Maybe Int)
 setTaxonomicContextEntrez currentIterationNumber currentTaxonomicContext subTreeTaxId
@@ -1474,6 +1476,28 @@ retrieveTaxonomicContextEntrez inputTaxId = do
             if null (lineageEx taxon)
               then error "Retrieved taxonomic context taxon from NCBI Entrez with empty lineage, cannot proceed."
               else return (Just taxon)
+
+retrieveTaxonomicContextNCBITaxDump :: String -> Int -> IO (Maybe Taxon)
+retrieveTaxonomicContextNCBITaxDump taxDumpPath inputTaxId = do
+       let program' = Just "efetch"
+       let database' = Just "taxonomy"
+       let taxIdString = show inputTaxId
+       let registrationInfo = buildRegistration "RNAlien" "florian.eggenhofer@univie.ac.at"
+       let queryString = "id=" ++ taxIdString ++ registrationInfo
+       let entrezQuery = EntrezHTTPQuery program' database' queryString
+       result <- entrezHTTP entrezQuery
+       if null result
+          then do
+            error "Could not retrieve taxonomic context from NCBI Entrez, cannot proceed."
+            return Nothing
+          else do
+            let taxon = head (readEntrezTaxonSet result)
+            --print taxon
+            if null (lineageEx taxon)
+              then error "Retrieved taxonomic context taxon from NCBI Entrez with empty lineage, cannot proceed."
+              else return (Just taxon)
+
+
 
 retrieveParentTaxIdEntrez :: [(J.Hit,Int)] -> IO [(J.Hit,Int)]
 retrieveParentTaxIdEntrez blastHitsWithHitTaxids =
