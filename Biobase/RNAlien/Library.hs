@@ -955,7 +955,7 @@ sequenceIdentity sequence1 sequence2 = identityPercent
         maximumDistance = maximum [length sequence1string,length sequence2string]
         identityPercent = 100 - ((fromIntegral distance/fromIntegral maximumDistance) * (read "100" ::Double))
 
-getTaxonomicContextEntrez :: Bool -> String -> Maybe Int -> Maybe Taxon -> IO (Maybe Taxon)
+getTaxonomicContextEntrez :: Bool -> String -> Maybe Int -> Maybe Lineage -> IO (Maybe Lineage)
 getTaxonomicContextEntrez offlineMode taxDumpPath upperTaxLimit currentTaxonomicContext =
   if isJust upperTaxLimit
       then if isJust currentTaxonomicContext
@@ -1458,7 +1458,7 @@ buildStockholmAlignmentEntries inputSpacerLength entry = entrystring
         spacer = T.replicate (inputSpacerLength - idLength) (T.pack " ")
         entrystring = entrySequenceIdentifier entry `T.append` spacer `T.append` entryAlignedSequence entry `T.append` T.pack "\n"
 
-retrieveTaxonomicContextEntrez :: Int -> IO (Maybe Taxon)
+retrieveTaxonomicContextEntrez :: Int -> IO (Maybe Lineage)
 retrieveTaxonomicContextEntrez inputTaxId = do
        let program' = Just "efetch"
        let database' = Just "taxonomy"
@@ -1476,13 +1476,16 @@ retrieveTaxonomicContextEntrez inputTaxId = do
             --print taxon
             if null (lineageEx taxon)
               then error "Retrieved taxonomic context taxon from NCBI Entrez with empty lineage, cannot proceed."
-              else return (Just taxon)
+              else return (Just (taxonToLineage taxon))
 
-retrieveTaxonomicContextNCBITaxDump :: String -> Int -> IO (Maybe Taxon)
+taxonToLineage :: Taxon -> Lineage
+taxonToLineage inputTaxon = Lineage (taxonTaxId inputTaxon) (taxonScientificName inputTaxon) (taxonRank inputTaxon) (lineageEx inputTaxon)
+
+retrieveTaxonomicContextNCBITaxDump :: String -> Int -> IO (Maybe Lineage)
 retrieveTaxonomicContextNCBITaxDump taxDumpPath inputTaxId = do
   taxonomyInput <- TIO.readFile taxDumpPath
   let lineageLines = TL.lines taxonomyInput
-  let lineagesEntries = map extractLinage linageLines
+  let lineagesEntries = map extractLineage linageLines
   let lineageMap = DML.fromList lineageEntries
   let requestedLineage = DML.lookup inputTaxId lineageMap
   return requestedLinage
@@ -1490,14 +1493,17 @@ retrieveTaxonomicContextNCBITaxDump taxDumpPath inputTaxId = do
 -- extractLinage from taxidlineage.dmp
 -- 1841597\t|\t131567 2157 1935183 1936272 \t|
 extractLineage :: TL.Text -> Lineage
-extractLineage lineageLine = (lineageIntKey, lineageIntEntries)
+extractLineage lineageLine = (lineageIntKey, lineage)
   where splitLine = splitOn (TL.pack "\t|") lineageLine
         lineageKey = head splitLine
         lineageList = splitLine !! 1
-        lineageEntries = init $ splitOn (TL.pack " ") lineageList
-        lineageIntEntries = map (\e -> read e :: Int) lineageEntries
-        taxon = Taxon lineageIntKey B.empty (0 :: Int) Norank B.empty
+        lineageEntries = init $ TL.splitOn (TL.pack " ") lineageList
+        lineageTaxonEntries = map makeLineageTaxons lineageEntries
+        lineage = Lineage lineageIntKey B.empty Norank lineageTaxonEntries
         lineageIntKey = read lineageKey :: Int
+
+makeLineageTaxons :: Int -> LineageTaxon
+makeLineageTaxons lttaxId = LineageTaxon lttaxId B.empty Norank
 
 retrieveParentTaxIdEntrez :: [(J.Hit,Int)] -> IO [(J.Hit,Int)]
 retrieveParentTaxIdEntrez blastHitsWithHitTaxids =
