@@ -56,7 +56,7 @@ import Data.Int (Int16)
 import Biobase.RNAlien.Types
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.ByteString.Char8 as B
-import Bio.Taxonomy
+import Biobase.Taxonomy.Import
 import Data.Either.Unwrap
 import Data.Maybe
 import Biobase.Entrez.HTTP
@@ -144,11 +144,11 @@ setInitialTaxId offlineMode threads inputBlastDatabase tempdir inputTaxId inputS
         return inputTaxId
 
 extractLastTaxId :: Maybe Lineage -> Maybe Int
-extractLastTaxId lineage
-  | isNothing lineage = Nothing
+extractLastTaxId currentLineage
+  | isNothing currentLineage = Nothing
   | V.null lineageVector = Nothing
   | otherwise = Just (lineageTaxId (V.head lineageVector))
-    where lineageVector = V.fromList (lineageTaxons (fromJust lineage))
+    where lineageVector = V.fromList (lineageTaxons (fromJust currentLineage))
 
 modelConstructionResult :: StaticOptions -> ModelConstruction -> IO ModelConstruction
 modelConstructionResult staticOptions modelConstruction = do
@@ -283,7 +283,7 @@ reevaluatePotentialMembers staticOptions modelConstruction = do
   if null alignmentResults
     then do
       let lastIterationFastaPath = outputDirectory ++ show (currentIterationNumber - 1)++ "/model.fa"
-      let lastIterationAlignmentPath = outputDirectory ++ show (currentIterationNumber - 1)  ++ "/model.stockholm"
+      --let lastIterationAlignmentPath = outputDirectory ++ show (currentIterationNumber - 1)  ++ "/model.stockholm"
       let lastIterationCMPath = outputDirectory ++ show (currentIterationNumber - 1)++ "/model.cm"
       copyFile lastIterationCMPath resultCMPath
       --copyFile lastIterationCMPath (resultCMPath ++ ".bak1")
@@ -296,7 +296,7 @@ reevaluatePotentialMembers staticOptions modelConstruction = do
       return modelConstruction
     else do
       let lastIterationFastaPath = outputDirectory ++ show currentIterationNumber ++ "/model.fa"
-      let lastIterationAlignmentPath = outputDirectory ++ show currentIterationNumber  ++ "/model.stockholm"
+      --let lastIterationAlignmentPath = outputDirectory ++ show currentIterationNumber  ++ "/model.stockholm"
       let lastIterationCMPath = outputDirectory ++ show currentIterationNumber ++ "/model.cm"
       logVerboseMessage (verbositySwitch staticOptions) "Alignment construction with candidates - infernal mode\n" outputDirectory
       let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults Nothing Nothing [] [] (alignmentModeInfernal modelConstruction)
@@ -978,10 +978,10 @@ setUpperLowerTaxLimitEntrez subTreeTaxId currentTaxonomicContext = (upperLimit,l
         lowerLimit = Just subTreeTaxId
 
 raiseTaxIdLimitEntrez :: Int -> Lineage -> Maybe Int
-raiseTaxIdLimitEntrez subTreeTaxId lineage = parentNodeTaxId
+raiseTaxIdLimitEntrez subTreeTaxId currentLineage = parentNodeTaxId
   where lastUpperBoundNodeIndex = fromJust (V.findIndex  (\node -> lineageTaxId node == subTreeTaxId) lineageVector)
         linageNodeTaxId = Just (lineageTaxId (lineageVector V.! (lastUpperBoundNodeIndex -1)))
-        lineageVector = V.fromList (lineageTaxons lineage)
+        lineageVector = V.fromList (lineageTaxons currentLineage)
         --the input taxid is not part of the lineage, therefor we look for further taxids in the lineage after we used the parent tax id of the input node
         --parentNodeTaxId = if subTreeTaxId == taxonTaxId lineage then Just (taxonParentTaxId taxon) else linageNodeTaxId
         parentNodeTaxId = linageNodeTaxId
@@ -1494,13 +1494,13 @@ retrieveTaxonomicContextNCBITaxDump taxDumpPath inputTaxId = do
 -- extractLinage from taxidlineage.dmp
 -- 1841597\t|\t131567 2157 1935183 1936272 \t|
 extractLineage :: TL.Text -> (Int,Lineage)
-extractLineage lineageLine = (lineageIntKey, lineage)
+extractLineage lineageLine = (lineageIntKey, currentLineage)
   where splitLine = TL.splitOn (TL.pack "\t|") lineageLine
         lineageKey = head splitLine
         lineageList = splitLine !! 1
         lineageEntries = init $ TL.splitOn (TL.pack " ") lineageList
         lineageTaxonEntries = map makeLineageTaxons lineageEntries
-        lineage = Lineage lineageIntKey B.empty Norank lineageTaxonEntries
+        currentLineage = Lineage lineageIntKey B.empty Norank lineageTaxonEntries
         lineageIntKey = read (TL.unpack lineageKey) :: Int
 
 makeLineageTaxons :: TL.Text -> LineageTaxon
