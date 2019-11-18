@@ -143,12 +143,12 @@ setInitialTaxId offlineMode threads inputBlastDatabase tempdir inputTaxId inputS
     else do
         return inputTaxId
 
-extractLastTaxId :: Maybe Taxon -> Maybe Int
-extractLastTaxId taxon
-  | isNothing taxon = Nothing
-  | V.null lineageExVector = Nothing
-  | otherwise = Just (lineageTaxId (V.head lineageExVector))
-    where lineageExVector = V.fromList (lineageEx (fromJust taxon))
+extractLastTaxId :: Maybe Lineage -> Maybe Int
+extractLastTaxId lineage
+  | isNothing lineage = Nothing
+  | V.null lineageVector = Nothing
+  | otherwise = Just (lineageTaxId (V.head lineageVector))
+    where lineageVector = V.fromList (lineageTaxons (fromJust lineage))
 
 modelConstructionResult :: StaticOptions -> ModelConstruction -> IO ModelConstruction
 modelConstructionResult staticOptions modelConstruction = do
@@ -316,7 +316,7 @@ reevaluatePotentialMembers staticOptions modelConstruction = do
 
 ---------------------------------------------------------
 
-alignmentConstructionWithCandidates :: String -> Maybe Taxon -> Maybe Int -> SearchResult -> StaticOptions -> ModelConstruction -> IO ModelConstruction
+alignmentConstructionWithCandidates :: String -> Maybe Lineage -> Maybe Int -> SearchResult -> StaticOptions -> ModelConstruction -> IO ModelConstruction
 alignmentConstructionWithCandidates alienType currentTaxonomicContext currentUpperTaxonomyLimit searchResults staticOptions modelConstruction = do
     --candidates usedUpperTaxonomyLimit blastDatabaseSize
     let currentIterationNumber = iterationNumber modelConstruction
@@ -394,7 +394,7 @@ alignmentConstructionWithCandidates alienType currentTaxonomicContext currentUpp
                                          scanModelConstructer staticOptions nextScanModelConstructionInputWithInfernalMode
             return nextModelConstruction
 
-alignmentConstructionWithoutCandidates :: String -> Maybe Taxon -> Maybe Int ->  StaticOptions -> ModelConstruction -> IO ModelConstruction
+alignmentConstructionWithoutCandidates :: String -> Maybe Lineage -> Maybe Int ->  StaticOptions -> ModelConstruction -> IO ModelConstruction
 alignmentConstructionWithoutCandidates alienType currentTaxonomicContext upperTaxLimit staticOptions modelConstruction = do
     let currentIterationNumber = iterationNumber modelConstruction
     let iterationDirectory = tempDirPath staticOptions ++ show currentIterationNumber ++ "/"
@@ -966,26 +966,27 @@ getTaxonomicContextEntrez offlineMode taxDumpPath upperTaxLimit currentTaxonomic
           --return retrievedTaxonomicContext
       else return Nothing
 
-setTaxonomicContextEntrez :: Int -> Maybe Taxon -> Maybe Int -> (Maybe Int, Maybe Int)
+setTaxonomicContextEntrez :: Int -> Maybe Lineage -> Maybe Int -> (Maybe Int, Maybe Int)
 setTaxonomicContextEntrez currentIterationNumber currentTaxonomicContext subTreeTaxId
   | currentIterationNumber == 0 = (subTreeTaxId, Nothing)
   | otherwise = setUpperLowerTaxLimitEntrez (fromJust subTreeTaxId) (fromJust currentTaxonomicContext)
 
 -- setTaxonomic Context for next candidate search, the upper bound of the last search become the lower bound of the next
-setUpperLowerTaxLimitEntrez :: Int -> Taxon -> (Maybe Int, Maybe Int)
+setUpperLowerTaxLimitEntrez :: Int -> Lineage -> (Maybe Int, Maybe Int)
 setUpperLowerTaxLimitEntrez subTreeTaxId currentTaxonomicContext = (upperLimit,lowerLimit)
   where upperLimit = raiseTaxIdLimitEntrez subTreeTaxId currentTaxonomicContext
         lowerLimit = Just subTreeTaxId
 
-raiseTaxIdLimitEntrez :: Int -> Taxon -> Maybe Int
-raiseTaxIdLimitEntrez subTreeTaxId taxon = parentNodeTaxId
-  where lastUpperBoundNodeIndex = fromJust (V.findIndex  (\node -> lineageTaxId node == subTreeTaxId) lineageExVector)
-        linageNodeTaxId = Just (lineageTaxId (lineageExVector V.! (lastUpperBoundNodeIndex -1)))
-        lineageExVector = V.fromList (lineageEx taxon)
+raiseTaxIdLimitEntrez :: Int -> Lineage -> Maybe Int
+raiseTaxIdLimitEntrez subTreeTaxId lineage = parentNodeTaxId
+  where lastUpperBoundNodeIndex = fromJust (V.findIndex  (\node -> lineageTaxId node == subTreeTaxId) lineageVector)
+        linageNodeTaxId = Just (lineageTaxId (lineageVector V.! (lastUpperBoundNodeIndex -1)))
+        lineageVector = V.fromList (lineageTaxons lineage)
         --the input taxid is not part of the lineage, therefor we look for further taxids in the lineage after we used the parent tax id of the input node
-        parentNodeTaxId = if subTreeTaxId == taxonTaxId taxon then Just (taxonParentTaxId taxon) else linageNodeTaxId
+        --parentNodeTaxId = if subTreeTaxId == taxonTaxId lineage then Just (taxonParentTaxId taxon) else linageNodeTaxId
+        parentNodeTaxId = linageNodeTaxId
 
-constructNext :: Int -> ModelConstruction -> [(Fasta () (),Int,B.ByteString)] -> Maybe Int -> Maybe Taxon  -> [Fasta () ()] -> [SearchResult] -> Bool -> ModelConstruction
+constructNext :: Int -> ModelConstruction -> [(Fasta () (),Int,B.ByteString)] -> Maybe Int -> Maybe Lineage  -> [Fasta () ()] -> [SearchResult] -> Bool -> ModelConstruction
 constructNext currentIterationNumber modelconstruction alignmentResults upperTaxLimit inputTaxonomicContext inputSelectedQueries inputPotentialMembers toggleInfernalAlignmentModeTrue = nextModelConstruction
   where newIterationNumber = currentIterationNumber + 1
         taxEntries = taxRecords modelconstruction ++ buildTaxRecords alignmentResults currentIterationNumber
@@ -1485,25 +1486,25 @@ retrieveTaxonomicContextNCBITaxDump :: String -> Int -> IO (Maybe Lineage)
 retrieveTaxonomicContextNCBITaxDump taxDumpPath inputTaxId = do
   taxonomyInput <- TIO.readFile taxDumpPath
   let lineageLines = TL.lines taxonomyInput
-  let lineagesEntries = map extractLineage linageLines
+  let lineageEntries = map extractLineage lineageLines
   let lineageMap = DML.fromList lineageEntries
   let requestedLineage = DML.lookup inputTaxId lineageMap
-  return requestedLinage
+  return requestedLineage
 
 -- extractLinage from taxidlineage.dmp
 -- 1841597\t|\t131567 2157 1935183 1936272 \t|
-extractLineage :: TL.Text -> Lineage
+extractLineage :: TL.Text -> (Int,Lineage)
 extractLineage lineageLine = (lineageIntKey, lineage)
-  where splitLine = splitOn (TL.pack "\t|") lineageLine
+  where splitLine = TL.splitOn (TL.pack "\t|") lineageLine
         lineageKey = head splitLine
         lineageList = splitLine !! 1
         lineageEntries = init $ TL.splitOn (TL.pack " ") lineageList
         lineageTaxonEntries = map makeLineageTaxons lineageEntries
         lineage = Lineage lineageIntKey B.empty Norank lineageTaxonEntries
-        lineageIntKey = read lineageKey :: Int
+        lineageIntKey = read (TL.unpack lineageKey) :: Int
 
-makeLineageTaxons :: Int -> LineageTaxon
-makeLineageTaxons lttaxId = LineageTaxon lttaxId B.empty Norank
+makeLineageTaxons :: TL.Text -> LineageTaxon
+makeLineageTaxons lttaxId = LineageTaxon (read (TL.unpack lttaxId) :: Int) B.empty Norank
 
 retrieveParentTaxIdEntrez :: [(J.Hit,Int)] -> IO [(J.Hit,Int)]
 retrieveParentTaxIdEntrez blastHitsWithHitTaxids =

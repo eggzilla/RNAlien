@@ -36,7 +36,7 @@ data ModelConstruction = ModelConstruction
     taxRecords :: [TaxonomyRecord],
     --Taxonomy ID of the highest node in taxonomic subtree used in search
     upperTaxonomyLimit :: Maybe Int,
-    taxonomicContext :: Maybe Taxon,
+    taxonomicContext :: Maybe Lineage,
     evalueThreshold :: Double,
     alignmentModeInfernal :: Bool,
     selectedQueries :: [Fasta () ()],
