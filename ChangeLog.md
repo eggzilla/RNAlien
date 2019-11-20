@@ -4,6 +4,7 @@
 
 	* Construction start from input alignment for Scan and Alien
 	* Alien is working fully offline, by using offline taxonomy database
+	* Improved collection of near identical hits
 
 ### 1.7.1 [Florian Eggenhofer](mailto:egg@cs.uni-freiburg.de) 12. September 2019
 

@@ -94,7 +94,7 @@ import Data.Foldable
 import Biobase.Types.BioSequence
 import qualified Biobase.BLAST.Import as BBI
 import System.IO.Silently
-import qualified Bio.StockholmParser as BS
+import qualified Biobase.StockholmAlignment.Import as BS
 import qualified Data.Map.Lazy as DML
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model

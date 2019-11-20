@@ -4,7 +4,7 @@ module Biobase.RNAlien.Types where
 
 import Biobase.Fasta.Strict
 import Biobase.Taxonomy.Import
-import Bio.StockholmData
+import Biobase.StockholmAlignment.Types
 --import Biobase.Types.BioSequence
 import qualified Data.ByteString.Char8 as B
 

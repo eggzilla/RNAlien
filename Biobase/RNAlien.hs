@@ -17,7 +17,7 @@ import Data.Time
 import qualified System.FilePath as FP
 import Paths_RNAlien (version)
 import Data.Version (showVersion)
-import qualified Bio.StockholmParser as BS
+import qualified Biobase.StockholmAlignment.Import as BS
 --import Biobase.Fasta.Streaming
 import Control.Monad
 

@@ -19,7 +19,7 @@ import Paths_RNAlien (version)
 import Data.Version (showVersion)
 --import Biobase.Fasta.Streaming
 import Control.Monad
-import qualified Bio.StockholmParser as BS
+import qualified Biobase.StockholmAlignment.Import as BS
 
 data Options = Options
   { inputFastaFilePath :: String,
