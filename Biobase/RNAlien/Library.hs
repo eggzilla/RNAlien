@@ -529,7 +529,8 @@ searchCandidates staticOptions finaliterationprefix iterationnumber upperTaxLimi
            CE.evaluate (SearchResult [] Nothing)
          else do
            writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10afullSequencesWithSimilars") (showlines fullSequencesWithSimilars)
-           let fullSequences = filterIdenticalSequences fullSequencesWithSimilars 100
+           --let fullSequences = filterIdenticalSequences fullSequencesWithSimilars 100
+           let fullSequences = fullSequencesWithSimilars
            --let fullSequencesWithOrigin = map (\(parsedFasta,taxid,seqSubject) -> (parsedFasta,taxid,seqSubject,'B')) fullSequences
            writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++ "_10fullSequences") (showlines fullSequences)
            let maybeFractionEvalueMatch = getHitWithFractionEvalue rightBlast
@@ -586,14 +587,14 @@ alignCandidates staticOptions modelConstruction multipleSearchResultPrefix searc
       --refilter for similarity
       writeFile (iterationDirectory ++ "log" ++ "/11candidates") (showlines (candidates searchResults))
       let alignedSequences = map snd (V.toList (extractAlignedSequences (iterationNumber modelConstruction) modelConstruction))
-      let filteredCandidates = filterWithCollectedSequences (candidates searchResults) alignedSequences 99
-      writeFile (iterationDirectory ++ "log" ++ "/12candidatesFilteredByCollected") (showlines filteredCandidates)
+      let (filteredCandidates, collectedCandidates) = partitionWithCollectedSequences (candidates searchResults) alignedSequences 100
+      --writeFile (iterationDirectory ++ "log" ++ "/12candidatesFilteredByCollected") (showlines filteredCandidates)
       if alignmentModeInfernal modelConstruction
-        then alignCandidatesInfernalMode staticOptions modelConstruction multipleSearchResultPrefix (blastDatabaseSize searchResults) filteredCandidates
-        else alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultPrefix filteredCandidates
+        then alignCandidatesInfernalMode staticOptions modelConstruction multipleSearchResultPrefix (blastDatabaseSize searchResults) filteredCandidates collectedCandidates
+        else alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultPrefix filteredCandidates collectedCandidates
 
-alignCandidatesInfernalMode :: StaticOptions -> ModelConstruction -> String -> Maybe Double -> [(Fasta () (),Int,B.ByteString)] -> IO ([(Fasta () (),Int,B.ByteString)],[(Fasta () (),Int,B.ByteString)])
-alignCandidatesInfernalMode staticOptions modelConstruction multipleSearchResultPrefix blastDbSize filteredCandidates = do
+alignCandidatesInfernalMode :: StaticOptions -> ModelConstruction -> String -> Maybe Double -> [(Fasta () (),Int,B.ByteString)] -> [(Fasta () (),Int,B.ByteString)] -> IO ([(Fasta () (),Int,B.ByteString)],[(Fasta () (),Int,B.ByteString)])
+alignCandidatesInfernalMode staticOptions modelConstruction multipleSearchResultPrefix blastDbSize filteredCandidates collectedCandidates = do
   let iterationDirectory = tempDirPath staticOptions ++ show (iterationNumber modelConstruction) ++ "/" ++ multipleSearchResultPrefix
   let candidateSequences = extractCandidateSequences filteredCandidates
   logVerboseMessage (verbositySwitch staticOptions) "Alignment Mode Infernal\n" (tempDirPath staticOptions)
@@ -616,8 +617,8 @@ alignCandidatesInfernalMode staticOptions modelConstruction multipleSearchResult
   writeFile (iterationDirectory ++ "log" ++ "/15potentialCandidates'") (showlines potentialCandidates)
   return (map snd trimmedSelectedCandidates,map snd potentialCandidates)
 
-alignCandidatesInitialMode :: StaticOptions -> ModelConstruction -> String -> [(Fasta () (),Int,B.ByteString)] -> IO ([(Fasta () (),Int,B.ByteString)],[(Fasta () (),Int,B.ByteString)])
-alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultPrefix filteredCandidates = do
+alignCandidatesInitialMode :: StaticOptions -> ModelConstruction -> String -> [(Fasta () (),Int,B.ByteString)] -> [(Fasta () (),Int,B.ByteString)] -> IO ([(Fasta () (),Int,B.ByteString)],[(Fasta () (),Int,B.ByteString)])
+alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultPrefix filteredCandidates collectedCandidates = do
   let iterationDirectory = tempDirPath staticOptions ++ show (iterationNumber modelConstruction) ++ "/" ++ multipleSearchResultPrefix
   --writeFile (iterationDirectory ++ "log" ++ "/11bcandidates") (showlines filteredCandidates)
   createDirectoryIfMissing False (iterationDirectory ++ "log")
@@ -898,6 +899,12 @@ filterIdenticalSequences [] _ = []
 filterWithCollectedSequences :: [(Fasta () (),Int,B.ByteString)] -> [Fasta () ()] -> Double -> [(Fasta () (),Int,B.ByteString)]
 filterWithCollectedSequences inputCandidates collectedSequences identitycutoff = filter (isUnSimilarSequence collectedSequences identitycutoff . firstOfTriple) inputCandidates
 --filterWithCollectedSequences [] [] _ = []
+
+-- | Partition sequences too similar to already aligned sequences
+partitionWithCollectedSequences :: [(Fasta () (),Int,B.ByteString)] -> [Fasta () ()] -> Double -> ([(Fasta () (),Int,B.ByteString)],[(Fasta () (),Int,B.ByteString)])
+partitionWithCollectedSequences inputCandidates collectedSequences identitycutoff = partition (isUnSimilarSequence collectedSequences identitycutoff . firstOfTriple) inputCandidates
+--filterWithCollectedSequences [] [] _ = []
+
 
 -- | Filter alignment entries by similiarity
 filterIdenticalSequences' :: [Fasta () ()] -> Double -> [Fasta () ()]
