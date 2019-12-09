@@ -175,9 +175,9 @@ modelConstructionResult staticOptions modelConstruction = do
                      (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                return (SearchResult [] Nothing))
       let uniqueCandidates = filterDuplicates modelConstruction restrictedCandidates
-      (restrictedAlignmentResults,restrictedPotentialMembers) <- catchAll (alignCandidates staticOptions modelConstruction (fromJust (taxRestriction staticOptions)) uniqueCandidates)
+      (restrictedAlignmentResults,restrictedPotentialMembers,collectedMembers) <- catchAll (alignCandidates staticOptions modelConstruction (fromJust (taxRestriction staticOptions)) uniqueCandidates)
                            (\e -> do logWarning ("Warning: Alignment results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
-                                     return  ([],[]))
+                                     return  ([],[],[]))
       let currentPotentialMembers = [SearchResult restrictedPotentialMembers (blastDatabaseSize restrictedCandidates)]
       return (restrictedAlignmentResults,currentPotentialMembers)
     else do
@@ -187,27 +187,27 @@ modelConstructionResult staticOptions modelConstruction = do
                      (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                return (SearchResult [] Nothing))
       let uniqueCandidates1 = filterDuplicates modelConstruction candidates1
-      (alignmentResults1,potentialMembers1) <- catchAll (alignCandidates staticOptions modelConstruction "archea" uniqueCandidates1)
+      (alignmentResults1,potentialMembers1,collectedMembers1) <- catchAll (alignCandidates staticOptions modelConstruction "archea" uniqueCandidates1)
                            (\e -> do logWarning ("Warning: Alignment results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
-                                     return  ([],[]))
+                                     return  ([],[],[]))
       --taxonomic context bacteria
       let (upperTaxLimit2,lowerTaxLimit2) = (Just (2 :: Int), Nothing)
       candidates2 <- catchAll (searchCandidates staticOptions (Just "bacteria") currentIterationNumber upperTaxLimit2 lowerTaxLimit2 expectThreshold Nothing queries)
                      (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                return (SearchResult [] Nothing))
       let uniqueCandidates2 = filterDuplicates modelConstruction candidates2
-      (alignmentResults2,potentialMembers2) <- catchAll (alignCandidates staticOptions modelConstruction "bacteria" uniqueCandidates2)
+      (alignmentResults2,potentialMembers2,collectedMembers2) <- catchAll (alignCandidates staticOptions modelConstruction "bacteria" uniqueCandidates2)
                            (\e -> do logWarning ("Warning: Alignment results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
-                                     return  ([],[]))
+                                     return  ([],[],[]))
       --taxonomic context eukaryia
       let (upperTaxLimit3,lowerTaxLimit3) = (Just (2759 :: Int), Nothing)
       candidates3 <- catchAll (searchCandidates staticOptions (Just "eukaryia") currentIterationNumber upperTaxLimit3 lowerTaxLimit3 expectThreshold Nothing queries)
                      (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                return (SearchResult [] Nothing))
       let uniqueCandidates3 = filterDuplicates modelConstruction candidates3
-      (alignmentResults3,potentialMembers3) <- catchAll (alignCandidates staticOptions modelConstruction "eukaryia" uniqueCandidates3)
+      (alignmentResults3,potentialMembers3,collectedMembers3) <- catchAll (alignCandidates staticOptions modelConstruction "eukaryia" uniqueCandidates3)
                            (\e -> do logWarning ("Warning: Alignment results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
-                                     return  ([],[]))
+                                     return  ([],[],[]))
       let alignmentResults = alignmentResults1 ++ alignmentResults2 ++ alignmentResults3
       let currentPotentialMembers = [SearchResult potentialMembers1 (blastDatabaseSize candidates1), SearchResult potentialMembers2 (blastDatabaseSize candidates2), SearchResult potentialMembers3 (blastDatabaseSize candidates3)]
       return (alignmentResults,currentPotentialMembers)
@@ -272,8 +272,9 @@ reevaluatePotentialMembers staticOptions modelConstruction = do
   let indexedPotentialMembers = V.indexed (V.fromList (potentialMembers modelConstruction))
   potentialMembersAlignmentResultVector <- V.mapM (\(i,searchresult) -> (alignCandidates staticOptions modelConstruction (show i ++ "_") searchresult)) indexedPotentialMembers
   let potentialMembersAlignmentResults = V.toList potentialMembersAlignmentResultVector
-  let alignmentResults = concatMap fst potentialMembersAlignmentResults
-  let discardedMembers = concatMap snd potentialMembersAlignmentResults
+  let alignmentResults = concatMap (\(a,_,_) -> a) potentialMembersAlignmentResults
+  let discardedMembers = concatMap (\(_,b,_) -> b) potentialMembersAlignmentResults
+  let collectedMembers = concatMap (\(_,_,c) -> c) potentialMembersAlignmentResults
   writeFile (outputDirectory  ++ "log/discarded") (concatMap show discardedMembers)
   let resultFastaPath = outputDirectory  ++ "result.fa"
   let resultCMPath = outputDirectory ++ "result.cm"
@@ -323,9 +324,9 @@ alignmentConstructionWithCandidates alienType currentTaxonomicContext currentUpp
     let iterationDirectory = tempDirPath staticOptions ++ show currentIterationNumber ++ "/"
     --let usedUpperTaxonomyLimit = (snd (head candidates))
     --align search result
-    (alignmentResults,potentialMemberEntries) <- catchAll (alignCandidates staticOptions modelConstruction "" searchResults)
+    (alignmentResults,potentialMemberEntries,collectedMembers) <- catchAll (alignCandidates staticOptions modelConstruction "" searchResults)
                         (\e -> do logWarning ("Warning: Alignment results iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
-                                  return ([],[]))
+                                  return ([],[],[]))
     let currentPotentialMembers = [SearchResult potentialMemberEntries (blastDatabaseSize searchResults)]
     if (null alignmentResults) && not (alignmentModeInfernal modelConstruction)
       then do
@@ -575,14 +576,14 @@ alienFiltering blastHitsFilteredByCoverage logFileDirectoryPath queryIndexString
 computeDataBaseSize :: Double -> Double -> Double -> Double
 computeDataBaseSize evalue bitscore querylength = ((evalue * 2 ** bitscore) / querylength)/10^(6 :: Integer)
 
-alignCandidates :: StaticOptions -> ModelConstruction -> String -> SearchResult -> IO ([(Fasta () (),Int,B.ByteString)],[(Fasta () (),Int,B.ByteString)])
+alignCandidates :: StaticOptions -> ModelConstruction -> String -> SearchResult -> IO ([(Fasta () (),Int,B.ByteString)],[(Fasta () (),Int,B.ByteString)],[(Fasta () (),Int,B.ByteString)])
 alignCandidates staticOptions modelConstruction multipleSearchResultPrefix searchResults = do
   let iterationDirectory = tempDirPath staticOptions ++ show (iterationNumber modelConstruction) ++ "/" ++ multipleSearchResultPrefix
   createDirectoryIfMissing False (iterationDirectory ++ "log")
   if null (candidates searchResults)
     then do
       writeFile (iterationDirectory ++ "log" ++ "/11candidates") "No candidates to align"
-      return ([],[])
+      return ([],[],[])
     else do
       --refilter for similarity
       writeFile (iterationDirectory ++ "log" ++ "/11candidates") (showlines (candidates searchResults))
@@ -593,7 +594,7 @@ alignCandidates staticOptions modelConstruction multipleSearchResultPrefix searc
         then alignCandidatesInfernalMode staticOptions modelConstruction multipleSearchResultPrefix (blastDatabaseSize searchResults) filteredCandidates collectedCandidates
         else alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultPrefix filteredCandidates collectedCandidates
 
-alignCandidatesInfernalMode :: StaticOptions -> ModelConstruction -> String -> Maybe Double -> [(Fasta () (),Int,B.ByteString)] -> [(Fasta () (),Int,B.ByteString)] -> IO ([(Fasta () (),Int,B.ByteString)],[(Fasta () (),Int,B.ByteString)])
+alignCandidatesInfernalMode :: StaticOptions -> ModelConstruction -> String -> Maybe Double -> [(Fasta () (),Int,B.ByteString)] -> [(Fasta () (),Int,B.ByteString)] -> IO ([(Fasta () (),Int,B.ByteString)],[(Fasta () (),Int,B.ByteString)],[(Fasta () (),Int,B.ByteString)])
 alignCandidatesInfernalMode staticOptions modelConstruction multipleSearchResultPrefix blastDbSize filteredCandidates collectedCandidates = do
   let iterationDirectory = tempDirPath staticOptions ++ show (iterationNumber modelConstruction) ++ "/" ++ multipleSearchResultPrefix
   let candidateSequences = extractCandidateSequences filteredCandidates
@@ -615,9 +616,9 @@ alignCandidatesInfernalMode staticOptions modelConstruction multipleSearchResult
   writeFile (iterationDirectory ++ "log" ++ "/13selectedCandidates'") (showlines trimmedSelectedCandidates)
   writeFile (iterationDirectory ++ "log" ++ "/14rejectedCandidates'") (showlines rejectedCandidates)
   writeFile (iterationDirectory ++ "log" ++ "/15potentialCandidates'") (showlines potentialCandidates)
-  return (map snd trimmedSelectedCandidates,map snd potentialCandidates)
+  return (map snd trimmedSelectedCandidates,map snd potentialCandidates,collectedCandidates)
 
-alignCandidatesInitialMode :: StaticOptions -> ModelConstruction -> String -> [(Fasta () (),Int,B.ByteString)] -> [(Fasta () (),Int,B.ByteString)] -> IO ([(Fasta () (),Int,B.ByteString)],[(Fasta () (),Int,B.ByteString)])
+alignCandidatesInitialMode :: StaticOptions -> ModelConstruction -> String -> [(Fasta () (),Int,B.ByteString)] -> [(Fasta () (),Int,B.ByteString)] -> IO ([(Fasta () (),Int,B.ByteString)],[(Fasta () (),Int,B.ByteString)],[(Fasta () (),Int,B.ByteString)])
 alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultPrefix filteredCandidates collectedCandidates = do
   let iterationDirectory = tempDirPath staticOptions ++ show (iterationNumber modelConstruction) ++ "/" ++ multipleSearchResultPrefix
   --writeFile (iterationDirectory ++ "log" ++ "/11bcandidates") (showlines filteredCandidates)
@@ -659,7 +660,7 @@ alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultP
   mapM_ print (zip3 consensusMFE averageMFEs (V.toList sequenceIdentities))
   writeFile (iterationDirectory ++ "log" ++ "/13selectedCandidates") (showlines selectedCandidates)
   writeFile (iterationDirectory ++ "log" ++ "/14rejectedCandidates") (showlines rejectedCandidates)
-  return (map snd selectedCandidates,[])
+  return (map snd selectedCandidates,[],collectedCandidates)
 
 setClusterNumber :: Int -> Int
 setClusterNumber x
@@ -2263,9 +2264,9 @@ scanModelConstructionResult staticOptions modelConstruction = do
                   (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                             return (SearchResult [] Nothing))
   let uniqueCandidates = filterDuplicates modelConstruction candidates1
-  (alignmentResults,currentPotentialMembers1) <- catchAll (alignCandidates staticOptions modelConstruction "" uniqueCandidates)
+  (alignmentResults,currentPotentialMembers1,collectedMembers1) <- catchAll (alignCandidates staticOptions modelConstruction "" uniqueCandidates)
                            (\e -> do logWarning ("Warning: Alignment results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
-                                     return  ([],[]))
+                                     return  ([],[],[]))
   let currentPotentialMembers = [SearchResult currentPotentialMembers1 (blastDatabaseSize uniqueCandidates)]
   let preliminaryFastaPath = iterationDirectory ++ "model.fa"
   let preliminaryCMPath = iterationDirectory ++ "model.cm"
