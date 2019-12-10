@@ -175,11 +175,11 @@ modelConstructionResult staticOptions modelConstruction = do
                      (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                return (SearchResult [] Nothing))
       let uniqueCandidates = filterDuplicates modelConstruction restrictedCandidates
-      (restrictedAlignmentResults,restrictedPotentialMembers,collectedMembers) <- catchAll (alignCandidates staticOptions modelConstruction (fromJust (taxRestriction staticOptions)) uniqueCandidates)
+      (restrictedAlignmentResults,restrictedPotentialMembers,similarMembers) <- catchAll (alignCandidates staticOptions modelConstruction (fromJust (taxRestriction staticOptions)) uniqueCandidates)
                            (\e -> do logWarning ("Warning: Alignment results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                      return  ([],[],[]))
       let currentPotentialMembers = [SearchResult restrictedPotentialMembers (blastDatabaseSize restrictedCandidates)]
-      return (restrictedAlignmentResults,currentPotentialMembers)
+      return (restrictedAlignmentResults,currentPotentialMembers,similarMembers)
     else do
       --taxonomic context archea
       let (upperTaxLimit1,lowerTaxLimit1) = (Just (2157 :: Int), Nothing)
@@ -187,7 +187,7 @@ modelConstructionResult staticOptions modelConstruction = do
                      (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                return (SearchResult [] Nothing))
       let uniqueCandidates1 = filterDuplicates modelConstruction candidates1
-      (alignmentResults1,potentialMembers1,collectedMembers1) <- catchAll (alignCandidates staticOptions modelConstruction "archea" uniqueCandidates1)
+      (alignmentResults1,potentialMembers1,similarMembers1) <- catchAll (alignCandidates staticOptions modelConstruction "archea" uniqueCandidates1)
                            (\e -> do logWarning ("Warning: Alignment results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                      return  ([],[],[]))
       --taxonomic context bacteria
@@ -196,7 +196,7 @@ modelConstructionResult staticOptions modelConstruction = do
                      (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                return (SearchResult [] Nothing))
       let uniqueCandidates2 = filterDuplicates modelConstruction candidates2
-      (alignmentResults2,potentialMembers2,collectedMembers2) <- catchAll (alignCandidates staticOptions modelConstruction "bacteria" uniqueCandidates2)
+      (alignmentResults2,potentialMembers2,similarMembers2) <- catchAll (alignCandidates staticOptions modelConstruction "bacteria" uniqueCandidates2)
                            (\e -> do logWarning ("Warning: Alignment results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                      return  ([],[],[]))
       --taxonomic context eukaryia
@@ -205,17 +205,18 @@ modelConstructionResult staticOptions modelConstruction = do
                      (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                return (SearchResult [] Nothing))
       let uniqueCandidates3 = filterDuplicates modelConstruction candidates3
-      (alignmentResults3,potentialMembers3,collectedMembers3) <- catchAll (alignCandidates staticOptions modelConstruction "eukaryia" uniqueCandidates3)
+      (alignmentResults3,potentialMembers3,similarMembers3) <- catchAll (alignCandidates staticOptions modelConstruction "eukaryia" uniqueCandidates3)
                            (\e -> do logWarning ("Warning: Alignment results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                      return  ([],[],[]))
       let alignmentResults = alignmentResults1 ++ alignmentResults2 ++ alignmentResults3
+      let similarMembers = similarMembers1 ++ similarMembers2 ++ similarMembers3
       let currentPotentialMembers = [SearchResult potentialMembers1 (blastDatabaseSize candidates1), SearchResult potentialMembers2 (blastDatabaseSize candidates2), SearchResult potentialMembers3 (blastDatabaseSize candidates3)]
       return (alignmentResults,currentPotentialMembers)
   let preliminaryFastaPath = iterationDirectory ++ "model.fa"
   let preliminaryCMPath = iterationDirectory ++ "model.cm"
   let preliminaryAlignmentPath = iterationDirectory ++ "model.stockholm"
   let preliminaryCMLogPath = iterationDirectory ++ "model.cm.log"
-  let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults Nothing Nothing [] currentPotentialMembers (alignmentModeInfernal modelConstruction)
+  let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults similarMembers Nothing Nothing [] currentPotentialMembers (alignmentModeInfernal modelConstruction)
   if (null alignmentResults) && not (alignmentModeInfernal modelConstruction)
     then do
       logVerboseMessage (verbositySwitch staticOptions) "Alignment result initial mode\n" outputDirectory
@@ -274,13 +275,14 @@ reevaluatePotentialMembers staticOptions modelConstruction = do
   let potentialMembersAlignmentResults = V.toList potentialMembersAlignmentResultVector
   let alignmentResults = concatMap (\(a,_,_) -> a) potentialMembersAlignmentResults
   let discardedMembers = concatMap (\(_,b,_) -> b) potentialMembersAlignmentResults
-  let collectedMembers = concatMap (\(_,_,c) -> c) potentialMembersAlignmentResults
+  let similarMembers = concatMap (\(_,_,c) -> c) potentialMembersAlignmentResults
   writeFile (outputDirectory  ++ "log/discarded") (concatMap show discardedMembers)
   let resultFastaPath = outputDirectory  ++ "result.fa"
   let resultCMPath = outputDirectory ++ "result.cm"
   let resultAlignmentPath = outputDirectory ++ "result.stockholm"
   let resultClustalFilepath = outputDirectory ++ "result.clustal"
   let resultCMLogPath = outputDirectory ++ "log/result.cm.log"
+  let noNewMembers = (null alignment) && null similarMembers
   if null alignmentResults
     then do
       let lastIterationFastaPath = outputDirectory ++ show (currentIterationNumber - 1)++ "/model.fa"
@@ -300,7 +302,7 @@ reevaluatePotentialMembers staticOptions modelConstruction = do
       --let lastIterationAlignmentPath = outputDirectory ++ show currentIterationNumber  ++ "/model.stockholm"
       let lastIterationCMPath = outputDirectory ++ show currentIterationNumber ++ "/model.cm"
       logVerboseMessage (verbositySwitch staticOptions) "Alignment construction with candidates - infernal mode\n" outputDirectory
-      let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults Nothing Nothing [] [] (alignmentModeInfernal modelConstruction)
+      let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults similarMembers Nothing Nothing [] [] (alignmentModeInfernal modelConstruction)
       constructModel nextModelConstructionInput staticOptions
       copyFile lastIterationCMPath resultCMPath
       --debug
@@ -994,10 +996,11 @@ raiseTaxIdLimitEntrez subTreeTaxId currentLineage = parentNodeTaxId
         --parentNodeTaxId = if subTreeTaxId == taxonTaxId lineage then Just (taxonParentTaxId taxon) else linageNodeTaxId
         parentNodeTaxId = linageNodeTaxId
 
-constructNext :: Int -> ModelConstruction -> [(Fasta () (),Int,B.ByteString)] -> Maybe Int -> Maybe Lineage  -> [Fasta () ()] -> [SearchResult] -> Bool -> ModelConstruction
-constructNext currentIterationNumber modelconstruction alignmentResults upperTaxLimit inputTaxonomicContext inputSelectedQueries inputPotentialMembers toggleInfernalAlignmentModeTrue = nextModelConstruction
+constructNext :: Int -> ModelConstruction -> [(Fasta () (),Int,B.ByteString)] -> [(Fasta () (),Int,B.ByteString)] -> Maybe Int -> Maybe Lineage  -> [Fasta () ()] -> [SearchResult] -> Bool -> ModelConstruction
+constructNext currentIterationNumber modelconstruction alignmentResults similarMembers upperTaxLimit inputTaxonomicContext inputSelectedQueries inputPotentialMembers toggleInfernalAlignmentModeTrue = nextModelConstruction
   where newIterationNumber = currentIterationNumber + 1
         taxEntries = taxRecords modelconstruction ++ buildTaxRecords alignmentResults currentIterationNumber
+        similarEntries = similarRecords modelconstruction ++ buildTaxRecords similarMembers currentIterationNumber
         potMembers = potentialMembers modelconstruction ++ inputPotentialMembers
         currentAlignmentMode = toggleInfernalAlignmentModeTrue || alignmentModeInfernal modelconstruction
         nextModelConstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) taxEntries upperTaxLimit inputTaxonomicContext (evalueThreshold modelconstruction) currentAlignmentMode inputSelectedQueries potMembers [] (inputAlignment modelconstruction)
@@ -2264,7 +2267,7 @@ scanModelConstructionResult staticOptions modelConstruction = do
                   (\e -> do logWarning ("Warning: Search results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                             return (SearchResult [] Nothing))
   let uniqueCandidates = filterDuplicates modelConstruction candidates1
-  (alignmentResults,currentPotentialMembers1,collectedMembers1) <- catchAll (alignCandidates staticOptions modelConstruction "" uniqueCandidates)
+  (alignmentResults,currentPotentialMembers1,similarMembers1) <- catchAll (alignCandidates staticOptions modelConstruction "" uniqueCandidates)
                            (\e -> do logWarning ("Warning: Alignment results iteration" ++ show currentIterationNumber ++ " - exception: " ++ show e) outputDirectory
                                      return  ([],[],[]))
   let currentPotentialMembers = [SearchResult currentPotentialMembers1 (blastDatabaseSize uniqueCandidates)]
@@ -2272,7 +2275,7 @@ scanModelConstructionResult staticOptions modelConstruction = do
   let preliminaryCMPath = iterationDirectory ++ "model.cm"
   let preliminaryAlignmentPath = iterationDirectory ++ "model.stockholm"
   let preliminaryCMLogPath = iterationDirectory ++ "model.cm.log"
-  let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults Nothing Nothing [] currentPotentialMembers (alignmentModeInfernal modelConstruction)
+  let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults similarMembers1 Nothing Nothing [] currentPotentialMembers (alignmentModeInfernal modelConstruction)
   if (null alignmentResults) && not (alignmentModeInfernal modelConstruction)
     then do
       logVerboseMessage (verbositySwitch staticOptions) "Alignment result initial mode\n" outputDirectory

@@ -33,7 +33,10 @@ data StaticOptions = StaticOptions
 data ModelConstruction = ModelConstruction
   { iterationNumber :: Int,
     inputFasta :: [Fasta () ()],
+    --unique seed sequencs
     taxRecords :: [TaxonomyRecord],
+    --additional similar sequences - collected by full similarity to previously found entries
+    similarRecords :: [TaxonomyRecord],
     --Taxonomy ID of the highest node in taxonomic subtree used in search
     upperTaxonomyLimit :: Maybe Int,
     taxonomicContext :: Maybe Lineage,
@@ -46,18 +49,20 @@ data ModelConstruction = ModelConstruction
   }
 
 instance Show ModelConstruction where
-  show (ModelConstruction _iterationNumber _inputFasta _taxRecords _upperTaxonomyLimit _taxonomicContext _evalueThreshold _alignmentModeInfernal _selectedQueries _potentialMembers _genomeFastas _inputAlignment) = a ++ b ++ c ++ d ++ e ++ f ++ g ++ h ++ i ++ j
+  show (ModelConstruction _iterationNumber _inputFasta _taxRecords _similarRecords _upperTaxonomyLimit _taxonomicContext _evalueThreshold _alignmentModeInfernal _selectedQueries _potentialMembers _genomeFastas _inputAlignment) = a ++ b ++ c ++ d ++ e ++ f ++ g ++ h ++ i ++ j ++ k ++ l
     where a = "Modelconstruction iteration: " ++ show _iterationNumber ++ "\n"
           -- b = "Input fasta:\n" ++ concatMap (prettyPrintFasta 80) _inputFasta  -- L.unpack (fastaHeader _inputFasta)  ++ "\n" ++ L.unpack (fastaSequence _inputFasta) ++ "\n"
           b = "Input fasta:\n" ++ concatMap (convertString . fastaToByteString 80) _inputFasta
           c = "Input alignment:\n" ++ maybe "not set" show _inputAlignment ++ "\n"
           d = show _taxRecords
-          e = "Upper taxonomy limit: " ++ maybe "not set" show _upperTaxonomyLimit ++ "\n"
-          f = "Taxonomic Context: " ++  maybe "not set" show _taxonomicContext ++ "\n"
-          g = "Evalue cutoff: " ++ show _evalueThreshold ++ "\n"
-          h = "Selected queries: \n" ++ concatMap show _selectedQueries
-          i = "Potential Members: \n" ++ concatMap show _potentialMembers
-          j = "Number of genomes for RNAlienEgg: " ++ show (length _genomeFastas)
+          e = "Input alignment:\n" ++ maybe "not set" show _inputAlignment ++ "\n"
+          f = show _taxRecords
+          g = "Upper taxonomy limit: " ++ maybe "not set" show _upperTaxonomyLimit ++ "\n"
+          h = "Taxonomic Context: " ++  maybe "not set" show _taxonomicContext ++ "\n"
+          i = "Evalue cutoff: " ++ show _evalueThreshold ++ "\n"
+          j = "Selected queries: \n" ++ concatMap show _selectedQueries
+          k = "Potential Members: \n" ++ concatMap show _potentialMembers
+          l = "Number of genomes for RNAlienEgg: " ++ show (length _genomeFastas)
 
 data TaxonomyRecord = TaxonomyRecord
   { recordTaxonomyId :: Int,
