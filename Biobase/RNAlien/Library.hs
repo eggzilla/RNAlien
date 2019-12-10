@@ -314,6 +314,8 @@ reevaluatePotentialMembers staticOptions modelConstruction = do
       _ <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath
       systemCMalign ("--outformat=Clustal --cpu " ++ show (cpuThreads staticOptions)) resultCMPath resultFastaPath resultClustalFilepath
       systemCMalign ("--outformat=Stockholm --cpu " ++ show (cpuThreads staticOptions)) resultCMPath resultFastaPath resultAlignmentPath
+      --add collected similars
+      let resultFastaPath = outputDirectory  ++ "full.fa"
       writeFile (iterationDirectory ++ "done") ""
       return nextModelConstructionInput
 
