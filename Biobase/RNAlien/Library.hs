@@ -167,7 +167,7 @@ modelConstructionResult staticOptions modelConstruction = do
   let logFileDirectoryPath = iterationDirectory ++ "log"
   createDirectoryIfMissing False logFileDirectoryPath
   let expectThreshold = setBlastExpectThreshold modelConstruction
-  (alignmentResults,currentPotentialMembers) <- if isJust (taxRestriction staticOptions)
+  (alignmentResults,currentPotentialMembers,similarMembers) <- if isJust (taxRestriction staticOptions)
     then do
       --taxonomic restriction
       let (upperTaxLimit,lowerTaxLimit) = setRestrictedTaxonomyLimits (fromJust (taxRestriction staticOptions))
@@ -211,7 +211,7 @@ modelConstructionResult staticOptions modelConstruction = do
       let alignmentResults = alignmentResults1 ++ alignmentResults2 ++ alignmentResults3
       let similarMembers = similarMembers1 ++ similarMembers2 ++ similarMembers3
       let currentPotentialMembers = [SearchResult potentialMembers1 (blastDatabaseSize candidates1), SearchResult potentialMembers2 (blastDatabaseSize candidates2), SearchResult potentialMembers3 (blastDatabaseSize candidates3)]
-      return (alignmentResults,currentPotentialMembers)
+      return (alignmentResults,currentPotentialMembers, similarMembers)
   let preliminaryFastaPath = iterationDirectory ++ "model.fa"
   let preliminaryCMPath = iterationDirectory ++ "model.cm"
   let preliminaryAlignmentPath = iterationDirectory ++ "model.stockholm"
@@ -282,8 +282,8 @@ reevaluatePotentialMembers staticOptions modelConstruction = do
   let resultAlignmentPath = outputDirectory ++ "result.stockholm"
   let resultClustalFilepath = outputDirectory ++ "result.clustal"
   let resultCMLogPath = outputDirectory ++ "log/result.cm.log"
-  let noNewMembers = (null alignment) && null similarMembers
-  if null alignmentResults
+  let noNewMembers = (null alignmentResults) && null similarMembers
+  if noNewMembers
     then do
       let lastIterationFastaPath = outputDirectory ++ show (currentIterationNumber - 1)++ "/model.fa"
       --let lastIterationAlignmentPath = outputDirectory ++ show (currentIterationNumber - 1)  ++ "/model.stockholm"
@@ -326,7 +326,7 @@ alignmentConstructionWithCandidates alienType currentTaxonomicContext currentUpp
     let iterationDirectory = tempDirPath staticOptions ++ show currentIterationNumber ++ "/"
     --let usedUpperTaxonomyLimit = (snd (head candidates))
     --align search result
-    (alignmentResults,potentialMemberEntries,collectedMembers) <- catchAll (alignCandidates staticOptions modelConstruction "" searchResults)
+    (alignmentResults,potentialMemberEntries,similarMembers) <- catchAll (alignCandidates staticOptions modelConstruction "" searchResults)
                         (\e -> do logWarning ("Warning: Alignment results iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
                                   return ([],[],[]))
     let currentPotentialMembers = [SearchResult potentialMemberEntries (blastDatabaseSize searchResults)]
@@ -337,7 +337,8 @@ alignmentConstructionWithCandidates alienType currentTaxonomicContext currentUpp
         --reusing previous modelconstruction with increased upperTaxonomyLimit but include found sequence
         --prepare next iteration
         let newTaxEntries = taxRecords modelConstruction ++ buildTaxRecords alignmentResults currentIterationNumber
-        let nextModelConstructionInputWithThreshold = modelConstruction {iterationNumber = currentIterationNumber + 1,upperTaxonomyLimit = currentUpperTaxonomyLimit, taxRecords = newTaxEntries,taxonomicContext = currentTaxonomicContext}
+        let similarEntries = similarRecords modelConstruction ++ buildTaxRecords similarMembers currentIterationNumber
+        let nextModelConstructionInputWithThreshold = modelConstruction {iterationNumber = currentIterationNumber + 1,upperTaxonomyLimit = currentUpperTaxonomyLimit, taxRecords = newTaxEntries,similarRecords=similarEntries,taxonomicContext = currentTaxonomicContext}
         let nextGenomeFastas = tail (genomeFastas modelConstruction)
         let nextScanModelConstructionInputWithThreshold = modelConstruction {iterationNumber = currentIterationNumber + 1,upperTaxonomyLimit = currentUpperTaxonomyLimit, taxRecords = newTaxEntries,taxonomicContext = currentTaxonomicContext, genomeFastas = nextGenomeFastas}
         writeFile (iterationDirectory ++ "done") ""
@@ -355,7 +356,7 @@ alignmentConstructionWithCandidates alienType currentTaxonomicContext currentUpp
           then do
             logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - infernal mode\n") (tempDirPath staticOptions)
             --prepare next iteration
-            let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults currentUpperTaxonomyLimit currentTaxonomicContext [] currentPotentialMembers True
+            let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults similarMembers currentUpperTaxonomyLimit currentTaxonomicContext [] currentPotentialMembers True
             constructModel nextModelConstructionInput staticOptions
             writeFile (iterationDirectory ++ "done") ""
             --select queries
@@ -378,7 +379,7 @@ alignmentConstructionWithCandidates alienType currentTaxonomicContext currentUpp
             logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - initial mode\n") (tempDirPath staticOptions)
             --First round enough candidates are available for modelconstruction, alignmentModeInfernal is set to true after this iteration
             --prepare next iteration
-            let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults currentUpperTaxonomyLimit currentTaxonomicContext [] currentPotentialMembers False
+            let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults similarMembers currentUpperTaxonomyLimit currentTaxonomicContext [] currentPotentialMembers False
             constructModel nextModelConstructionInput staticOptions
             currentSelectedQueries <- selectQueries staticOptions modelConstruction alignmentResults
             --select queries
@@ -1003,7 +1004,7 @@ constructNext currentIterationNumber modelconstruction alignmentResults similarM
         similarEntries = similarRecords modelconstruction ++ buildTaxRecords similarMembers currentIterationNumber
         potMembers = potentialMembers modelconstruction ++ inputPotentialMembers
         currentAlignmentMode = toggleInfernalAlignmentModeTrue || alignmentModeInfernal modelconstruction
-        nextModelConstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) taxEntries upperTaxLimit inputTaxonomicContext (evalueThreshold modelconstruction) currentAlignmentMode inputSelectedQueries potMembers [] (inputAlignment modelconstruction)
+        nextModelConstruction = ModelConstruction newIterationNumber (inputFasta modelconstruction) taxEntries similarEntries upperTaxLimit inputTaxonomicContext (evalueThreshold modelconstruction) currentAlignmentMode inputSelectedQueries potMembers [] (inputAlignment modelconstruction)
 
 buildTaxRecords :: [(Fasta () (),Int,B.ByteString)] -> Int -> [TaxonomyRecord]
 buildTaxRecords alignmentResults currentIterationNumber = taxonomyRecords

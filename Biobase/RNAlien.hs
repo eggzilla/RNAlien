@@ -100,8 +100,8 @@ main = do
       initialTaxId <- setInitialTaxId offlineMode threads inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
       let checkedTaxonomyRestriction = checkTaxonomyRestriction taxonomyRestriction
       let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) inputTaxId singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads inputBlastDatabase checkedTaxonomyRestriction (setVerbose verboseLevel) offlineMode [] taxonomyDumpPath
-      let initialization = ModelConstruction iterationNumber reformatedFastaInput [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] [] [] (Just rightAlignment)
-      let nextModelConstructionInput = constructNext iterationNumber initialization [] Nothing Nothing [] [] True
+      let initialization = ModelConstruction iterationNumber reformatedFastaInput [] [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] [] [] (Just rightAlignment)
+      let nextModelConstructionInput = constructNext iterationNumber initialization [] [] Nothing Nothing [] [] True
       let outputDirectory = tempDirPath staticOptions ++ "0" ++ "/"
       createDirectory outputDirectory
       let stockholmFilepath = outputDirectory ++ "model" ++ ".stockholm"
@@ -139,7 +139,7 @@ main = do
       initialTaxId <- setInitialTaxId offlineMode threads inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
       let checkedTaxonomyRestriction = checkTaxonomyRestriction taxonomyRestriction
       let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) inputTaxId singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads inputBlastDatabase checkedTaxonomyRestriction (setVerbose verboseLevel) offlineMode [] taxonomyDumpPath
-      let initialization = ModelConstruction iterationNumber reformatedFastaInput [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] [] [] Nothing
+      let initialization = ModelConstruction iterationNumber reformatedFastaInput [] [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] [] [] Nothing
       logMessage (show initialization) temporaryDirectoryPath
       modelConstructionResults <- modelConstructer staticOptions initialization
       let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults

@@ -91,11 +91,11 @@ main = do
       when (null reformatedFastaInput) (error "Please provide input fasta sequences with the cmd line parameter -i")
       let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) Nothing singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads Nothing Nothing (setVerbose verboseLevel) True inputGenomesFastaFilePath []
       --let initialization = ModelConstruction iterationNumber reformatedFastaInput [] Nothing Nothing (fromJust inputEvalueCutoff) False [] [] [] alignmentInput
-      let initialization = ModelConstruction iterationNumber reformatedFastaInput [] Nothing Nothing (fromJust inputEvalueCutoff) False [] [] inputGenomesFasta (Just rightAlignment)
+      let initialization = ModelConstruction iterationNumber reformatedFastaInput [] [] Nothing Nothing (fromJust inputEvalueCutoff) False [] [] inputGenomesFasta (Just rightAlignment)
       logMessage (show initialization) temporaryDirectoryPath
       --logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - infernal mode\n") (tempDirPath staticOptions)
       --prepare next iteration
-      let nextModelConstructionInput = constructNext iterationNumber initialization [] Nothing Nothing [] [] True
+      let nextModelConstructionInput = constructNext iterationNumber initialization [] [] Nothing Nothing [] [] True
       let outputDirectory = tempDirPath staticOptions ++ "0" ++ "/"
       createDirectory outputDirectory
       let fastaFilePath = outputDirectory ++ "model" ++ ".fa"
@@ -136,7 +136,7 @@ main = do
       logToolVersions inputQuerySelectionMethod temporaryDirectoryPath
       let reformatedFastaInput = map reformatFasta fastaInput
       let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) Nothing singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads Nothing Nothing (setVerbose verboseLevel) True inputGenomesFastaFilePath []
-      let initialization = ModelConstruction iterationNumber reformatedFastaInput [] Nothing Nothing (fromJust inputEvalueCutoff) False [] [] inputGenomesFasta Nothing
+      let initialization = ModelConstruction iterationNumber reformatedFastaInput [] [] Nothing Nothing (fromJust inputEvalueCutoff) False [] [] inputGenomesFasta Nothing
       logMessage (show initialization) temporaryDirectoryPath
       modelConstructionResults <- scanModelConstructer staticOptions initialization
       let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults
