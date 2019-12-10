@@ -315,7 +315,9 @@ reevaluatePotentialMembers staticOptions modelConstruction = do
       systemCMalign ("--outformat=Clustal --cpu " ++ show (cpuThreads staticOptions)) resultCMPath resultFastaPath resultClustalFilepath
       systemCMalign ("--outformat=Stockholm --cpu " ++ show (cpuThreads staticOptions)) resultCMPath resultFastaPath resultAlignmentPath
       --add collected similars
-      let resultFastaPath = outputDirectory  ++ "full.fa"
+      let fullFastaPath = outputDirectory ++ "full.fa"
+      let alignmentSimilarSequences = extractAlignedSimilarSequences currentIterationNumber nextModelConstructionInput
+      writeFastaFile fullFastaPath alignmentSimilarSequences
       writeFile (iterationDirectory ++ "done") ""
       return nextModelConstructionInput
 
@@ -1177,6 +1179,17 @@ extractAlignedSequences iterationnumber modelconstruction
         seqRecords = concat seqRecordsperTaxrecord
         --alignedSeqRecords = filter (\seqRec -> (aligned seqRec) > 0) seqRecords
         indexedSeqRecords = V.map (\(number,seq') -> (number + 1,seq')) (V.indexed (V.fromList (inputSequence ++ map nucleotideSequence seqRecords)))
+
+extractAlignedSimilarSequences :: Int -> ModelConstruction ->  [Fasta () ()]
+extractAlignedSimilarSequences iterationnumber modelconstruction
+  | iterationnumber == 0 = inputSequence
+  | otherwise = indexedSeqRecords
+  where inputSequence = inputFasta modelconstruction
+        seqRecordsperTaxRecord = concatMap sequenceRecords (taxRecords modelconstruction)
+        seqRecordsperSimilarRecord = concatMap sequenceRecords (similarRecords modelconstruction)
+        records = seqRecordsperTaxRecord ++ seqRecordsperSimilarRecord
+        --alignedSeqRecords = filter (\seqRec -> (aligned seqRec) > 0) seqRecords
+        indexedSeqRecords = inputSequence ++ map nucleotideSequence records
 
 filterByParentTaxId :: [(J.Hit,Int)] -> Bool -> [(J.Hit,Int)]
 filterByParentTaxId blastHitsWithParentTaxId singleHitPerParentTaxId
