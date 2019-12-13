@@ -109,6 +109,7 @@ modelConstructer staticOptions modelConstruction = do
   logVerboseMessage (verbositySwitch staticOptions) ("Queries:" ++ show queries ++ "\n") (tempDirPath staticOptions)
   let iterationDirectory = tempDirPath staticOptions ++ show currentIterationNumber ++ "/"
   let maybeLastTaxId = extractLastTaxId (taxonomicContext modelConstruction)
+  print (taxonomicContext modelConstruction)
   Control.Monad.when (isNothing maybeLastTaxId) $ logMessage ("Lineage: Could not extract last tax id \n") (tempDirPath staticOptions)
   --If highest node in linage was used as upper taxonomy limit, taxonomic tree is exhausted
   if maybe True (\uppertaxlimit -> maybe True (\lastTaxId -> uppertaxlimit /= lastTaxId) maybeLastTaxId) (upperTaxonomyLimit modelConstruction)
@@ -121,7 +122,11 @@ modelConstructer staticOptions modelConstruction = do
        searchResults <- catchAll (searchCandidates staticOptions Nothing currentIterationNumber upperTaxLimit lowerTaxLimit expectThreshold Nothing queries)
                         (\e -> do logWarning ("Warning: Search results iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
                                   return (SearchResult [] Nothing))
-       currentTaxonomicContext <- getTaxonomicContextEntrez (offline staticOptions) (ncbiTaxonomyDumpPath staticOptions) upperTaxLimit (taxonomicContext modelConstruction)
+       --currentTaxonomicContext <- getTaxonomicContextEntrez (offline staticOptions) (ncbiTaxonomyDumpPath staticOptions) upperTaxLimit (taxonomicContext modelConstruction)
+       currentTaxonomicContext <- CE.catch (getTaxonomicContextEntrez (offline staticOptions) (ncbiTaxonomyDumpPath staticOptions) upperTaxLimit (taxonomicContext modelConstruction))
+              (\e -> do let err = show (e :: CE.IOException)
+                        logWarning ("Warning: Retrieving taxonomic context failed:" ++ " " ++ err) (tempDirPath staticOptions)
+                        return Nothing)
        if null (candidates searchResults)
          then
             alignmentConstructionWithoutCandidates "alien" currentTaxonomicContext upperTaxLimit staticOptions modelConstruction
@@ -318,6 +323,10 @@ reevaluatePotentialMembers staticOptions modelConstruction = do
       let fullFastaPath = outputDirectory ++ "full.fa"
       let alignmentSimilarSequences = extractAlignedSimilarSequences currentIterationNumber nextModelConstructionInput
       writeFastaFile fullFastaPath alignmentSimilarSequences
+      let fullAlignmentPath = outputDirectory ++ "full.stockholm"
+      let fullClustalFilepath = outputDirectory ++ "full.clustal"
+      systemCMalign ("--outformat=Clustal --cpu " ++ show (cpuThreads staticOptions)) resultCMPath fullFastaPath fullClustalFilepath
+      systemCMalign ("--outformat=Stockholm --cpu " ++ show (cpuThreads staticOptions)) resultCMPath fullFastaPath fullAlignmentPath
       writeFile (iterationDirectory ++ "done") ""
       return nextModelConstructionInput
 
@@ -613,6 +622,7 @@ alignCandidatesInfernalMode staticOptions modelConstruction multipleSearchResult
   mapM_ (\(number,_nucleotideSequence) -> writeFastaFile (iterationDirectory ++ show number ++ ".fa") [_nucleotideSequence]) indexedCandidateSequenceList
   let zippedFastaCMSearchResultPaths = zip cmSearchFastaFilePaths cmSearchFilePaths
   --check with cmSearch
+  when (isNothing blastDbSize) (error "alignCandidatesInfernalMode - blastDBSize isNothing")
   mapM_ (uncurry (systemCMsearch (cpuThreads staticOptions) ("-Z " ++ show (fromJust blastDbSize)) covarianceModelPath)) zippedFastaCMSearchResultPaths
   cmSearchResults <- mapM readCMSearch cmSearchFilePaths
   writeFile (iterationDirectory ++ "cm_error") (concatMap show (lefts cmSearchResults))
@@ -877,9 +887,11 @@ genParserClustaloDistance = do
 getDistanceMatrixElements :: [String] -> Matrix Double -> String -> String -> Double
 getDistanceMatrixElements ids distMatrix id1 id2 = distance
   -- Data.Matrix is indexed starting with 1
-  where indexid1 = fromJust (elemIndex id1 ids) + 1
-        indexid2 = fromJust (elemIndex id2 ids) + 1
-        distance = getElem indexid1 indexid2 distMatrix
+  where maybeIndexId1 = elemIndex id1 ids
+        indexId1 = if isJust maybeIndexId1 then (fromJust maybeIndexId1) + 1 else error "getDistanceMatrix: id 1"
+        maybeIndexId2 = elemIndex id2 ids
+        indexId2 = if isJust maybeIndexId2 then (fromJust maybeIndexId2) + 1 else error "getDistanceMatric: id 2"
+        distance = getElem indexId1 indexId2 distMatrix
 
 -- | Filter duplicates removes hits in sequences that were already collected. This happens during revisiting the starting subtree.
 filterDuplicates :: ModelConstruction -> SearchResult -> SearchResult
@@ -948,7 +960,7 @@ textIdentity text1 text2 = identityPercent
          --Replication of RNAz select sequences requires only allowing substitutions
          --costs = ED.defaultEditCosts {ED.deletionCosts = ED.ConstantCost 100,ED.insertionCosts = ED.ConstantCost 100,ED.transpositionCosts = ED.ConstantCost 100}
          maximumDistance = maximum [T.length text1, T.length text2]
-         distanceDouble = toInteger ( fromJust distance )
+         distanceDouble = if isJust distance then toInteger ( fromJust distance ) else error "textIdentity: fromJust"
          identityPercent = 1 - (fromIntegral distanceDouble/fromIntegral maximumDistance)
 
 
@@ -976,15 +988,17 @@ getTaxonomicContextEntrez offlineMode taxDumpPath upperTaxLimit currentTaxonomic
       then if isJust currentTaxonomicContext
         then return currentTaxonomicContext
         else if offlineMode
-          then retrieveTaxonomicContextNCBITaxDump taxDumpPath (fromJust upperTaxLimit)
-          else retrieveTaxonomicContextEntrez (fromJust upperTaxLimit)
+          then retrieveTaxonomicContextNCBITaxDump taxDumpPath (fromJust upperTaxLimit)  --safe
+          else retrieveTaxonomicContextEntrez (fromJust upperTaxLimit)  --safe
           --return retrievedTaxonomicContext
       else return Nothing
 
 setTaxonomicContextEntrez :: Int -> Maybe Lineage -> Maybe Int -> (Maybe Int, Maybe Int)
-setTaxonomicContextEntrez currentIterationNumber currentTaxonomicContext subTreeTaxId
-  | currentIterationNumber == 0 = (subTreeTaxId, Nothing)
-  | otherwise = setUpperLowerTaxLimitEntrez (fromJust subTreeTaxId) (fromJust currentTaxonomicContext)
+setTaxonomicContextEntrez currentIterationNumber maybeCurrentTaxonomicContext maybeSubTreeTaxId
+  | currentIterationNumber == 0 = (Just subTreeTaxId, Nothing)
+  | otherwise = setUpperLowerTaxLimitEntrez  subTreeTaxId currentTaxonomicContext
+    where subTreeTaxId = if isJust maybeSubTreeTaxId then fromJust maybeSubTreeTaxId else error "setTaxonomicContextEntrez: fromJust subTreeTaxId"
+          currentTaxonomicContext = if isJust maybeCurrentTaxonomicContext then fromJust maybeCurrentTaxonomicContext else error "setTaxonomicContextEntrez: fromJust currentTaxonomicContext"
 
 -- setTaxonomic Context for next candidate search, the upper bound of the last search become the lower bound of the next
 setUpperLowerTaxLimitEntrez :: Int -> Lineage -> (Maybe Int, Maybe Int)
@@ -993,9 +1007,12 @@ setUpperLowerTaxLimitEntrez subTreeTaxId currentTaxonomicContext = (upperLimit,l
         lowerLimit = Just subTreeTaxId
 
 raiseTaxIdLimitEntrez :: Int -> Lineage -> Maybe Int
-raiseTaxIdLimitEntrez subTreeTaxId currentLineage = parentNodeTaxId
-  where lastUpperBoundNodeIndex = fromJust (V.findIndex  (\node -> lineageTaxId node == subTreeTaxId) lineageVector)
-        linageNodeTaxId = Just (lineageTaxId (lineageVector V.! (lastUpperBoundNodeIndex -1)))
+raiseTaxIdLimitEntrez subTreeTaxId currentLineage 
+  | isJust maybeLastUpperBoundNodeIndex = parentNodeTaxId
+  | otherwise = Nothing
+  where maybeLastUpperBoundNodeIndex = (V.findIndex  (\node -> lineageTaxId node == subTreeTaxId) lineageVector)
+        lastUpperBoundNodeIndex = fromJust maybeLastUpperBoundNodeIndex
+        linageNodeTaxId = Just (lineageTaxId (lineageVector V.! (lastUpperBoundNodeIndex -1))) 
         lineageVector = V.fromList (lineageTaxons currentLineage)
         --the input taxid is not part of the lineage, therefor we look for further taxids in the lineage after we used the parent tax id of the input node
         --parentNodeTaxId = if subTreeTaxId == taxonTaxId lineage then Just (taxonParentTaxId taxon) else linageNodeTaxId
@@ -1207,18 +1224,22 @@ filterByHitLength blastHits queryLength filterOn
 
 -- | Hits should have a compareable length to query
 hitLengthCheck :: Int -> J.Hit -> Bool
-hitLengthCheck queryLength blastHit = lengthStatus
-  where  hsps = J._hsps blastHit
-         minHfrom = minimum (map J._hit_from hsps)
-         minHfromHSP = fromJust (find (\hsp -> minHfrom == J._hit_from hsp) hsps)
-         maxHto = maximum (map J._hit_to hsps)
-         maxHtoHSP = fromJust (find (\hsp -> maxHto == J._hit_to hsp) hsps)
-         minHonQuery = J._query_from minHfromHSP
-         maxHonQuery = J._query_to maxHtoHSP
-         startCoordinate = minHfrom - minHonQuery
-         endCoordinate = maxHto + (queryLength - maxHonQuery)
-         fullSeqLength = endCoordinate - startCoordinate
-         lengthStatus = fullSeqLength < (queryLength * 3)
+hitLengthCheck queryLength blastHit 
+  | isJust maybeMaxHtoHSP && isJust maybeMaxHtoHSP = lengthStatus
+  | otherwise = False
+    where  hsps = J._hsps blastHit
+           minHfrom = minimum (map J._hit_from hsps)
+           maybeMinHfromHSP = find (\hsp -> minHfrom == J._hit_from hsp) hsps
+           minHfromHSP = fromJust maybeMinHfromHSP  
+           maxHto = maximum (map J._hit_to hsps)
+           maybeMaxHtoHSP = find (\hsp -> maxHto == J._hit_to hsp) hsps
+           maxHtoHSP = fromJust maybeMaxHtoHSP 
+           minHonQuery = J._query_from minHfromHSP
+           maxHonQuery = J._query_to maxHtoHSP
+           startCoordinate = minHfrom - minHonQuery
+           endCoordinate = maxHto + (queryLength - maxHonQuery)
+           fullSeqLength = endCoordinate - startCoordinate
+           lengthStatus = fullSeqLength < (queryLength * 3)
 
 filterByCoverage :: DS.Seq J.Hit -> Int -> Bool -> DS.Seq J.Hit
 filterByCoverage blastHits queryLength filterOn
@@ -1606,7 +1627,9 @@ extractGeneId currentBlastHit = nucleotideId
         nucleotideId = take pipeSymbolIndex truncatedId
 
 extractTaxIdfromDocumentSummary :: EntrezDocSum -> String
-extractTaxIdfromDocumentSummary documentSummary = itemContent (fromJust (find (\item -> "TaxId" == itemName item) (summaryItems documentSummary)))
+extractTaxIdfromDocumentSummary documentSummary = taxId 
+  where taxId = if isJust maybeTaxId then itemContent (fromJust maybeTaxId) else error "extractTaxIdfromDocumentSummary: isJust is Nothing"
+        maybeTaxId = find (\item -> "TaxId" == itemName item) (summaryItems documentSummary)
 
 getBestHit :: J.BlastJSON2 -> J.Hit
 getBestHit blastJS2
@@ -2224,7 +2247,7 @@ scanFiltering blastHitsFilteredByCoverage logFileDirectoryPath queryIndexString 
   let nonEmptyfilteredBlastResults = filter (\(blasthit) -> not (null (J._hsps blasthit))) (Data.Foldable.toList blastHitsFilteredByCoverage)
   let dummyTaxId = replicate (length nonEmptyfilteredBlastResults) 0
   let blastResultsDummyTax = zip nonEmptyfilteredBlastResults dummyTaxId
-  genomeFasta <- readFastaFile (fromJust maybeGenomeFasta)
+  genomeFasta <- if isJust maybeGenomeFasta then readFastaFile (fromJust maybeGenomeFasta) else error "scanFiltering: maybeGenomeFasta is Nothing"
   let sequenceByteString = _bioSequence . _fasta $ (head genomeFasta)
   let requestedSequenceElements = map (getRequestedSequenceElement queryLength) blastResultsDummyTax
   writeFile (logFileDirectoryPath ++ "/" ++ queryIndexString ++  "_6requestedSequenceElements") (showlines requestedSequenceElements)
