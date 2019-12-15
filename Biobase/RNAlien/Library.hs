@@ -115,6 +115,7 @@ modelConstructer staticOptions modelConstruction = do
   if maybe True (\uppertaxlimit -> maybe True (\lastTaxId -> uppertaxlimit /= lastTaxId) maybeLastTaxId) (upperTaxonomyLimit modelConstruction)
      then do
        createDirectory iterationDirectory
+       print ("Setting taxonomic context: iteration number " ++ show currentIterationNumber ++ " context: " ++ show (taxonomicContext modelConstruction) ++ " upperTaxLimit " ++ show (upperTaxonomyLimit modelConstruction))
        let (upperTaxLimit,lowerTaxLimit) = setTaxonomicContextEntrez currentIterationNumber (taxonomicContext modelConstruction) (upperTaxonomyLimit modelConstruction)
        logVerboseMessage (verbositySwitch staticOptions) ("Upper taxonomy limit: " ++ show upperTaxLimit ++ "\n " ++ "Lower taxonomy limit: "++ show lowerTaxLimit ++ "\n") (tempDirPath staticOptions)
        --search queries
@@ -123,7 +124,7 @@ modelConstructer staticOptions modelConstruction = do
                         (\e -> do logWarning ("Warning: Search results iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
                                   return (SearchResult [] Nothing))
        --currentTaxonomicContext <- getTaxonomicContextEntrez (offline staticOptions) (ncbiTaxonomyDumpPath staticOptions) upperTaxLimit (taxonomicContext modelConstruction)
-       currentTaxonomicContext <- CE.catch (getTaxonomicContextEntrez (offline staticOptions) (ncbiTaxonomyDumpPath staticOptions) upperTaxLimit (taxonomicContext modelConstruction))
+       currentTaxonomicContext <- CE.catch (getTaxonomicContext (offline staticOptions) (ncbiTaxonomyDumpPath staticOptions) upperTaxLimit (taxonomicContext modelConstruction))
               (\e -> do let err = show (e :: CE.IOException)
                         logWarning ("Warning: Retrieving taxonomic context failed:" ++ " " ++ err) (tempDirPath staticOptions)
                         return Nothing)
@@ -306,7 +307,7 @@ reevaluatePotentialMembers staticOptions modelConstruction = do
       let lastIterationFastaPath = outputDirectory ++ show currentIterationNumber ++ "/model.fa"
       --let lastIterationAlignmentPath = outputDirectory ++ show currentIterationNumber  ++ "/model.stockholm"
       let lastIterationCMPath = outputDirectory ++ show currentIterationNumber ++ "/model.cm"
-      logVerboseMessage (verbositySwitch staticOptions) "Alignment construction with candidates - infernal mode\n" outputDirectory
+      logVerboseMessage (verbositySwitch staticOptions) "Alignment construction with candidates - reevaluation\n" outputDirectory
       let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults similarMembers Nothing Nothing [] [] (alignmentModeInfernal modelConstruction)
       constructModel nextModelConstructionInput staticOptions
       copyFile lastIterationCMPath resultCMPath
@@ -379,6 +380,8 @@ alignmentConstructionWithCandidates alienType currentTaxonomicContext currentUpp
                                       logMessage (iterationSummaryLog nextModelConstructionInput) (tempDirPath staticOptions)
                                       logVerboseMessage (verbositySwitch staticOptions)  (show nextModelConstructionInput) (tempDirPath staticOptions)
                                       let nextModelConstructionInputWithQueries = nextModelConstructionInput {selectedQueries = currentSelectedQueries}
+                                      print "Debug"
+                                      print nextModelConstructionInputWithQueries
                                       modelConstructer staticOptions nextModelConstructionInputWithQueries
                                      else do
                                        let nextGenomeFastas = tail (genomeFastas modelConstruction)
@@ -982,8 +985,8 @@ sequenceIdentity sequence1 sequence2 = identityPercent
         maximumDistance = maximum [length sequence1string,length sequence2string]
         identityPercent = 100 - ((fromIntegral distance/fromIntegral maximumDistance) * (read "100" ::Double))
 
-getTaxonomicContextEntrez :: Bool -> String -> Maybe Int -> Maybe Lineage -> IO (Maybe Lineage)
-getTaxonomicContextEntrez offlineMode taxDumpPath upperTaxLimit currentTaxonomicContext =
+getTaxonomicContext :: Bool -> String -> Maybe Int -> Maybe Lineage -> IO (Maybe Lineage)
+getTaxonomicContext offlineMode taxDumpPath upperTaxLimit currentTaxonomicContext =
   if isJust upperTaxLimit
       then if isJust currentTaxonomicContext
         then return currentTaxonomicContext
@@ -995,7 +998,7 @@ getTaxonomicContextEntrez offlineMode taxDumpPath upperTaxLimit currentTaxonomic
 
 setTaxonomicContextEntrez :: Int -> Maybe Lineage -> Maybe Int -> (Maybe Int, Maybe Int)
 setTaxonomicContextEntrez currentIterationNumber maybeCurrentTaxonomicContext maybeSubTreeTaxId
-  | currentIterationNumber == 0 = (Just subTreeTaxId, Nothing)
+  | currentIterationNumber == 0 = (maybeSubTreeTaxId, Nothing)
   | otherwise = setUpperLowerTaxLimitEntrez  subTreeTaxId currentTaxonomicContext
     where subTreeTaxId = if isJust maybeSubTreeTaxId then fromJust maybeSubTreeTaxId else error "setTaxonomicContextEntrez: fromJust subTreeTaxId"
           currentTaxonomicContext = if isJust maybeCurrentTaxonomicContext then fromJust maybeCurrentTaxonomicContext else error "setTaxonomicContextEntrez: fromJust currentTaxonomicContext"
@@ -1537,6 +1540,7 @@ retrieveTaxonomicContextNCBITaxDump taxDumpPath inputTaxId = do
   let lineageEntries = map extractLineage lineageLines
   let lineageMap = DML.fromList lineageEntries
   let requestedLineage = DML.lookup inputTaxId lineageMap
+  when (isNothing requestedLineage) (error ("retrieveTaxonomicContextNCBITaxDump: " ++ show inputTaxId ++ " lookup failed in file: " ++ taxDumpPath))
   return requestedLineage
 
 -- extractLinage from taxidlineage.dmp
@@ -1547,7 +1551,7 @@ extractLineage lineageLine = (lineageIntKey, currentLineage)
         lineageKey = head splitLine
         lineageList = splitLine !! 1
         lineageEntries = init $ TL.splitOn (TL.pack " ") lineageList
-        lineageTaxonEntries = map makeLineageTaxons lineageEntries
+        lineageTaxonEntries =  (map makeLineageTaxons lineageEntries) ++ [(LineageTaxon lineageIntKey B.empty Norank)]
         currentLineage = Lineage lineageIntKey B.empty Norank lineageTaxonEntries
         lineageIntKey = read (TL.unpack lineageKey) :: Int
 
@@ -2225,6 +2229,7 @@ scanModelConstructer staticOptions modelConstruction = do
   if (not lastGenome)
      then do
        createDirectory iterationDirectory
+       print ("Setting taxonomic context: iteration number " ++ show currentIterationNumber ++ " context: " ++ show (taxonomicContext modelConstruction) ++ " upperTaxLimit " ++ show (upperTaxonomyLimit modelConstruction))
        let (upperTaxLimit,lowerTaxLimit) = setTaxonomicContextEntrez currentIterationNumber (taxonomicContext modelConstruction) (upperTaxonomyLimit modelConstruction)
        logVerboseMessage (verbositySwitch staticOptions) ("Upper taxonomy limit: " ++ show upperTaxLimit ++ "\n " ++ "Lower taxonomy limit: "++ show lowerTaxLimit ++ "\n") (tempDirPath staticOptions)
        --search queries
