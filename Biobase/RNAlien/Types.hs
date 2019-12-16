@@ -49,14 +49,13 @@ data ModelConstruction = ModelConstruction
   }
 
 instance Show ModelConstruction where
-  show (ModelConstruction _iterationNumber _inputFasta _taxRecords _similarRecords _upperTaxonomyLimit _taxonomicContext _evalueThreshold _alignmentModeInfernal _selectedQueries _potentialMembers _genomeFastas _inputAlignment) = a ++ b ++ c ++ d ++ e ++ f ++ g ++ h ++ i ++ j ++ k ++ l
+  show (ModelConstruction _iterationNumber _inputFasta _taxRecords _similarRecords _upperTaxonomyLimit _taxonomicContext _evalueThreshold _alignmentModeInfernal _selectedQueries _potentialMembers _genomeFastas _inputAlignment) = a ++ b ++ c ++ d ++ e ++ g ++ h ++ i ++ j ++ k ++ l
     where a = "Modelconstruction iteration: " ++ show _iterationNumber ++ "\n"
           -- b = "Input fasta:\n" ++ concatMap (prettyPrintFasta 80) _inputFasta  -- L.unpack (fastaHeader _inputFasta)  ++ "\n" ++ L.unpack (fastaSequence _inputFasta) ++ "\n"
           b = "Input fasta:\n" ++ concatMap (convertString . fastaToByteString 80) _inputFasta
-          c = "Input alignment:\n" ++ maybe "not set" show _inputAlignment ++ "\n"
-          d = show _taxRecords
-          e = "Input alignment:\n" ++ maybe "not set" show _inputAlignment ++ "\n"
-          f = show _taxRecords
+          c = "Input alignment:\n" ++ maybe "not provided" show _inputAlignment ++ "\n"
+          d = "Taxonomy records:\n" ++ show _taxRecords ++ "\n"
+          e = "Similar records:\n" ++ show _similarRecords ++ "\n"
           g = "Upper taxonomy limit: " ++ maybe "not set" show _upperTaxonomyLimit ++ "\n"
           h = "Taxonomic Context: " ++  maybe "not set" show _taxonomicContext ++ "\n"
           i = "Evalue cutoff: " ++ show _evalueThreshold ++ "\n"
