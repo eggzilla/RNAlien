@@ -989,12 +989,15 @@ getTaxonomicContext :: Bool -> String -> Maybe Int -> Maybe Lineage -> IO (Maybe
 getTaxonomicContext offlineMode taxDumpPath upperTaxLimit currentTaxonomicContext =
   if isJust upperTaxLimit
       then if isJust currentTaxonomicContext
-        then return currentTaxonomicContext
+        then return (Just newTaxonomicContext)
         else if offlineMode
           then retrieveTaxonomicContextNCBITaxDump taxDumpPath (fromJust upperTaxLimit)  --safe
           else retrieveTaxonomicContextEntrez (fromJust upperTaxLimit)  --safe
           --return retrievedTaxonomicContext
       else return Nothing
+    where newTaxonomicContext = justTaxContext{lineageTaxons=newLineageTaxons}
+          newLineageTaxons = tail (lineageTaxons justTaxContext)
+          justTaxContext = fromJust currentTaxonomicContext
 
 setTaxonomicContextEntrez :: Int -> Maybe Lineage -> Maybe Int -> (Maybe Int, Maybe Int)
 setTaxonomicContextEntrez currentIterationNumber maybeCurrentTaxonomicContext maybeSubTreeTaxId
@@ -1628,8 +1631,8 @@ extractGeneId currentBlastHit = nucleotideId
         nucleotideId = take pipeSymbolIndex truncatedId
 
 extractTaxIdfromDocumentSummary :: EntrezDocSum -> String
-extractTaxIdfromDocumentSummary documentSummary = taxId 
-  where taxId = if isJust maybeTaxId then itemContent (fromJust maybeTaxId) else error "extractTaxIdfromDocumentSummary: isJust is Nothing"
+extractTaxIdfromDocumentSummary documentSummary = currentTaxId 
+  where currentTaxId = if isJust maybeTaxId then itemContent (fromJust maybeTaxId) else error "extractTaxIdfromDocumentSummary: isJust is Nothing"
         maybeTaxId = find (\item -> "TaxId" == itemName item) (summaryItems documentSummary)
 
 getBestHit :: J.BlastJSON2 -> J.Hit
