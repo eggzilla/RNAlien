@@ -1009,17 +1009,14 @@ setUpperLowerTaxLimitEntrez subTreeTaxId currentTaxonomicContext = (upperLimit,l
   where upperLimit = raiseTaxIdLimitEntrez subTreeTaxId currentTaxonomicContext
         lowerLimit = Just subTreeTaxId
 
+
+-- Lineage does not contain the current TaxId and is reversed, meaning most distant ancestor is at the beginning of the Lineage
 raiseTaxIdLimitEntrez :: Int -> Lineage -> Maybe Int
 raiseTaxIdLimitEntrez subTreeTaxId currentLineage 
-  | isJust maybeLastUpperBoundNodeIndex = parentNodeTaxId
+  | null lineageList = parentNodeTaxId
   | otherwise = Nothing
-  where maybeLastUpperBoundNodeIndex = (V.findIndex  (\node -> lineageTaxId node == subTreeTaxId) lineageVector)
-        lastUpperBoundNodeIndex = fromJust maybeLastUpperBoundNodeIndex
-        linageNodeTaxId = Just (lineageTaxId (lineageVector V.! (lastUpperBoundNodeIndex -1))) 
-        lineageVector = V.fromList (lineageTaxons currentLineage)
-        --the input taxid is not part of the lineage, therefor we look for further taxids in the lineage after we used the parent tax id of the input node
-        --parentNodeTaxId = if subTreeTaxId == taxonTaxId lineage then Just (taxonParentTaxId taxon) else linageNodeTaxId
-        parentNodeTaxId = linageNodeTaxId
+  where parentNodeTaxId = Just (lineageTaxId (head lineageList)) 
+        lineageList = reverse (lineageTaxons currentLineage)
 
 constructNext :: Int -> ModelConstruction -> [(Fasta () (),Int,B.ByteString)] -> [(Fasta () (),Int,B.ByteString)] -> Maybe Int -> Maybe Lineage  -> [Fasta () ()] -> [SearchResult] -> Bool -> ModelConstruction
 constructNext currentIterationNumber modelconstruction alignmentResults similarMembers upperTaxLimit inputTaxonomicContext inputSelectedQueries inputPotentialMembers toggleInfernalAlignmentModeTrue = nextModelConstruction
@@ -1551,7 +1548,7 @@ extractLineage lineageLine = (lineageIntKey, currentLineage)
         lineageKey = head splitLine
         lineageList = splitLine !! 1
         lineageEntries = init $ TL.splitOn (TL.pack " ") lineageList
-        lineageTaxonEntries =  (map makeLineageTaxons lineageEntries) ++ [(LineageTaxon lineageIntKey B.empty Norank)]
+        lineageTaxonEntries = (map makeLineageTaxons lineageEntries) -- ++ [(LineageTaxon lineageIntKey B.empty Norank)]
         currentLineage = Lineage lineageIntKey B.empty Norank lineageTaxonEntries
         lineageIntKey = read (TL.unpack lineageKey) :: Int
 
