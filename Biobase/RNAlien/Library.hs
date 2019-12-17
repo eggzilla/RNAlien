@@ -996,7 +996,7 @@ getTaxonomicContext offlineMode taxDumpPath upperTaxLimit currentTaxonomicContex
           --return retrievedTaxonomicContext
       else return Nothing
     where newTaxonomicContext = justTaxContext{lineageTaxons=newLineageTaxons}
-          newLineageTaxons = tail (lineageTaxons justTaxContext)
+          newLineageTaxons = init (lineageTaxons justTaxContext)
           justTaxContext = fromJust currentTaxonomicContext
 
 setTaxonomicContextEntrez :: Int -> Maybe Lineage -> Maybe Int -> (Maybe Int, Maybe Int)
@@ -1018,8 +1018,8 @@ raiseTaxIdLimitEntrez :: Int -> Lineage -> Maybe Int
 raiseTaxIdLimitEntrez subTreeTaxId currentLineage 
   | null lineageList = Nothing
   | otherwise = parentNodeTaxId
-  where parentNodeTaxId = Just (lineageTaxId (head lineageList)) 
-        lineageList = reverse (lineageTaxons currentLineage)
+  where parentNodeTaxId = Just (lineageTaxId (last lineageList)) 
+        lineageList = lineageTaxons currentLineage
 
 constructNext :: Int -> ModelConstruction -> [(Fasta () (),Int,B.ByteString)] -> [(Fasta () (),Int,B.ByteString)] -> Maybe Int -> Maybe Lineage  -> [Fasta () ()] -> [SearchResult] -> Bool -> ModelConstruction
 constructNext currentIterationNumber modelconstruction alignmentResults similarMembers upperTaxLimit inputTaxonomicContext inputSelectedQueries inputPotentialMembers toggleInfernalAlignmentModeTrue = nextModelConstruction
