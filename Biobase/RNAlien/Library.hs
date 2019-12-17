@@ -1013,8 +1013,8 @@ setUpperLowerTaxLimitEntrez subTreeTaxId currentTaxonomicContext = (upperLimit,l
 -- Lineage does not contain the current TaxId and is reversed, meaning most distant ancestor is at the beginning of the Lineage
 raiseTaxIdLimitEntrez :: Int -> Lineage -> Maybe Int
 raiseTaxIdLimitEntrez subTreeTaxId currentLineage 
-  | null lineageList = parentNodeTaxId
-  | otherwise = Nothing
+  | null lineageList = Nothing
+  | otherwise = parentNodeTaxId
   where parentNodeTaxId = Just (lineageTaxId (head lineageList)) 
         lineageList = reverse (lineageTaxons currentLineage)
 
