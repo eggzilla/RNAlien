@@ -1,7 +1,7 @@
 FROM alpine:3.10
 
 RUN apk update
-RUN apk add --no-cache musl musl-dev musl-utils musl-dbg ghc ghc-dev ghc-doc cabal zlib-dev zlib tar gzip wget pango pango-dev
+RUN apk add --no-cache musl musl-dev musl-utils musl-dbg ghc ghc-dev ghc-doc cabal zlib-dev zlib tar gzip wget
 
 ADD . source
 WORKDIR source

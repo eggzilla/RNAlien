@@ -116,3 +116,4 @@ Library
                        Biobase.RNAlien.Library
                        Biobase.RNAlien.RNAcentralHTTP
                        Biobase.RNAlien.InfernalParser
+                       Biobase.RNAlien.CMstatParser

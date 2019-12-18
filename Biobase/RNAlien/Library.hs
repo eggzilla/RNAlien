@@ -81,6 +81,7 @@ import Network.HTTP.Types.Status
 import qualified Bio.RNAcodeParser as RC
 import qualified Biobase.RNAlien.RNAcentralHTTP as RCH
 import Biobase.RNAlien.InfernalParser
+import Biobase.RNAlien.CMstatParser
 import qualified Data.Text as T
 import qualified Data.Text.IO as TI
 import qualified Data.Text.Encoding as E
