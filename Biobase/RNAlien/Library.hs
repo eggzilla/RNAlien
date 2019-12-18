@@ -110,13 +110,12 @@ modelConstructer staticOptions modelConstruction = do
   logVerboseMessage (verbositySwitch staticOptions) ("Queries:" ++ show queries ++ "\n") (tempDirPath staticOptions)
   let iterationDirectory = tempDirPath staticOptions ++ show currentIterationNumber ++ "/"
   let maybeLastTaxId = extractLastTaxId (taxonomicContext modelConstruction)
-  print (taxonomicContext modelConstruction)
   Control.Monad.when (isNothing maybeLastTaxId) $ logMessage ("Lineage: Could not extract last tax id \n") (tempDirPath staticOptions)
   --If highest node in linage was used as upper taxonomy limit, taxonomic tree is exhausted
   if maybe True (\uppertaxlimit -> maybe True (\lastTaxId -> uppertaxlimit /= lastTaxId) maybeLastTaxId) (upperTaxonomyLimit modelConstruction)
      then do
        createDirectory iterationDirectory
-       print ("Setting taxonomic context: iteration number " ++ show currentIterationNumber ++ " context: " ++ show (taxonomicContext modelConstruction) ++ " upperTaxLimit " ++ show (upperTaxonomyLimit modelConstruction))
+       when (verbositySwitch staticOptions) (print ("Setting taxonomic context: iteration number " ++ show currentIterationNumber ++ " context: " ++ show (taxonomicContext modelConstruction) ++ " upperTaxLimit " ++ show (upperTaxonomyLimit modelConstruction)))
        let (upperTaxLimit,lowerTaxLimit) = setTaxonomicContextEntrez currentIterationNumber (taxonomicContext modelConstruction) (upperTaxonomyLimit modelConstruction)
        logVerboseMessage (verbositySwitch staticOptions) ("Upper taxonomy limit: " ++ show upperTaxLimit ++ "\n " ++ "Lower taxonomy limit: "++ show lowerTaxLimit ++ "\n") (tempDirPath staticOptions)
        --search queries
@@ -381,8 +380,6 @@ alignmentConstructionWithCandidates alienType currentTaxonomicContext currentUpp
                                       logMessage (iterationSummaryLog nextModelConstructionInput) (tempDirPath staticOptions)
                                       logVerboseMessage (verbositySwitch staticOptions)  (show nextModelConstructionInput) (tempDirPath staticOptions)
                                       let nextModelConstructionInputWithQueries = nextModelConstructionInput {selectedQueries = currentSelectedQueries}
-                                      print "Debug"
-                                      print nextModelConstructionInputWithQueries
                                       modelConstructer staticOptions nextModelConstructionInputWithQueries
                                      else do
                                        let nextGenomeFastas = tail (genomeFastas modelConstruction)
@@ -472,7 +469,7 @@ findTaxonomyStart offlineMode threads inputBlastDatabase temporaryDirectory quer
   logMessage "No tax id provided - Sending find taxonomy start blast query \n" temporaryDirectory
   let logFileDirectoryPath =  temporaryDirectory ++ "taxonomystart" ++ "/"
   createDirectory logFileDirectoryPath
-  print ("Blast: " ++ show offlineMode)
+  --print ("Blast: " ++ show offlineMode)
   blastOutput <-if offlineMode
                   then CE.catch (blast logFileDirectoryPath threads Nothing Nothing (Just (10 :: Double)) False blastQuery)
                          (\e -> do let err = show (e :: CE.IOException)
@@ -678,7 +675,7 @@ alignCandidatesInitialMode staticOptions modelConstruction multipleSearchResultP
   let alignedCandidates = zip sciidfraction filteredCandidates
   writeFile (iterationDirectory ++ "log" ++ "/zscores") (showlines alignedCandidates)
   let (selectedCandidates,rejectedCandidates) = partition (\(sciidfraction',_) -> sciidfraction' > nSCICutoff staticOptions) alignedCandidates
-  mapM_ print (zip3 consensusMFE averageMFEs (V.toList sequenceIdentities))
+  --mapM_ print (zip3 consensusMFE averageMFEs (V.toList sequenceIdentities))
   writeFile (iterationDirectory ++ "log" ++ "/13selectedCandidates") (showlines selectedCandidates)
   writeFile (iterationDirectory ++ "log" ++ "/14rejectedCandidates") (showlines rejectedCandidates)
   return (map snd selectedCandidates,[],collectedCandidates)
@@ -912,16 +909,16 @@ filterDuplicates modelConstruction inputSearchResult = uniqueSearchResult
 --        result = headSequence:(filterIdenticalSequencesWithOrigin filteredSequences identitycutoff)
 --filterIdenticalSequencesWithOrigin [] _ = []
 
--- | Filter a list of similar extended blast hits
-filterIdenticalSequences :: [(Fasta () (),Int,B.ByteString)] -> Double -> [(Fasta () (),Int,B.ByteString)]
-filterIdenticalSequences (headSequence:rest) identitycutoff = result
-  where filteredSequences = filter (\x -> sequenceIdentity (firstOfTriple headSequence) (firstOfTriple x) < identitycutoff) rest
-        result = headSequence:filterIdenticalSequences filteredSequences identitycutoff
-filterIdenticalSequences [] _ = []
+-- -- | Filter a list of similar extended blast hits
+-- filterIdenticalSequences :: [(Fasta () (),Int,B.ByteString)] -> Double -> [(Fasta () (),Int,B.ByteString)]
+-- filterIdenticalSequences (headSequence:rest) identitycutoff = result
+--   where filteredSequences = filter (\x -> sequenceIdentity (firstOfTriple headSequence) (firstOfTriple x) < identitycutoff) rest
+--         result = headSequence:filterIdenticalSequences filteredSequences identitycutoff
+-- filterIdenticalSequences [] _ = []
 
--- | Filter sequences too similar to already aligned sequences
-filterWithCollectedSequences :: [(Fasta () (),Int,B.ByteString)] -> [Fasta () ()] -> Double -> [(Fasta () (),Int,B.ByteString)]
-filterWithCollectedSequences inputCandidates collectedSequences identitycutoff = filter (isUnSimilarSequence collectedSequences identitycutoff . firstOfTriple) inputCandidates
+-- -- | Filter sequences too similar to already aligned sequences
+-- filterWithCollectedSequences :: [(Fasta () (),Int,B.ByteString)] -> [Fasta () ()] -> Double -> [(Fasta () (),Int,B.ByteString)]
+-- filterWithCollectedSequences inputCandidates collectedSequences identitycutoff = filter (isUnSimilarSequence collectedSequences identitycutoff . firstOfTriple) inputCandidates
 --filterWithCollectedSequences [] [] _ = []
 
 -- | Partition sequences too similar to already aligned sequences
@@ -1010,13 +1007,13 @@ setTaxonomicContextEntrez currentIterationNumber maybeCurrentTaxonomicContext ma
 -- setTaxonomic Context for next candidate search, the upper bound of the last search become the lower bound of the next
 setUpperLowerTaxLimitEntrez :: Int -> Lineage -> (Maybe Int, Maybe Int)
 setUpperLowerTaxLimitEntrez subTreeTaxId currentTaxonomicContext = (upperLimit,lowerLimit)
-  where upperLimit = raiseTaxIdLimitEntrez subTreeTaxId currentTaxonomicContext
+  where upperLimit = raiseTaxIdLimitEntrez currentTaxonomicContext
         lowerLimit = Just subTreeTaxId
 
 
 -- Lineage does not contain the current TaxId and is reversed, meaning most distant ancestor is at the beginning of the Lineage
-raiseTaxIdLimitEntrez :: Int -> Lineage -> Maybe Int
-raiseTaxIdLimitEntrez subTreeTaxId currentLineage 
+raiseTaxIdLimitEntrez :: Lineage -> Maybe Int
+raiseTaxIdLimitEntrez currentLineage 
   | null lineageList = Nothing
   | otherwise = parentNodeTaxId
   where parentNodeTaxId = Just (lineageTaxId (last lineageList)) 
@@ -2182,7 +2179,7 @@ blast _tempDirPath threads upperTaxIdLimit lowerTaxIdLimit expectThreshold _blas
 systemBlast :: Int -> String -> String -> String -> String -> Maybe Double -> Bool -> String -> String -> IO ExitCode
 systemBlast threads _blastDatabase upperTaxLimitPath lowerTaxLimitPath positiveSetTaxIdLimitPath _evalueThreshold _blastSoftmaskingToggle queryFilepath outputFilePath = do
   let cmd = ("blastn " ++ threadedOption ++ expectThresholdOption ++ taxonomyOption ++ " " ++ softmaskOption ++ dbOption ++ " -query " ++ queryFilepath  ++ " -outfmt 15  -out " ++ outputFilePath)
-  print cmd
+  --print cmd
   if T.isSuffixOf (T.pack ".fa") (T.pack _blastDatabase)
      then do
        let makedbcmd = ("makeblastdb -in " ++ _blastDatabase ++ " -input_type fasta -dbtype nucl -parse_seqids ")
@@ -2230,7 +2227,6 @@ scanModelConstructer staticOptions modelConstruction = do
   if (not lastGenome)
      then do
        createDirectory iterationDirectory
-       print ("Setting taxonomic context: iteration number " ++ show currentIterationNumber ++ " context: " ++ show (taxonomicContext modelConstruction) ++ " upperTaxLimit " ++ show (upperTaxonomyLimit modelConstruction))
        let (upperTaxLimit,lowerTaxLimit) = setTaxonomicContextEntrez currentIterationNumber (taxonomicContext modelConstruction) (upperTaxonomyLimit modelConstruction)
        logVerboseMessage (verbositySwitch staticOptions) ("Upper taxonomy limit: " ++ show upperTaxLimit ++ "\n " ++ "Lower taxonomy limit: "++ show lowerTaxLimit ++ "\n") (tempDirPath staticOptions)
        --search queries
