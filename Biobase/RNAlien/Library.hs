@@ -97,6 +97,7 @@ import qualified Biobase.BLAST.Import as BBI
 import System.IO.Silently
 import qualified Biobase.StockholmAlignment.Import as BS
 import qualified Data.Map.Lazy as DML
+import qualified Text.Read as TR
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 modelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
@@ -109,10 +110,9 @@ modelConstructer staticOptions modelConstruction = do
   let queries = extractQueries foundSequenceNumber modelConstruction
   logVerboseMessage (verbositySwitch staticOptions) ("Queries:" ++ show queries ++ "\n") (tempDirPath staticOptions)
   let iterationDirectory = tempDirPath staticOptions ++ show currentIterationNumber ++ "/"
-  let maybeLastTaxId = extractLastTaxId (taxonomicContext modelConstruction)
-  Control.Monad.when (isNothing maybeLastTaxId) $ logMessage ("Lineage: Could not extract last tax id \n") (tempDirPath staticOptions)
+  let lastTaxId = extractLastTaxId' (taxRestriction staticOptions)
   --If highest node in linage was used as upper taxonomy limit, taxonomic tree is exhausted
-  if maybe True (\uppertaxlimit -> maybe True (\lastTaxId -> uppertaxlimit /= lastTaxId) maybeLastTaxId) (upperTaxonomyLimit modelConstruction)
+  if maybe True (\uppertaxlimit -> uppertaxlimit /= lastTaxId) (upperTaxonomyLimit modelConstruction)
      then do
        createDirectory iterationDirectory
        when (verbositySwitch staticOptions) (print ("Setting taxonomic context: iteration number " ++ show currentIterationNumber ++ " context: " ++ show (taxonomicContext modelConstruction) ++ " upperTaxLimit " ++ show (upperTaxonomyLimit modelConstruction)))
@@ -124,7 +124,7 @@ modelConstructer staticOptions modelConstruction = do
                         (\e -> do logWarning ("Warning: Search results iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
                                   return (SearchResult [] Nothing))
        --currentTaxonomicContext <- getTaxonomicContextEntrez (offline staticOptions) (ncbiTaxonomyDumpPath staticOptions) upperTaxLimit (taxonomicContext modelConstruction)
-       currentTaxonomicContext <- CE.catch (getTaxonomicContext (offline staticOptions) (ncbiTaxonomyDumpPath staticOptions) upperTaxLimit (taxonomicContext modelConstruction))
+       currentTaxonomicContext <- CE.catch (getTaxonomicContext (offline staticOptions) (ncbiTaxonomyDumpPath staticOptions) upperTaxLimit lastTaxId (taxonomicContext modelConstruction))
               (\e -> do let err = show (e :: CE.IOException)
                         logWarning ("Warning: Retrieving taxonomic context failed:" ++ " " ++ err) (tempDirPath staticOptions)
                         return Nothing)
@@ -149,12 +149,12 @@ setInitialTaxId offlineMode threads inputBlastDatabase tempdir inputTaxId inputS
     else do
         return inputTaxId
 
-extractLastTaxId :: Maybe Lineage -> Maybe Int
-extractLastTaxId currentLineage
-  | isNothing currentLineage = Nothing
-  | V.null lineageVector = Nothing
-  | otherwise = Just (lineageTaxId (V.head lineageVector))
-    where lineageVector = V.fromList (lineageTaxons (fromJust currentLineage))
+--extractLastTaxId :: Maybe Lineage -> Maybe Int
+--extractLastTaxId currentLineage
+--  | isNothing currentLineage = Nothing
+--  | V.null lineageVector = Nothing
+--  | otherwise = Just (lineageTaxId (V.head lineageVector))
+--    where lineageVector = V.fromList (lineageTaxons (fromJust currentLineage))
 
 modelConstructionResult :: StaticOptions -> ModelConstruction -> IO ModelConstruction
 modelConstructionResult staticOptions modelConstruction = do
@@ -983,14 +983,14 @@ sequenceIdentity sequence1 sequence2 = identityPercent
         maximumDistance = maximum [length sequence1string,length sequence2string]
         identityPercent = 100 - ((fromIntegral distance/fromIntegral maximumDistance) * (read "100" ::Double))
 
-getTaxonomicContext :: Bool -> String -> Maybe Int -> Maybe Lineage -> IO (Maybe Lineage)
-getTaxonomicContext offlineMode taxDumpPath upperTaxLimit currentTaxonomicContext =
+getTaxonomicContext :: Bool -> String -> Maybe Int -> Int -> Maybe Lineage -> IO (Maybe Lineage)
+getTaxonomicContext offlineMode taxDumpPath upperTaxLimit lastTaxId currentTaxonomicContext =
   if isJust upperTaxLimit
       then if isJust currentTaxonomicContext
         then return (Just newTaxonomicContext)
         else if offlineMode
-          then retrieveTaxonomicContextNCBITaxDump taxDumpPath (fromJust upperTaxLimit)  --safe
-          else retrieveTaxonomicContextEntrez (fromJust upperTaxLimit)  --safe
+          then retrieveTaxonomicContextNCBITaxDump taxDumpPath (fromJust upperTaxLimit) lastTaxId --safe
+          else retrieveTaxonomicContextEntrez (fromJust upperTaxLimit)  lastTaxId --safe
           --return retrievedTaxonomicContext
       else return Nothing
     where newTaxonomicContext = justTaxContext{lineageTaxons=newLineageTaxons}
@@ -1000,9 +1000,10 @@ getTaxonomicContext offlineMode taxDumpPath upperTaxLimit currentTaxonomicContex
 setTaxonomicContextEntrez :: Int -> Maybe Lineage -> Maybe Int -> (Maybe Int, Maybe Int)
 setTaxonomicContextEntrez currentIterationNumber maybeCurrentTaxonomicContext maybeSubTreeTaxId
   | currentIterationNumber == 0 = (maybeSubTreeTaxId, Nothing)
-  | otherwise = setUpperLowerTaxLimitEntrez  subTreeTaxId currentTaxonomicContext
-    where subTreeTaxId = if isJust maybeSubTreeTaxId then fromJust maybeSubTreeTaxId else error "setTaxonomicContextEntrez: fromJust subTreeTaxId"
-          currentTaxonomicContext = if isJust maybeCurrentTaxonomicContext then fromJust maybeCurrentTaxonomicContext else error "setTaxonomicContextEntrez: fromJust currentTaxonomicContext"
+  | isJust maybeCurrentTaxonomicContext =  setUpperLowerTaxLimitEntrez subTreeTaxId currentTaxonomicContext
+  | otherwise = (Nothing,Nothing)
+    where subTreeTaxId = fromJust maybeSubTreeTaxId -- error "setTaxonomicContextEntrez: fromJust subTreeTaxId"
+          currentTaxonomicContext = fromJust maybeCurrentTaxonomicContext -- error "setTaxonomicContextEntrez: fromJust currentTaxonomicContext"
 
 -- setTaxonomic Context for next candidate search, the upper bound of the last search become the lower bound of the next
 setUpperLowerTaxLimitEntrez :: Int -> Lineage -> (Maybe Int, Maybe Int)
@@ -1508,8 +1509,8 @@ buildStockholmAlignmentEntries inputSpacerLength entry = entrystring
         spacer = T.replicate (inputSpacerLength - idLength) (T.pack " ")
         entrystring = entrySequenceIdentifier entry `T.append` spacer `T.append` entryAlignedSequence entry `T.append` T.pack "\n"
 
-retrieveTaxonomicContextEntrez :: Int -> IO (Maybe Lineage)
-retrieveTaxonomicContextEntrez inputTaxId = do
+retrieveTaxonomicContextEntrez :: Int -> Int -> IO (Maybe Lineage)
+retrieveTaxonomicContextEntrez inputTaxId lastTaxId = do
        let program' = Just "efetch"
        let database' = Just "taxonomy"
        let taxIdString = show inputTaxId
@@ -1526,13 +1527,14 @@ retrieveTaxonomicContextEntrez inputTaxId = do
             --print taxon
             if null (lineageEx taxon)
               then error "Retrieved taxonomic context taxon from NCBI Entrez with empty lineage, cannot proceed."
-              else return (Just (taxonToLineage taxon))
+              else return (Just (taxonToLineage taxon lastTaxId))
 
-taxonToLineage :: Taxon -> Lineage
-taxonToLineage inputTaxon = Lineage (taxonTaxId inputTaxon) (taxonScientificName inputTaxon) (taxonRank inputTaxon) (lineageEx inputTaxon)
+taxonToLineage :: Taxon -> Int -> Lineage
+taxonToLineage inputTaxon lastTaxId = Lineage (taxonTaxId inputTaxon) (taxonScientificName inputTaxon) (taxonRank inputTaxon) (lastTaxon:(lineageEx inputTaxon))
+  where lastTaxon = LineageTaxon (0 :: Int) B.empty Norank
 
-retrieveTaxonomicContextNCBITaxDump :: String -> Int -> IO (Maybe Lineage)
-retrieveTaxonomicContextNCBITaxDump taxDumpPath inputTaxId = do
+retrieveTaxonomicContextNCBITaxDump :: String -> Int -> Int -> IO (Maybe Lineage)
+retrieveTaxonomicContextNCBITaxDump taxDumpPath inputTaxId lastTaxId = do
   taxonomyInput <- TIO.readFile taxDumpPath
   let lineageLines = TL.lines taxonomyInput
   let lineageEntries = map extractLineage lineageLines
@@ -2055,12 +2057,29 @@ reformatFastaSequence c
   | c == 'U' = 'T'
   | otherwise = c
 
+extractLastTaxId' :: Maybe String -> Int
+extractLastTaxId' maybeTrestriction
+  | isNothing maybeTrestriction = 0 :: Int
+  | trestriction == "bacteria" = 2 :: Int
+  | trestriction == "archea" = 2157 :: Int
+  | trestriction == "eukaryia" = 2759 :: Int
+  | trestriction == "cellularorganisms" = 131567 :: Int
+  | trestriction == "viruses" = 131567 :: Int
+  | isJust numericRestriction = fromJust numericRestriction                         
+  | otherwise = 0 :: Int
+    where trestriction = fromJust maybeTrestriction
+          numericRestriction = TR.readMaybe trestriction :: Maybe Int
+                               
 setRestrictedTaxonomyLimits :: String -> (Maybe Int,Maybe Int)
 setRestrictedTaxonomyLimits trestriction
   | trestriction == "bacteria" = (Just (2 :: Int), Nothing)
   | trestriction == "archea" = (Just (2157 :: Int), Nothing)
   | trestriction == "eukaryia" = (Just (2759 :: Int), Nothing)
-  | otherwise = (Nothing, Nothing)
+  | trestriction == "cellularorganisms" = (Just (131567 :: Int), Nothing) -- cellular organisms
+  | trestriction == "viruses" = (Just (10239 :: Int), Nothing) -- viruses
+  | isJust numericRestriction = (numericRestriction, Nothing)
+  | otherwise = (Just (0 :: Int), Nothing)
+    where numericRestriction = TR.readMaybe trestriction
 
 checkTaxonomyRestriction :: Maybe String -> Maybe String
 checkTaxonomyRestriction taxonomyRestriction
@@ -2072,6 +2091,7 @@ checkTaxonomyRestrictionString restrictionString
   | restrictionString == "archea" = Just "archea"
   | restrictionString == "bacteria" = Just "bacteria"
   | restrictionString == "eukaryia" = Just "eukaryia"
+  | restrictionString == "cellularorganisms" = Just "cellularorganisms"
   | otherwise = Nothing
 
 extractAlignmentSequencesByIds :: String -> [B.ByteString] -> IO [Fasta () ()]
