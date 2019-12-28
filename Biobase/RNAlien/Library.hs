@@ -99,6 +99,9 @@ import qualified Biobase.StockholmAlignment.Import as BS
 import qualified Data.Map.Lazy as DML
 import qualified Text.Read as TR
 import Control.Parallel.Strategies
+--import qualified Data.Text.Lazy.Read as TLR
+import qualified Data.Attoparsec.Text.Lazy as DATL
+import qualified Data.Set as S
 
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 modelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
@@ -125,7 +128,7 @@ modelConstructer staticOptions modelConstruction = do
                         (\e -> do logWarning ("Warning: Search results iteration" ++ show (iterationNumber modelConstruction) ++ " - exception: " ++ show e) (tempDirPath staticOptions)
                                   return (SearchResult [] Nothing))
        --currentTaxonomicContext <- getTaxonomicContextEntrez (offline staticOptions) (ncbiTaxonomyDumpPath staticOptions) upperTaxLimit (taxonomicContext modelConstruction)
-       currentTaxonomicContext <- CE.catch (getTaxonomicContext (offline staticOptions) (ncbiTaxonomyDumpPath staticOptions) upperTaxLimit lastTaxId (taxonomicContext modelConstruction))
+       currentTaxonomicContext <- CE.catch (getTaxonomicContext (offline staticOptions) (ncbiTaxonomyDumpPath staticOptions) upperTaxLimit (taxonomicContext modelConstruction))
               (\e -> do let err = show (e :: CE.IOException)
                         logWarning ("Warning: Retrieving taxonomic context failed:" ++ " " ++ err) (tempDirPath staticOptions)
                         return Nothing)
@@ -987,14 +990,14 @@ sequenceIdentity sequence1 sequence2 = identityPercent
         maximumDistance = maximum [length sequence1string,length sequence2string]
         identityPercent = 100 - ((fromIntegral distance/fromIntegral maximumDistance) * (read "100" ::Double))
 
-getTaxonomicContext :: Bool -> String -> Maybe Int -> Int -> Maybe Lineage -> IO (Maybe Lineage)
-getTaxonomicContext offlineMode taxDumpPath upperTaxLimit lastTaxId currentTaxonomicContext =
+getTaxonomicContext :: Bool -> String -> Maybe Int -> Maybe Lineage -> IO (Maybe Lineage)
+getTaxonomicContext offlineMode taxDumpPath upperTaxLimit currentTaxonomicContext =
   if isJust upperTaxLimit
       then if isJust currentTaxonomicContext
         then return (Just newTaxonomicContext)
         else if offlineMode
-          then retrieveTaxonomicContextNCBITaxDump taxDumpPath (fromJust upperTaxLimit) lastTaxId --safe
-          else retrieveTaxonomicContextEntrez (fromJust upperTaxLimit)  lastTaxId --safe
+          then retrieveTaxonomicContextNCBITaxDump taxDumpPath (fromJust upperTaxLimit) --safe
+          else retrieveTaxonomicContextEntrez (fromJust upperTaxLimit) --safe
           --return retrievedTaxonomicContext
       else return Nothing
     where newTaxonomicContext = justTaxContext{lineageTaxons=newLineageTaxons}
@@ -1513,8 +1516,8 @@ buildStockholmAlignmentEntries inputSpacerLength entry = entrystring
         spacer = T.replicate (inputSpacerLength - idLength) (T.pack " ")
         entrystring = entrySequenceIdentifier entry `T.append` spacer `T.append` entryAlignedSequence entry `T.append` T.pack "\n"
 
-retrieveTaxonomicContextEntrez :: Int -> Int -> IO (Maybe Lineage)
-retrieveTaxonomicContextEntrez inputTaxId lastTaxId = do
+retrieveTaxonomicContextEntrez :: Int -> IO (Maybe Lineage)
+retrieveTaxonomicContextEntrez inputTaxId = do
        let program' = Just "efetch"
        let database' = Just "taxonomy"
        let taxIdString = show inputTaxId
@@ -1531,14 +1534,14 @@ retrieveTaxonomicContextEntrez inputTaxId lastTaxId = do
             --print taxon
             if null (lineageEx taxon)
               then error "Retrieved taxonomic context taxon from NCBI Entrez with empty lineage, cannot proceed."
-              else return (Just (taxonToLineage taxon lastTaxId))
+              else return (Just (taxonToLineage taxon))
 
-taxonToLineage :: Taxon -> Int -> Lineage
-taxonToLineage inputTaxon lastTaxId = Lineage (taxonTaxId inputTaxon) (taxonScientificName inputTaxon) (taxonRank inputTaxon) (lastTaxon:(lineageEx inputTaxon))
+taxonToLineage :: Taxon -> Lineage
+taxonToLineage inputTaxon = Lineage (taxonTaxId inputTaxon) (taxonScientificName inputTaxon) (taxonRank inputTaxon) (lastTaxon:(lineageEx inputTaxon))
   where lastTaxon = LineageTaxon (0 :: Int) B.empty Norank
 
-retrieveTaxonomicContextNCBITaxDump :: String -> Int -> Int -> IO (Maybe Lineage)
-retrieveTaxonomicContextNCBITaxDump taxDumpPath inputTaxId lastTaxId = do
+retrieveTaxonomicContextNCBITaxDump :: String -> Int -> IO (Maybe Lineage)
+retrieveTaxonomicContextNCBITaxDump taxDumpPath inputTaxId = do
   taxonomyInput <- TIO.readFile taxDumpPath
   let lineageLines = TL.lines taxonomyInput
   let lineageEntries = parMap rpar extractLineage lineageLines
@@ -2177,23 +2180,22 @@ blast _tempDirPath threads upperTaxIdLimit lowerTaxIdLimit expectThreshold _blas
       let positiveSetTaxIdLimitPath = _tempDirPath ++ "/postitiveset.txids"
       if isJust lowerTaxIdLimit && isJust upperTaxIdLimit
         then do
-          upperTaxIdsFile <- readFile upperTaxIdLimitPath
-          --upperTaxIdsFile <- TIO.readFile upperTaxIdLimitPath
-          --upperTaxIds = T.lines upperTaxIdsFile
-          --upperIntTaxIds = parMap (\tx -> read tx :: Int) upperTaxIds
-          --sortedUpperIntTaxIds = sort upperIntTaxIds
+          upperTaxIdsFile <- TI.readFile upperTaxIdLimitPath
+          let upperTaxIds = T.lines upperTaxIdsFile
+          let upperIntTaxIds = parMap rpar parseInt upperTaxIds
+          let setUpperIntTaxIds = S.fromAscList upperIntTaxIds
+          lowerTaxIdsFile <- TI.readFile lowerTaxIdLimitPath
+          let lowerTaxIds = T.lines lowerTaxIdsFile
+          let lowerIntTaxIds = parMap rpar parseInt lowerTaxIds
+          let setLowerIntTaxIds = S.fromAscList lowerIntTaxIds
           --maybe try set difference
-          --lowerTaxIdsFile <- TIO.readFile lowerTaxIdLimitPath
-          --lowerTaxIds = T.lines lowerTaxIdsFile
-          --lowerIntTaxIds = parMap (\tx -> read tx :: Int) lowerTaxIds
-          --sortedLowerIntTaxIds = sort lowerIntTaxIds
-          --maybe try set difference
-          let upperTaxIds = lines upperTaxIdsFile
-          lowerTaxIdsFile <- readFile lowerTaxIdLimitPath
-          let lowerTaxIds = lines lowerTaxIdsFile
-          let positiveSetTaxIds = upperTaxIds \\ lowerTaxIds
-          let positiveSetTaxIdsFile = unlines positiveSetTaxIds
-          writeFile positiveSetTaxIdLimitPath positiveSetTaxIdsFile
+          --let upperTaxIds = lines upperTaxIdsFile
+          --lowerTaxIdsFile <- readFile lowerTaxIdLimitPath
+          --let lowerTaxIds = lines lowerTaxIdsFile
+          let positiveSetIntTaxIds = setUpperIntTaxIds S.\\ setLowerIntTaxIds
+          let positiveSetTaxIds = parMap rpar (T.pack . show) (S.toList positiveSetIntTaxIds)
+          let positiveSetTaxIdsFile = T.unlines positiveSetTaxIds
+          TI.writeFile positiveSetTaxIdLimitPath positiveSetTaxIdsFile
         else return ()
          --sequenceSearch
       systemBlast threads selectedBlastDatabase upperTaxIdLimitPath lowerTaxIdLimitPath positiveSetTaxIdLimitPath expectThreshold _blastSoftmaskingToggle fastaFilePath blastResultFilePath
@@ -2208,7 +2210,10 @@ blast _tempDirPath threads upperTaxIdLimit lowerTaxIdLimit expectThreshold _blas
             else (return (Left "Empty BlastOutput List" :: Either String J.BlastJSON2))
         else (return (Left (fromLeft blastCmdResult) :: Either String J.BlastJSON2))
 
-
+parseInt :: T.Text -> Int
+parseInt = fromRight . DATL.parseOnly (DATL.signed DATL.decimal)
+--textTaxIdToInt :: TL.Text -> Int
+--textTaxIdToInt tx = fromIntegral . fst . fromRight $ TLR.decimal tx
 
 -- | Run external blast command
 systemBlast :: Int -> String -> String -> String -> String -> Maybe Double -> Bool -> String -> String -> IO ExitCode
