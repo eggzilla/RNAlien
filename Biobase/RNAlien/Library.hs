@@ -291,8 +291,10 @@ reevaluatePotentialMembers staticOptions modelConstruction = do
   let fullFastaPath = outputDirectory ++ "full.fa"
   let resultCMPath = outputDirectory ++ "result.cm"
   let resultAlignmentPath = outputDirectory ++ "result.stockholm"
-  let resultClustalFilepath = outputDirectory ++ "result.clustal"
+  let resultClustalPath = outputDirectory ++ "result.clustal"
   let resultCMLogPath = outputDirectory ++ "log/result.cm.log"
+  let fullAlignmentPath = outputDirectory ++ "full.stockholm"
+  let fullClustalPath = outputDirectory ++ "full.clustal"
   let noNewMembers = (null alignmentResults) && null similarMembers
   if noNewMembers
     then do
@@ -305,8 +307,10 @@ reevaluatePotentialMembers staticOptions modelConstruction = do
       copyFile lastIterationFastaPath fullFastaPath
       --copyFile lastIterationAlignmentPath resultAlignmentPath
       _ <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath
-      systemCMalign ("--outformat=Clustal --cpu " ++ show (cpuThreads staticOptions)) resultCMPath resultFastaPath resultClustalFilepath
+      systemCMalign ("--outformat=Clustal --cpu " ++ show (cpuThreads staticOptions)) resultCMPath resultFastaPath resultClustalPath
       systemCMalign ("--outformat=Stockholm --cpu " ++ show (cpuThreads staticOptions)) resultCMPath resultFastaPath resultAlignmentPath
+      copyFile resultClustalPath fullClustalPath
+      copyFile resultAlignmentPath fullAlignmentPath
       writeFile (iterationDirectory ++ "done") ""
       return modelConstruction
     else do
@@ -324,15 +328,12 @@ reevaluatePotentialMembers staticOptions modelConstruction = do
       logMessage (iterationSummaryLog nextModelConstructionInput) outputDirectory
       logVerboseMessage (verbositySwitch staticOptions) (show nextModelConstructionInput) outputDirectory
       _ <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath
-      systemCMalign ("--outformat=Clustal --cpu " ++ show (cpuThreads staticOptions)) resultCMPath resultFastaPath resultClustalFilepath
+      systemCMalign ("--outformat=Clustal --cpu " ++ show (cpuThreads staticOptions)) resultCMPath resultFastaPath resultClustalPath
       systemCMalign ("--outformat=Stockholm --cpu " ++ show (cpuThreads staticOptions)) resultCMPath resultFastaPath resultAlignmentPath
       --add collected similars
-      let fullFastaPath = outputDirectory ++ "full.fa"
       let alignmentSimilarSequences = extractAlignedSimilarSequences currentIterationNumber nextModelConstructionInput
       writeFastaFile fullFastaPath alignmentSimilarSequences
-      let fullAlignmentPath = outputDirectory ++ "full.stockholm"
-      let fullClustalFilepath = outputDirectory ++ "full.clustal"
-      systemCMalign ("--outformat=Clustal --cpu " ++ show (cpuThreads staticOptions)) resultCMPath fullFastaPath fullClustalFilepath
+      systemCMalign ("--outformat=Clustal --cpu " ++ show (cpuThreads staticOptions)) resultCMPath fullFastaPath fullClustalPath
       systemCMalign ("--outformat=Stockholm --cpu " ++ show (cpuThreads staticOptions)) resultCMPath fullFastaPath fullAlignmentPath
       writeFile (iterationDirectory ++ "done") ""
       return nextModelConstructionInput
