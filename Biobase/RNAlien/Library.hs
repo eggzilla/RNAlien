@@ -288,6 +288,7 @@ reevaluatePotentialMembers staticOptions modelConstruction = do
   let similarMembers = concatMap (\(_,_,c) -> c) potentialMembersAlignmentResults
   writeFile (outputDirectory  ++ "log/discarded") (concatMap show discardedMembers)
   let resultFastaPath = outputDirectory  ++ "result.fa"
+  let fullFastaPath = outputDirectory ++ "full.fa"
   let resultCMPath = outputDirectory ++ "result.cm"
   let resultAlignmentPath = outputDirectory ++ "result.stockholm"
   let resultClustalFilepath = outputDirectory ++ "result.clustal"
@@ -301,6 +302,7 @@ reevaluatePotentialMembers staticOptions modelConstruction = do
       copyFile lastIterationCMPath resultCMPath
       --copyFile lastIterationCMPath (resultCMPath ++ ".bak1")
       copyFile lastIterationFastaPath resultFastaPath
+      copyFile lastIterationFastaPath fullFastaPath
       --copyFile lastIterationAlignmentPath resultAlignmentPath
       _ <- systemCMcalibrate "standard" (cpuThreads staticOptions) resultCMPath resultCMLogPath
       systemCMalign ("--outformat=Clustal --cpu " ++ show (cpuThreads staticOptions)) resultCMPath resultFastaPath resultClustalFilepath
