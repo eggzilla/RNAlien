@@ -66,7 +66,7 @@ options = Options
     checkSetup = False &= name "g" &= help "Just prints installed tool versions and performs connection check. Default: False",
     taxonomyDumpPath = def &= name "w" &= help "Path to NCBI taxonomy dump directory.",
     offlineMode = False &= name "j" &= help "Uses locally installed blast and databases. Default: False"
-  } &= summary ("RNAlien " ++ alienVersion) &= help "Florian Eggenhofer, Ivo L. Hofacker, Christian Hoener zu Siederdissen - 2013 - 2019" &= verbosity
+  } &= summary ("RNAlien " ++ alienVersion) &= help "Florian Eggenhofer, Ivo L. Hofacker, Christian Hoener zu Siederdissen - 2013 - 2020" &= verbosity
 
 main :: IO ()
 main = do
@@ -88,49 +88,9 @@ main = do
   logMessage ("Timestamp: " ++ (show timestamp) ++ "\n") temporaryDirectoryPath
   logMessage ("Temporary Directory: " ++ temporaryDirectoryPath ++ "\n") temporaryDirectoryPath
   let iterationNumber = 0
-  if null inputFastaFilePath
+  singleFasta <- isSingleFasta inputFastaFilePath
+  if singleFasta
     then do
-      alignmentInput <- BS.readExistingStockholm inputAlignmentFilePath
-      logToolVersions inputQuerySelectionMethod temporaryDirectoryPath
-      when (isLeft alignmentInput) (error (fromLeft alignmentInput))
-      let rightAlignment = head $ fromRight alignmentInput
-      let reformatedFastaInput = stockholmAlignmentToFasta rightAlignment
-      when (null reformatedFastaInput) (error "Please provide input fasta sequences with the cmd line parameter -i")
-      let inputSequence = head reformatedFastaInput
-      initialTaxId <- setInitialTaxId offlineMode threads inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
-      let checkedTaxonomyRestriction = checkTaxonomyRestriction taxonomyRestriction
-      let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) inputTaxId singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads inputBlastDatabase checkedTaxonomyRestriction (setVerbose verboseLevel) offlineMode [] taxonomyDumpPath
-      let initialization = ModelConstruction iterationNumber reformatedFastaInput [] [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] [] [] (Just rightAlignment)
-      let nextModelConstructionInput = constructNext iterationNumber initialization [] [] Nothing Nothing [] [] True
-      let outputDirectory = tempDirPath staticOptions ++ "0" ++ "/"
-      createDirectory outputDirectory
-      let stockholmFilepath = outputDirectory ++ "model" ++ ".stockholm"
-      let cmFilepath = outputDirectory ++ "model" ++ ".cm"
-      let cmCalibrateFilepath = outputDirectory ++ "model" ++ ".cmcalibrate"
-      let cmBuildFilepath = outputDirectory ++ "model" ++ ".cmbuild"
-      copyFile inputAlignmentFilePath stockholmFilepath
-      let refinedAlignmentFilepath = outputDirectory ++ "modelrefined.stockholm"
-      let cmBuildOptions ="--refine " ++ refinedAlignmentFilepath
-      _ <- systemCMbuild cmBuildOptions stockholmFilepath cmFilepath cmBuildFilepath
-      _ <- systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
-      writeFile (outputDirectory ++ "done") ""
-      --select queries
-      currentSelectedQueries <- selectQueries staticOptions nextModelConstructionInput []
-      let nextScanModelConstructionInputWithQueries = nextModelConstructionInput {selectedQueries = currentSelectedQueries}
-      logMessage (iterationSummaryLog nextScanModelConstructionInputWithQueries) (tempDirPath staticOptions)
-      modelConstructionResults <- modelConstructer staticOptions initialization
-      let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults
-      writeFile (temporaryDirectoryPath ++ "result.csv") resultTaxonomyRecordsCSVTable
-      if performEvaluation
-        then do
-          resultEvaluation <- evaluateConstructionResult staticOptions modelConstructionResults
-          appendFile (temporaryDirectoryPath ++ "Log") resultEvaluation
-          resultSummary modelConstructionResults staticOptions
-          writeFile (temporaryDirectoryPath ++ "done") ""
-        else do
-          resultSummary modelConstructionResults staticOptions
-          writeFile (temporaryDirectoryPath ++ "done") ""
-    else do
       fastaInput <- readFastaFile inputFastaFilePath
       when (null fastaInput) (error "Please provide input fasta sequences with the cmd line parameter -i")
       logToolVersions inputQuerySelectionMethod temporaryDirectoryPath
@@ -154,6 +114,70 @@ main = do
         else do
           resultSummary modelConstructionResults staticOptions
           writeFile (temporaryDirectoryPath ++ "done") ""
+    else do
+      --multi fasta or aln input
+      alignmentFilePath <- if not (null inputFastaFilePath)
+                           then do
+                             let mlocarnaFilePath = temporaryDirectoryPath ++ "input.mlocarna"
+                             let mlocarnaDirPath = temporaryDirectoryPath ++ "inputMLocarna"
+                             let mlocarnaStkPath = mlocarnaDirPath ++ "/results/result.stk"
+                             let alifoldPath = temporaryDirectoryPath ++ "input.alifold"
+                             let stockholmPath = temporaryDirectoryPath ++ "input.stockholm"                      
+                             alignSequences "mlocarna" ("--stockholm --consensus-structure alifold --tgtdir=" ++ mlocarnaDirPath ++ " --threads=" ++ show threads ++ " ") [inputFastaFilePath] [] [mlocarnaFilePath] []
+                             _ <- systemRNAalifold "-r --cfactor 0.6 --nfactor 0.5" mlocarnaStkPath alifoldPath
+                             _ <- replaceStockholmStructure mlocarnaStkPath alifoldPath stockholmPath
+                             return stockholmPath
+                           else return inputAlignmentFilePath
+      alignmentInput <- BS.readExistingStockholm alignmentFilePath
+      logToolVersions inputQuerySelectionMethod temporaryDirectoryPath
+      when (isLeft alignmentInput) (error (fromLeft alignmentInput))
+      let rightAlignment = head $ fromRight alignmentInput
+      let reformatedFastaInput = stockholmAlignmentToFasta rightAlignment
+      when (null reformatedFastaInput) (error "Please provide input fasta sequences with the cmd line parameter -i")
+      let inputSequence = head reformatedFastaInput
+      initialTaxId <- setInitialTaxId offlineMode threads inputBlastDatabase temporaryDirectoryPath inputTaxId inputSequence
+      let checkedTaxonomyRestriction = checkTaxonomyRestriction taxonomyRestriction
+      let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) inputTaxId singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads inputBlastDatabase checkedTaxonomyRestriction (setVerbose verboseLevel) offlineMode [] taxonomyDumpPath
+      let initialization = ModelConstruction iterationNumber reformatedFastaInput [] [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] [] [] (Just rightAlignment)
+      --let nextModelConstructionInput = constructNext iterationNumber initialization [] [] Nothing Nothing [] [] True
+      let outputDirectory = tempDirPath staticOptions ++ "0" ++ "/"
+      createDirectory outputDirectory
+      let stockholmFilepath = outputDirectory ++ "model" ++ ".stockholm"
+      let cmFilepath = outputDirectory ++ "model" ++ ".cm"
+      let cmCalibrateFilepath = outputDirectory ++ "model" ++ ".cmcalibrate"
+      let cmBuildFilepath = outputDirectory ++ "model" ++ ".cmbuild"
+      copyFile alignmentFilePath stockholmFilepath
+      let refinedAlignmentFilepath = outputDirectory ++ "modelrefined.stockholm"
+      let cmBuildOptions ="--refine " ++ refinedAlignmentFilepath
+      _ <- systemCMbuild cmBuildOptions stockholmFilepath cmFilepath cmBuildFilepath
+      _ <- systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
+      writeFile (outputDirectory ++ "done") ""
+      --select queries
+      --currentSelectedQueries <- selectQueries staticOptions nextModelConstructionInput []
+      currentSelectedQueries <- selectQueries staticOptions initialization []
+      let nextScanModelConstructionInputWithQueries = initialization  {selectedQueries = currentSelectedQueries} --nextModelConstructionInput {selectedQueries = currentSelectedQueries}
+      logMessage (iterationSummaryLog nextScanModelConstructionInputWithQueries) (tempDirPath staticOptions)
+      modelConstructionResults <- modelConstructer staticOptions initialization
+      let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults
+      writeFile (temporaryDirectoryPath ++ "result.csv") resultTaxonomyRecordsCSVTable
+      if performEvaluation
+        then do
+          resultEvaluation <- evaluateConstructionResult staticOptions modelConstructionResults
+          appendFile (temporaryDirectoryPath ++ "Log") resultEvaluation
+          resultSummary modelConstructionResults staticOptions
+          writeFile (temporaryDirectoryPath ++ "done") ""
+        else do
+          resultSummary modelConstructionResults staticOptions
+          writeFile (temporaryDirectoryPath ++ "done") ""
 
+isSingleFasta :: String -> IO Bool
+isSingleFasta inputFastaFilePath = do
+  if null inputFastaFilePath
+    then return False
+    else do
+      fastaInput <- readFastaFile inputFastaFilePath
+      when (null fastaInput) (error "Please provide input fasta sequences with the cmd line parameter -i")
+      if (length fastaInput == (1 :: Int)) then return True else return False
+                    
 alienVersion :: String
 alienVersion = showVersion version

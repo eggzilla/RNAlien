@@ -40,7 +40,10 @@ module Biobase.RNAlien.Library (
                            systemCMcalibrate,
                            selectQueries,
                            iterationSummaryLog,
-                           alignmentConstructionWithoutCandidates
+                           alignmentConstructionWithoutCandidates,
+                           alignSequences,
+                           systemRNAalifold,
+                           replaceStockholmStructure
                            )
 where
 
