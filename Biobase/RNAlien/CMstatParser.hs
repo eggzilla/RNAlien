@@ -9,7 +9,6 @@ where
 
 import Text.ParserCombinators.Parsec
 import Biobase.RNAlien.Types
-import qualified Data.ByteString.Char8 as B
 
 -- | parse from input filePath              
 parseCMstat :: String -> Either ParseError CMstat
@@ -23,55 +22,14 @@ readCMstat filePath = do
 
 genParserCMstat :: GenParser Char st CMstat
 genParserCMstat = do
-  -- _ <- string "# cmstat :: display summary statistics for CMs"
-  -- _ <- newline
-  -- _ <- string "# INFERNAL "
-  -- _ <- many1 (noneOf "\n")
-  -- _ <- newline
-  -- _ <- string "# Copyright (C) 201"
-  -- skipMany1 (noneOf "\n")
-  -- _ <- newline
-  -- _ <- string "# Freely distributed under the GNU General Public License (GPLv3)."
-  -- _ <- newline
-  -- _ <- string "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -"
-  -- _ <- newline
-  -- _ <- char '#'
-  -- skipMany1 (char ' ')
   manyTill anyChar (try (string "rel entropy"))
-  _ <- string "rel entropy"
   _ <- newline
   _ <- char '#'
   skipMany1 (char ' ')
   skipMany1 (char '-')
   _ <- newline
   _ <- char '#'
-  --many1 space
-  --string "idx"
-  --many1 space
-  --string "name"
-  --many1 space
-  --string "accession"
-  --many1 space
-  --string "nseq"
-  --many1 space
-  --string "eff_nseq"
-  --many1 space
-  --string "clen"
-  --many1 space
-  --string "W"
-  --many1 space
-  --string "bps"
-  --many1 space
-  --string "bifs"
-  --many1 space
-  --string "model"
-  --many1 space
-  --string "cm"
-  --many1 space
-  --string "hmm"
-  --newline
   _ <- manyTill anyChar (try (string "#"))
-  _ <- string "#"
   _ <- many1 (try (oneOf " -"))
   _ <- newline
   skipMany1 space
