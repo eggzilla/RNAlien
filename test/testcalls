@@ -15,6 +15,12 @@ nohup RNAlien -i test/single.fa -c 7 -d onsingle +RTS -p -N7&
 nohup RNAlien -i test/testmulti.fa -c 7 -d onmulti +RTS -p -N7&
 #Stockholm alignment
 nohup RNAlien -p test/test.stockholm -c 7 -d onaln +RTS -p -N7&
-
+#Scan
+#Single fasta
+RNAlienScan -i test/single.fa -b test/scan.fa -c 7 -d scansingle +RTS -p -N7&
+#Single fasta
+RNAlienScan -i test/testmulti.fa -b test/scan.fa -c 7 -d scanmulti +RTS -p -N7&
+#Single fasta
+RNAlienScan -i test/test.stockholm -b test/scan.fa -c 7 -d scanaln +RTS -p -N7&
 
 
