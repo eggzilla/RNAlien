@@ -7,14 +7,14 @@ nohup RNAlien -i test/single.fa -c 7 -j -b /work/work/blast5db/nt_v5 -d single -
 #Multi fasta
 nohup RNAlien -i test/testmulti.fa -c 7 -j -b /work/work/blast5db/nt_v5 -d multi -w /work/work/new_taxdump/taxidlineage.dmp +RTS -p -N7&
 #Stockholm alignment
-nohup RNAlien -p test/test.stockholm -c 7 -j -b /work/work/blast5db/nt_v5 -d aln180_3 -w /work/work/new_taxdump/taxidlineage.dmp +RTS -p -N7 &
+nohup RNAlien -p test/test.stockholm -c 7 -j -b /work/work/blast5db/nt_v5 -d aln -w /work/work/new_taxdump/taxidlineage.dmp +RTS -p -N7&
 #Online
 #Single fasta
-nohup RNAlien -i test/single.fa -c 7 -d single +RTS -p -N7&
+nohup RNAlien -i test/single.fa -c 7 -d onsingle +RTS -p -N7&
 #Multi fasta
-nohup RNAlien -i test/testmulti.fa -c 7 -d multi +RTS -p -N7&
+nohup RNAlien -i test/testmulti.fa -c 7 -d onmulti +RTS -p -N7&
 #Stockholm alignment
-nohup RNAlien -p test/test.stockholm -c 7 -d multi +RTS -p -N7&
+nohup RNAlien -p test/test.stockholm -c 7 -d onaln +RTS -p -N7&
 
 
 
