@@ -35,17 +35,17 @@ readCMSearches filePath = do
 
 genParserCMSearches :: GenParser Char st CMsearch
 genParserCMSearches = do
-  _ <- string "# cmsearch :: search CM(s) against a sequence database"
-  _ <- newline
-  _ <- string "# INFERNAL "
-  _ <- many1 (noneOf "\n")
-  _ <- newline
-  _ <- string "# Copyright (C) 201"
-  _ <- many1 (noneOf "\n")
-  _ <- newline
-  _ <- string "# Freely distributed under the GNU General Public License (GPLv3)."
-  _ <- newline
-  _ <- string "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -"
+  --_ <- string "# cmsearch :: search CM(s) against a sequence database"
+  --_ <- newline
+  --_ <- string "# INFERNAL "
+  --_ <- many1 (noneOf "\n")
+  --_ <- newline
+  --_ <- string "# Copyright (C) 201"
+  --_ <- many1 (noneOf "\n")
+  --_ <- newline
+  --_ <- manyTill anyChar (try (string "# Freely distributed under the GNU General Public License (GPLv3).") --Freely distributed under a BSD open source license.)
+  --_ <- newline
+  _ <- manyTill anyChar (try (string "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -"))
   _ <- newline
   _ <- string "# query CM file:"
   skipMany1 space
@@ -72,17 +72,17 @@ genParserCMSearches = do
 
 genParserCMSearch :: GenParser Char st CMsearch
 genParserCMSearch = do
-  _ <- string "# cmsearch :: search CM(s) against a sequence database"
-  _ <- newline
-  _ <- string "# INFERNAL "
-  skipMany1 (noneOf "\n")
-  _ <- newline
-  _ <- string "# Copyright (C) 201"
-  _ <- many1 (noneOf "\n")
-  _ <- newline
-  _ <- string "# Freely distributed under the GNU General Public License (GPLv3)."
-  _ <- newline
-  _ <- string "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -"
+  --_ <- string "# cmsearch :: search CM(s) against a sequence database"
+  --_ <- newline
+  --_ <- string "# INFERNAL "
+  --skipMany1 (noneOf "\n")
+  --_ <- newline
+  --_ <- string "# Copyright (C) 201"
+  --_ <- many1 (noneOf "\n")
+  --_ <- newline
+  --_ <- string "# Freely distributed under the GNU General Public License (GPLv3)."
+  --_ <- newline
+  _ <- manyTill anyChar (try (string "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -"))
   _ <- newline
   _ <- string "# query CM file:"
   _ <- skipMany1 space
@@ -132,7 +132,7 @@ genParserCMSearch = do
   --string "description"
   --newline
   _ <- manyTill anyChar (try (string "-"))
-  string " -"
+  --string " -"
   skipMany1 (try (oneOf " -"))
   _ <- newline
   optional (try (string " ------ inclusion threshold ------"))
