@@ -18,7 +18,7 @@ import qualified System.FilePath as FP
 import Paths_RNAlien (version)
 import Data.Version (showVersion)
 import qualified Biobase.StockholmAlignment.Import as BS
---import Biobase.Fasta.Streaming
+import qualified Control.Exception.Base as CE
 import Control.Monad
 
 data Options = Options
@@ -139,25 +139,39 @@ main = do
       let checkedTaxonomyRestriction = checkTaxonomyRestriction taxonomyRestriction
       let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) inputTaxId singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads inputBlastDatabase checkedTaxonomyRestriction (setVerbose verboseLevel) offlineMode [] taxonomyDumpPath
       let initialization = ModelConstruction iterationNumber reformatedFastaInput [] [] initialTaxId Nothing (fromJust inputEvalueCutoff) False [] [] [] (Just rightAlignment)
-      --let nextModelConstructionInput = constructNext iterationNumber initialization [] [] Nothing Nothing [] [] True
+      --let (upperTaxLimit,lowerTaxLimit) = setTaxonomicContextEntrez iterationNumber (taxonomicContext initialization) (upperTaxonomyLimit initialization)
+      currentTaxonomicContext <- CE.catch (getTaxonomicContext (offline staticOptions) (ncbiTaxonomyDumpPath staticOptions) initialTaxId (taxonomicContext initialization))
+             (\e -> do let err = show (e :: CE.IOException)
+                       logWarning ("Warning: Retrieving taxonomic context failed:" ++ " " ++ err) (tempDirPath staticOptions)
+                       return Nothing)
+      let nextModelConstructionInput = constructNext iterationNumber initialization [] [] initialTaxId currentTaxonomicContext [] [] True
+      --           let nextModelConstructionInput = constructNext currentIterationNumber modelConstruction alignmentResults similarMembers currentUpperTaxonomyLimit currentTaxonomicContext [] currentPotentialMembers True
+      --constructModel nextModelConstructionInput staticOptions
       let outputDirectory = tempDirPath staticOptions ++ "0" ++ "/"
       createDirectory outputDirectory
+      let fastaFilePath = outputDirectory ++ "model.fa"
       let stockholmFilepath = outputDirectory ++ "model" ++ ".stockholm"
       let cmFilepath = outputDirectory ++ "model" ++ ".cm"
       let cmCalibrateFilepath = outputDirectory ++ "model" ++ ".cmcalibrate"
       let cmBuildFilepath = outputDirectory ++ "model" ++ ".cmbuild"
       copyFile alignmentFilePath stockholmFilepath
+      writeFastaFile fastaFilePath reformatedFastaInput
       let refinedAlignmentFilepath = outputDirectory ++ "modelrefined.stockholm"
       let cmBuildOptions ="--refine " ++ refinedAlignmentFilepath
       _ <- systemCMbuild cmBuildOptions stockholmFilepath cmFilepath cmBuildFilepath
       _ <- systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
       writeFile (outputDirectory ++ "done") ""
       --select queries
-      --currentSelectedQueries <- selectQueries staticOptions nextModelConstructionInput []
+      print "here1"
+      let logDirectory = outputDirectory ++ "log"
+      createDirectory logDirectory
       currentSelectedQueries <- selectQueries staticOptions initialization []
-      let nextScanModelConstructionInputWithQueries = initialization  {selectedQueries = currentSelectedQueries} --nextModelConstructionInput {selectedQueries = currentSelectedQueries}
+      --currentSelectedQueries <- selectQueries staticOptions initialization []
+      let nextScanModelConstructionInputWithQueries = nextModelConstructionInput {selectedQueries = currentSelectedQueries}
+      print "here 2"
       logMessage (iterationSummaryLog nextScanModelConstructionInputWithQueries) (tempDirPath staticOptions)
-      modelConstructionResults <- modelConstructer staticOptions initialization
+      modelConstructionResults <- modelConstructer staticOptions nextModelConstructionInput
+      print "here 3"  
       let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults
       writeFile (temporaryDirectoryPath ++ "result.csv") resultTaxonomyRecordsCSVTable
       if performEvaluation

@@ -43,7 +43,10 @@ module Biobase.RNAlien.Library (
                            alignmentConstructionWithoutCandidates,
                            alignSequences,
                            systemRNAalifold,
-                           replaceStockholmStructure
+                           replaceStockholmStructure,
+                           setTaxonomicContextEntrez,
+                           getTaxonomicContext,
+                           logWarning
                            )
 where
 
