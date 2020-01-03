@@ -1641,11 +1641,19 @@ extractTaxIdFromEntrySummaries input
         hitTaxIdStrings = parMap rpar extractTaxIdfromDocumentSummary blastHitSummaries
         hitTaxIds = parMap rpar readInt hitTaxIdStrings
 
+-- Extracts interesting part of gene id and strips pipe symbols, e.g gi|NC000913.3|
 extractGeneId :: J.Hit -> String
-extractGeneId currentBlastHit = nucleotideId
-  where truncatedId = drop 3 (T.unpack (J._id (head (J._description currentBlastHit))))
-        pipeSymbolIndex = fromJust (elemIndex '|' truncatedId)
-        nucleotideId = take pipeSymbolIndex truncatedId
+extractGeneId currentBlastHit 
+  | pipeSymbolPresent = T.unpack nucleotideId
+  | otherwise = T.unpack hitId
+  where hitId = J._id (head (J._description currentBlastHit))
+        pipeSymbolPresent = T.any isPipe hitId
+        nucleotideId = (T.splitOn (T.pack "|") hitId) !! 1
+
+isPipe :: Char -> Bool
+isPipe c 
+  | c == '|' = True
+  | otherwise = False 
 
 extractTaxIdfromDocumentSummary :: EntrezDocSum -> String
 extractTaxIdfromDocumentSummary documentSummary = currentTaxId 
