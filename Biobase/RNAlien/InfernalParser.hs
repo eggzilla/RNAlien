@@ -6,15 +6,12 @@ module Biobase.RNAlien.InfernalParser (
                            readCMSearches,
                            parseCMSearch,
                            parseCMSearches,
-                           parseCMstat,
-                           readCMstat
                            )
 where
 
 import Text.ParserCombinators.Parsec
 import Biobase.RNAlien.Types
 import qualified Data.ByteString.Char8 as B
-import qualified Control.Exception.Base as CE
 
 -- | parse from input filePath              
 parseCMSearch :: String -> Either ParseError CMsearch
@@ -28,122 +25,123 @@ parseCMSearches = parse genParserCMSearches "parseCMsearch"
 readCMSearch :: String -> IO (Either ParseError CMsearch)
 readCMSearch filePath = do
   parsedFile <- parseFromFile genParserCMSearch filePath
-  CE.evaluate parsedFile
+  return parsedFile
 
 -- | parse from input filePath                      
 readCMSearches :: String -> IO (Either ParseError CMsearch)
 readCMSearches filePath = do
   parsedFile <- parseFromFile genParserCMSearches filePath
-  CE.evaluate parsedFile
+  return parsedFile
 
 genParserCMSearches :: GenParser Char st CMsearch
 genParserCMSearches = do
-  string "# cmsearch :: search CM(s) against a sequence database"
-  newline
-  string "# INFERNAL "
-  many1 (noneOf "\n")
-  newline
-  string "# Copyright (C) 201"
-  many1 (noneOf "\n")
-  newline
-  string "# Freely distributed under the GNU General Public License (GPLv3)."
-  newline
-  string "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -"
-  newline
-  string "# query CM file:"
-  many1 space
+  --_ <- string "# cmsearch :: search CM(s) against a sequence database"
+  --_ <- newline
+  --_ <- string "# INFERNAL "
+  --_ <- many1 (noneOf "\n")
+  --_ <- newline
+  --_ <- string "# Copyright (C) 201"
+  --_ <- many1 (noneOf "\n")
+  --_ <- newline
+  --_ <- manyTill anyChar (try (string "# Freely distributed under the GNU General Public License (GPLv3).") --Freely distributed under a BSD open source license.)
+  --_ <- newline
+  _ <- manyTill anyChar (try (string "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -"))
+  _ <- newline
+  _ <- string "# query CM file:"
+  skipMany1 space
   queryCMfile' <- many1 (noneOf "\n")
   newline
-  string "# target sequence database:"
-  many1 space
+  _ <- string "# target sequence database:"
+  skipMany1 space
   targetSequenceDatabase' <- many1 (noneOf "\n")
-  newline
+  _ <- newline
   optional (try (genParserCMsearchHeaderField "# CM configuration"))
   optional (try (genParserCMsearchHeaderField "# database size is set to"))
   optional (try (genParserCMsearchHeaderField "# truncated sequence detection"))
-  string "# number of worker threads:"
-  many1 space
+  _ <- string "# number of worker threads:"
+  skipMany1 space
   numberOfWorkerThreads' <- many1 (noneOf "\n")
-  newline
-  string "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -"
-  newline
-  optional newline
+  _ <- newline
+  _ <- string "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -"
+  _ <- newline
+  _ <- optional newline
   cmSearchesHits <- many1 (try genParserMultipleCMSearch)
-  optional (string "[ok]\n")
-  eof
+  _ <- optional (string "[ok]\n")
+  _ <- eof
   return $ CMsearch queryCMfile' targetSequenceDatabase' numberOfWorkerThreads' (concat cmSearchesHits)
 
 genParserCMSearch :: GenParser Char st CMsearch
 genParserCMSearch = do
-  string "# cmsearch :: search CM(s) against a sequence database"
-  newline
-  string "# INFERNAL "
-  many1 (noneOf "\n")
-  newline
-  string "# Copyright (C) 201"
-  many1 (noneOf "\n")
-  newline
-  string "# Freely distributed under the GNU General Public License (GPLv3)."
-  newline
-  string "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -"
-  newline
-  string "# query CM file:"
-  many1 space
+  --_ <- string "# cmsearch :: search CM(s) against a sequence database"
+  --_ <- newline
+  --_ <- string "# INFERNAL "
+  --skipMany1 (noneOf "\n")
+  --_ <- newline
+  --_ <- string "# Copyright (C) 201"
+  --_ <- many1 (noneOf "\n")
+  --_ <- newline
+  --_ <- string "# Freely distributed under the GNU General Public License (GPLv3)."
+  --_ <- newline
+  _ <- manyTill anyChar (try (string "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -"))
+  _ <- newline
+  _ <- string "# query CM file:"
+  _ <- skipMany1 space
   queryCMfile' <- many1 (noneOf "\n")
-  newline
-  string "# target sequence database:"
-  many1 space
+  _ <- newline
+  _ <- string "# target sequence database:"
+  skipMany1 space
   targetSequenceDatabase' <- many1 (noneOf "\n")
-  newline
-  optional (try (genParserCMsearchHeaderField "# CM configuration"))
-  optional (try (genParserCMsearchHeaderField "# database size is set to"))
-  optional (try (genParserCMsearchHeaderField "# truncated sequence detection"))
-  string "# number of worker threads:"
-  many1 space
+  _ <- newline
+  _ <- optional (try (genParserCMsearchHeaderField "# CM configuration"))
+  _ <- optional (try (genParserCMsearchHeaderField "# database size is set to"))
+  _ <- optional (try (genParserCMsearchHeaderField "# truncated sequence detection"))
+  _ <- string "# number of worker threads:"
+  skipMany1 space
   numberOfWorkerThreads' <- many1 (noneOf "\n")
-  newline
-  string "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -"
-  newline
-  optional newline
-  string "Query:"
-  many1 (noneOf "\n")
-  newline
-  optional (try (genParserCMsearchHeaderField "Accession"))
-  optional (try (genParserCMsearchHeaderField "Description"))
-  string "Hit scores:"
-  newline
-  choice  [try (string " rank"), try (string "  rank") , try (string "   rank"), try (string "    rank"),try (string "     rank"),try (string "      rank")]
+  _ <- newline
+  _ <- string "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -"
+  _ <- newline
+  _ <- optional newline
+  _ <- string "Query:"
+  skipMany1 (noneOf "\n")
+  _ <- newline
+  _ <- optional (try (genParserCMsearchHeaderField "Accession"))
+  _ <- optional (try (genParserCMsearchHeaderField "Description"))
+  _ <- string "Hit scores:"
+  _ <- newline
+  _ <- choice  [try (string " rank"), try (string "  rank") , try (string "   rank"), try (string "    rank"),try (string "     rank"),try (string "      rank")]
   many1 space
   string "E-value"
-  many1 space
-  string "score"
-  many1 space
-  string "bias"
-  many1 space
-  string "sequence"
-  many1 space
-  string "start"
-  many1 space
-  string "end"
-  many1 space
-  string "mdl"
-  many1 space
-  string "trunc"
-  many1 space
-  string "gc"
-  many1 space
-  string "description"
-  newline
-  string " -"
-  many1 (try (oneOf " -"))
-  newline
+  --many1 space
+  --string "score"
+  --many1 space
+  --string "bias"
+  --many1 space
+  --string "sequence"
+  --many1 space
+  --string "start"
+  --many1 space
+  --string "end"
+  --many1 space
+  --string "mdl"
+  --many1 space
+  --string "trunc"
+  --many1 space
+  --string "gc"
+  --many1 space
+  --string "description"
+  --newline
+  _ <- manyTill anyChar (try (string "-"))
+  --string " -"
+  skipMany1 (try (oneOf " -"))
+  _ <- newline
   optional (try (string " ------ inclusion threshold ------"))
-  many newline
+  skipMany newline
   hitScores' <- many (try genParserCMsearchHit) --`endBy` (try (string "Hit alignments:"))
   optional (try genParserCMsearchEmptyHit)
   -- this is followed by hit alignments and internal cmsearch statistics which are not parsed
-  many anyChar
-  eof
+  _ <- many anyChar
+  _ <- eof
   return $ CMsearch queryCMfile' targetSequenceDatabase' numberOfWorkerThreads' hitScores'
 
 -- | Parsing function for CMSearches with multiple querymodels in one modelfile, e.g. clans
@@ -242,96 +240,6 @@ genParserCMsearchHit = do
   optional (try newline)
   return $ CMsearchHit (readInt hitRank') hitSignificant' (readDouble hitEValue') (readDouble hitScore') (readDouble hitBias') (B.pack hitSequenceHeader') (readInt hitStart') (readInt hitEnd') hitStrand' (B.pack hitModel') (B.pack hitTruncation') (readDouble hitGCcontent') (B.pack hitDescription')
 
--- | parse from input filePath              
-parseCMstat :: String -> Either ParseError CMstat
-parseCMstat = parse genParserCMstat "parseCMstat"
-
--- | parse from input filePath                      
-readCMstat :: String -> IO (Either ParseError CMstat)
-readCMstat filePath = do
-  parsedFile <- parseFromFile genParserCMstat filePath
-  CE.evaluate parsedFile
-
-genParserCMstat :: GenParser Char st CMstat
-genParserCMstat = do
-  string "# cmstat :: display summary statistics for CMs"
-  newline
-  string "# INFERNAL "
-  many1 (noneOf "\n")
-  newline
-  string "# Copyright (C) 201"
-  many1 (noneOf "\n")
-  newline
-  string "# Freely distributed under the GNU General Public License (GPLv3)."
-  newline
-  string "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -"
-  newline
-  char '#'
-  many1 (char ' ')
-  string "rel entropy"
-  newline
-  char '#'
-  many1 (char ' ')
-  many1 (char '-')
-  newline
-  char '#'
-  many1 space
-  string "idx"
-  many1 space
-  string "name"
-  many1 space
-  string "accession"
-  many1 space
-  string "nseq"
-  many1 space
-  string "eff_nseq"
-  many1 space
-  string "clen"
-  many1 space
-  string "W"
-  many1 space
-  string "bps"
-  many1 space
-  string "bifs"
-  many1 space
-  string "model"
-  many1 space
-  string "cm"
-  many1 space
-  string "hmm"
-  newline
-  string "#"
-  many1 (try (oneOf " -"))
-  newline
-  many1 space
-  _statIndex <- many1 digit
-  many1 space
-  _statName <- many1 letter
-  many1 space
-  _statAccession <- many1 (noneOf " ")
-  many1 space
-  _statSequenceNumber <- many1 digit
-  many1 space
-  _statEffectiveSequences <- many1 (oneOf "0123456789.e-")
-  many1 space
-  _statConsensusLength <- many digit
-  many1 space
-  _statW <- many1 digit
-  many1 space
-  _statBasepaires <- many1 digit
-  many1 space
-  _statBifurcations <- many1 digit
-  many1 space
-  _statModel <- many1 letter
-  many1 space
-  _relativeEntropyCM <- many1 (oneOf "0123456789.e-")
-  many1 space
-  _relativeEntropyHMM <- many1 (oneOf "0123456789.e-")
-  newline
-  char '#'
-  newline
-  eof
-  return $ CMstat (readInt _statIndex) _statName _statAccession (readInt _statSequenceNumber) (readDouble _statEffectiveSequences) (readInt _statConsensusLength) (readInt _statW) (readInt _statBasepaires) (readInt _statBifurcations) _statModel (readDouble _relativeEntropyCM) (readDouble _relativeEntropyHMM)
 --   
 readInt :: String -> Int
 readInt = read

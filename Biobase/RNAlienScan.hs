@@ -19,9 +19,11 @@ import Paths_RNAlien (version)
 import Data.Version (showVersion)
 --import Biobase.Fasta.Streaming
 import Control.Monad
+import qualified Biobase.StockholmAlignment.Import as BS
 
 data Options = Options
   { inputFastaFilePath :: String,
+    inputAlignmentFilePath :: String,
     inputGenomesFastaFilePath :: String,
     outputPath :: String,
     inputnSCICutoff :: Maybe Double,
@@ -41,6 +43,7 @@ data Options = Options
 options :: Options
 options = Options
   { inputFastaFilePath = def &= name "i" &= help "Path to input fasta file",
+    inputAlignmentFilePath = def &= name "p" &= help "Path to input alignment file",
     inputGenomesFastaFilePath = def &= name "b" &= help "Path to input genome fasta files",
     outputPath = def &= name "o" &= help "Path to output directory. Default: current working directory",
     inputnSCICutoff = Just (1 :: Double) &= name "z" &= help "Only candidate sequences with a normalized structure conservation index (nSCI) higher than this value are accepted. Default: 1",
@@ -61,7 +64,6 @@ main :: IO ()
 main = do
   Options{..} <- cmdArgs options
   verboseLevel <- getVerbosity
-  let tools = if inputQuerySelectionMethod == "clustering" then ["clustalo","mlocarna","RNAfold","RNAalifold","cmcalibrate","cmstat","cmbuild","RNAz","RNAcode"] else ["mlocarna","RNAfold","RNAalifold","cmcalibrate","cmstat","cmbuild","RNAz","RNAcode"]
   -- Generate SessionID
   sessionId <- createSessionID sessionIdentificator
   timestamp <- getCurrentTime
@@ -69,58 +71,85 @@ main = do
   let selectedOutputPath = if null outputPath then currentWorkDirectory else outputPath
   let temporaryDirectoryPath = FP.addTrailingPathSeparator selectedOutputPath ++ sessionId ++ "/"
   createDirectoryIfMissing False temporaryDirectoryPath
-  networkCheck <- checkNCBIConnection
-  if checkSetup
+  setupCheckScanWithLog inputQuerySelectionMethod temporaryDirectoryPath
+  createDirectoryIfMissing False (temporaryDirectoryPath ++ "log")
+  -- Create Log files
+  writeFile (temporaryDirectoryPath ++ "Log") ("RNAlienScan " ++ alienVersion ++ "\n")
+  writeFile (temporaryDirectoryPath ++ "log/warnings") ("")
+  logMessage ("Timestamp: " ++ (show timestamp) ++ "\n") temporaryDirectoryPath
+  logMessage ("Temporary Directory: " ++ temporaryDirectoryPath ++ "\n") temporaryDirectoryPath
+  let iterationNumber = 0
+  if null inputFastaFilePath
     then do
-      toolsCheck <- checkTools tools inputQuerySelectionMethod temporaryDirectoryPath
-      let setupCheckPath = temporaryDirectoryPath ++ "setupCheck"
-      let toolCheckResult = either id id toolsCheck
-      let networkCheckResult = either id id networkCheck
-      writeFile setupCheckPath (toolCheckResult ++ "\n" ++ networkCheckResult ++ "\n")
-    else
-      if isLeft networkCheck
+      alignmentInput <- BS.readExistingStockholm inputAlignmentFilePath
+      inputGenomesFasta <- readFastaFile inputGenomesFastaFilePath
+      when (null inputGenomesFasta) (error "Please provide input genomes with the cmd line parameter -s")
+      logToolVersions inputQuerySelectionMethod temporaryDirectoryPath
+      when (isLeft alignmentInput) (error (fromLeft alignmentInput))
+      let rightAlignment = head $ fromRight alignmentInput
+      let reformatedFastaInput = stockholmAlignmentToFasta rightAlignment
+      when (null reformatedFastaInput) (error "Please provide input fasta sequences with the cmd line parameter -i")
+      let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) Nothing singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads Nothing Nothing (setVerbose verboseLevel) True inputGenomesFastaFilePath []
+      --let initialization = ModelConstruction iterationNumber reformatedFastaInput [] Nothing Nothing (fromJust inputEvalueCutoff) False [] [] [] alignmentInput
+      let initialization = ModelConstruction iterationNumber reformatedFastaInput [] [] Nothing Nothing (fromJust inputEvalueCutoff) False [] [] inputGenomesFasta (Just rightAlignment)
+      logMessage (show initialization) temporaryDirectoryPath
+      --logVerboseMessage (verbositySwitch staticOptions) ("Alignment construction with candidates - infernal mode\n") (tempDirPath staticOptions)
+      --prepare next iteration
+      let nextModelConstructionInput = constructNext iterationNumber initialization [] [] Nothing Nothing [] [] True
+      let outputDirectory = tempDirPath staticOptions ++ "0" ++ "/"
+      createDirectory outputDirectory
+      let fastaFilePath = outputDirectory ++ "model" ++ ".fa"
+      writeFastaFile fastaFilePath reformatedFastaInput
+      let stockholmFilepath = outputDirectory ++ "model" ++ ".stockholm"
+      let cmFilepath = outputDirectory ++ "model" ++ ".cm"
+      let cmCalibrateFilepath = outputDirectory ++ "model" ++ ".cmcalibrate"
+      let cmBuildFilepath = outputDirectory ++ "model" ++ ".cmbuild"
+      copyFile inputAlignmentFilePath stockholmFilepath
+      let refinedAlignmentFilepath = outputDirectory ++ "modelrefined.stockholm"
+      let cmBuildOptions ="--refine " ++ refinedAlignmentFilepath
+      _ <- systemCMbuild cmBuildOptions stockholmFilepath cmFilepath cmBuildFilepath
+      _ <- systemCMcalibrate "fast" (cpuThreads staticOptions) cmFilepath cmCalibrateFilepath
+      writeFile (outputDirectory ++ "done") ""
+      --select queries
+      currentSelectedQueries <- selectQueries staticOptions nextModelConstructionInput []
+      --let nextScanModelConstructionInputWithQueries = nextModelConstructionInput {selectedQueries = currentSelectedQueries}
+      --logMessage (iterationSummaryLog nextScanModelConstructionInputWithQueries) (tempDirPath staticOptions)
+      let nextScanModelConstructionInputWithQueries = initialization {iterationNumber = (1 :: Int), selectedQueries = currentSelectedQueries}
+      modelConstructionResults <- scanModelConstructer staticOptions nextScanModelConstructionInputWithQueries -- nextScanModelConstructionInputWithQueries
+      --modelConstructionResults <- alignmentConstructionWithoutCandidates "scan" Nothing Nothing staticOptions nextScanModelConstructionInputWithQueries
+      let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults
+      writeFile (temporaryDirectoryPath ++ "result.csv") resultTaxonomyRecordsCSVTable
+      if performEvaluation
         then do
-          putStrLn ("Error - Could not contact NCBI server: " ++ fromLeft networkCheck ++ "\n")
-          logMessage ("Error - Could not contact NCBI server: " ++ fromLeft networkCheck ++ "\n") temporaryDirectoryPath
-       else do
-           createDirectoryIfMissing False (temporaryDirectoryPath ++ "log")
-           -- Create Log files
-           writeFile (temporaryDirectoryPath ++ "Log") ("RNAlienEgg " ++ alienVersion ++ "\n")
-           writeFile (temporaryDirectoryPath ++ "log/warnings") ("")
-           logMessage ("Timestamp: " ++ (show timestamp) ++ "\n") temporaryDirectoryPath
-           logMessage ("Temporary Directory: " ++ temporaryDirectoryPath ++ "\n") temporaryDirectoryPath
-           fastaInput <- readFastaFile inputFastaFilePath
-           inputGenomesFasta <- readFastaFile inputGenomesFastaFilePath
-           if null fastaInput
-             then do
-               putStrLn "Error: Input fasta file is empty."
-               logMessage "Error: Input fasta file is empty.\n" temporaryDirectoryPath
-             else do
-               let iterationNumber = 0
-               toolsCheck <- checkTools tools inputQuerySelectionMethod temporaryDirectoryPath
-               if isLeft toolsCheck
-                 then do
-                   putStrLn ("Error - Not all required tools could be found in $PATH: " ++ fromLeft toolsCheck ++ "\n")
-                   logMessage ("Error - Not all required tools could be found in $PATH: " ++ fromLeft toolsCheck ++ "\n") temporaryDirectoryPath
-                 else do
-                   when (null inputGenomesFasta) (error "Please provide input genomes with the cmd line parameter -s")
-                   logToolVersions inputQuerySelectionMethod temporaryDirectoryPath
-                   let reformatedFastaInput = map reformatFasta fastaInput
-                   let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) Nothing singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads Nothing Nothing (setVerbose verboseLevel) True inputGenomesFastaFilePath
-                   let initialization = ModelConstruction iterationNumber reformatedFastaInput [] Nothing Nothing (fromJust inputEvalueCutoff) False [] [] inputGenomesFasta
-                   logMessage (show initialization) temporaryDirectoryPath
-                   modelConstructionResults <- scanModelConstructer staticOptions initialization
-                   let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults
-                   writeFile (temporaryDirectoryPath ++ "result.csv") resultTaxonomyRecordsCSVTable
-                   if performEvaluation
-                     then do
-                       resultEvaluation <- evaluateConstructionResult staticOptions modelConstructionResults
-                       appendFile (temporaryDirectoryPath ++ "Log") resultEvaluation
-                       resultSummary modelConstructionResults staticOptions
-                       writeFile (temporaryDirectoryPath ++ "done") ""
-                     else do
-                       resultSummary modelConstructionResults staticOptions
-                       writeFile (temporaryDirectoryPath ++ "done") ""
+          resultEvaluation <- evaluateConstructionResult staticOptions modelConstructionResults
+          appendFile (temporaryDirectoryPath ++ "Log") resultEvaluation
+          resultSummary modelConstructionResults staticOptions
+          writeFile (temporaryDirectoryPath ++ "done") ""
+        else do
+          resultSummary modelConstructionResults staticOptions
+          writeFile (temporaryDirectoryPath ++ "done") ""
+    else do
+      fastaInput <- readFastaFile inputFastaFilePath
+      when (null fastaInput) (error "Please provide input fasta sequences with the cmd line parameter -i")
+      inputGenomesFasta <- readFastaFile inputGenomesFastaFilePath
+      when (null inputGenomesFasta) (error "Please provide input genomes with the cmd line parameter -s")
+      logToolVersions inputQuerySelectionMethod temporaryDirectoryPath
+      let reformatedFastaInput = map reformatFasta fastaInput
+      let staticOptions = StaticOptions temporaryDirectoryPath sessionId (fromJust inputnSCICutoff) Nothing singleHitperTax inputQuerySelectionMethod inputQueryNumber lengthFilter coverageFilter blastSoftmasking threads Nothing Nothing (setVerbose verboseLevel) True inputGenomesFastaFilePath []
+      let initialization = ModelConstruction iterationNumber reformatedFastaInput [] [] Nothing Nothing (fromJust inputEvalueCutoff) False [] [] inputGenomesFasta Nothing
+      logMessage (show initialization) temporaryDirectoryPath
+      modelConstructionResults <- scanModelConstructer staticOptions initialization
+      let resultTaxonomyRecordsCSVTable = constructTaxonomyRecordsCSVTable modelConstructionResults
+      writeFile (temporaryDirectoryPath ++ "result.csv") resultTaxonomyRecordsCSVTable
+      if performEvaluation
+        then do
+          resultEvaluation <- evaluateConstructionResult staticOptions modelConstructionResults
+          appendFile (temporaryDirectoryPath ++ "Log") resultEvaluation
+          resultSummary modelConstructionResults staticOptions
+          writeFile (temporaryDirectoryPath ++ "done") ""
+        else do
+          resultSummary modelConstructionResults staticOptions
+          writeFile (temporaryDirectoryPath ++ "done") ""
 
 alienVersion :: String
 alienVersion = showVersion version

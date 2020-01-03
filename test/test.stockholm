@@ -1,0 +1,18 @@
+# STOCKHOLM 1.0
+#=GF AU Infernal 1.1.2
+
+#=GS CP008770.1:757226-757421   DE Listeria monocytogenes strain 88-1059 genome
+#=GS CP007196.1:749187-749382   DE Listeria monocytogenes serotype 3c str. 10-5027, complete genome
+#=GS CP007169.1:797163-797359   DE Listeria monocytogenes serotype 1/2b str. 10-0811, complete genome
+
+AARQ02000011.1/391-585             -AAUUGAAUAGAAGCGCCAGAACUGAUUGGGACGAAAAUGCUUGAAGGUGAAAUCCCUGAAAAGUA.UCGAUCAGUUGACGAGGAGGAGAUUAAUCGAAGUUUCGGCGGGAGUCUCCCGGCUGUGCAUGCAGUCGUUAAGUCUUACUUACAAAUCAUUUGGGUGACCAAGUGGACAGAGUAGUAAUGAAACAUGCUU
+#=GR AARQ02000011.1/391-585     PP .*****************************************************************.**********************************************************************************************************************************
+CP008770.1:757226-757421           CAAUUGAAUAGAAGCGCCAGAACUGAUUGGGACGAAAAUGCUUGAAGGUGAAAUCCCUGAAAAGUA.UCGAUCAGUUGACGAGGAGGAGAUUAAUCGAAGUUUCGGCGGGAGUCUCCCGGCUGUGCAUGCAGUCGUUAAGUCUUACUUACAAAUCAUUUGGGUGACCAAGUGGACAGAGUAGUAAUGAAAUAUGCUU
+#=GR CP008770.1:757226-757421   PP ******************************************************************.**********************************************************************************************************************************
+CP007196.1:749187-749382           CAAUUGAAUAGAAGCGCCAGAACUGAUUGGGACGAAAAUGCUUGAAGGUGAAAUCCCUGAAAAGUA.UCGAUCAGUUGACGAGGAGGAGAUUAAUCGAAGUUUCGGCGGGAGUCUCCCGGCUGUGCAUGCAGUCGUUAAGUCUUACUUACAAAUCAUUUGGGUGACCAAGUGGACAGAGUAGUAAUGAAAUAUGCUU
+#=GR CP007196.1:749187-749382   PP ******************************************************************.**********************************************************************************************************************************
+CP007169.1:797163-797359           CAAUUAAAUAGAAGCGCCAGAACUGAUUGGGACGAAAAUACUUGAAGGUGAAAUCCCUGAAAAGUAAACAGUCAGUUGACGAGGAGGAGAUUAAUCGAAGUUUCGGCGGGAGUCUCCCGGCUGUGCAUGCAGUCGUUAAGUCUUACUUACAAAUCACUUGGGUGACCAAGUGGACAGAGUAGUAAUGAAACAUGUUU
+#=GR CP007169.1:797163-797359   PP ******************************************************************9**********************************************************************************************************************************
+#=GC SS_cons                       :::::::::::(((((<<--<<<<<<<<<<--------<<<<<--<<<-<____>>>>--->>>>>.>>>>>>>>>>----->>,<<<<<<<--<<<<____>>>>---->>>>>>><<<<<<<____>>>>>>>,,,,,<<<<<<<-<<---<<<<<<<<____>>>>>>>>----->>>>>>>->>,,,,)))))
+#=GC RF                            cAAUUgAAUAGaagCgCCAGaaCuGaucGgGAcGAAAAugCuuGAaGGUGAAAUCCCuGAAaaGca.cCgauCaGuuGAcGAGGAGGaGacuAAcCGaAGUUuCGgcGGGaguCuCCCGgCuGcGcAUgCaGcCGUUAAGuCuuaCuUaCAAAcCacuuGGGUGACCaaguGgAcAGAGuaGuaaUGaAAcAcGcuu
+//
