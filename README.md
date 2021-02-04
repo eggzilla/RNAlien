@@ -13,11 +13,11 @@ The source code of RNAlien is open source and available via GitHub and Hackage (
 
      RNAlien can be installed with all tool dependencies via [conda](https://conda.io/docs/install/quick.html). Once you have conda installed simply type:
 
-         conda create -n rnalien -c bioconda -c conda-forge rnalien
+         conda create -n rnalien180 -c conda-forge -c bioconda rnalien=1.8.0
 
      Activate the environment in which RNAlien was installed to use it:
 
-         conda activate rnalien
+         conda activate rnalien180
     
     To use the offline-mode of the commandline tool additionally following database downloads are required:
     
