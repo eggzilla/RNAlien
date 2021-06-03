@@ -6,7 +6,7 @@ It is available as a commandline tool, for testing or construction of few sequen
 
 The source code of RNAlien is open source and available via GitHub and Hackage (License GPL-3):
 
-*   [![GitHub](https://img.shields.io/github/tag/eggzilla/RNAlien.svg)](https://github.com/eggzilla/RNAlien) [![Build Status](https://travis-ci.org/eggzilla/RNAlien.svg?branch=master)](https://travis-ci.org/eggzilla/RNAlien) [![Hackage](https://img.shields.io/hackage/v/RNAlien.svg)](https://hackage.haskell.org/package/RNAlien) [![Bioconda](https://anaconda.org/bioconda/rnalien/badges/version.svg)](https://anaconda.org/bioconda/rnalien) [![Docker Repository on Quay](https://quay.io/repository/biocontainers/RNAlien/status "Docker Repository on Quay")](https://quay.io/repository/repository/biocontainers/RNAlien)
+*   [![GitHub](https://img.shields.io/github/tag/eggzilla/RNAlien.svg)](https://github.com/eggzilla/RNAlien) [![Build Status](https://travis-ci.org/eggzilla/RNAlien.svg?branch=master)](https://travis-ci.org/eggzilla/RNAlien) [![Hackage](https://img.shields.io/hackage/v/RNAlien.svg)](https://hackage.haskell.org/package/RNAlien) [![Bioconda](https://anaconda.org/bioconda/rnalien/badges/version.svg)](https://anaconda.org/bioconda/rnalien) [![Docker Repository on Quay](https://quay.io/repository/biocontainers/RNAlien/status "Docker Repository on Quay")](https://quay.io/repository/repository/biocontainers/RNAlien) ![github action: master](https://github.com/eggzilla/RNAlien/actions/workflows/action.yml/badge.svg)
 
 
     ### <u>Installation via bioconda - recommended</u>
