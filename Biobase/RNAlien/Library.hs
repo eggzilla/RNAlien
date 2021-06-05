@@ -62,12 +62,13 @@ import Data.Int (Int16)
 import Biobase.RNAlien.Types
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.ByteString.Char8 as B
+import qualified Data.ByteString as BS
 import Biobase.Taxonomy.Import
 import Data.Either.Unwrap
 import Data.Maybe
 import Biobase.Entrez.HTTP
 import System.Exit
-import Data.Either (lefts,rights,Either)
+import Data.Either (lefts,rights)
 import qualified Text.EditDistance as ED
 import qualified Data.Vector as V
 import Control.Concurrent
@@ -1341,7 +1342,7 @@ retrieveFullSequence temporaryDirectoryPath (nucleotideId,seqStart,seqStop,stran
     then return (Nothing,taxid,subject')
     else do
       --let parsedFastas = (BFS.parseFasta (L.pack result))
-      let parsedFastas = byteStringToMultiFasta (L.pack result)
+      let parsedFastas = byteStringToMultiFasta (B.pack result)
       if (null parsedFastas)
         then return (Nothing,taxid,subject')
         else do
@@ -2163,7 +2164,7 @@ mergeIdSeqTuplestoSequence tuplelist = currentSequence
 
 readFastaFile :: String -> IO [Fasta () ()]
 readFastaFile fastaFilePath = do
-  inputFastaFile <- L.readFile fastaFilePath
+  inputFastaFile <- B.readFile fastaFilePath
   let inputFastas = byteStringToMultiFasta inputFastaFile
   return inputFastas
 
@@ -2322,9 +2323,9 @@ retrieveGenomeFullSequences genomeSequence _ requestedSequences = parMap rpar (r
 retrieveGenomeFullSequence :: B.ByteString -> (String,Int,Int,String,T.Text,Int,B.ByteString) -> ((Fasta () ()),Int,B.ByteString)
 retrieveGenomeFullSequence sequenceByteString (nucleotideId,seqStart,seqStop,strand,_,_,subject') = (justFasta,0,subject')
   where retrievedSequence = byteStringSlice seqStart len sequenceByteString
-        bioSequence = if strand == "1" then (BioSequence retrievedSequence) else (BioSequence rcretrievedSequence)
+        _bioSequence = if strand == "1" then (BioSequence retrievedSequence) else (BioSequence rcretrievedSequence)
         currentFastaHeader= SequenceIdentifier (B.pack (nucleotideId ++ "_" ++ show seqStart ++ "_" ++ show seqStop ++ "_" ++ strand))
-        justFasta = Fasta currentFastaHeader bioSequence
+        justFasta = Fasta currentFastaHeader _bioSequence
         len = if strand == "1" then seqStop - seqStart else seqStart - seqStop
         rcretrievedSequence = B.reverse (B.map complement' retrievedSequence)
 
@@ -2418,7 +2419,7 @@ stockholmAlignmentToFasta :: BS.StockholmAlignment -> [Fasta () ()]
 stockholmAlignmentToFasta aln = reformatedFastaInput
   where alignmentSequences = BS.sequenceEntries aln
         fastaText = T.concat $ parMap rpar (\entry -> T.concat[(T.pack ">"), BS.sequenceId entry, T.pack "\n", BS.entrySequence entry, T.pack "\n"]) alignmentSequences
-        parsedFastas = byteStringToMultiFasta (L.fromStrict (E.encodeUtf8 fastaText))
+        parsedFastas = byteStringToMultiFasta (E.encodeUtf8 fastaText)
         reformatedFastaInput = parMap rpar reformatGapFreeFasta parsedFastas
 
 setupCheckScanWithLog :: String -> String -> IO ()
@@ -2442,4 +2443,11 @@ setupCheckAlienWithLog inputQuerySelectionMethod temporaryDirectoryPath = do
   writeFile setupCheckPath (toolCheckResult ++ "\n" ++ networkCheckResult ++ "\n")
   when (isLeft toolsCheck) (error (toolCheckResult ++ "Error - Not all required tools could be found in $PATH: " ++ fromLeft toolsCheck ++ "\n"))
   when (isLeft networkCheck) (error (toolCheckResult ++ "Error - Could not establich a connection to NCBI servers: " ++ fromLeft networkCheck ++ "\n"))
+
+byteStringToMultiFasta :: BS.ByteString -> [Fasta which ty]
+byteStringToMultiFasta bs = fastas
+  where splitBs = B.splitWith (=='>') bs
+        splitchar = B.pack ">"
+        completeBs = map (B.append splitchar) splitBs
+        fastas = rights $ map byteStringToFasta completeBs
 
