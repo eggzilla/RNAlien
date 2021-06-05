@@ -109,6 +109,7 @@ import Control.Parallel.Strategies
 import qualified Data.Attoparsec.Text.Lazy as DATL
 import qualified Data.Set as S
 
+
 -- | Initial RNA family model construction - generates iteration number, seed alignment and model
 modelConstructer :: StaticOptions -> ModelConstruction -> IO ModelConstruction
 modelConstructer staticOptions modelConstruction = do
@@ -2197,12 +2198,12 @@ blast _tempDirPath threads upperTaxIdLimit lowerTaxIdLimit expectThreshold _blas
       let positiveSetTaxIdLimitPath = _tempDirPath ++ "/postitiveset.txids"
       if isJust lowerTaxIdLimit && isJust upperTaxIdLimit
         then do
-          upperTaxIdsFile <- TI.readFile upperTaxIdLimitPath
-          let upperTaxIds = T.lines upperTaxIdsFile
+          upperTaxIdsFile <- TIO.readFile upperTaxIdLimitPath
+          let upperTaxIds = TL.lines upperTaxIdsFile
           let upperIntTaxIds = parMap rpar parseInt upperTaxIds
           let setUpperIntTaxIds = S.fromAscList upperIntTaxIds
-          lowerTaxIdsFile <- TI.readFile lowerTaxIdLimitPath
-          let lowerTaxIds = T.lines lowerTaxIdsFile
+          lowerTaxIdsFile <- TIO.readFile lowerTaxIdLimitPath
+          let lowerTaxIds = TL.lines lowerTaxIdsFile
           let lowerIntTaxIds = parMap rpar parseInt lowerTaxIds
           let setLowerIntTaxIds = S.fromAscList lowerIntTaxIds
           --maybe try set difference
@@ -2227,7 +2228,7 @@ blast _tempDirPath threads upperTaxIdLimit lowerTaxIdLimit expectThreshold _blas
             else (return (Left "Empty BlastOutput List" :: Either String J.BlastJSON2))
         else (return (Left (fromLeft blastCmdResult) :: Either String J.BlastJSON2))
 
-parseInt :: T.Text -> Int
+parseInt :: TL.Text -> Int
 parseInt = fromRight . DATL.parseOnly (DATL.signed DATL.decimal)
 --textTaxIdToInt :: TL.Text -> Int
 --textTaxIdToInt tx = fromIntegral . fst . fromRight $ TLR.decimal tx
@@ -2441,3 +2442,4 @@ setupCheckAlienWithLog inputQuerySelectionMethod temporaryDirectoryPath = do
   writeFile setupCheckPath (toolCheckResult ++ "\n" ++ networkCheckResult ++ "\n")
   when (isLeft toolsCheck) (error (toolCheckResult ++ "Error - Not all required tools could be found in $PATH: " ++ fromLeft toolsCheck ++ "\n"))
   when (isLeft networkCheck) (error (toolCheckResult ++ "Error - Could not establich a connection to NCBI servers: " ++ fromLeft networkCheck ++ "\n"))
+
