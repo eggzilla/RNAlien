@@ -1,5 +1,5 @@
 name:                RNAlien
-version:             1.8.0
+version:             1.8.5
 synopsis:            Unsupervized construction of RNA family models
 description:         RNAlien is a tool for automatic construction of RNAfamily models from a single sequence.
                      .
@@ -43,7 +43,7 @@ copyright:           Florian Eggenhofer
 category:            Bioinformatics
 build-type:          Simple
 cabal-version:       >= 1.10.0
-tested-with:         GHC == 8.4.4
+tested-with:         GHC == 8.8, GHC == 8.10, GHC == 9.0
 Extra-Source-Files:
         README.md ChangeLog.md
 
@@ -53,8 +53,8 @@ source-repository head
 
 source-repository this
   type:     git
-  location: https://github.com/eggzilla/RNAlien/tree/1.8.0
-  tag:      1.8.0
+  location: https://github.com/eggzilla/RNAlien/tree/1.8.5
+  tag:      1.8.5
 
 executable RNAlien
   Hs-Source-Dirs:      ./Biobase/
@@ -64,7 +64,7 @@ executable RNAlien
   other-modules:       Paths_RNAlien
   build-depends:       base >=4.5 && <5, cmdargs, directory,
                        random, containers, RNAlien, time, either-unwrap, filepath,
-                       BiobaseFasta == 0.3.0.*, StockholmAlignment
+                       BiobaseFasta == 0.4.0.*, StockholmAlignment
 
 executable RNAlienScan
   Hs-Source-Dirs:      ./Biobase/
@@ -74,7 +74,7 @@ executable RNAlienScan
   other-modules:       Paths_RNAlien
   build-depends:       base >=4.5 && <5, cmdargs, directory,
                        random, containers, RNAlien, time, either-unwrap, filepath,
-                       BiobaseFasta == 0.3.0.*, StockholmAlignment
+                       BiobaseFasta == 0.4.0.*, StockholmAlignment
 
 executable RNAlienStatistics
   Hs-Source-Dirs:      ./Biobase/
@@ -84,7 +84,7 @@ executable RNAlienStatistics
   other-modules:       Paths_RNAlien
   build-depends:       base >=4.5 && <5, cmdargs, cassava, vector, process, bytestring,
                        either-unwrap, RNAlien, directory, split, filepath, ViennaRNAParser>=1.3.2,
-                       BiobaseFasta == 0.3.0.*, BiobaseTypes == 0.2.0.*
+                       BiobaseFasta == 0.4.0.*, BiobaseTypes == 0.2.1.*
 
 executable cmsearchToBed
   Hs-Source-Dirs:      ./Biobase/
@@ -110,8 +110,8 @@ Library
                        parsec, random, bytestring, Taxonomy >= 2.1.0, either-unwrap, containers,
                        ClustalParser>=1.3.0, vector, edit-distance, cassava, matrix, hierarchical-clustering,
                        filepath, HTTP, http-conduit, hxt, network<=2.8.0.0, aeson<=1.6.0.0, text, transformers,
-                       pureMD5, http-types, text-metrics, BiobaseTypes == 0.2.0.*, BiobaseFasta == 0.3.0.*,
-                       BiobaseBlast == 0.3.1.*, BlastHTTP >= 1.4.1, BiobaseHTTP == 1.2.0, silently, StockholmAlignment>=1.3.0, BiobaseEnsembl>=0.2.0.0, parallel, attoparsec
+                       pureMD5, http-types, text-metrics, BiobaseTypes == 0.2.1.*, BiobaseFasta == 0.4.0.*,
+                       BiobaseBlast == 0.3.3.*, BlastHTTP >= 1.4.2, BiobaseHTTP == 1.2.0, silently, StockholmAlignment>=1.3.0, BiobaseEnsembl>=0.2.0.0, parallel, attoparsec
   Exposed-Modules:     Biobase.RNAlien.Types
                        Biobase.RNAlien.Library
                        Biobase.RNAlien.RNAcentralHTTP
