@@ -6,18 +6,22 @@ services:
   - docker
 
 before_script:
-  - docker build --tag devel -f Dockerfile.dev .
+  - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+  - docker build --tag $DOCKER_USERNAME/rnalien -f Dockerfile.dev .
 
 script:
-  - docker create --name develcontainer devel
+  - docker create --name develcontainer devel $DOCKER_USERNAME/rnalien
+  - docker images
   - mkdir RNAlien
-  - docker cp develcontainer:/source/dist-newstyle/build/x86_64-linux/ghc-8.6.5/RNAlien-1.8.0/x/RNAlien/build/RNAlien/RNAlien RNAlien
-  - docker cp develcontainer:/source/dist-newstyle/build/x86_64-linux/ghc-8.6.5/RNAlien-1.8.0/x/RNAlienStatistics/build/RNAlienStatistics/RNAlienStatistics RNAlien
-  - docker cp develcontainer:/source/dist-newstyle/build/x86_64-linux/ghc-8.6.5/RNAlien-1.8.0/x/cmsearchToBed/build/cmsearchToBed/cmsearchToBed RNAlien
-  - docker cp develcontainer:/source/dist-newstyle/build/x86_64-linux/ghc-8.6.5/RNAlien-1.8.0/x/RNAcentralHTTPRequest/build/RNAcentralHTTPRequest/RNAcentralHTTPRequest RNAlien
-  - docker cp develcontainer:/source/dist-newstyle/build/x86_64-linux/ghc-8.6.5/RNAlien-1.8.0/x/RNAlienScan/build/RNAlienScan/RNAlienScan RNAlien
+  - docker cp develcontainer:/RNAlien RNAlien
+  - docker cp develcontainer:/RNAlienStatistics RNAlien
+  - docker cp develcontainer:/cmsearchToBed RNAlien
+  - docker cp develcontainer:/RNAcentralHTTPRequest RNAlien
+  - docker cp develcontainer:/RNAlienScan RNAlien
   - cp LICENSE RNAlien
   - tar -cvzf RNAlien.tar.gz RNAlien
+  - docker push $DOCKER_USERNAME/rnalien
+  - docker run --rm $DOCKER_USERNAME/rnalien /RNAlien --help
 
 
 deploy:

@@ -6,3 +6,11 @@ RUN apk add --no-cache musl musl-dev musl-utils musl-dbg ghc ghc-dev ghc-doc cab
 ADD . source
 WORKDIR source
 RUN cabal new-update && cabal new-build --enable-executable-static
+RUN cp /source/dist-newstyle/build/x86_64-linux/ghc-*/RNAlien-*/x/RNAlien/build/RNAlien/RNAlien /RNAlien
+RUN cp /source/dist-newstyle/build/x86_64-linux/ghc-*/RNAlien-*/x/RNAlienScan/build/RNAlienScan/RNAlienScan /RNAlienScan
+RUN cp /source/dist-newstyle/build/x86_64-linux/ghc-*/RNAlien-*/x/RNAlienStatistics/build/RNAlienStatistics/RNAlienStatistics /RNAlienStatistics
+RUN cp /source/dist-newstyle/build/x86_64-linux/ghc-*/RNAlien-*/x/cmsearchToBed/build/cmsearchToBed/cmsearchToBed /cmsearchToBed
+RUN cp /source/dist-newstyle/build/x86_64-linux/ghc-*/RNAlien-*/x/RNAcentralHTTPRequest/build/RNAcentralHTTPRequest/RNAcentralHTTPRequest /RNAcentralHTTPRequest
+RUN cabal new-clean
+RUN rm -r /source
+RUN apk del musl musl-dev musl-utils musl-dbg ghc ghc-dev ghc-doc cabal zlib-static zlib-dev zlib tar gzip wget
