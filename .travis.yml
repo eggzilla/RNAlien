@@ -10,7 +10,7 @@ before_script:
   - docker build --tag $DOCKER_USERNAME/rnalien -f Dockerfile.dev .
 
 script:
-  - docker create --name develcontainer devel $DOCKER_USERNAME/rnalien
+  - docker create --name develcontainer $DOCKER_USERNAME/rnalien
   - docker images
   - mkdir RNAlien
   - docker cp develcontainer:/RNAlien RNAlien
