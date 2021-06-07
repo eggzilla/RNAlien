@@ -1,6 +1,11 @@
 -*-change-log-*-
 
-### 1.8.0 [Florian Eggenhofer](mailto:egg@cs.uni-freiburg.de) tbd
+### 1.8.5 [Florian Eggenhofer](mailto:egg@cs.uni-freiburg.de) 6. June 2021
+
+        * Compatibility with ghc 9
+        * Testing with github actions
+
+### 1.8.0 [Florian Eggenhofer](mailto:egg@cs.uni-freiburg.de) 3. January 2020
 
 	* Construction start from input alignment for Scan and Alien
 	* Alien is working fully offline, by using offline taxonomy database

@@ -6,18 +6,18 @@ It is available as a commandline tool, for testing or construction of few sequen
 
 The source code of RNAlien is open source and available via GitHub and Hackage (License GPL-3):
 
-*   [![GitHub](https://img.shields.io/github/tag/eggzilla/RNAlien.svg)](https://github.com/eggzilla/RNAlien) [![Build Status](https://travis-ci.org/eggzilla/RNAlien.svg?branch=master)](https://travis-ci.org/eggzilla/RNAlien) [![Hackage](https://img.shields.io/hackage/v/RNAlien.svg)](https://hackage.haskell.org/package/RNAlien) [![Bioconda](https://anaconda.org/bioconda/rnalien/badges/version.svg)](https://anaconda.org/bioconda/rnalien) [![Docker Repository on Quay](https://quay.io/repository/biocontainers/RNAlien/status "Docker Repository on Quay")](https://quay.io/repository/repository/biocontainers/RNAlien)
+*   [![GitHub](https://img.shields.io/github/tag/eggzilla/RNAlien.svg)](https://github.com/eggzilla/RNAlien) [![Build Status](https://travis-ci.org/eggzilla/RNAlien.svg?branch=master)](https://travis-ci.org/eggzilla/RNAlien) [![Hackage](https://img.shields.io/hackage/v/RNAlien.svg)](https://hackage.haskell.org/package/RNAlien) [![Bioconda](https://anaconda.org/bioconda/rnalien/badges/version.svg)](https://anaconda.org/bioconda/rnalien) ![Docker Image Version (latest by date)](https://img.shields.io/docker/v/eggzilla/rnalien) ![github action: master](https://github.com/eggzilla/RNAlien/actions/workflows/action.yml/badge.svg)
 
 
     ### <u>Installation via bioconda - recommended</u>
 
      RNAlien can be installed with all tool dependencies via [conda](https://conda.io/docs/install/quick.html). Once you have conda installed simply type:
 
-         conda create -n rnalien180 -c conda-forge -c bioconda rnalien=1.8.0
+         conda create -n rnalien185 -c conda-forge -c bioconda rnalien=1.8.5
 
      Activate the environment in which RNAlien was installed to use it:
 
-         conda activate rnalien180
+         conda activate rnalien185
     
     To use the offline-mode of the commandline tool additionally following database downloads are required:
     
